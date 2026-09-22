@@ -11,15 +11,25 @@
  * too: a row from it must not be the only nameless thing on the page.
  */
 
-export interface ChainInfo { id: string; name: string; short: string; color: string }
+export interface ChainInfo { id: string; name: string; short: string; color: string; explorer: string; explorerName: string }
 export const CHAIN_INFO: Record<string, ChainInfo> = {
-  '1': { id: '1', name: 'Ethereum', short: 'ETH', color: '#627eea' },
-  '8453': { id: '8453', name: 'Base', short: 'BASE', color: '#0052ff' },
-  '42161': { id: '42161', name: 'Arbitrum', short: 'ARB', color: '#12aaff' },
-  '56': { id: '56', name: 'BNB Chain', short: 'BNB', color: '#f0b90b' },
-  '43114': { id: '43114', name: 'Avalanche', short: 'AVAX', color: '#e84142' },
+  '1': { id: '1', name: 'Ethereum', short: 'ETH', color: '#627eea', explorer: 'https://etherscan.io', explorerName: 'Etherscan' },
+  '8453': { id: '8453', name: 'Base', short: 'BASE', color: '#0052ff', explorer: 'https://basescan.org', explorerName: 'Basescan' },
+  '42161': { id: '42161', name: 'Arbitrum', short: 'ARB', color: '#12aaff', explorer: 'https://arbiscan.io', explorerName: 'Arbiscan' },
+  '56': { id: '56', name: 'BNB Chain', short: 'BNB', color: '#f0b90b', explorer: 'https://bscscan.com', explorerName: 'BscScan' },
+  '43114': { id: '43114', name: 'Avalanche', short: 'AVAX', color: '#e84142', explorer: 'https://snowscan.xyz', explorerName: 'Snowscan' },
 }
 export const chainInfo = (id: string | undefined): ChainInfo | undefined => (id ? CHAIN_INFO[id] : undefined)
+
+/**
+ * A move the index shows is a transaction on a public chain, and the only way
+ * to check it is the chain's own explorer. A chain this file does not know
+ * gets no link rather than a guessed one.
+ */
+export const txUrl = (chainId: string | undefined, hash: string | undefined) =>
+  chainId && hash && chainInfo(chainId) ? `${chainInfo(chainId)!.explorer}/tx/${hash}` : undefined
+export const addressUrl = (chainId: string | undefined, address: string | undefined) =>
+  chainId && address && chainInfo(chainId) ? `${chainInfo(chainId)!.explorer}/address/${address}` : undefined
 
 function Glyph({ id }: { id: string }) {
   switch (id) {

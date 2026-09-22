@@ -15,7 +15,7 @@ import { marketHref } from '../state/AppState'
 /** One list, one number per row. The list decides which; the ticket decides how much and how levered. */
 export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const b = useBook()
-  const { chain } = useApp()
+  const { allChains, chainLabelFor } = useApp()
   const inGroup = b.all.filter((s) => s.group === group.id)
   const assets = [...new Set([...inGroup.map((s) => s.asset), ...b.books.filter((x) => x.group === group.id).map((x) => x.asset)])]
   const u = assets.includes(route.u) ? route.u : 'all'
@@ -45,7 +45,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
       <div className={`asset${sel ? '' : ' noticket'}`}>
         <div className="main">
           <div className="hdr">
-            <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {u}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{chain !== 'all' ? ` · ${chainLabel(chain)}` : ''}</div></div></div>
+            <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {u}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div></div></div>
             <div className="chips">
               <button className="chip" aria-pressed={u === 'all'} onClick={() => go(group.id, { s: route.s, k: route.k })}>All <span className="c">{inGroup.length}</span></button>
               {assets.map((a) => <button key={a} className="chip" aria-pressed={u === a} onClick={() => go(group.id, { u: a, s: route.s, k: route.k })}><Tok sym={a} />{a} <span className="c">{inGroup.filter((s) => s.asset === a).length}</span></button>)}

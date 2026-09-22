@@ -20,10 +20,12 @@ import { useCounts, useMyFollows, useProfiles } from '../social/queries'
 import { positionKey } from '../social/api'
 import { useSocialWrite } from '../social/sign'
 import { useMenu } from './useMenu'
+import { ProtocolChips, useProtocolFilter } from './ProtocolFilter'
+import { protocolKeyOf } from '../model/uid'
 import { Ago, Comments, Money, Who, describeTx } from './social-bits'
 import { ChainCorner } from './ChainMark'
 import { indexChainLabel } from '../index/types'
-import { Sk, Tok, pct } from './bits'
+import { Sk, Tok, TxLink, pct } from './bits'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
 import type { Strategy } from '../model/strategies'
@@ -31,17 +33,19 @@ import type { Strategy } from '../model/strategies'
 type Tab = 'following' | 'menu' | 'everyone'
 
 export function Feed({ tab: tabIn }: { tab?: string }) {
-  const { chain, chainIds } = useApp()
+  const { chainIds, allChains, chainLabelFor } = useApp()
   const { account } = useSocialWrite()
   const follows = useMyFollows(account)
   const menu = useMenu()
   const tab: Tab = tabIn === 'following' || tabIn === 'everyone' ? tabIn : 'menu'
+  const chainsParam = allChains ? undefined : chainIds.join(',')
+  const pf = useProtocolFilter('7d')
   const [limit, setLimit] = React.useState(40)
-  React.useEffect(() => setLimit(40), [tab, chain])
+  React.useEffect(() => setLimit(40), [tab, chainsParam, pf.param])
 
   const q = tab === 'following'
-    ? { follower: account, follow: 'all' as const, chainId: chain === 'all' ? undefined : chain }
-    : { chainId: chain === 'all' ? undefined : chain }
+    ? { follower: account, follow: 'all' as const, chainIds: chainsParam, protocols: pf.param }
+    : { chainIds: chainsParam, protocols: pf.param }
   const feed = useFeedPage(q, limit, tab !== 'following' || !!account)
 
   const all = feed.data?.txs ?? []
@@ -52,7 +56,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   const txs = tab === 'menu' ? all.filter(inMenu) : all
   const hidden = tab === 'menu' ? all.length - txs.length : 0
 
-  const subjects = txs.map((t) => ({ kind: 'position' as const, key: cardKey(t) })).filter((s) => !!s.key)
+  const subjects = txs.map((t) => ({ kind: 'position' as const, key: cardKey(t, pf.picked) })).filter((s) => !!s.key)
   const counts = useCounts(subjects)
   const { profile } = useProfiles(txs.map((t) => t.accounts[0]).filter(Boolean))
   const [open, setOpen] = React.useState<string | null>(null)
@@ -66,8 +70,10 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           <button aria-pressed={tab === 'everyone'} onClick={() => go('feed', { t: 'everyone' })}>Everyone</button>
         </div>
         <span className="sp" />
-        <span className="sub t50">{chain === 'all' ? `${chainIds.length} chains` : chainLabel(chain)} · live</span>
+        <span className="sub t50">{chainLabelFor()} · live</span>
       </div>
+
+      <ProtocolChips f={pf} />
 
       {tab === 'following' && !account && <div className="note">Connect a wallet to see what the people and markets you follow are doing. Reading anyone is possible because the chain is public; the feed is just the part you chose.</div>}
       {tab === 'following' && account && !follows.isLoading && !follows.wallets.length && !follows.markets.length && (
@@ -81,8 +87,9 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           <div className="empty">Nothing here yet{tab === 'menu' ? ' in the markets this app can open' : ''}.</div>
         )}
         {txs.map((t) => (
-          <Card key={`${t.chainId}:${t.txHash}`} tx={t} profile={profile(t.accounts[0] ?? '')} strategy={menu.forUid(primaryLeg(t)?.marketUid)}
-            comments={counts.count('position', cardKey(t))} open={open === t.txHash} onToggle={() => setOpen(open === t.txHash ? null : t.txHash)} />
+          <Card key={`${t.chainId}:${t.txHash}`} tx={t} profile={profile(t.accounts[0] ?? '')}
+            strategy={menu.forUid(primaryLeg(t, pf.picked)?.marketUid)} only={pf.picked}
+            comments={counts.count('position', cardKey(t, pf.picked))} open={open === t.txHash} onToggle={() => setOpen(open === t.txHash ? null : t.txHash)} />
         ))}
       </div>
 
@@ -96,33 +103,48 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   )
 }
 
-/** The leg a card is ABOUT: the biggest supply-side leg, else the biggest leg. */
-export function primaryLeg(t: TxBundle): TxLeg | undefined {
+/**
+ * The leg a card is ABOUT: the biggest supply-side leg, else the biggest leg.
+ *
+ * `only` is the active protocol filter. A bundle is a whole TRANSACTION, and
+ * the index keeps every leg of one that matched — so a six-leg transaction
+ * that touched Morpho and Spark is returned in full when Morpho is picked.
+ * Without this the card could headline the Spark leg and read as though the
+ * filter had leaked. Preferring a leg the filter chose makes the card explain
+ * why it is there, while the other legs stay in the bundle where they belong.
+ */
+export function primaryLeg(t: TxBundle, only?: string[]): TxLeg | undefined {
   const size = (l: TxLeg) => Math.abs(l.amountUsd ?? 0)
-  const supply = t.legs.filter((l) => l.side !== 'borrow')
-  const pick = (supply.length ? supply : t.legs).slice().sort((a, b) => size(b) - size(a))[0]
+  const wanted = only?.length
+    ? t.legs.filter((l) => only.includes(protocolKeyOf(l.lenderKey)))
+    : []
+  const pool = wanted.length ? wanted : t.legs
+  const supply = pool.filter((l) => l.side !== 'borrow')
+  const pick = (supply.length ? supply : pool).slice().sort((a, b) => size(b) - size(a))[0]
   return pick ?? t.legs[0]
 }
 /** The card's thread: the POSITION, which is stable and is what a comment written at execution time is posted against. */
-export function cardKey(t: TxBundle): string {
-  const l = primaryLeg(t)
+export function cardKey(t: TxBundle, only?: string[]): string {
+  const l = primaryLeg(t, only)
   if (!l?.marketUid) return ''
   return positionKey({ chainId: t.chainId, account: l.account, marketUid: l.marketUid, side: l.side, posId: l.posId })
 }
 
-function Card({ tx, profile, strategy, comments, open, onToggle }: {
+function Card({ tx, profile, strategy, comments, open, onToggle, only }: {
   tx: TxBundle
   profile: ReturnType<ReturnType<typeof useProfiles>['profile']>
   strategy: Strategy | null
   comments: number
   open: boolean
   onToggle: () => void
+  /** the active protocol filter, so the card headlines the leg that matched */
+  only?: string[]
 }) {
-  const leg = primaryLeg(tx)
+  const leg = primaryLeg(tx, only)
   const who = tx.accounts[0] ?? leg?.account ?? ''
   const { verb, cls } = describeTx(tx.kinds)
   const borrow = tx.legs.find((l) => l.side === 'borrow')
-  const key = cardKey(tx)
+  const key = cardKey(tx, only)
   return (
     <article className="fcard">
       <div className="fc-h">
@@ -130,6 +152,7 @@ function Card({ tx, profile, strategy, comments, open, onToggle }: {
         <span className="sp" />
         <ChainCorner chainId={tx.chainId} />
         <Ago ts={tx.blockTs} />
+        <TxLink chainId={tx.chainId} hash={tx.txHash} />
       </div>
       <div className="fc-b">
         <span className={`verb ${cls}`}>{verb}</span>

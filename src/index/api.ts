@@ -23,6 +23,10 @@ async function get<T>(path: string, p: Params = {}, signal?: AbortSignal): Promi
 
 /** The feed. `follower` resolves the follow graph in SQL server-side; a wallet that follows nobody gets an EMPTY feed, never the global one. */
 export interface RecentQuery extends Params {
+  /** several chains, comma-joined — the selector is multi-select */
+  chainIds?: string
+  /** protocol keys from the `/protocols` facet, comma-joined */
+  protocols?: string
   chainId?: string
   kind?: string
   limit?: number
@@ -105,7 +109,24 @@ export interface HotMarket {
   /** 0..1 — the same for how often people acted in it */
   pEvents: number
 }
-export const hot = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; limit?: number } = {}) =>
+export const hot = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; limit?: number } = {}) =>
   get<{ window: string; hours: number; method: string; markets: HotMarket[] }>('/hot', p)
+
+/**
+ * The protocols worth offering as a filter: the ones with activity in the
+ * window, with the counts that justify each choice. `protocol` is the key to
+ * send back as `protocols=`.
+ */
+export interface ProtocolFacet {
+  protocol: string
+  name: string | null
+  logoUri: string | null
+  chains: string[]
+  rows: number
+  wallets: number
+  markets: number
+}
+export const protocols = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainIds?: string; limit?: number } = {}) =>
+  get<{ window: string; hours: number; protocols: ProtocolFacet[] }>('/protocols', p)
 
 export const health = () => get<{ ok: boolean; chains?: string[] }>('/health')

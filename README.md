@@ -31,7 +31,7 @@ Three layers, and the middle one is the unit of account:
 | Layer | What it is | Where it comes from |
 |---|---|---|
 | **Group** | collateral exposure: USD · ETH · BTC · More | `model/assets.ts` |
-| **Asset** | the thing you own: USDC, USDT, USDe, USDS, DAI, USDG … ETH · WBTC, cbBTC … EURC, XAUt | a whitelist in `model/assets.ts`; wrappers never appear as assets |
+| **Asset** | the thing you own: USDC, USDT, USDe, USDS, DAI, USDG, avUSD … ETH · WBTC, cbBTC, BTC.b … BNB, AVAX, EURC, XAUt | a whitelist in `model/assets.ts`; wrappers never appear as assets |
 | **Strategy** | anything on top of an asset | a **deposit** = one `/v1/data/earn` row (lending market, savings module, LST, PT, curated vault); a **loop** = one `/v1/data/lending/pairs/optimize` row whose collateral resolves to a base asset and whose debt is the same denomination |
 
 So sUSDe is a USDe strategy, syrupUSDC a USDC strategy, wstETH an ETH strategy,
@@ -296,8 +296,14 @@ is on the public, per-IP rate-limited endpoint.
   asset's own strategies.
 - Some lenders (LlamaLend) refuse a quote without an account, so the entry
   cost cell reads "no quote" until an address is set.
-- With "All" selected the app reads Ethereum, Base, Arbitrum and BNB Chain;
-  other chains the API knows are not offered. BNB and its staking wrappers
-  (slisBNB, BNBx, ankrBNB) sit in the "More" group.
+- With "All" selected the app reads Ethereum, Base, Arbitrum, BNB Chain and
+  Avalanche; other chains the API knows are not offered. BNB, AVAX and their
+  staking wrappers (slisBNB, BNBx, ankrBNB, sAVAX, ggAVAX) sit in the "More"
+  group, as do the euro and gold.
+- **"More" is a drawer, not a denomination.** A loop is only carry when both
+  legs are the same *money*, so the pair test is `sameMoney` in
+  `model/assets.ts` (`denomOf`) and not the display group — otherwise sAVAX
+  against EURC reads as a carry when it is a bet on AVAX against the euro. The
+  optimizer really does return that row.
 - Brokered fixed-term markets (Lista broker, Midnight, Term) are not listed:
   the ticket has no term picker yet.

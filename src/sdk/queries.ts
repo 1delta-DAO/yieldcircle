@@ -10,6 +10,7 @@ export const CHAINS: { id: string; label: string }[] = [
   { id: '8453', label: 'Base' },
   { id: '42161', label: 'Arbitrum' },
   { id: '56', label: 'BNB' },
+  { id: '43114', label: 'Avalanche' },
 ]
 export const chainLabel = (id: string) => CHAINS.find((c) => c.id === id)?.label ?? id
 

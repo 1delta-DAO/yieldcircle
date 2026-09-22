@@ -61,3 +61,20 @@ export function parseUid(uid: string): { lender: string; chainId: string; ref: s
   if (i < 0 || j < 0) return null
   return { lender: uid.slice(0, i), chainId: uid.slice(i + 1, j), ref: uid.slice(j + 1) }
 }
+
+/**
+ * The PROTOCOL a lender key belongs to — a port of the index's
+ * `protocolKeyOf`, so a client can tell which leg of a transaction matched a
+ * protocol filter without asking. Ported and not imported, like every other
+ * rule this app shares with the index; the index's own tests pin the cases
+ * (`packages/position-store/test/protocolKey.test.ts`).
+ *
+ *   AAVE_V4_94E7A5DC…  → AAVE_V4       COMPOUND_V3_WETH   → COMPOUND_V3
+ *   FLUID_8453_LENDING → FLUID         vault.morpho       → vault.morpho
+ */
+export function protocolKeyOf(lenderKey: string): string {
+  if (lenderKey.startsWith('vault.')) return lenderKey
+  if (/^FLUID_\d+(_|$)/.test(lenderKey)) return 'FLUID'
+  if (/^COMPOUND_V3_/.test(lenderKey)) return 'COMPOUND_V3'
+  return lenderKey.replace(/(_(?:[0-9A-Fa-f]{8,}|\d+))+$/, '')
+}

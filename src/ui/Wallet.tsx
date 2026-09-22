@@ -16,7 +16,7 @@ import { useFollowers, useProfile, useProfiles } from '../social/queries'
 import { Badges, FollowButton, Money, Who, Ago, describeTx, tokens } from './social-bits'
 import { Character, specFor, unearned } from '../identity/character'
 import { autoName, shortAddr } from '../identity/name'
-import { Sk, Tok, pct, usd, usdShort } from './bits'
+import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { indexChainLabel } from '../index/types'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
@@ -99,12 +99,15 @@ export function Wallet({ addr }: { addr: string }) {
           <div className="tape">{(txs.data?.txs ?? []).map((t) => {
             const l = primaryLeg(t), d = describeTx(t.kinds)
             return (
-              <a key={`${t.chainId}:${t.txHash}`} className="tape-row" href={l?.marketUid ? marketHref(l.marketUid) : undefined}>
-                <span className={`verb ${d.cls}`}>{d.verb}</span>
-                <span className="tr-m">{l?.marketName ?? l?.symbol ?? '—'} <span className="t50">{l?.lenderName ?? l?.lenderKey}</span></span>
-                <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} fromIndex={l?.amountFromIndex} amount={l?.amount} symbol={l?.symbol} short /></span>
-                <span className="tr-t"><Ago ts={t.blockTs} /></span>
-              </a>
+              <div key={`${t.chainId}:${t.txHash}`} className="tape-item">
+                <a className="tape-row" href={l?.marketUid ? marketHref(l.marketUid) : undefined}>
+                  <span className={`verb ${d.cls}`}>{d.verb}</span>
+                  <span className="tr-m">{l?.marketName ?? l?.symbol ?? '—'} <span className="t50">{l?.lenderName ?? l?.lenderKey}</span></span>
+                  <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} fromIndex={l?.amountFromIndex} amount={l?.amount} symbol={l?.symbol} short /></span>
+                  <span className="tr-t"><Ago ts={t.blockTs} /></span>
+                </a>
+                <TxLink chainId={t.chainId} hash={t.txHash} />
+              </div>
             )
           })}</div>
         </div>

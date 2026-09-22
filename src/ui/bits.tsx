@@ -1,6 +1,7 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { assetLogo, colorOf, short, unitOf } from '../model/assets'
+import { chainInfo, txUrl } from './ChainMark'
 import type { Risk } from '../model/strategies'
 
 export const pct = (x: number | null | undefined, d = 2) => (x == null || !Number.isFinite(x) ? '—' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%')
@@ -134,6 +135,26 @@ export function KindPill({ kind, source }: { kind: 'simple' | 'loop'; source?: s
   if (kind === 'loop') return <span className="pill loop">Loop</span>
   if (source === 'fixed') return <span className="pill pt">Fixed</span>
   return <span className="pill dep">Deposit</span>
+}
+/**
+ * The transaction behind a row, on the chain's own explorer. Every number in
+ * this app is derived from one log of one transaction, and this is how anyone
+ * can check it — so the icon is on the card, not in a tooltip. A chain
+ * `ChainMark.tsx` has no explorer for renders nothing rather than a dead link.
+ */
+export function TxLink({ chainId, hash, label }: { chainId: string | undefined; hash: string | undefined; label?: string }) {
+  const href = txUrl(chainId, hash)
+  if (!href) return null
+  const where = chainInfo(chainId)?.explorerName ?? 'the block explorer'
+  return (
+    <a className="txlink" href={href} target="_blank" rel="noreferrer" title={`${hash} · open on ${where}`}
+      aria-label={`Open the transaction on ${where}`} onClick={(e) => e.stopPropagation()}>
+      {label && <span className="mono">{label}</span>}
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M14 4h6v6" /><path d="M20 4 11 13" /><path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" />
+      </svg>
+    </a>
+  )
 }
 export function Sk({ w = 80, h = 12 }: { w?: number | string; h?: number }) { return <span className="sk" style={{ width: w, height: h }} aria-hidden /> }
 export function GroupIcon({ id, color, size = 20 }: { id: string; color: string; size?: number }) {

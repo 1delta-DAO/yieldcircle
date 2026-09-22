@@ -23,9 +23,9 @@ const WINDOWS: Win[] = ['24h', '7d', '30d']
 const HOURS: Record<Win, number> = { '24h': 24, '7d': 168, '30d': 720 }
 
 export function Board({ window: w }: { window?: string }) {
-  const { chain } = useApp()
+  const { chainIds, allChains, chainLabelFor } = useApp()
   const win: Win = WINDOWS.includes(w as Win) ? (w as Win) : '7d'
-  const chainId = chain === 'all' ? undefined : chain
+  const chainId = allChains || chainIds.length > 1 ? undefined : chainIds[0]
 
   const real = useQuery({
     queryKey: ['leaderboard', win, chainId ?? 'all'],
@@ -36,10 +36,10 @@ export function Board({ window: w }: { window?: string }) {
   // the fallback: aggregate the window's tape per wallet, client-side
   const fallback = useQuery({
     enabled: real.isError,
-    queryKey: ['board-fallback', win, chainId ?? 'all'],
+    queryKey: ['board-fallback', win, chainIds.join(',')],
     queryFn: async () => {
       const since = new Date(Date.now() - HOURS[win] * 3600_000).toISOString()
-      const r = await idx.recentEvents({ since, limit: 1000, chainId })
+      const r = await idx.recentEvents({ since, limit: 1000, chainIds: allChains ? undefined : chainIds.join(',') })
       const by = new Map<string, { account: string; netUsd: number; n: number }>()
       for (const e of r.events) {
         if (e.accountKind === 'vault' || e.accountKind === 'protocol' || e.accountKind === 'router') continue

@@ -602,3 +602,77 @@ Two refusals worth keeping:
 
 Served by `GET /hot?window=1h|6h|24h|7d` on the index
 (`store.hotMarkets`), which returns every component of the score.
+
+
+---
+
+## 14 · Filters
+
+*Added 2026-09-22.*
+
+### The research question: does the 1delta API need a new endpoint?
+
+**No.** It already carries the taxonomy, in two places:
+
+- `/v1/data/earn` returns a **`facets.protocols`** block — 69 protocols with
+  counts, human-readable ("Morpho" 196, "Aave" 48, "Fluid" 40 …). That is a
+  filter facet, ready-made.
+- Every row carries **`protocol: { key, name }`**, mapping `venue → protocol`
+  and already collapsing instance noise: seven `AAVE_V4_<address>` pools and
+  six `COMPOUND_V3_<asset>` comets all resolve to "Aave" and "Compound".
+
+Measured against 5,000 live ledger rows across all five chains: **40 of 55
+lender keys (74 % of rows) map straight through**, and the remaining 15 are
+mechanical (`MORPHO_BLUE`, `LISTA_DAO`, `EXACTLY_<addr>`,
+`FLUID_<chain>_LENDING`) or protocols the earn listing does not carry because
+they are not earn products (`COMPOUND_V2`, `AAVE_V2`, `LIQUITY_V2`,
+`MORPHO_MIDNIGHT`).
+
+So nothing upstream is needed. What the **index** needed was the grouping, and
+it turned out the names were already there too: `idx.lenders` carries derived
+base rows per key family (`FLUID_1_11` → `FLUID` → "Fluid"), so the facet
+borrows the vocabulary every ledger row already uses rather than inventing a
+second one.
+
+### What was built
+
+**`protocolKeyOf`** in `position-store` strips the *instance* and keeps the
+*protocol*, as one rule with one SQL twin so a facet and a filter can never
+disagree with a row:
+
+```
+AAVE_V4_94E7A5DC…   → AAVE_V4        COMPOUND_V3_WETH    → COMPOUND_V3
+EXACTLY_61EDACB5…   → EXACTLY        FLUID_8453_LENDING  → FLUID
+MORPHO_BLUE         → MORPHO_BLUE    vault.morpho        → vault.morpho
+```
+
+The **version stays**: `AAVE_V2`, `AAVE_V3` and `AAVE_V4` are three protocols
+in the key space, and collapsing all three to the word "Aave" is a display
+decision that belongs upstream. Seven unit tests pin it against every lender
+key the live ledger actually produces.
+
+`GET /protocols?window=&chainIds=` is the facet; `/events/recent` and `/hot`
+take `chainIds=` and `protocols=`.
+
+### Two decisions in the UI
+
+**The chain filter is global; the protocol filter is local.** The chain
+selector says *which world you are looking at*, and every surface should agree
+about that — so it lives in the navbar and every feed reads it. Which
+protocols you want is a question about the list in front of you, so the chips
+sit beside that list and reset when you leave. Multi-select, and **"All" is
+the absence of a selection rather than a member of it**: clearing beats
+selecting all five, because a chain added tomorrow is then in scope without
+anyone re-picking. Alt-click narrows to one.
+
+**A filtered card headlines the leg that matched.** A `group=tx` bundle is a
+whole transaction, so filtering for Morpho keeps a six-leg transaction that
+touched Morpho *and* Spark — and the card was headlining the Spark leg, which
+read as though the filter had leaked. `primaryLeg(t, picked)` prefers a leg
+the filter chose; the rest stay in the bundle, where they belong.
+
+**The facet only offers what exists.** A filter listing forty venues where
+thirty are empty is worse than no filter: every empty choice is a promise the
+page cannot keep. The chips show counts (`Morpho 3.5k`) and a protocol that
+leaves the window — or the chain scope — is dropped from the selection rather
+than filtering on invisibly.

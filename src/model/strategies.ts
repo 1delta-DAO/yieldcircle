@@ -4,7 +4,7 @@
  * resolves to a base asset and whose debt is the same denomination. Pure functions.
  */
 import type { EarnMarket, OptimizerRowRaw } from '../sdk/types'
-import { baseOfCollateral, baseOfSymbol, groupOf, type GroupId } from './assets'
+import { baseOfCollateral, baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
 import STRATEGY_TOKENS from '../data/strategy-tokens.json'
 /** `chain:vaultAddress` → the share token you end up holding (scripts/logos.mjs, from the chain token lists). */
@@ -150,7 +150,10 @@ export function loopFromRow(r: OptimizerRowRaw): LoopStrategy | null {
   const asset = baseOfCollateral(L, S.symbol)
   if (!asset) return null
   const debtBase = baseOfSymbol(S.symbol)
-  if (!debtBase || groupOf(debtBase) !== groupOf(asset)) return null              // carry, not a directional bet
+  // the SAME MONEY, not merely the same tab: 'More' holds BNB, AVAX, the euro
+  // and gold together, and sAVAX against EURC is a price bet wearing a carry's
+  // clothes (docs: assets.ts `denomOf`)
+  if (!debtBase || !sameMoney(debtBase, asset)) return null
   // a carry needs collateral that yields on its own (staking, savings, a PT, a fund); lending one plain stable against another is a rate bet on a small market
   const p = L.props ?? {}
   if (!(p.lst || p.savings || p.pendle || p.spectra || p.rwa || (L.intrinsicYield ?? 0) > 0)) return null

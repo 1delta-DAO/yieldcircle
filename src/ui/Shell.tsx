@@ -10,7 +10,7 @@ import { useUnseen } from './Alerts'
 import { ChainMark } from './ChainMark'
 
 export function Shell({ children }: { children: React.ReactNode }) {
-  const { chain, setChain, signer } = useApp()
+  const { chains, setChains, toggleChain, allChains, signer } = useApp()
   const r = useRoute()
   return (
     <>
@@ -24,10 +24,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <a href="#/board" aria-current={r.view === 'board' ? 'page' : undefined}>Board</a>
         </nav>
         <span className="sp" />
-        <div className="seg chainseg" role="group" aria-label="Chain">
-          <button aria-pressed={chain === 'all'} onClick={() => setChain('all')}>All</button>
+        {/*
+          Multi-select, and "All" is the ABSENCE of a selection rather than a
+          member of it: clearing beats selecting every one, because a chain
+          added tomorrow is then in scope without anyone re-picking. A chain
+          toggles on click; alt-click narrows to it alone, which is the thing
+          people actually want most of the time.
+        */}
+        <div className="seg chainseg" role="group" aria-label="Chains">
+          <button aria-pressed={allChains} onClick={() => setChains([])} title="Every chain">All</button>
           {CHAINS.map((c) => (
-            <button key={c.id} aria-pressed={chain === c.id} onClick={() => setChain(c.id)} title={c.label}>
+            <button key={c.id} aria-pressed={chains.includes(c.id)} title={`${c.label} — alt-click for only this one`}
+              onClick={(e) => (e.altKey ? setChains([c.id]) : toggleChain(c.id))}>
               <ChainMark chainId={c.id} size={15} />
               <span className="cn">{c.label}</span>
             </button>

@@ -512,6 +512,9 @@ a.who:hover .wn b{color:var(--primary)}
 .fcard{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);padding:14px 16px;display:flex;flex-direction:column;gap:9px;transition:border-color .15s}
 .fcard:hover{border-color:var(--line2)}
 .fc-h{display:flex;align-items:center;gap:10px}
+/* the out-link to the chain's explorer: quiet until the row is under the cursor, never hidden */
+.txlink{display:inline-flex;align-items:center;gap:5px;color:var(--tx50);flex:0 0 auto;font-size:12px}
+.txlink:hover{color:var(--tx)}
 .fc-b{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
 .fc-m{display:inline-flex;align-items:center;gap:7px;min-width:0;border:1px solid var(--line);border-radius:999px;padding:3px 11px 3px 4px;background:var(--bg);font-size:13px}
 .fc-m:hover{border-color:var(--line2)}
@@ -588,6 +591,13 @@ a.who:hover .wn b{color:var(--primary)}
 .tape-row.alert{grid-template-columns:minmax(120px,auto) minmax(90px,auto) minmax(0,1fr) 92px 46px}
 .tape-row:last-child{border-bottom:0}
 .tape-row:hover{background:#131313}
+/* a tape row that carries the explorer out-link: the row keeps its own grid inside the
+   link (a link cannot hold another one), the icon sits beside it in the wrapper */
+.tape-item{display:flex;align-items:stretch;border-bottom:1px solid var(--line-soft)}
+.tape-item:last-child{border-bottom:0}
+.tape-item>.tape-row{flex:1 1 auto;min-width:0;border-bottom:0}
+.tape-item:hover{background:#131313}
+.tape-item>.txlink{padding:0 14px 0 4px;align-self:center}
 .tr-m{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx70)}
 .tr-v{font-family:var(--mono);text-align:right;color:var(--tx)}
 .tr-t{text-align:right}
@@ -658,6 +668,7 @@ a.who:hover .wn b{color:var(--primary)}
 @media (max-width:640px){
   .players{grid-template-columns:1fr}
   .tape-row{grid-template-columns:minmax(80px,auto) minmax(0,1fr) 76px;gap:8px;padding:0 10px}
+  .tape-item>.txlink{padding:0 9px 0 2px}
   .tape-row .tr-t{display:none}
   .tape-row.alert{grid-template-columns:minmax(0,1fr) 76px 40px}
   .tape-row.alert .verb,.tape-row.alert .tr-m{display:none}
@@ -806,3 +817,24 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
 .chain-corner b{font:600 9.5px/1.6 var(--mono);letter-spacing:.04em;color:var(--tx50)}
 .hotcard .chain-corner{margin-left:8px}
 @media (max-width:520px){ .chain-corner b{display:none} .chain-corner{padding:2px;border-color:transparent;background:none} }
+
+/* ---------- filters ---------- */
+/* the chain selector is multi-select now: a pressed chain is IN scope, and
+   "All" is the absence of a selection rather than one of the options */
+.chainseg button[aria-pressed="true"]{background:#062830;color:var(--tx);box-shadow:inset 0 -2px 0 var(--primary)}
+.chainseg button:first-child[aria-pressed="true"]{box-shadow:inset 0 -2px 0 var(--tx50);background:var(--b300)}
+
+/* protocol chips: local to the list they filter, and never offering an empty choice */
+.pchips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.pchip{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 10px;border:1px solid var(--line2);
+  border-radius:999px;font-size:12px;color:var(--tx50);white-space:nowrap;max-width:210px}
+.pchip:hover{color:var(--tx);border-color:var(--tx50)}
+.pchip[aria-pressed="true"]{border-color:var(--primary);color:var(--tx);background:#062830}
+.pchip img,.pchip .plogo{width:15px;height:15px;border-radius:50%;flex:none;object-fit:cover;background:#111}
+.pchip .plogo{display:grid;place-items:center;font:600 8px/1 var(--mono);font-style:normal;color:var(--tx50);background:var(--b400)}
+.pchip .pn{overflow:hidden;text-overflow:ellipsis}
+.pchip .pc{font-family:var(--mono);font-size:10.5px;color:var(--tx40)}
+.pchip[aria-pressed="true"] .pc{color:var(--primary)}
+.pchip.all,.pchip.more{color:var(--tx40)}
+.pchip.all[aria-pressed="true"]{border-color:var(--line2);background:var(--b300);color:var(--tx70)}
+@media (max-width:640px){ .pchips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none} .pchips::-webkit-scrollbar{display:none} .pchip{flex:none} }

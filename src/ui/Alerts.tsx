@@ -33,12 +33,12 @@ export function useUnseen(): number {
 }
 
 export function Alerts() {
-  const { chain } = useApp()
+  const { chainIds, allChains } = useApp()
   const { account } = useSocialWrite()
   const f = useMyFollows(account)
   const followers = useFollowers(account)
   const has = f.wallets.length + f.markets.length > 0
-  const feed = useFeedPage({ follower: account, follow: 'all', chainId: chain === 'all' ? undefined : chain }, 60, !!account && has)
+  const feed = useFeedPage({ follower: account, follow: 'all', chainIds: allChains ? undefined : chainIds.join(',') }, 60, !!account && has)
   const txs = feed.data?.txs ?? []
   const { profile } = useProfiles(txs.map((t) => t.accounts[0]).filter(Boolean))
 

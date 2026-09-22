@@ -18,11 +18,12 @@ import { Ago, Money, Who, describeTx } from './social-bits'
 import { Sk } from './bits'
 import { primaryLeg } from './Feed'
 import { useMenu } from './useMenu'
+import { ProtocolChips, useProtocolFilter } from './ProtocolFilter'
 
 type Scope = 'menu' | 'following' | 'everyone'
 
 export function Stream({ rows = 12 }: { rows?: number }) {
-  const { chain } = useApp()
+  const { chainIds, allChains } = useApp()
   const { account } = useSocialWrite()
   const follows = useMyFollows(account)
   const menu = useMenu()
@@ -33,10 +34,11 @@ export function Stream({ rows = 12 }: { rows?: number }) {
   // only becomes `following` once there is something to follow
   React.useEffect(() => { if (canFollow) setScope('following') }, [canFollow])
 
+  const pf = useProtocolFilter('24h')
   const q = useFeedPage(
     scope === 'following'
-      ? { follower: account, follow: 'all' as const, chainId: chain === 'all' ? undefined : chain }
-      : { chainId: chain === 'all' ? undefined : chain },
+      ? { follower: account, follow: 'all' as const, chainIds: allChains ? undefined : chainIds.join(','), protocols: pf.param }
+      : { chainIds: allChains ? undefined : chainIds.join(','), protocols: pf.param },
     scope === 'menu' ? rows * 4 : rows * 2,
     scope !== 'following' || !!account,
   )
@@ -56,6 +58,7 @@ export function Stream({ rows = 12 }: { rows?: number }) {
           <button aria-pressed={scope === 'everyone'} onClick={() => setScope('everyone')}>everyone</button>
         </div>
       </div>
+      <ProtocolChips f={pf} max={6} />
       <div className="card stream">
         {q.isLoading && !list.length && [0, 1, 2, 3, 4].map((i) => <div key={i} className="srow"><Sk w="60%" /></div>)}
         {!q.isLoading && !list.length && (
@@ -64,7 +67,7 @@ export function Stream({ rows = 12 }: { rows?: number }) {
           </div>
         )}
         {list.map((t) => {
-          const l = primaryLeg(t)
+          const l = primaryLeg(t, pf.picked)
           const d = describeTx(t.kinds)
           const who = t.accounts[0] ?? l?.account ?? ''
           return (
@@ -91,8 +94,8 @@ export function Stream({ rows = 12 }: { rows?: number }) {
  * nothing, because it reads the stream's own query.
  */
 export function Pulse() {
-  const { chain } = useApp()
-  const q = useFeedPage({ chainId: chain === 'all' ? undefined : chain }, 12)
+  const { chainIds, allChains } = useApp()
+  const q = useFeedPage({ chainIds: allChains ? undefined : chainIds.join(',') }, 12)
   const txs = q.data?.txs ?? []
   const [i, setI] = React.useState(0)
   React.useEffect(() => {

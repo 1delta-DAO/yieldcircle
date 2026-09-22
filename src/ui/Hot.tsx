@@ -21,6 +21,7 @@ import type { HotMarket } from '../index/api'
 import { useCounts } from '../social/queries'
 import { useMenu } from './useMenu'
 import { Comments } from './social-bits'
+import { ProtocolChips, useProtocolFilter } from './ProtocolFilter'
 import { ChainCorner } from './ChainMark'
 import { Sk, StratMark, Tok, Toks, pct, usdShort } from './bits'
 import { chainLabel } from '../sdk/queries'
@@ -31,10 +32,11 @@ type Win = '1h' | '6h' | '24h' | '7d'
 const WINDOWS: Win[] = ['1h', '6h', '24h', '7d']
 
 export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean }) {
-  const { chain } = useApp()
+  const { chainIds, allChains, chainLabelFor } = useApp()
   const [win, setWin] = React.useState<Win>('24h')
   const menu = useMenu()
-  const q = useHot(win, chain === 'all' ? undefined : chain, showAll ? 40 : 24)
+  const pf = useProtocolFilter(win)
+  const q = useHot(win, allChains ? undefined : chainIds.join(','), showAll ? 40 : 24, pf.param)
   const rows = q.data?.markets ?? []
 
   // a market nobody here can open is a log line, not an option — the menu
@@ -64,12 +66,13 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
           ))}
         </div>
       </div>
+      <ProtocolChips f={pf} max={7} />
       {q.isLoading && !rows.length && (
         <div className="hot-grid">{[0, 1, 2, 3].map((i) => <div key={i} className="hotcard"><Sk w="70%" /><Sk w="40%" /></div>)}</div>
       )}
       {!q.isLoading && !shown.length && (
         <div className="note hot-empty">
-          <b>Quiet on {chain === 'all' ? 'these chains' : chainLabel(chain)}</b> in the last {win}
+          <b>Quiet on {chainLabelFor()}</b> in the last {win}
           {rows.length > 0 && !inMenu.length ? ' — the markets that moved are ones this app has no row for' : ''}.
           The index ranks only what it has <b>valued</b>, so an unpriced market stays out rather than
           appearing cold.

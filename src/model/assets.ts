@@ -11,7 +11,7 @@ export const GROUPS: Group[] = [
   { id: 'USD', name: 'US Dollar', desc: 'Stablecoin strategies', color: '#3fbf7f', unit: '$' },
   { id: 'ETH', name: 'Ether', desc: 'ETH and staked ETH', color: '#8fa6ff', unit: 'ETH' },
   { id: 'BTC', name: 'Bitcoin', desc: 'BTC wrappers', color: '#f0a830', unit: 'BTC' },
-  { id: 'MORE', name: 'More', desc: 'BNB, euro, gold, other', color: '#c084fc', unit: '' },
+  { id: 'MORE', name: 'More', desc: 'BNB, AVAX, euro, gold, other', color: '#c084fc', unit: '' },
 ]
 export const group = (id: GroupId) => GROUPS.find((g) => g.id === id)!
 
@@ -33,14 +33,19 @@ const BASE: Record<string, { sym: string; group: GroupId; what: string; color: s
   USD1: { sym: 'USD1', group: 'USD', what: 'World Liberty stablecoin', color: '#d4b04a' },
   FRAX: { sym: 'FRAX', group: 'USD', what: 'Frax stablecoin', color: '#111' },
   USDTB: { sym: 'USDtb', group: 'USD', what: 'Ethena / BlackRock BUIDL-backed dollar', color: '#7d7d7d' },
+  AVUSD: { sym: 'avUSD', group: 'USD', what: 'Avant synthetic dollar', color: '#5b8def' },
   ETH: { sym: 'ETH', group: 'ETH', what: 'Ether', color: '#8fa6ff' },
   WETH: { sym: 'ETH', group: 'ETH', what: 'Ether', color: '#8fa6ff' },
   WBTC: { sym: 'WBTC', group: 'BTC', what: 'Wrapped bitcoin (BitGo)', color: '#f09242' },
   CBBTC: { sym: 'cbBTC', group: 'BTC', what: 'Coinbase wrapped bitcoin', color: '#1652f0' },
   TBTC: { sym: 'tBTC', group: 'BTC', what: 'Threshold bitcoin', color: '#7d7d7d' },
   LBTC: { sym: 'LBTC', group: 'BTC', what: 'Lombard staked bitcoin', color: '#62d0a5' },
+  // the key is the UPPER-CASED symbol, so the dot survives: 'BTC.b' → 'BTC.B'
+  'BTC.B': { sym: 'BTC.b', group: 'BTC', what: 'Avalanche bridged bitcoin (Core)', color: '#f09242' },
   BNB: { sym: 'BNB', group: 'MORE', what: 'BNB Chain native coin', color: '#f0b90b' },
   WBNB: { sym: 'BNB', group: 'MORE', what: 'BNB Chain native coin', color: '#f0b90b' },
+  AVAX: { sym: 'AVAX', group: 'MORE', what: 'Avalanche native coin', color: '#e84142' },
+  WAVAX: { sym: 'AVAX', group: 'MORE', what: 'Avalanche native coin', color: '#e84142' },
   EURC: { sym: 'EURC', group: 'MORE', what: 'Circle euro stablecoin', color: '#2775ca' },
   EURCV: { sym: 'EURCV', group: 'MORE', what: 'Société Générale euro stablecoin', color: '#e9041e' },
   XAUT: { sym: 'XAUt', group: 'MORE', what: 'Tether gold', color: '#d4af37' },
@@ -50,6 +55,9 @@ const BASE: Record<string, { sym: string; group: GroupId; what: string; color: s
 const WRAPPER: Record<string, string> = {
   SUSDE: 'USDe', SUSDS: 'USDS', SDAI: 'DAI', SDOLA: 'DOLA', SFRXUSD: 'frxUSD', SYRUPUSDC: 'USDC', SYRUPUSDT: 'USDT', SUSDC: 'USDC', SGHO: 'GHO', SFRAX: 'FRAX',
   SLISBNB: 'BNB', WBETH: 'ETH', BNBX: 'BNB', ANKRBNB: 'BNB',
+  SAVAX: 'AVAX', GGAVAX: 'AVAX', SAVUSD: 'avUSD',
+  // Avalanche's bridged ERC-20s keep a '.e' suffix; the same money either way
+  'USDC.E': 'USDC', 'USDT.E': 'USDT', 'DAI.E': 'DAI', 'WETH.E': 'ETH', 'WBTC.E': 'WBTC',
   WSTETH: 'ETH', STETH: 'ETH', WEETH: 'ETH', EETH: 'ETH', CBETH: 'ETH', RETH: 'ETH', EZETH: 'ETH', RSETH: 'ETH', OSETH: 'ETH', METH: 'ETH', FRXETH: 'ETH', SFRXETH: 'ETH', ETHX: 'ETH', SWETH: 'ETH',
 }
 
@@ -78,6 +86,32 @@ export function baseOfCollateral(a: { symbol: string; name?: string; assetGroup?
   return baseOfSymbol(debtSymbol)
 }
 export const groupOf = (base: string): GroupId => baseInfo(base)?.group ?? 'MORE'
+
+/**
+ * The money a base asset is actually denominated in — which is NOT its display
+ * group. `MORE` is a drawer: BNB, AVAX, the euro and gold all live in it
+ * because none of them deserves a tab of its own, and a group test therefore
+ * calls sAVAX / EURC a same-denomination carry when it is a bet on AVAX
+ * against the euro. Avalanche made that visible (a real `sAVAX/EURC` row came
+ * back from the optimizer); BNB / EURC could always have done the same.
+ *
+ * A loop is only carry when both legs are the same money. That is this.
+ */
+export type Denomination = 'usd' | 'eth' | 'btc' | 'bnb' | 'avax' | 'eur' | 'xau' | string
+const DENOM: Record<string, Denomination> = {
+  BNB: 'bnb', AVAX: 'avax',
+  EURC: 'eur', EURCV: 'eur',
+  XAUT: 'xau', PAXG: 'xau',
+}
+export function denomOf(base: string): Denomination {
+  const g = groupOf(base)
+  if (g === 'USD') return 'usd'
+  if (g === 'ETH') return 'eth'
+  if (g === 'BTC') return 'btc'
+  return DENOM[base.toUpperCase()] ?? base.toUpperCase()
+}
+/** Both legs are the same money — the test a carry has to pass. */
+export const sameMoney = (a: string, b: string): boolean => denomOf(a) === denomOf(b)
 export const whatIs = (base: string): string => baseInfo(base)?.what ?? base
 export function colorOf(sym: string): string {
   const b = baseInfo(sym); if (b) return b.color
@@ -87,9 +121,13 @@ export function colorOf(sym: string): string {
 export const short = (sym: string) => sym.replace(/^PT-/, '').slice(0, 3).toUpperCase()
 
 /**
- * Logos for base assets and known wrappers, from the plain mainnet token list
- * (`scripts/logos.mjs` → `src/data/logos.json`). The API's per-row `logoURI` pictures the venue's
- * token (a vault, an LST), not the base asset, so it is never used for an asset mark.
+ * Logos for base assets and known wrappers: the token-lists pipeline publishes one ranked icon
+ * per ticker across every chain (`logos-by-symbol.json`), and `scripts/logos.mjs` keeps the
+ * subset named by BASE + WRAPPER above → `src/data/logos.json`. Nothing here is curated by hand:
+ * an asset added to BASE gets its icon on the next run of that script.
+ *
+ * The API's per-row `logoURI` pictures the venue's token (a vault, an LST), not the base asset,
+ * so it is never used for an asset mark.
  */
 import LOGOS from '../data/logos.json'
 export const assetLogo = (sym: string | undefined): string | undefined => (sym ? (LOGOS as Record<string, string>)[sym.toUpperCase()] : undefined)

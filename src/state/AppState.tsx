@@ -81,10 +81,20 @@ export function useRoute(): Route {
 }
 
 interface AppCtx {
-  /** 'all' or one chain id */
-  chain: string
-  setChain: (c: string) => void
+  /**
+   * The chains in scope. EMPTY means every chain the app offers — "all" is
+   * the absence of a filter rather than a value, so a new chain is in scope
+   * the day it is added and nobody's stored selection silently excludes it.
+   */
+  chains: string[]
+  setChains: (c: string[]) => void
+  toggleChain: (c: string) => void
+  /** every selected chain, resolved — never empty */
   chainIds: string[]
+  /** true when nothing is filtered out */
+  allChains: boolean
+  /** what to call the current scope in a sentence */
+  chainLabelFor: () => string
   /** connected address, or the "view as" address */
   account: string | undefined
   /** the CONNECTED wallet only — the one that can sign, and the one whose positions never come from the index */
@@ -94,14 +104,39 @@ interface AppCtx {
   isConnected: boolean
 }
 const Ctx = React.createContext<AppCtx | null>(null)
-const LS = 'yieldcircle.chain'
+const LS = 'yieldcircle.chains'
+const OLD_LS = 'yieldcircle.chain'
+const ALL = () => CHAINS.map((c) => c.id)
+/** the stored selection, dropping any chain this build no longer offers */
+function readChains(): string[] {
+  try {
+    const raw = localStorage.getItem(LS)
+    if (raw) return (JSON.parse(raw) as string[]).filter((c) => ALL().includes(c))
+    // the single-select selection this replaced
+    const one = localStorage.getItem(OLD_LS)
+    return one && one !== 'all' && ALL().includes(one) ? [one] : []
+  } catch { return [] }
+}
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [chain, setChainRaw] = React.useState<string>(() => { try { return localStorage.getItem(LS) ?? 'all' } catch { return 'all' } })
-  const setChain = (c: string) => { setChainRaw(c); try { localStorage.setItem(LS, c) } catch { /* private mode */ } }
+  const [chains, setChainsRaw] = React.useState<string[]>(readChains)
+  const setChains = (c: string[]) => {
+    const next = c.length === CHAINS.length ? [] : c
+    setChainsRaw(next)
+    try { localStorage.setItem(LS, JSON.stringify(next)) } catch { /* private mode */ }
+  }
+  const toggleChain = (c: string) =>
+    setChains(chains.includes(c) ? chains.filter((x) => x !== c) : [...(chains.length ? chains : []), c])
   const [viewAs, setViewAs] = React.useState<string | undefined>(() => new URLSearchParams(location.search).get('as') ?? undefined)
   const { address, isConnected } = useAccount()
-  const chainIds = chain === 'all' ? CHAINS.map((c) => c.id) : [chain]
+  const chainIds = chains.length ? chains : ALL()
+  const allChains = chains.length === 0
+  const chainLabelFor = () =>
+    allChains
+      ? 'every chain'
+      : chains.length === 1
+        ? (CHAINS.find((c) => c.id === chains[0])?.label ?? chains[0])
+        : `${chains.length} chains`
   const account = viewAs && ADDR.test(viewAs) ? viewAs : address
-  return <Ctx.Provider value={{ chain, setChain, chainIds, account, signer: address?.toLowerCase(), viewAs, setViewAs, isConnected }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ chains, setChains, toggleChain, chainIds, allChains, chainLabelFor, account, signer: address?.toLowerCase(), viewAs, setViewAs, isConnected }}>{children}</Ctx.Provider>
 }
 export const useApp = () => { const c = React.useContext(Ctx); if (!c) throw new Error('AppProvider missing'); return c }

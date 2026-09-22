@@ -72,14 +72,23 @@ export function useTrending(window: '1h' | '24h' | '7d' = '24h', chainIds: strin
   }
 }
 
-/** The hot list for one window; the chain filter is the app's own selector. */
-export function useHot(window: '1h' | '6h' | '24h' | '7d', chainId?: string, limit = 24) {
+/** The hot list for one window; the chain and protocol filters are the app's own. */
+export function useHot(window: '1h' | '6h' | '24h' | '7d', chainIds?: string, limit = 24, protocols?: string) {
   return useQuery({
-    queryKey: ['hot', window, chainId ?? 'all', limit],
-    queryFn: () => api.hot({ window, chainId, limit }),
+    queryKey: ['hot', window, chainIds ?? 'all', protocols ?? 'all', limit],
+    queryFn: () => api.hot({ window, chainIds, protocols, limit }),
     staleTime: 2 * MIN,
     refetchInterval: 2 * MIN,
     placeholderData: (prev) => prev,
+  })
+}
+
+/** Which protocols a filter should offer, for the current window and chain scope. */
+export function useProtocols(window: '1h' | '6h' | '24h' | '7d', chainIds?: string) {
+  return useQuery({
+    queryKey: ['protocols', window, chainIds ?? 'all'],
+    queryFn: () => api.protocols({ window, chainIds, limit: 40 }),
+    staleTime: 5 * MIN,
   })
 }
 

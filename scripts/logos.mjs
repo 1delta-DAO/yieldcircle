@@ -1,34 +1,88 @@
-// Build src/data/logos.json from the plain mainnet token list: one logo per base asset / known
-// wrapper, preferring the list's `mainTokens` when a symbol appears more than once.
-// Usage: node scripts/logos.mjs [/path/to/token-lists/1.json]
+// Build src/data/logos.json from the token-lists repo's generated logo index.
+//
+// This file used to carry its own WANT array plus per-chain fallbacks for BNB and Avalanche,
+// which is the same curation token-lists already does — badly, because it only saw chain 1 and
+// re-picked an icon per symbol by hand. The pipeline now publishes that map itself
+// (`scripts/logos/groupLogos.ts` → `logos-by-symbol.json`, one ranked winner per ticker over
+// every asset group), so all that is left here is the SUBSET: the symbols this app presents,
+// read straight out of BASE + WRAPPER in src/model/assets.ts. Add an asset there and it gets an
+// icon on the next run; nothing to curate twice.
+//
+// Usage: node scripts/logos.mjs [/path/to/token-lists]   (or TOKEN_LISTS_DIR=…)
 import { readFileSync, writeFileSync } from 'node:fs'
-const src = process.argv[2] ?? '/home/axtar/token-lists/1.json'
-const d = JSON.parse(readFileSync(src, 'utf8'))
-const list = Object.values(d.list)
-const main = new Set((d.mainTokens ?? []).map((a) => String(a).toLowerCase()))
-const WANT = ['WETH', 'USDC', 'USDT', 'USDS', 'DAI', 'USDe', 'USDG', 'GHO', 'PYUSD', 'RLUSD', 'AUSD', 'frxUSD', 'crvUSD', 'DOLA', 'USD1', 'FRAX', 'USDtb', 'WBTC', 'cbBTC', 'tBTC', 'LBTC', 'EURC', 'EURCV', 'XAUt', 'PAXG',
-  'sUSDe', 'sUSDS', 'sDAI', 'sDOLA', 'sfrxUSD', 'syrupUSDC', 'syrupUSDT', 'wstETH', 'stETH', 'weETH', 'cbETH', 'rETH', 'ezETH', 'rsETH', 'osETH', 'mETH', 'frxETH', 'sfrxETH', 'ETHx']
-const out = {}
-for (const w of WANT) {
-  const cands = list.filter((t) => (t.symbol ?? '').toUpperCase() === w.toUpperCase() && t.logoURI)
-  const pick = cands.find((t) => main.has(String(t.address).toLowerCase())) ?? cands[0]
-  if (pick) out[w.toUpperCase()] = pick.logoURI
-}
-// native ETH: the list's "ETH" entry is a random ERC-20 with that ticker; use the wrapped ether logo
-out.ETH = out.WETH ?? 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/info/logo.png'
-// BNB Chain: WBNB and the BNB liquid-staking wrappers from the chain-56 list
+import { join } from 'node:path'
+
+const arg = process.argv[2] ?? process.env.TOKEN_LISTS_DIR ?? '/home/axtar/token-lists'
+// back-compat: this used to take the path to 1.json
+const root = arg.endsWith('.json') ? arg.slice(0, arg.lastIndexOf('/')) : arg
+
+const INDEX = join(root, 'logos-by-symbol.json')
+let index
 try {
-  const b = JSON.parse(readFileSync(src.replace(/1\.json$/, '56.json'), 'utf8'))
-  const blist = Object.values(b.list), bmain = new Set((b.mainTokens ?? []).map((a) => String(a).toLowerCase()))
-  for (const w of ['WBNB', 'slisBNB', 'BNBx', 'ankrBNB', 'wBETH']) {
-    const cands = blist.filter((t) => (t.symbol ?? '').toUpperCase() === w.toUpperCase() && t.logoURI)
-    const pick = cands.find((t) => bmain.has(String(t.address).toLowerCase())) ?? cands[0]
-    if (pick && !out[w.toUpperCase()]) out[w.toUpperCase()] = pick.logoURI
+  index = JSON.parse(readFileSync(INDEX, 'utf8'))
+} catch {
+  console.error(`no ${INDEX} — run \`npm run logos:groups\` in the token-lists repo (scripts/) first`)
+  process.exit(1)
+}
+
+/**
+ * The object literal `decl` declares, as source text — the app's own whitelist, without
+ * duplicating it here. The opening brace is taken after the `=`, not after the declaration:
+ * `const BASE: Record<string, { sym: string; … }>` opens a brace in its TYPE first, and
+ * brace-matching that one yields the type's fields instead of the assets.
+ */
+function literalBody(src, decl) {
+  const start = src.indexOf(decl)
+  if (start < 0) throw new Error(`${decl} not found in src/model/assets.ts`)
+  const open = src.indexOf('{', src.indexOf('= {', start))
+  let depth = 0
+  let end = open
+  for (; end < src.length; end++) {
+    if (src[end] === '{') depth++
+    else if (src[end] === '}' && --depth === 0) break
   }
-  out.BNB = out.WBNB ?? out.BNB
-} catch { /* no chain-56 list beside it */ }
+  // Comments go first — assets.ts has a `'BTC.b' → 'BTC.B'` note inside BASE.
+  return src
+    .slice(open + 1, end)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '')
+}
+
+/** Top-level keys of such a literal: nested values collapse innermost-first, so `USDC: { … },` leaves `USDC:`. */
+function recordKeys(body) {
+  let flat = body
+  while (/\{[^{}]*\}/.test(flat)) flat = flat.replace(/\{[^{}]*\}/g, '')
+  return [...flat.matchAll(/(?:^|,)\s*(?:'([^']+)'|([A-Za-z0-9._$]+))\s*:/gm)].map((m) => (m[1] ?? m[2]).toUpperCase())
+}
+
+const assets = readFileSync(new URL('../src/model/assets.ts', import.meta.url), 'utf8')
+const bases = recordKeys(literalBody(assets, 'const BASE:'))
+// WRAPPER maps a wrapper's symbol to the base asset it stands for; both halves are used, the
+// value as the fallback icon for a wrapper the index has never heard of.
+const wrapped = Object.fromEntries(
+  [...literalBody(assets, 'const WRAPPER:').matchAll(/(?:'([^']+)'|([A-Za-z0-9._$]+))\s*:\s*'([^']+)'/g)].map(
+    (m) => [(m[1] ?? m[2]).toUpperCase(), m[3].toUpperCase()],
+  ),
+)
+
+const out = {}
+const missing = []
+for (const sym of [...bases, ...Object.keys(wrapped)]) {
+  // A bridged or renamed wrapper (USDC.e, DAI.e) is folded into its base's asset group upstream,
+  // so it has no ticker of its own — it draws as what it is, the base asset.
+  const uri = index[sym] ?? index[wrapped[sym]]
+  if (uri) out[sym] = uri
+  else missing.push(sym)
+}
+
 writeFileSync(new URL('../src/data/logos.json', import.meta.url), JSON.stringify(out, null, 1) + '\n')
-console.log(Object.keys(out).length, 'logos written')
+console.log(`${Object.keys(out).length} logos written from ${INDEX}`)
+if (missing.length) {
+  // A base asset with no icon draws a blank circle in the app, so say which — the fix belongs in
+  // token-lists (the asset has no `logoURI` on any chain), not in a hand-written override here.
+  console.warn(`no icon for ${missing.join(', ')}`)
+  if (missing.some((s) => bases.includes(s))) process.exitCode = 1
+}
 
 // ---------------------------------------------------------------------------------------------
 // Strategy tokens: what a vault row leaves you holding (wstETH, sUSDS, syrupUSDC, SolvBTC, a
@@ -38,11 +92,11 @@ console.log(Object.keys(out).length, 'logos written')
 // { symbol, logoURI }. Needs the API (VITE_BACKEND_BASE_URL or the credited backend).
 // ---------------------------------------------------------------------------------------------
 const API = process.env.VITE_BACKEND_BASE_URL ?? 'https://allocator.api.1delta.io'
-const CHAINS = ['1', '8453', '42161', '56']
+const CHAINS = ['1', '8453', '42161', '56', '43114']
 const strat = {}
 for (const chain of CHAINS) {
   let list
-  try { list = JSON.parse(readFileSync(src.replace(/1\.json$/, `${chain}.json`), 'utf8')).list } catch { continue }
+  try { list = JSON.parse(readFileSync(join(root, `${chain}.json`), 'utf8')).list } catch { continue }
   const byAddr = new Map(Object.entries(list).map(([a, t]) => [a.toLowerCase(), t]))
   let rows = []
   try {

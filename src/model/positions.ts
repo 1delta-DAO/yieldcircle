@@ -4,7 +4,7 @@
  * one without is a plain deposit per leg) and `/v1/data/token/balances` for idle.
  */
 import type { EarnPosition, TokenBalance } from '../sdk/types'
-import { baseOfSymbol, groupOf, type GroupId } from './assets'
+import { baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
 import { venueLabel } from './strategies'
 
 export interface Holding {
@@ -54,7 +54,8 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         const coll = supply[0], d = debt[0]
         const asset = baseOfSymbol(coll.asset.symbol) ?? baseOfSymbol(d.asset.symbol); if (!asset) continue
         const debtBase = baseOfSymbol(d.asset.symbol)
-        const directional = !debtBase || groupOf(debtBase) !== groupOf(asset)
+        // same test as the catalogue's: same money, not the same display tab
+        const directional = !debtBase || !sameMoney(debtBase, asset)
         const lev = a.suppliedUsd > 0 && a.netUsd > 0 ? a.suppliedUsd / a.netUsd : p.leverage
         out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'loop', label: `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue, valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
           amount: parseFloat(coll.deposits) || 0, symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtAmount: parseFloat(d.debt) || 0, accountId: p.crossMargin ? undefined : a.accountId, lender: p.lender })
@@ -73,15 +74,22 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
 /** One idle balance: one TOKEN on one chain (native ETH and WETH are two entries with the same base `asset`). */
 export interface Idle { asset: string; symbol: string; amount: number; usd: number; address: string; decimals: number; price: number; chainId: string }
 export const isNativeAddress = (a: string) => /^0x0{40}$/i.test(a) || /^0xe{40}$/i.test(a)
+/**
+ * What the native coin of a chain IS. It used to be "BNB on 56, ETH
+ * everywhere else", which was true until Avalanche was offered and then said
+ * a wallet's AVAX was ether.
+ */
+const NATIVE: Record<string, string> = { '56': 'BNB', '43114': 'AVAX' }
+export const nativeSymbol = (chainId: string): string => NATIVE[chainId] ?? 'ETH'
 export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
   const out: Idle[] = []
   for (const b of items) {
     const native = isNativeAddress(b.address)
-    const asset = native ? (chainId === '56' ? 'BNB' : 'ETH') : baseOfSymbol(b.symbol); if (!asset) continue
+    const asset = native ? nativeSymbol(chainId) : baseOfSymbol(b.symbol); if (!asset) continue
     const amount = parseFloat(b.balance); if (!(amount > 0)) continue
     const usd = b.balanceUSD ?? amount * (b.priceUSD ?? 0)
     // `symbol` is the token as held: native reads as the chain coin (ETH on Base, BNB on BNB Chain), never "ETH" on BNB
-    out.push({ asset, symbol: native ? (chainId === '56' ? 'BNB' : 'ETH') : b.symbol, amount, usd, address: native ? '0x0000000000000000000000000000000000000000' : b.address.toLowerCase(), decimals: b.decimals, price: b.priceUSD ?? (amount ? usd / amount : 0), chainId })
+    out.push({ asset, symbol: native ? nativeSymbol(chainId) : b.symbol, amount, usd, address: native ? '0x0000000000000000000000000000000000000000' : b.address.toLowerCase(), decimals: b.decimals, price: b.priceUSD ?? (amount ? usd / amount : 0), chainId })
   }
   return out
 }

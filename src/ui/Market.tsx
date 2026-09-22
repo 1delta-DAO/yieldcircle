@@ -12,7 +12,7 @@ import { useProfiles } from '../social/queries'
 import { useMenu } from './useMenu'
 import { parseUid } from '../model/uid'
 import { Ago, FollowButton, Money, Who, describeTx } from './social-bits'
-import { Sk, Tok, pct, usd, usdShort } from './bits'
+import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
 import { indexChainLabel } from '../index/types'
@@ -75,12 +75,15 @@ export function Market({ uid }: { uid: string }) {
             <div className="tape">{(txs.data?.txs ?? []).map((t) => {
               const l = primaryLeg(t), d = describeTx(t.kinds)
               return (
-                <a key={`${t.chainId}:${t.txHash}`} className="tape-row" href={`#/w/${t.accounts[0] ?? l?.account}`}>
-                  <span className={`verb ${d.cls}`}>{d.verb}</span>
-                  <span className="tr-m"><Who account={t.accounts[0] ?? l?.account ?? ''} size={20} plain /></span>
-                  <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} amount={l?.amount} symbol={l?.symbol} short /></span>
-                  <span className="tr-t"><Ago ts={t.blockTs} /></span>
-                </a>
+                <div key={`${t.chainId}:${t.txHash}`} className="tape-item">
+                  <a className="tape-row" href={`#/w/${t.accounts[0] ?? l?.account}`}>
+                    <span className={`verb ${d.cls}`}>{d.verb}</span>
+                    <span className="tr-m"><Who account={t.accounts[0] ?? l?.account ?? ''} size={20} plain /></span>
+                    <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} amount={l?.amount} symbol={l?.symbol} short /></span>
+                    <span className="tr-t"><Ago ts={t.blockTs} /></span>
+                  </a>
+                  <TxLink chainId={t.chainId} hash={t.txHash} />
+                </div>
               )
             })}</div>
           </div>

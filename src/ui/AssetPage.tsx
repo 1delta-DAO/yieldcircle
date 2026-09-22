@@ -7,6 +7,10 @@ import { useBook } from './useBook'
 import { Ticket } from './Ticket'
 import { GroupIcon, Info, KindPill, RiskDot, Sk, StratMark, Tok, Toks, amt, num, pct, usd } from './bits'
 import { chainLabel } from '../sdk/queries'
+import { uidOf } from '../model/uid'
+import { useCounts } from '../social/queries'
+import { Comments } from './social-bits'
+import { marketHref } from '../state/AppState'
 
 /** One list, one number per row. The list decides which; the ticket decides how much and how levered. */
 export function AssetPage({ group, route }: { group: Group; route: Route }) {
@@ -29,11 +33,15 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const matches = (s: Strategy, h: Holding) => h.kind === s.kind && (s.kind === 'simple' ? h.earnUid === s.earnUid : h.earnUid === s.marketLongUid && (!h.debtUid || h.debtUid.toLowerCase() === s.marketShortUid.toLowerCase()))
   const held = (s: Strategy) => b.holdings.find((h) => matches(s, h))
   // holdings in scope, each paired with the catalogue strategy it belongs to (none → not actionable here)
+  // 💬 on every row in ONE request: the service takes up to 1000 subjects a call
+  const uids = React.useMemo(() => list.map((x) => ({ s: x, uid: uidOf(x) })).filter((x): x is { s: Strategy; uid: string } => !!x.uid), [list])
+  const counts = useCounts(React.useMemo(() => uids.map((x) => ({ kind: 'market' as const, key: x.uid })), [uids]))
+  const commentsOn = (x: Strategy) => { const u = uidOf(x); return u ? counts.count('market', u) : 0 }
   const running: { h: Holding; s: Strategy | null }[] = b.holdings.filter((h) => !h.directional && h.group === group.id && (u === 'all' || h.asset === u)).sort((x, y) => y.valueUsd - x.valueUsd)
     .map((h) => ({ h, s: inGroup.find((s) => matches(s, h)) ?? null }))
   return (
     <>
-      <a className="crumb" href="#/">‹ Explore</a>
+      <a className="crumb" href="#/explore">‹ Explore</a>
       <div className={`asset${sel ? '' : ' noticket'}`}>
         <div className="main">
           <div className="hdr">
@@ -75,21 +83,24 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
               <table className="tbl strat-t"><tbody>{[0, 1, 2, 3].map((i) => <tr key={i}><td><Sk w={200} /></td><td className="r"><Sk w={60} /></td><td className="hide-m"><Sk w={60} /></td><td /></tr>)}</tbody></table>
             ) : list.length ? (
               <table className="tbl strat-t">
-                <colgroup><col /><col style={{ width: 110 }} /><col className="hide-m" style={{ width: 100 }} /><col style={{ width: 32 }} /></colgroup>
-                <thead><tr><th>{kind === 'simple' ? 'Deposit' : 'Loop'}</th><th className="r">{kind === 'simple' ? 'APY' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier: earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}</th><th className="hide-m">Risk</th><th /></tr></thead>
+                <colgroup><col /><col style={{ width: 110 }} /><col className="hide-m" style={{ width: 100 }} /><col style={{ width: 52 }} /><col style={{ width: 32 }} /></colgroup>
+                <thead><tr><th>{kind === 'simple' ? 'Deposit' : 'Loop'}</th><th className="r">{kind === 'simple' ? 'APY' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier: earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}</th><th className="hide-m">Risk</th><th className="r">Talk</th><th /></tr></thead>
                 <tbody>{list.map((s) => { const h = held(s); const pick = picks.has(s.id); return (
                   <tr key={s.id} aria-selected={sel?.id === s.id} onClick={() => go(group.id, { u, s: s.id, k: s.kind })}>
                     <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}</div>
                       <small className="hide-m">{u === 'all' ? `${s.asset} · ` : ''}{chainLabel(s.chainId)}{s.kind === 'simple' ? ` · ${s.exitWord.toLowerCase()}` : ''}</small></td>
                     <td className="r"><span className={s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}>{pct(s.rate)}</span>{s.kind === 'simple' && <small>{s.source}</small>}</td>
                     <td className="hide-m"><RiskDot r={s.risk} label={s.riskLabel} /></td>
+                    <td className="r" onClick={(e) => e.stopPropagation()}>
+                      <Comments n={commentsOn(s)} onClick={() => { const u = uidOf(s); if (u) location.hash = marketHref(u) }} />
+                    </td>
                     <td className="r t40" style={{ width: 20 }}>›</td>
                   </tr>) })}</tbody>
               </table>
             ) : <div className="empty">No {kind === 'simple' ? 'plain deposit' : 'loop'} for this filter{b.errors.length ? ` (${b.errors[0].message})` : ''}.</div>}
           </div>
         </div>
-        <aside className={sel ? '' : 'closed'} id="aside">{sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} onClose={() => go(group.id, { u, k: sel.kind })} />}</aside>
+        <aside className={sel ? '' : 'closed'} id="aside">{sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} onClose={() => go(group.id, { u, k: sel.kind })} />}</aside>
       </div>
       {sel && <div className="scrim" onClick={() => go(group.id, { u, k: sel.kind })} />}
     </>

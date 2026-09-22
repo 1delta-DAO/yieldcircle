@@ -21,3 +21,21 @@ export const BACKEND_BASE_URL =
 export function apiHeaders(): Record<string, string> {
   return {}
 }
+
+/**
+ * The position index (`pos-indexer`), public at https://positions.1delta.io.
+ * The ledger of who did what in which market, on the chains this app offers.
+ * Read-only, CORS `*`, no key. It is NEVER asked for the connected user's own
+ * positions — those stay on the live allocator path (`/v1/data/earn/positions`),
+ * which is the index's own hard rule. This is for OTHER wallets and for history.
+ */
+export const INDEX_BASE_URL =
+  (import.meta.env.VITE_INDEX_BASE_URL as string | undefined) ?? 'https://positions.1delta.io'
+
+/**
+ * The social service, public at https://social.1delta.io. Reads are open;
+ * every write is an EIP-712 message signed by the wallet that authored it, so
+ * there are no sessions, no cookies and no key here either.
+ */
+export const SOCIAL_BASE_URL =
+  (import.meta.env.VITE_SOCIAL_BASE_URL as string | undefined) ?? 'https://social.1delta.io'

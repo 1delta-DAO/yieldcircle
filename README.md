@@ -7,6 +7,12 @@ A yield front end on the 1delta API: plain deposits build through
 call goes through one vendored HTTP boundary. The order of reading is **what do
 you want to hold?** first, yield second.
 
+It is also the **social layer**: a feed of what other wallets are doing, a
+comment on every strategy, a character for every address and a leaderboard
+ranked on yield the index can prove. That half reads two public services —
+the position index and the social service — and is described in
+[`docs/social.md`](docs/social.md).
+
 ```
 cp .env.example .env     # VITE_BACKEND_BASE_URL — the credited backend for development
 pnpm install
@@ -41,7 +47,11 @@ is a plain deposit per leg).
 ## Screens
 
 ```
- EXPLORER  #/                      a balance overview
+ HOME  #/                          what people are doing
+   pulse (one live line) · Yours (a strip, expandable) ·
+   HOT RIGHT NOW (markets ranked on how OFTEN and how MUCH) · the stream
+        │
+ EXPLORER  #/explore                a balance overview
    Your positions: group → asset → idle / strategies (when an address is set)
    One slim block per group: asset rows with balance and "up to x%"
         │ tap an asset
@@ -53,11 +63,72 @@ is a plain deposit per leg).
  TICKET  (aside on a desk, bottom sheet on a phone)
    ⓘ explanations · amount (+ pay-with and a leverage tier for loops) · the numbers
    what can go wrong · one button → the API's calls, signed one by one
+   Say why · who else is in it · the market's thread
+
+ FEED  #/feed?t=following|menu|everyone      one card per TRANSACTION
+ WALLET  #/w/0x…      character, badges, NAV, flows, positions, tape, wall
+ MARKET  #/m/<uid>    who is in it, the tape, deposits over 30 days, the thread
+ BOARD   #/board?t=7d realized yield, ranked
+ ME      #/me         the character picker, name, tags, X link
+ ALERTS  #/alerts     what the people and markets you follow did
 ```
 
 Every state is a URL, so back and deep links work. The list stays visible
 while the ticket is open. Screenshots against the live API are in
 [`docs/shots/`](docs/shots/).
+
+## The social layer
+
+The **home is the activity**, not the catalogue. A table sorted by the biggest
+number answers "what pays most" once, and then there is no reason to come
+back — so `#/` leads with a live pulse, the markets that are actually busy,
+and the stream of moves as they land. The catalogue is one tap away at
+`#/explore` and every hot row opens the same ticket it always did.
+
+**"Hot" is two numbers, not one.** Volume alone crowns whichever market one
+whale passed through this morning; frequency alone crowns a spray of dust. The
+index ranks a market on the geometric mean of its percentile for *how often*
+people acted and *how much* they moved — scale-free, and shown as both bars
+plus the evidence (`73 moves · 32 wallets · $555k · +64 new`) so the sort is
+never a number nobody can check. A $50m single trade and 400 dust trades both
+score zero.
+
+Three ideas behind the rest, in [`docs/social.md`](docs/social.md):
+
+- **A post is a position, not a trade.** A deposit does nothing most days, so
+  the feed's unit is one *transaction* from the index (`?group=tx`) read as a
+  phrase — "opened a loop", "withdrew" — never a list of legs.
+- **Say why, at the moment of intent.** The comment box is beside the confirm
+  button in the ticket, not on an empty wall. One EIP-712 signature, no gas,
+  posted against the strategy's market so the next person choosing it reads it.
+- **The score is realized yield, and it is checkable.** `units × Δindex`,
+  valued: flows in and out cancel, so adding money never looks like a profit.
+
+Every wallet gets a **character** — six layers of inline SVG derived from the
+address, so an un-profiled wallet is still a face and a name ("Amber Otter").
+Customising it is a `yc1:` spec signed into the profile; four layers are
+**earned** from badges the index mints off the ledger and cannot be claimed.
+
+```
+src/index/     the position index   → positions.1delta.io   (read-only, public)
+src/social/    threads, profiles, follows, reactions → social.1delta.io
+               sign.ts — every write is one EIP-712 message; no sessions
+src/identity/  name.ts (ported from pos-indexer), character.tsx
+src/model/uid.ts  the join: <lender>:<chainId>:<ref>, the same string everywhere
+worker/x-link/    the OAuth worker, because a static site cannot hold a secret
+```
+
+Both services are public and send `CORS *`, so nothing here needs a backend.
+`VITE_INDEX_BASE_URL` and `VITE_SOCIAL_BASE_URL` point them at a local stack;
+Linking an X account is free and needs no developer account: sign a message,
+post your address and a code on X, paste the link, and the service reads the
+post back through X's public oEmbed endpoint. `VITE_XLINK_URL` adds the
+optional OAuth route (`worker/x-link`), which buys X's stable numeric id for
+about a cent a link.
+
+**Your own positions never come from the index.** They stay on the live
+allocator path — that is the index's own hard rule, and the explorer already
+does it. The index is for other wallets and for history.
 
 ## What is curated, and how
 
@@ -159,14 +230,45 @@ Pages → Create → Pages → connect `1delta-DAO/yieldcircle`, then:
 |---|---|
 | Production branch | `main` |
 | Framework preset | None (or Vite) |
-| Build command | `pnpm build` |
+| Build command | `VITE_SITE_URL=${VITE_SITE_URL:-$CF_PAGES_URL} pnpm build` |
 | Build output directory | `dist` |
 | Root directory | `/` |
 | Environment variable | `VITE_BACKEND_BASE_URL=https://allocator.api.1delta.io` |
-| Environment variable | `VITE_SITE_URL=https://yieldcircle.pages.dev` (or the custom domain) |
+| Environment variable | `VITE_SITE_URL=https://yieldcircle.io` — **Production only** |
 | Environment variable | `NODE_VERSION=22` |
 
-Pages installs with pnpm when it sees `pnpm-lock.yaml`. Optional:
+`VITE_SITE_URL` is only read by four `<head>` tags — canonical, `og:url`,
+`og:image`, `twitter:image` — so the app runs without it. It does not
+*degrade* without it though: Vite leaves the literal `%VITE_SITE_URL%` in the
+HTML, which makes `og:image` a relative path, and a relative OG image means
+**no preview card when anyone shares a link**. On a social app that is the
+one piece of metadata worth getting right. The build command above is why
+it is written that way: production uses the variable, and every preview
+deployment falls back to its own `CF_PAGES_URL`, so a branch build is never
+shipped with a broken card.
+
+**Set it under Production only.** With a custom domain on top, `pages.dev`
+keeps serving the same site, and the canonical tag is what tells a crawler
+which of the two counts — so production must claim `https://yieldcircle.io`.
+A preview that claimed the same thing would be telling Google that the
+preview *is* the production page; leaving the variable unset on Preview makes
+each one name itself instead. Attach the domain before setting it, or the
+first build points its canonical and OG image at a host that does not resolve
+yet.
+
+Nothing else in the app is host-dependent: neither API has an origin
+allowlist to update (both send `CORS *`), WalletConnect's metadata reads
+`location.origin`, and `og.png` is served from the site root.
+
+The social layer needs **no variables**: `VITE_INDEX_BASE_URL` and
+`VITE_SOCIAL_BASE_URL` already default to `https://positions.1delta.io` and
+`https://social.1delta.io`, and both send `CORS *`. Set them only to point a
+build at a local stack. `VITE_XLINK_URL` is likewise optional — without it,
+linking an X account uses the free post-proof route, which needs nothing.
+
+Pages installs with pnpm when it sees `pnpm-lock.yaml` (this lockfile is v9,
+so it wants pnpm 9+; if the build image picks an older one, add
+`PNPM_VERSION=9`). Optional:
 `VITE_WC_PROJECT_ID` for WalletConnect on phones.
 
 **`VITE_*` variables are baked in at build time.** Set them under *both*

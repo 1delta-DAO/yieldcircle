@@ -7,13 +7,27 @@ import { earnDeposit, earnWithdraw, loopClose, loopOpen, NATIVE_SENTINEL, ZERO }
 import { chainLabel, useLoopPayAssets, useLoopQuote } from '../sdk/queries'
 import { useApp, type Mode } from '../state/AppState'
 import { DecimalInput, Info, KindPill, RiskDot, Sk, StratMark, Tok, Toks, num, pct, usd, usdShort } from './bits'
+import { Who } from './social-bits'
+import { useProfiles } from '../social/queries'
 import { stepsFrom, useLadder, type Ladder } from './useLadder'
 import { GetAsset, type Target } from './GetAsset'
+import { uidOf } from '../model/uid'
+import { SayWhy } from './SayWhy'
+import { TicketSocial } from './TicketSocial'
+
+/**
+ * What the ticket is about, for the pieces too deep to thread props through:
+ * the market uid the strategy talks on, and the wallet being copied when the
+ * ticket was opened from a feed card.
+ */
+const TicketCtx = React.createContext<{ uid: string | null; copy?: string }>({ uid: null })
 
 /** The ticket: what you do in plain words, amount (+ leverage), the numbers, what can go wrong, one button. */
-export function Ticket({ s, idle, holding, mode: mode0, onClose }: { s: Strategy; idle: Idle[]; holding: Holding | null; mode?: Mode; onClose: () => void }) {
+export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: Strategy; idle: Idle[]; holding: Holding | null; mode?: Mode; copy?: string; onClose: () => void }) {
   const [mode, setMode] = React.useState<Mode>(holding ? mode0 ?? 'add' : 'add')
+  const uid = uidOf(s)
   return (
+    <TicketCtx.Provider value={{ uid, copy }}>
     <div className="ticket">
       <div className="grab" />
       <div className="th">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />}
@@ -26,8 +40,26 @@ export function Ticket({ s, idle, holding, mode: mode0, onClose }: { s: Strategy
           <span className="sp" /><span className="sum">{usd(holding.valueUsd)}{s.kind === 'loop' && holding.leverage && holding.leverage > 1.05 ? ` · ${holding.leverage.toFixed(1)}×` : ''}{holding.health != null ? ` · health ${holding.health.toFixed(2)}` : ''}</span>
         </div></div>
       )}
+      {copy && <CopyBanner who={copy} s={s} />}
       {holding && mode !== 'add' ? (s.kind === 'loop' ? <ManageLoop s={s} h={holding} closeFirst={mode === 'close'} /> : <ManageTicket s={s} h={holding} mode={mode} />)
         : s.kind === 'simple' ? <SimpleTicket s={s} idle={idle.find((i) => i.chainId === s.chainId && i.address === s.assetAddress.toLowerCase()) ?? idle.find((i) => i.chainId === s.chainId && i.asset === s.asset)} allIdle={idle} /> : <LoopTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} />}
+      <TicketSocial uid={uid} s={s} />
+    </div>
+    </TicketCtx.Provider>
+  )
+}
+
+/**
+ * Copying is the same strategy and the same leverage tier at YOUR size —
+ * never a mirror of someone else's amount, which would be a promise about a
+ * balance sheet this app cannot see.
+ */
+function CopyBanner({ who, s }: { who: string; s: Strategy }) {
+  const { profile } = useProfiles([who])
+  return (
+    <div className="tsec copy">
+      <Who account={who} profile={profile(who)} size={24} />
+      <span className="t70">is in this {s.kind === 'loop' ? 'loop' : 'strategy'}. You are opening the same one — your own size.</span>
     </div>
   )
 }
@@ -260,6 +292,7 @@ function AmountBox({ unit, value, onChange, onMax }: { unit: string; value: numb
 /** The sticky bottom of the ticket: one button, then the ladder once built. */
 function Action({ ladder: l, label, account, isConnected, disabled, chainId }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; chainId: string }) {
   const { setViewAs } = useApp()
+  const { uid } = React.useContext(TicketCtx)
   const viewing = !!account && !isConnected
   if (!l.bundle) return (
     <div className="tsec cta">
@@ -267,6 +300,7 @@ function Action({ ladder: l, label, account, isConnected, disabled, chainId }: {
       {!account ? <button className="btn wide pri" onClick={() => setViewAs(undefined)} disabled>Connect a wallet to continue</button>
         : viewing ? <button className="btn wide" disabled>Viewing {account.slice(0, 6)}… · connect to sign</button>
         : <button className="btn wide pri" disabled={disabled || l.busy} onClick={l.start}>{l.busy ? 'Building…' : label}</button>}
+      {!viewing && <SayWhy uid={uid} />}
       <div className="foot" style={{ marginTop: 8 }}>The API builds the exact calls (approvals, then the action); nothing is sent until you sign each one. Gas on {chainLabel(chainId)}.</div>
     </div>
   )
@@ -275,6 +309,7 @@ function Action({ ladder: l, label, account, isConnected, disabled, chainId }: {
       <span className="lbl">{l.finished ? 'Done' : l.pending ? 'Waiting for the block…' : 'Sign in your wallet'}</span>
       <ol className="steps">{l.bundle.steps.map((st, i) => <li key={i} className={st.done ? 'done' : st === l.next ? 'on' : ''}><i>{st.done ? '✓' : i + 1}</i>{st.label}{st.hash && <span className="t40 mono" style={{ fontSize: 11, marginLeft: 'auto' }}>{st.hash.slice(0, 10)}…</span>}</li>)}</ol>
       {l.err && <div className="err" style={{ marginTop: 8 }}>{l.err}</div>}
+      {l.finished && <SayWhy uid={uid} done />}
       <div className="actions" style={{ marginTop: 12 }}>
         {l.finished ? <a className="btn wide pri" href="#/">See your positions</a>
           : <button className="btn wide pri" disabled={!!l.pending || l.switching} onClick={l.sendNext}>{l.wrongChain ? `Switch wallet to ${chainLabel(chainId)}` : l.pending ? 'Pending…' : `Send ${l.done + 1} of ${l.total}`}</button>}

@@ -21,6 +21,7 @@ import type { HotMarket } from '../index/api'
 import { useCounts } from '../social/queries'
 import { useMenu } from './useMenu'
 import { Comments } from './social-bits'
+import { ChainCorner } from './ChainMark'
 import { Sk, StratMark, Tok, Toks, pct, usdShort } from './bits'
 import { chainLabel } from '../sdk/queries'
 import { indexChainLabel } from '../index/types'
@@ -99,9 +100,10 @@ function HotCard({ m, s, comments }: { m: HotMarket; s: Strategy | null; comment
         ) : <Tok sym={parts[0]?.split('_')[0] ?? '?'} size={26} />}
         <div className="hc-n">
           <b>{s ? (s.kind === 'loop' ? `${s.holds} / ${s.debt}` : s.holds) : shortUid(m.marketUid)}</b>
-          <small>{s ? (s.kind === 'loop' ? s.venue : s.via) : 'not in the menu'} · {indexChainLabel(chainId, chainLabel)}</small>
+          <small>{s ? (s.kind === 'loop' ? s.venue : s.via) : 'not in the menu'}</small>
         </div>
         {s && <span className="hc-rate">{pct(s.rate)}</span>}
+        <ChainCorner chainId={chainId} />
       </div>
 
       <Heat m={m} />

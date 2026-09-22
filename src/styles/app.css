@@ -787,3 +787,22 @@ a.who:hover .wn b{color:var(--primary)}
 .ec-t small{font-size:12px;color:var(--tx50)}
 .ec-g{display:flex}
 .ec-g .ic+.ic{margin-left:-7px;box-shadow:0 0 0 2px var(--b200)}
+
+/* ---------- chain marks ---------- */
+.chainmark{display:block;border-radius:50%;flex:none}
+i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:var(--tx50);
+  font:600 8px/1 var(--mono);font-style:normal;text-transform:uppercase}
+.chaintag{display:inline-flex;align-items:center;gap:6px}
+
+/* the selector: a mark and a name, the name folding away first */
+.chainseg button{display:inline-flex;align-items:center;gap:6px}
+.chainseg button .cn{line-height:1}
+.chainseg button[aria-pressed="true"] .chainmark{box-shadow:0 0 0 1.5px rgba(255,255,255,.25)}
+@media (max-width:1200px){ .top .chainseg button .cn{display:none} .top .chainseg button{padding:5px 8px} }
+
+/* the corner of a card: which chain this happened on, without joining the numbers */
+.chain-corner{display:inline-flex;align-items:center;gap:5px;flex:none;
+  border:1px solid var(--line);border-radius:999px;padding:1px 7px 1px 2px;background:var(--bg)}
+.chain-corner b{font:600 9.5px/1.6 var(--mono);letter-spacing:.04em;color:var(--tx50)}
+.hotcard .chain-corner{margin-left:8px}
+@media (max-width:520px){ .chain-corner b{display:none} .chain-corner{padding:2px;border-color:transparent;background:none} }

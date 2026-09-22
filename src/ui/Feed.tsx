@@ -21,6 +21,7 @@ import { positionKey } from '../social/api'
 import { useSocialWrite } from '../social/sign'
 import { useMenu } from './useMenu'
 import { Ago, Comments, Money, Who, describeTx } from './social-bits'
+import { ChainCorner } from './ChainMark'
 import { indexChainLabel } from '../index/types'
 import { Sk, Tok, pct } from './bits'
 import { Thread } from './Thread'
@@ -127,6 +128,7 @@ function Card({ tx, profile, strategy, comments, open, onToggle }: {
       <div className="fc-h">
         <Who account={who} profile={profile} size={30} idx={leg} />
         <span className="sp" />
+        <ChainCorner chainId={tx.chainId} />
         <Ago ts={tx.blockTs} />
       </div>
       <div className="fc-b">
@@ -143,7 +145,6 @@ function Card({ tx, profile, strategy, comments, open, onToggle }: {
         <span className="big"><Money usd={tx.volumeUsd ?? leg?.amountUsd} status={leg?.usdStatus} fromIndex={leg?.amountFromIndex} amount={leg?.amount} symbol={leg?.symbol} /></span>
         {borrow && borrow !== leg && <span className="t50">· owes <Money usd={borrow.amountUsd} status={borrow.usdStatus} amount={borrow.amount} symbol={borrow.symbol} short /></span>}
         {leg?.apr != null && <span className="ok">· {pct(leg.apr)}</span>}
-        <span className="t40">· {indexChainLabel(tx.chainId, chainLabel)}</span>
         {tx.nRows > 1 && <span className="t40">· {tx.nRows} legs</span>}
       </div>
       <div className="fc-a">

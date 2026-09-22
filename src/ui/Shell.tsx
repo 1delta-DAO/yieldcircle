@@ -7,6 +7,7 @@ import { GROUPS } from '../model/assets'
 import { Character } from '../identity/character'
 import { useProfile } from '../social/queries'
 import { useUnseen } from './Alerts'
+import { ChainMark } from './ChainMark'
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { chain, setChain, signer } = useApp()
@@ -25,7 +26,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <span className="sp" />
         <div className="seg chainseg" role="group" aria-label="Chain">
           <button aria-pressed={chain === 'all'} onClick={() => setChain('all')}>All</button>
-          {CHAINS.map((c) => <button key={c.id} aria-pressed={chain === c.id} onClick={() => setChain(c.id)}>{c.label}</button>)}
+          {CHAINS.map((c) => (
+            <button key={c.id} aria-pressed={chain === c.id} onClick={() => setChain(c.id)} title={c.label}>
+              <ChainMark chainId={c.id} size={15} />
+              <span className="cn">{c.label}</span>
+            </button>
+          ))}
         </div>
         {signer && <AlertsBell active={r.view === 'alerts'} />}
         {signer && <Me addr={signer} active={r.view === 'me' || (r.view === 'wallet' && r.addr === signer)} />}

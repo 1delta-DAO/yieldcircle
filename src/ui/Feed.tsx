@@ -62,7 +62,9 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   const [open, setOpen] = React.useState<string | null>(null)
 
   return (
-    <>
+    /* the feed is a reading column, not a page: 1060px is where the row's five
+       columns fill the width instead of leaving a gap in the middle of each card */
+    <div className="feedwrap">
       <div className="feed-h">
         <div className="seg">
           <button aria-pressed={tab === 'following'} onClick={() => go('feed', { t: 'following' })}>Following{follows.wallets.length + follows.markets.length > 0 && <span className="c">{follows.wallets.length + follows.markets.length}</span>}</button>
@@ -99,7 +101,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           {hidden > 0 && <span className="foot">{hidden} more move{hidden > 1 ? 's' : ''} in markets this app has no row for — <button className="lnk" onClick={() => go('feed', { t: 'everyone' })}>show everyone</button></span>}
         </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -147,42 +149,39 @@ function Card({ tx, profile, strategy, comments, open, onToggle, only }: {
   const key = cardKey(tx, only)
   return (
     <article className="fcard">
-      {/* who did what on the left, what it was worth and what you can do about it on the right:
-          one card of two columns rather than four left-aligned bands with a dead middle */}
+      {/* one line, five columns: who · what · how much · when · what you can do. The money,
+          the chain and the buttons hold the same width on every card, so the feed reads down
+          the column instead of leaving a hole in the middle of each card. */}
       <div className="fc-g">
-        <div className="fc-l">
-          <Who account={who} profile={profile} size={30} idx={leg} />
-          <div className="fc-b">
-            <span className={`verb ${cls}`}>{verb}</span>
-            {leg && (
-              <a className="fc-m" href={leg.marketUid ? marketHref(leg.marketUid) : undefined}>
-                <Tok sym={leg.symbol ?? '?'} logo={leg.assetLogo ?? undefined} size={20} />
-                <b>{leg.marketName ?? leg.symbol ?? 'a market'}</b>
-                <span className="t50">{leg.lenderName ?? leg.lenderKey}</span>
-              </a>
-            )}
-          </div>
+        <div className="fc-who"><Who account={who} profile={profile} size={30} idx={leg} /></div>
+        <div className="fc-b">
+          <span className={`verb ${cls}`}>{verb}</span>
+          {leg && (
+            <a className="fc-m" href={leg.marketUid ? marketHref(leg.marketUid) : undefined}>
+              <Tok sym={leg.symbol ?? '?'} logo={leg.assetLogo ?? undefined} size={20} />
+              <b>{leg.marketName ?? leg.symbol ?? 'a market'}</b>
+              <span className="t50">{leg.lenderName ?? leg.lenderKey}</span>
+            </a>
+          )}
         </div>
-        <div className="fc-r">
-          <div className="fc-when">
-            <ChainCorner chainId={tx.chainId} />
-            <Ago ts={tx.blockTs} />
-            <TxLink chainId={tx.chainId} hash={tx.txHash} />
-          </div>
-          <div className="fc-n">
-            <span className="big"><Money usd={tx.volumeUsd ?? leg?.amountUsd} status={leg?.usdStatus} fromIndex={leg?.amountFromIndex} amount={leg?.amount} symbol={leg?.symbol} /></span>
-            {borrow && borrow !== leg && <span className="t50">· owes <Money usd={borrow.amountUsd} status={borrow.usdStatus} amount={borrow.amount} symbol={borrow.symbol} short /></span>}
-            {leg?.apr != null && <span className="ok">· {pct(leg.apr)}</span>}
-            {tx.nRows > 1 && <span className="t40">· {tx.nRows} legs</span>}
-          </div>
-          <div className="fc-a">
-            <Comments n={comments} onClick={onToggle} active={open} />
-            {strategy
-              ? <button className="btn sm pri" onClick={() => go(strategy.group, { u: strategy.asset, s: strategy.id, k: strategy.kind, copy: who })}>Copy this ›</button>
-              : leg?.marketUid
-                ? <a className="btn sm" href={marketHref(leg.marketUid)}>Open market</a>
-                : null}
-          </div>
+        <div className="fc-n">
+          <span className="big"><Money usd={tx.volumeUsd ?? leg?.amountUsd} status={leg?.usdStatus} fromIndex={leg?.amountFromIndex} amount={leg?.amount} symbol={leg?.symbol} /></span>
+          {borrow && borrow !== leg && <span className="t50">owes <Money usd={borrow.amountUsd} status={borrow.usdStatus} amount={borrow.amount} symbol={borrow.symbol} short /></span>}
+          <span className="fc-apr ok">{leg?.apr != null ? pct(leg.apr) : ''}</span>
+          <span className="fc-legs t40">{tx.nRows > 1 ? `${tx.nRows} legs` : ''}</span>
+        </div>
+        <div className="fc-when">
+          <ChainCorner chainId={tx.chainId} />
+          <Ago ts={tx.blockTs} />
+          <TxLink chainId={tx.chainId} hash={tx.txHash} />
+        </div>
+        <div className="fc-a">
+          <Comments n={comments} onClick={onToggle} active={open} />
+          {strategy
+            ? <button className="btn sm pri" onClick={() => go(strategy.group, { u: strategy.asset, s: strategy.id, k: strategy.kind, copy: who })}>Copy this ›</button>
+            : leg?.marketUid
+              ? <a className="btn sm" href={marketHref(leg.marketUid)}>Open market</a>
+              : null}
         </div>
       </div>
       {open && key && (

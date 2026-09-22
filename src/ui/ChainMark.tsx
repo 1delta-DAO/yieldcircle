@@ -124,7 +124,7 @@ export function ChainCorner({ chainId }: { chainId: string | undefined }) {
   const c = chainInfo(chainId)
   return (
     <span className="chain-corner" title={c?.name ?? chainId}>
-      <ChainMark chainId={chainId} size={14} />
+      <ChainMark chainId={chainId} size={18} />
       <b>{c?.short ?? chainId}</b>
     </span>
   )

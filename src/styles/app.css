@@ -505,25 +505,45 @@ a.who:hover .wn b{color:var(--primary)}
 .lnk:hover{text-decoration:underline}
 
 /* ---------- feed ---------- */
+.feedwrap{max-width:1120px;margin:0 auto}
 .feed-h{display:flex;align-items:center;gap:12px;margin:2px 0 16px;flex-wrap:wrap}
 .feed-h h1{font-size:20px}
 .feed-h .seg button .c{margin-left:5px;font-family:var(--mono);font-size:11px;color:var(--tx40)}
 .feed{display:flex;flex-direction:column;gap:10px}
-.fcard{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);padding:14px 16px;display:flex;flex-direction:column;gap:9px;transition:border-color .15s}
+.fcard{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);padding:10px 14px;display:flex;flex-direction:column;transition:border-color .15s}
 .fcard:hover{border-color:var(--line2)}
+/* One line, five columns: who · what · how much · when · what you can do.
+   Four stacked bands left a wide dead middle on a 1240px page; as a row the
+   money, the chain and the buttons hold the same width on every card, so the
+   feed reads DOWN those columns instead of round a hole in each card. */
+.fc-g{display:grid;align-items:center;column-gap:18px;row-gap:8px;
+  grid-template-columns:minmax(0,auto) minmax(0,1fr) auto auto auto;
+  grid-template-areas:"who what money when act"}
+/* fixed so the verbs start on one line down the feed, not at the end of a name */
+.fc-who{grid-area:who;width:190px;min-width:0;overflow:hidden}
+.fc-who .who{max-width:100%}
+.fc-when{grid-area:when;display:flex;align-items:center;justify-content:flex-end;gap:9px;min-width:132px;font-size:12px;color:var(--tx50)}
 .fc-h{display:flex;align-items:center;gap:10px}
 /* the out-link to the chain's explorer: quiet until the row is under the cursor, never hidden */
 .txlink{display:inline-flex;align-items:center;gap:5px;color:var(--tx50);flex:0 0 auto;font-size:12px}
 .txlink:hover{color:var(--tx)}
-.fc-b{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
-.fc-m{display:inline-flex;align-items:center;gap:7px;min-width:0;border:1px solid var(--line);border-radius:999px;padding:3px 11px 3px 4px;background:var(--bg);font-size:13px}
+.fc-b{grid-area:what;display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0}
+.fc-b .verb{min-width:84px;flex:none}
+.fc-m{display:inline-flex;align-items:center;gap:7px;min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:999px;padding:3px 11px 3px 4px;background:var(--bg);font-size:13px}
 .fc-m:hover{border-color:var(--line2)}
-.fc-m b{font-weight:500;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
-.fc-m .t50{font-size:11.5px;white-space:nowrap}
-.fc-n{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-family:var(--mono);font-size:12.5px;color:var(--tx50)}
-.fc-n .big{font-size:20px;color:var(--tx);font-weight:500}
-.fc-a{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line-soft);padding-top:9px;margin-top:1px}
-.fc-t{border-top:1px solid var(--line);margin:2px -16px -14px;padding:0 16px;background:#0d0d0d;border-radius:0 0 var(--r) var(--r)}
+/* the market's own name gives way last: the lender beside it is the line that shrinks */
+.fc-m b{flex:0 1 auto;min-width:0;font-weight:500;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.fc-m .t50{flex:0 4 auto;min-width:0;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* the dollars, the rate and the leg count each keep their own slot — an empty
+   one is still a slot, so a card with no rate does not slide its amount out
+   from under the one above it */
+.fc-n{grid-area:money;display:flex;align-items:baseline;justify-content:flex-end;gap:8px;
+  font-family:var(--mono);font-size:12px;color:var(--tx50);min-width:186px;white-space:nowrap}
+.fc-n .big{flex:1 1 auto;text-align:right;font-size:19px;color:var(--tx);font-weight:500}
+.fc-n .fc-apr{width:44px;text-align:right;flex:none}
+.fc-n .fc-legs{width:50px;text-align:right;flex:none}
+.fc-a{grid-area:act;display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:142px}
+.fc-t{border-top:1px solid var(--line);margin:10px -14px -10px;padding:0 14px;background:#0d0d0d;border-radius:0 0 var(--r) var(--r)}
 .feed-more{display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap}
 
 /* ---------- threads ---------- */
@@ -660,6 +680,15 @@ a.who:hover .wn b{color:var(--primary)}
 .bell:hover,.bell.on{color:var(--primary);background:var(--b300)}
 .ndot{position:absolute;top:2px;right:0;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--primary);color:var(--primary-ink);font:700 9.5px/15px var(--mono);font-style:normal;text-align:center}
 
+/* no room for five columns: who and when on one line, the market on its own —
+   it is the longest thing on the card — then the money and the buttons */
+@media (max-width:900px){
+  .fc-g{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"who when" "what what" "money act";column-gap:12px;row-gap:9px}
+  .fc-when,.fc-n,.fc-a{min-width:0}
+  .fc-n{justify-content:flex-start}
+  .fc-n .big{flex:0 0 auto;text-align:left}
+  .fc-b .verb{min-width:0}
+}
 @media (max-width:1000px){
   .mgrid{grid-template-columns:1fr}
   .wstats{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -675,7 +704,7 @@ a.who:hover .wn b{color:var(--primary)}
   .row.wrow{gap:8px}
   .row.wrow .follow{display:none}
   .fcard{padding:12px 13px}
-  .fc-t{margin:2px -13px -12px;padding:0 13px}
+  .fc-t{margin:10px -13px -12px;padding:0 13px}
   .wcard{gap:14px;padding:14px}
   .wstat .v{font-size:18px}
   /* the nav scrolls rather than pushing the wallet button off the edge; the fade says so */
@@ -840,9 +869,9 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
 .chainmenu .cm-sep{height:1px;background:var(--line);margin:4px 2px}
 
 /* the corner of a card: which chain this happened on, without joining the numbers */
-.chain-corner{display:inline-flex;align-items:center;gap:5px;flex:none;
-  border:1px solid var(--line);border-radius:999px;padding:1px 7px 1px 2px;background:var(--bg)}
-.chain-corner b{font:600 9.5px/1.6 var(--mono);letter-spacing:.04em;color:var(--tx50)}
+.chain-corner{display:inline-flex;align-items:center;gap:6px;flex:none;
+  border:1px solid var(--line);border-radius:999px;padding:2px 9px 2px 2px;background:var(--bg)}
+.chain-corner b{font:600 11px/1.5 var(--mono);letter-spacing:.04em;color:var(--tx70)}
 .hotcard .chain-corner{margin-left:8px}
 @media (max-width:520px){ .chain-corner b{display:none} .chain-corner{padding:2px;border-color:transparent;background:none} }
 

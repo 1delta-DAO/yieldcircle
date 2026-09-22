@@ -10,7 +10,8 @@ import { useHolders, useMarket, useMarketFlow, useMarketTxs } from '../index/que
 import type { FlowBucket } from '../index/api'
 import { useProfiles } from '../social/queries'
 import { useMenu } from './useMenu'
-import { parseUid } from '../model/uid'
+import { parseUid, protocolKeyOf } from '../model/uid'
+import { prettyProtocol } from './ProtocolFilter'
 import { Ago, FollowButton, Money, Who, describeTx } from './social-bits'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { Thread } from './Thread'
@@ -27,15 +28,53 @@ export function Market({ uid }: { uid: string }) {
   const s = menu.forUid(uid)
   const parts = parseUid(uid)
   const { profile } = useProfiles((holders.data?.holders ?? []).map((h) => h.account))
-  const name = (m.data?.marketName as string | undefined) ?? s?.holds ?? parts?.ref?.slice(0, 10) ?? uid
-  const lender = (m.data?.lenderName as string | undefined) ?? s?.venue ?? parts?.lender ?? ''
-  const chainId = (m.data?.chainId as string | undefined) ?? s?.chainId ?? parts?.chainId
+
+  /**
+   * Name the market from whatever knows it.
+   *
+   * `idx.markets` is the best answer but not the only one: a market the book
+   * has not caught up with still has LEDGER rows, and every one of those
+   * carries the name and the lender from the read-time join. Falling straight
+   * through to the raw ref showed `0x833589fc` for a market whose own tape,
+   * three lines below, said "Morpho cbBTC-USDC 86".
+   */
+  const fromTape = (txs.data?.txs ?? [])
+    .flatMap((t) => t.legs)
+    .find((l) => l.marketUid === uid && (l.marketName || l.symbol))
+  const fromHolder = (holders.data?.holders ?? []).find((h) => h.symbol)
+  const leg =
+    (m.data?.marketName as string | undefined) ??
+    fromTape?.marketName ??
+    s?.holds ??
+    fromTape?.symbol ??
+    fromHolder?.symbol
+  const venue =
+    (m.data?.lenderName as string | undefined) ??
+    fromTape?.lenderName ??
+    s?.venue ??
+    prettyProtocol(protocolKeyOf(parts?.lender ?? ''))
+  /**
+   * Which of the two leads.
+   *
+   * On a pool lender the market name is the specific one ("Aave V3 USDT") and
+   * the lender is the protocol ("Aave V3"). On a Morpho-type lender the market
+   * IS the lender key, so the names swap round: the lender field carries
+   * "Morpho cbBTC-USDC 86" and the market field carries the leg, "Loan USDC".
+   * A feed card can show both and let the reader sort it out; a page whose
+   * whole subject is this market should lead with the specific one.
+   */
+  const generic = /^(loan|collateral|debt|supply|borrow)\b/i.test(leg ?? '')
+  const name = (generic ? venue : leg) ?? leg ?? venue ?? shortRef(parts?.ref) ?? uid
+  const lender = (generic ? leg : venue) ?? ''
+  const logo = (m.data?.assetLogo as string | undefined) ?? fromTape?.assetLogo ?? s?.logo
+  const symbol = (m.data?.assetSymbol as string) ?? fromTape?.symbol ?? s?.holds ?? '?'
+  const chainId = (m.data?.chainId as string | undefined) ?? fromTape?.chainId ?? s?.chainId ?? parts?.chainId
 
   return (
     <>
       <a className="crumb" href="#/feed">‹ Feed</a>
       <header className="mhdr">
-        <Tok sym={(m.data?.assetSymbol as string) ?? s?.holds ?? '?'} logo={(m.data?.assetLogo as string) ?? s?.logo} size={40} />
+        <Tok sym={symbol} logo={logo ?? undefined} size={40} />
         <div>
           <h1>{name}</h1>
           <div className="sub">{lender}{chainId ? ` · ${indexChainLabel(chainId, chainLabel)}` : ''}{s ? ` · in the menu at ${pct(s.rate)}` : ''}</div>
@@ -47,7 +86,12 @@ export function Market({ uid }: { uid: string }) {
         </div>
       </header>
       {!s && <div className="note">This app has no row for this market — it is outside the curated menu (too small, too risky, a chain this build does not offer, or a venue whose ticket is not written). You can still read it here.</div>}
-      {m.isError && <div className="note">The index does not know this uid yet. It may be a market it has never seen a log for.</div>}
+      {m.isError && !fromTape && !holders.data?.holders.length && (
+        <div className="note">
+          The market book has no row for this uid yet, and the ledger has no
+          event for it either — the index may never have seen a log from it.
+        </div>
+      )}
 
       <div className="mgrid">
         <section className="sec" style={{ marginTop: 0 }}>
@@ -133,4 +177,8 @@ function Flow({ rows }: { rows: FlowBucket[] }) {
     </div>
   )
 }
+/** `0x833589fcd6…2913` — enough of a ref to recognise, when nothing named it. */
+const shortRef = (ref: string | undefined) =>
+  ref && ref.startsWith('0x') && ref.length > 14 ? `${ref.slice(0, 8)}…${ref.slice(-4)}` : ref
+
 export { marketHref }

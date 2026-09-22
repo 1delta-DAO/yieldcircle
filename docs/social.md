@@ -676,3 +676,37 @@ thirty are empty is worse than no filter: every empty choice is a promise the
 page cannot keep. The chips show counts (`Morpho 3.5k`) and a protocol that
 leaves the window — or the chain scope — is dropped from the selection rather
 than filtering on invisibly.
+
+
+---
+
+## 15 · Two bugs a market page found
+
+*2026-09-22.*
+
+**Every Morpho market page said "the index does not know this uid".** It was a
+**414**. A market uid is a route param, and a Morpho-type one is 124
+characters — `MORPHO_BLUE_<64 hex>:<chain>:<0x…>`, 128 once the colons are
+percent-encoded. Fastify caps a param at 100 by default, so `/markets/:uid`
+and its three sub-routes rejected the request outright for Morpho, Lista and
+Midnight: the second-biggest protocol in the ledger, 40k rows a day. The
+social service had already hit this and carries `maxParamLength: 512` for
+position keys; the indexer's Fastify had been left at the default.
+
+It was invisible because the client treated any failure as "unknown market".
+It also meant the ticket's **"who else is in it"** was silently empty on every
+Morpho strategy — the one place the panel had the most to say.
+
+**A market should name itself from its own tape.** Even with the 414 fixed, a
+market the book has not caught up with fell straight through to its raw ref
+and rendered as `0x833589fc` — while its own tape, three lines below, said
+"Morpho cbBTC-USDC 86". Every ledger row carries the name and the lender from
+the read-time join, so the page now prefers, in order: the market book, the
+tape, the catalogue, a holder's symbol, then the ref.
+
+And it leads with the **specific** one. On a pool lender the market name is
+specific ("Aave V3 USDT") and the lender is the protocol ("Aave V3"); on a
+Morpho-type lender the market IS the lender key, so they swap — the lender
+field carries "Morpho cbBTC-USDC 86" and the market field carries the leg,
+"Loan USDC". A feed card can show both; a page whose whole subject is this
+market should not headline "Loan USDC".

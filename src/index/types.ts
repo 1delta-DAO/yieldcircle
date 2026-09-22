@@ -129,11 +129,13 @@ export interface TrendingMarket extends Named {
 export interface Following { source: string; accounts: number; markets: number }
 
 /**
- * The index follows one chain more than this app offers strategies on
- * (Avalanche), so a ledger row can name a chain `sdk/queries.ts` has no label
- * for. Naming it is better than printing `43114` at the reader.
+ * The index follows chains this app offers no strategies on, so a ledger row
+ * can name a chain `sdk/queries.ts` has no label for. Naming it is better than
+ * printing `137` at the reader. Avalanche left this list when the selector
+ * gained it — `chainLabel` answers for every chain in `CHAINS`, and a duplicate
+ * here would only go stale.
  */
-const EXTRA: Record<string, string> = { '43114': 'Avalanche', '137': 'Polygon', '10': 'Optimism' }
+const EXTRA: Record<string, string> = { '137': 'Polygon', '10': 'Optimism' }
 export const indexChainLabel = (id: string | undefined, known: (id: string) => string): string => {
   if (!id) return ''
   const k = known(id)

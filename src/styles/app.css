@@ -31,6 +31,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,[tabindex]:focus-visibl
 .brand{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:.02em;font-size:15px}
 .brand svg{display:block;height:32px;width:auto}
 .brand .logo{margin-right:2px}
+.brand .brandmark{display:none;place-items:center}
 .brand .mode{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--primary);border:1px solid var(--primary);border-radius:999px;padding:1px 7px;margin-left:2px}
 .top nav{display:flex;gap:2px;margin-left:8px}
 .top nav a{padding:6px 12px;border-radius:var(--r);color:var(--tx50);font-size:13.5px}
@@ -317,7 +318,6 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
   .top .btn.ghost{display:none}
     .brand .logo svg{height:26px}
   .top nav{display:none}
-  .top .chainseg{display:none}
   .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   .tile{min-height:120px;padding:12px}
   .tile .kv .v{font-size:15px}
@@ -678,8 +678,13 @@ a.who:hover .wn b{color:var(--primary)}
   .fc-t{margin:2px -13px -12px;padding:0 13px}
   .wcard{gap:14px;padding:14px}
   .wstat .v{font-size:18px}
-  .top nav{display:flex;gap:0}
-  .top nav a{padding:6px 8px;font-size:12.5px}
+  /* the nav scrolls rather than pushing the wallet button off the edge; the fade says so */
+  .top nav{display:flex;gap:0;flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;
+    mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
+  .top nav::-webkit-scrollbar{display:none}
+  .top nav a{padding:6px 8px;font-size:12.5px;flex:none}
+  .brand .logo{display:none}
+  .brand .brandmark{display:grid}
   .feed-h h1{font-size:18px}
 }
 
@@ -807,9 +812,32 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
 
 /* the selector: a mark and a name, the name folding away first */
 .chainseg button{display:inline-flex;align-items:center;gap:6px}
-.chainseg button .cn{line-height:1}
 .chainseg button[aria-pressed="true"] .chainmark{box-shadow:0 0 0 1.5px rgba(255,255,255,.25)}
-@media (max-width:1200px){ .top .chainseg button .cn{display:none} .top .chainseg button{padding:5px 8px} }
+/* ---------- the chain scope in the header ----------
+   One control, two renderings (ui/ChainPicker.tsx): the segmented row while it
+   fits, a menu button once it does not. The button is never hidden — the scope
+   is global, so a phone has to be able to change it. */
+/* the row never shrinks: `.seg` clips its overflow, so a compressed row loses its
+   last chain silently — Avalanche was half a button wide at 1440px */
+.chainseg{flex:none}
+.chainseg button{padding:5px 8px}
+.chainbtn{flex:none;display:none;align-items:center;gap:7px;min-height:30px;padding:0 9px;border:1px solid var(--line2);border-radius:var(--r);color:var(--tx70);font-size:12.5px;white-space:nowrap}
+.chainbtn:hover,.chainbtn[aria-expanded="true"]{border-color:var(--tx50);color:var(--tx)}
+/* the marks overlap like a stack of coins, so three of them cost the width of two */
+.chainbtn .marks{display:inline-flex;align-items:center;padding-right:5px}
+.chainbtn .marks .chainmark{margin-right:-5px;box-shadow:0 0 0 1.5px var(--bg);border-radius:50%}
+@media (max-width:1000px){ .top .chainseg{display:none} .top .chainbtn{display:inline-flex} }
+@media (max-width:520px){ .chainbtn .cl{display:none} }
+.chainmenu{padding:5px;display:flex;flex-direction:column;gap:1px}
+.chainmenu .cm-line{display:flex;align-items:center;gap:2px}
+.chainmenu .cm-row{flex:1;display:flex;align-items:center;gap:8px;min-height:34px;padding:0 8px;border-radius:var(--r);color:var(--tx70);font-size:13px;text-align:left}
+.chainmenu .cm-row:hover{background:var(--b200);color:var(--tx)}
+.chainmenu .cm-row[aria-checked="true"]{color:var(--tx)}
+.chainmenu .cm-tick{width:12px;flex:none;color:var(--primary);font-size:11px}
+.chainmenu .cm-n{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.chainmenu .cm-only{flex:none;min-height:26px;padding:0 7px;border-radius:5px;font-family:var(--mono);font-size:10.5px;color:var(--tx40)}
+.chainmenu .cm-line:hover .cm-only{color:var(--tx70);border:1px solid var(--line2)}
+.chainmenu .cm-sep{height:1px;background:var(--line);margin:4px 2px}
 
 /* the corner of a card: which chain this happened on, without joining the numbers */
 .chain-corner{display:inline-flex;align-items:center;gap:5px;flex:none;

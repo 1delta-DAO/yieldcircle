@@ -6,9 +6,10 @@
  * path. Inline SVG costs no request, is crisp at 14px and at 28px, and cannot
  * half-render — the same reason the brand mark and the character are paths.
  *
- * The index follows one chain this app has no strategies for (Avalanche), so
- * a ledger row can name a chain the selector does not offer. It gets a mark
- * too: a row from it must not be the only nameless thing on the page.
+ * The index follows chains this app has no strategies for (Polygon,
+ * Optimism), so a ledger row can name a chain the selector does not offer.
+ * That one gets a mark too — its id's first characters on a plain disc —
+ * because a row from it must not be the only nameless thing on the page.
  */
 
 export interface ChainInfo { id: string; name: string; short: string; color: string; explorer: string; explorerName: string }

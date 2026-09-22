@@ -1,0 +1,71 @@
+# Simplifying the asset page
+
+The asset page (what opens when you tap USDC, ETH, …) had five stacked blocks:
+positions per asset with idle rows, six curated cards, an eight-column deposit
+table, a nine-column loop table, and the ticket. Each block was defensible on
+its own; together they read like a trading terminal. This note looks at how the
+front ends people call "simple" handle the same screen, and what we take.
+
+## What the simple ones do
+
+| Product | The list row | What is *not* on the list | Where the rest lives |
+|---|---|---|---|
+| **Lido, Ethena, Sky savings** | one asset, one rate, one button | everything | a small "details" disclosure under the button |
+| **Coinbase / Robinhood earn** | asset · your balance · "earn up to x%" | venue, mechanism, liquidity, history | the confirmation screen |
+| **Aave** (supply table) | asset · wallet balance · APY · [Supply] | risk, size, utilisation, oracle | the asset detail page and the supply modal |
+| **Yearn, Morpho Earn, Instadapp Lite** | vault name · APY · TVL · your deposit | strategy internals, leverage, sub-strategies | vault page; leverage is hidden inside "automated strategy" |
+| **Summer.fi (Lazy Summer)** | asset · one risk-adjusted yield · balance | which protocols, weights, rebalancing | a "how it works" panel |
+| **Pendle** | simple / pro toggle; simple shows asset · fixed APY · maturity | implied vs underlying, YT, order book | pro mode |
+| **Contango, Gearbox, Instadapp** (leverage) | pair · "up to x%" at max leverage · [Open] | leverage picker, liquidation, borrow rate | the ticket, where leverage is a slider |
+
+Three rules fall out of that:
+
+1. **One number per row.** The list decides *which*; the ticket decides *how
+   much* and *how levered*. Sparklines, size, exit mode, liquidity, buffer and
+   30-day averages are ticket material, not list material.
+2. **Progressive disclosure, not parallel sections.** No one shows two tables
+   at once. The split (deposit vs loop, simple vs pro) is a toggle, and one
+   side is the default.
+3. **Balance and yield on the same line.** "You have $52,400 idle, it could
+   earn 8.42%" is the whole pitch of a simple mode. The position detail
+   (per-strategy equity, health) belongs on the portfolio screen, which for
+   us is the explorer's "Your positions" block.
+
+## What we cut, and why
+
+| Was | Now | Why |
+|---|---|---|
+| "Your US dollar" block on the asset page (asset header rows, idle rows, strategy rows) | one **idle strip**: "USDC · $52,400 idle · could earn up to 8.42% · Put to work" | the explorer already has the full breakdown; the asset page only needs the one fact that drives action |
+| six curated cards | an **"our pick"** tag on the curated rows, which sort first | the cards repeated the list with more words; a tag keeps the editorial signal at zero cost |
+| two tables, Simple and Advanced, always both visible | one list with a **Deposits / Loops** toggle; Deposits is the default | rule 2; the split stays explicit and the loop side is one tap away |
+| 8 / 9 columns | **4 columns**: strategy (name + one plain line), rate, risk, yours | rule 1; every removed column is already in the ticket (exit, size, liquidity, buffer, sensitivity, health) |
+| sparkline + 30-day average per row | dropped from the list | history explains a rate, it does not pick one; the ticket can get a small chart later |
+| "n strategies" copy in the header | count on the toggle | one place |
+
+The ticket does not change: it was already the place where the size, exit,
+liquidity, liquidation buffer and rate sensitivity live.
+
+## What we deliberately keep
+
+- **The loop side is a toggle, not a hidden "pro" mode.** Loops are the
+  product; the simple mode changes the order of reading, not the menu.
+- **Risk dot on the row.** It is the one thing a plain APY hides.
+- **"Yours" on the row.** A running strategy should be recognisable in the
+  list without opening it.
+- **Asset chips.** With six dollar assets, filtering by what you own is the
+  first move most people make.
+
+## Alternatives considered
+
+- **Single mixed list, deposits and loops together, sorted by rate.** Cleaner
+  still, but a 16% loop above a 4% deposit with nothing between them is how
+  people end up levered without noticing. The toggle keeps the two kinds in
+  separate frames.
+- **Cards instead of rows.** Cards spend a lot of pixels on one number; rows
+  compare better. Cards make sense on a phone, where the row already
+  collapses to name + rate.
+- **Hide loops entirely behind a "show advanced" switch.** Too far. Loops
+  with a suggested leverage and a plain-words liquidation line are the reason
+  to use this instead of the venue's own front end.
+- **Keep the positions block but collapsed.** A collapsed block is a header
+  that says nothing. The idle strip says the one thing that matters.

@@ -5,7 +5,7 @@ import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
 import { useBook } from './useBook'
 import { Ticket } from './Ticket'
-import { GroupIcon, Info, KindPill, RiskDot, Sk, StratMark, Tok, Toks, amt, num, pct, usd } from './bits'
+import { GroupIcon, Info, KindPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd } from './bits'
 import { chainLabel } from '../sdk/queries'
 import { uidOf } from '../model/uid'
 import { useCounts } from '../social/queries'
@@ -46,10 +46,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
         <div className="main">
           <div className="hdr">
             <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {u}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div></div></div>
-            <div className="chips">
-              <button className="chip" aria-pressed={u === 'all'} onClick={() => go(group.id, { s: route.s, k: route.k })}>All <span className="c">{inGroup.length}</span></button>
-              {assets.map((a) => <button key={a} className="chip" aria-pressed={u === a} onClick={() => go(group.id, { u: a, s: route.s, k: route.k })}><Tok sym={a} />{a} <span className="c">{inGroup.filter((s) => s.asset === a).length}</span></button>)}
-            </div>
+            <AssetChips group={group} route={route} assets={assets} u={u} all={inGroup} />
           </div>
           {idle.length > 0 && (
             <div className="idle-strip">{idle.map((x) => { const best = bestSimpleFor(x.asset), bestAny = bestFor(x.asset); return (
@@ -83,18 +80,24 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
               <table className="tbl strat-t"><tbody>{[0, 1, 2, 3].map((i) => <tr key={i}><td><Sk w={200} /></td><td className="r"><Sk w={60} /></td><td className="hide-m"><Sk w={60} /></td><td /></tr>)}</tbody></table>
             ) : list.length ? (
               <table className="tbl strat-t">
-                <colgroup><col /><col style={{ width: 110 }} /><col className="hide-m" style={{ width: 100 }} /><col style={{ width: 52 }} /><col style={{ width: 32 }} /></colgroup>
-                <thead><tr><th>{kind === 'simple' ? 'Deposit' : 'Loop'}</th><th className="r">{kind === 'simple' ? 'APY' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier: earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}</th><th className="hide-m">Risk</th><th className="r">Talk</th><th /></tr></thead>
+                <colgroup><col /><col className="c-rate" /><col className="c-tail" /></colgroup>
+                <thead><tr><th>{kind === 'simple' ? 'Deposit' : 'Loop'}</th><th className="r">{kind === 'simple' ? 'APY' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier: earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}</th><th /></tr></thead>
                 <tbody>{list.map((s) => { const h = held(s); const pick = picks.has(s.id); return (
                   <tr key={s.id} aria-selected={sel?.id === s.id} onClick={() => go(group.id, { u, s: s.id, k: s.kind })}>
                     <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}</div>
-                      <small className="hide-m">{u === 'all' ? `${s.asset} · ` : ''}{chainLabel(s.chainId)}{s.kind === 'simple' ? ` · ${s.exitWord.toLowerCase()}` : ''}</small></td>
-                    <td className="r"><span className={s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}>{pct(s.rate)}</span>{s.kind === 'simple' && <small>{s.source}</small>}</td>
-                    <td className="hide-m"><RiskDot r={s.risk} label={s.riskLabel} /></td>
-                    <td className="r" onClick={(e) => e.stopPropagation()}>
-                      <Comments n={commentsOn(s)} onClick={() => { const u = uidOf(s); if (u) location.hash = marketHref(u) }} />
+                      {/* the qualifiers read as one sentence. Risk had a column of
+                          its own where eight rows in nine said the same word; here it
+                          sits second, so it is the part a narrow screen keeps rather
+                          than the part it truncates. */}
+                      <small>{u === 'all' ? `${s.asset} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${s.exitWord.toLowerCase()}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.source}` : ''}</small></td>
+                    {/* the rate, on its own: nothing else in this cell to read past */}
+                    <td className="r"><span className={s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}>{pct(s.rate)}</span></td>
+                    {/* a bubble on a row nobody has posted on is furniture, so it
+                        only appears once there is something to open */}
+                    <td className="r tail">
+                      {commentsOn(s) > 0 && <Comments n={commentsOn(s)} onClick={() => { const u = uidOf(s); if (u) location.hash = marketHref(u) }} />}
+                      <span className="t40">›</span>
                     </td>
-                    <td className="r t40" style={{ width: 20 }}>›</td>
                   </tr>) })}</tbody>
               </table>
             ) : <div className="empty">No {kind === 'simple' ? 'plain deposit' : 'loop'} for this filter{b.errors.length ? ` (${b.errors[0].message})` : ''}.</div>}
@@ -106,4 +109,47 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
     </>
   )
 }
+
+/**
+ * The asset filter.
+ *
+ * It was a horizontal scroller with its own scrollbar hidden, which meant that
+ * with the ticket open eighteen chips lived in a 756px box and twelve of them
+ * were simply gone — no fade, no arrow, nothing on screen admitting they
+ * existed. It wraps now, ranked by how much each asset actually has to offer,
+ * and the tail folds behind a count that says how many are folded.
+ */
+function AssetChips({ group, route, assets, u, all, max = 6 }: { group: Group; route: Route; assets: string[]; u: string; all: Strategy[]; max?: number }) {
+  const [open, setOpen] = React.useState(false)
+  const countOf = React.useCallback((a: string) => all.filter((s) => s.asset === a).length, [all])
+  const ranked = React.useMemo(
+    () => [...assets].sort((x, y) => countOf(y) - countOf(x) || x.localeCompare(y)),
+    [assets, countOf],
+  )
+  const head = open ? ranked : ranked.slice(0, max)
+  // the asset you are filtered by never hides behind the +N
+  const shown = u === 'all' || head.includes(u) ? head : [...head, u]
+  const hidden = ranked.length - shown.length
+  return (
+    <div className="chips" role="group" aria-label="Assets">
+      <button className="chip" aria-pressed={u === 'all'} onClick={() => go(group.id, { s: route.s, k: route.k })}>
+        All <span className="c">{all.length}</span>
+      </button>
+      {shown.map((a) => (
+        <button key={a} className="chip" aria-pressed={u === a} onClick={() => go(group.id, { u: a, s: route.s, k: route.k })}>
+          <Tok sym={a} size={16} />{a} <span className="c">{countOf(a)}</span>
+        </button>
+      ))}
+      {hidden > 0 && <button className="chip more" onClick={() => setOpen(true)}>+{hidden}</button>}
+      {open && ranked.length > max && <button className="chip more" onClick={() => setOpen(false)}>less</button>}
+    </div>
+  )
+}
+
+/** `medium risk`, in the row's own sentence rather than in a column of its own. */
+function RiskWord({ s }: { s: Strategy }) {
+  const word = (s.riskLabel || ['', 'Low', 'Medium', 'High'][s.risk] || '').toLowerCase()
+  return <span className={`risk r${s.risk}`}><i />{word} risk</span>
+}
+
 export { KindPill }

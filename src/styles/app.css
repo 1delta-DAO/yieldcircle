@@ -123,9 +123,22 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .asset:not(.noticket) .pill.run{display:none}
 /* with the ticket open the list is narrow: keep the decision columns, drop the context ones */
 .asset:not(.noticket) .hide-t{display:none}
-.tbl.strat-t tr[aria-selected="true"] td{background:#062830;box-shadow:inset 3px 0 0 var(--primary)}
+/* the selected marker belongs to the row, not to each cell in it — on every
+   td it drew one cyan bar per column */
+.tbl.strat-t tr[aria-selected="true"] td{background:#062830}
+.tbl.strat-t tr[aria-selected="true"] td:first-child{box-shadow:inset 3px 0 0 var(--primary)}
 .tbl.strat-t td.r > span{font-size:14px}
 .tbl.strat-t td.r{overflow:hidden}
+/* the bubble and the chevron share one cell, so a row with no discussion costs
+   no column */
+.tbl.strat-t col.c-rate{width:110px}
+.tbl.strat-t col.c-tail{width:64px}
+/* the chevron column is 32px wide and the cell padding was 16px a side, so the
+   glyph had nothing left to sit in */
+.tbl.strat-t td:last-child{padding-left:4px;padding-right:14px}
+.tbl.strat-t td.tail{white-space:nowrap;overflow:visible}
+.tbl.strat-t td.tail .cmt{vertical-align:middle;margin-right:2px}
+.tbl.strat-t td.tail > .t40{vertical-align:middle}
 .tbl.strat-t td.r > small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .acts{white-space:nowrap}
 .spark{display:block;margin-left:auto}
@@ -164,6 +177,10 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 /* underlying breakdown table */
 .tbl{width:100%;border-collapse:collapse}
 .tbl th{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;color:var(--tx50);text-align:left;padding:10px 18px;border-bottom:1px solid var(--line);white-space:nowrap}
+/* on the strategy tables the head is a caption, not a bar: it names the columns
+   once and then gets out of the way of the rows it labels */
+.tbl.strat-t th{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;font-weight:400;
+  color:var(--tx40);padding:12px 18px 6px;border-bottom:0}
 .tbl.strat-t th:first-child{padding-left:20px}
 .tbl th.r{text-align:right}
 .tbl td{padding:0 16px;height:46px;border-bottom:1px solid var(--line-soft);color:var(--tx70);white-space:nowrap;vertical-align:middle;transition:background .12s ease}
@@ -187,11 +204,16 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .strat .ft{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tx50);margin-top:4px}
 
 /* chips (underlying filter) */
-.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
-.chips::-webkit-scrollbar{display:none}
-.chip{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border:1px solid var(--line2);border-radius:999px;font-size:13px;color:var(--tx70);white-space:nowrap}
+/* it wraps rather than scrolls: a scroller with its own scrollbar hidden
+   loses two thirds of the filter and says nothing about it */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 10px;border:1px solid var(--line2);border-radius:999px;font-size:12.5px;color:var(--tx70);white-space:nowrap}
+.chip:hover{color:var(--tx);border-color:var(--tx50)}
 .chip[aria-pressed="true"]{border-color:var(--primary);color:var(--tx);background:#062830}
-.chip .c{font-family:var(--mono);font-size:11px;color:var(--tx40)}
+.chip .c{font-family:var(--mono);font-size:10.5px;color:var(--tx40)}
+.chip[aria-pressed="true"] .c{color:var(--primary)}
+/* the count of what is folded away, in the register of a footnote */
+.chip.more{color:var(--tx40);font-family:var(--mono);font-size:11px}
 
 /* asset page layout */
 .asset{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:20px;align-items:start}
@@ -358,6 +380,13 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
   .tbl.strat-t td:first-child .nm > span{min-width:0}
   .tbl.strat-t td{height:48px}
   .tbl.strat-t .pill.run,.tbl.strat-t .pill.pick{display:none}
+  /* the two columns that went give their width to the name, which is the one
+     thing on a phone that was truncating to "USDT · Lend on A…" on three
+     rows running */
+  .tbl.strat-t col.c-rate{width:82px}
+  .tbl.strat-t col.c-tail{width:34px}
+  .tbl.strat-t td.tail{padding-right:8px}
+  .tbl.strat-t td{height:auto;min-height:48px;padding-top:9px;padding-bottom:9px}
   .pick-star{display:inline}
   .tbl th{padding:8px 10px}
   .wrap{padding-top:14px}

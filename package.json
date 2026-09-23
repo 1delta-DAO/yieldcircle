@@ -37,7 +37,7 @@
   },
   "pnpm": {
     "overrides": {
-      "@walletconnect/logger>pino": "10.0.0"
+      "@walletconnect/logger": "3.0.2"
     }
   }
 }

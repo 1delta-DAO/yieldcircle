@@ -73,10 +73,17 @@ export function useTrending(window: '1h' | '24h' | '7d' = '24h', chainIds: strin
 }
 
 /** The hot list for one window; the chain and protocol filters are the app's own. */
-export function useHot(window: '1h' | '6h' | '24h' | '7d', chainIds?: string, limit = 24, protocols?: string) {
+export function useHot(
+  window: '1h' | '6h' | '24h' | '7d',
+  chainIds?: string,
+  limit = 24,
+  protocols?: string,
+  issuers?: string,
+  issuerMatch?: api.IssuerMatch,
+) {
   return useQuery({
-    queryKey: ['hot', window, chainIds ?? 'all', protocols ?? 'all', limit],
-    queryFn: () => api.hot({ window, chainIds, protocols, limit }),
+    queryKey: ['hot', window, chainIds ?? 'all', protocols ?? 'all', issuers ?? 'all', issuerMatch ?? 'any', limit],
+    queryFn: () => api.hot({ window, chainIds, protocols, issuers, issuerMatch, limit }),
     staleTime: 2 * MIN,
     refetchInterval: 2 * MIN,
     placeholderData: (prev) => prev,
@@ -88,6 +95,15 @@ export function useProtocols(window: '1h' | '6h' | '24h' | '7d', chainIds?: stri
   return useQuery({
     queryKey: ['protocols', window, chainIds ?? 'all'],
     queryFn: () => api.protocols({ window, chainIds, limit: 40 }),
+    staleTime: 5 * MIN,
+  })
+}
+
+/** Which desks a filter should offer, for the current window and chain scope. */
+export function useIssuers(window: '1h' | '6h' | '24h' | '7d', chainIds?: string) {
+  return useQuery({
+    queryKey: ['issuers', window, chainIds ?? 'all'],
+    queryFn: () => api.issuers({ window, chainIds, limit: 40 }),
     staleTime: 5 * MIN,
   })
 }

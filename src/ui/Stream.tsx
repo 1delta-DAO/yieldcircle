@@ -19,6 +19,7 @@ import { Sk } from './bits'
 import { primaryLeg } from './Feed'
 import { useMenu } from './useMenu'
 import { ProtocolChips, useProtocolFilter } from './ProtocolFilter'
+import { IssuerChips, useIssuerFilter } from './IssuerFilter'
 
 type Scope = 'menu' | 'following' | 'everyone'
 
@@ -35,10 +36,12 @@ export function Stream({ rows = 12 }: { rows?: number }) {
   React.useEffect(() => { if (canFollow) setScope('following') }, [canFollow])
 
   const pf = useProtocolFilter('24h')
+  const inf = useIssuerFilter('24h')
+  const desks = { issuers: inf.param, issuerMatch: inf.matchParam }
   const q = useFeedPage(
     scope === 'following'
-      ? { follower: account, follow: 'all' as const, chainIds: allChains ? undefined : chainIds.join(','), protocols: pf.param }
-      : { chainIds: allChains ? undefined : chainIds.join(','), protocols: pf.param },
+      ? { follower: account, follow: 'all' as const, chainIds: allChains ? undefined : chainIds.join(','), protocols: pf.param, ...desks }
+      : { chainIds: allChains ? undefined : chainIds.join(','), protocols: pf.param, ...desks },
     scope === 'menu' ? rows * 4 : rows * 2,
     scope !== 'following' || !!account,
   )
@@ -59,6 +62,7 @@ export function Stream({ rows = 12 }: { rows?: number }) {
         </div>
       </div>
       <ProtocolChips f={pf} max={6} />
+      <IssuerChips f={inf} max={5} />
       <div className="card stream">
         {q.isLoading && !list.length && [0, 1, 2, 3, 4].map((i) => <div key={i} className="srow"><Sk w="60%" /></div>)}
         {!q.isLoading && !list.length && (

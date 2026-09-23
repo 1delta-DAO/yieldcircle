@@ -921,3 +921,31 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
 .pchip.all,.pchip.more{color:var(--tx40)}
 .pchip.all[aria-pressed="true"]{border-color:var(--line2);background:var(--b300);color:var(--tx70)}
 @media (max-width:640px){ .pchips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none} .pchips::-webkit-scrollbar{display:none} .pchip{flex:none} }
+
+/* issuer chips: the same control, a different question — `.pchips` says where
+   a row sits, these say whose credit it is. The mode segment only appears
+   once a desk is picked, because "any / issued by / exposed to" means nothing
+   without one. */
+.ichips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.ichips .pchip .pv{font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--tx40);border:1px dashed var(--line2);border-radius:999px;padding:0 4px}
+.ichips .imatch{margin-left:2px}
+@media (max-width:640px){ .ichips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none} .ichips::-webkit-scrollbar{display:none} .ichips>*{flex:none} }
+
+/* the desk chips on a row. Quiet: on most rows the desk is background and
+   only earns attention when someone is looking for it. `via` is dimmer and
+   dashed because a two-hop attribution is a weaker CLAIM — not a smaller
+   risk. */
+.desk{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;vertical-align:middle}
+.desk-chip{display:inline-block;border:1px solid var(--line2);border-radius:999px;padding:0 6px;
+  font-size:10px;line-height:15px;color:var(--tx50);white-space:nowrap}
+.desk-chip.via{border-style:dashed;color:var(--tx40)}
+.desk-chip.lg{font-size:11.5px;line-height:19px;padding:0 8px;color:var(--tx70)}
+.desk-chip.lg.via{color:var(--tx50)}
+
+/* the exposure panel on a market: legs, their weights, and what could not be
+   seen. `unattributed` is not decoration — without it the weights read as the
+   whole picture and overstate every one. */
+.expo{display:flex;flex-direction:column;gap:8px}
+.expo .legs{display:flex;flex-wrap:wrap;gap:5px}
+.expo .meta{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--tx40)}
+.expo .none{font-size:12.5px;color:var(--tx50);line-height:1.5}

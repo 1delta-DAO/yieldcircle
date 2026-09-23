@@ -7,6 +7,9 @@
 import { INDEX_BASE_URL } from '../config/backend'
 import type { AccountKind, FlowsResponse, Following, Holder, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle } from './types'
 
+/** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
+export type IssuerMatch = 'any' | 'direct' | 'exposure'
+
 export type Params = Record<string, string | number | boolean | undefined | null>
 function qs(p: Params): string {
   const q = new URLSearchParams()
@@ -27,6 +30,10 @@ export interface RecentQuery extends Params {
   chainIds?: string
   /** protocol keys from the `/protocols` facet, comma-joined */
   protocols?: string
+  /** issuer ids from the `/issuers` facet, comma-joined — always OR-ed */
+  issuers?: string
+  /** which of the three facts to consult; `any` is the default and is a UNION, not a sum */
+  issuerMatch?: IssuerMatch
   chainId?: string
   kind?: string
   limit?: number
@@ -109,7 +116,7 @@ export interface HotMarket {
   /** 0..1 — the same for how often people acted in it */
   pEvents: number
 }
-export const hot = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; limit?: number } = {}) =>
+export const hot = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; issuers?: string; issuerMatch?: IssuerMatch; limit?: number } = {}) =>
   get<{ window: string; hours: number; method: string; markets: HotMarket[] }>('/hot', p)
 
 /**
@@ -128,5 +135,27 @@ export interface ProtocolFacet {
 }
 export const protocols = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainIds?: string; limit?: number } = {}) =>
   get<{ window: string; hours: number; protocols: ProtocolFacet[] }>('/protocols', p)
+
+/**
+ * The desks worth offering as a filter — the mirror of `/protocols`, and the
+ * question it cannot answer: `/protocols` says WHERE a row sits, this says
+ * WHOSE credit it is. Only desks with rows in the window, with the counts
+ * that justify each chip.
+ *
+ * `via` is the rows that reach the desk ONLY indirectly (a PT-sUSDe row is
+ * Pendle directly and Ethena via). A (row, desk) pair counts once however
+ * many paths reach it, so these reconcile with `issuers=` by construction.
+ */
+export interface IssuerFacet {
+  issuer: string
+  name: string
+  rows: number
+  via: number
+  wallets: number
+  markets: number
+  chains: string[]
+}
+export const issuers = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainIds?: string; limit?: number } = {}) =>
+  get<{ window: string; hours: number; issuers: IssuerFacet[] }>('/issuers', p)
 
 export const health = () => get<{ ok: boolean; chains?: string[] }>('/health')

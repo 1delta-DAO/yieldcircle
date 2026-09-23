@@ -12,11 +12,13 @@ import { useProfiles } from '../social/queries'
 import { useMenu } from './useMenu'
 import { parseUid, protocolKeyOf } from '../model/uid'
 import { prettyProtocol } from './ProtocolFilter'
+import { DeskChips } from './IssuerFilter'
 import { Ago, FollowButton, Money, Who, describeTx } from './social-bits'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
 import { indexChainLabel } from '../index/types'
+import type { MarketExposure } from '../index/types'
 import { primaryLeg } from './Feed'
 
 export function Market({ uid }: { uid: string }) {
@@ -93,6 +95,8 @@ export function Market({ uid }: { uid: string }) {
         </div>
       )}
 
+      <Exposure e={m.data?.exposure} />
+
       <div className="mgrid">
         <section className="sec" style={{ marginTop: 0 }}>
           <div className="sec-h"><h2>Who is in it</h2><span className="sub">biggest first, from the index</span></div>
@@ -104,7 +108,7 @@ export function Market({ uid }: { uid: string }) {
                 <span className="rank">{i + 1}</span>
                 <Who account={h.account} profile={profile(h.account)} idx={h} sub={h.side === 'borrow' ? 'debt' : undefined} plain />
                 <span className="sp" />
-                <span className="v"><Money usd={h.amountUsd} amount={h.amount} symbol={h.symbol} short /></span>
+                <span className="v"><Money usd={h.amountUsd} amount={h.amount} symbol={h.symbol} short /><DeskChips x={h} max={1} /></span>
               </a>
             ))}</div>
           </div>
@@ -182,3 +186,75 @@ const shortRef = (ref: string | undefined) =>
   ref && ref.startsWith('0x') && ref.length > 14 ? `${ref.slice(0, 8)}…${ref.slice(-4)}` : ref
 
 export { marketHref }
+
+/**
+ * Whose credit the money in this market sits behind (pos-indexer
+ * tickets/0011).
+ *
+ * `status` is read BEFORE the legs, on purpose. `unavailable` means the
+ * allocation could not be read at all — a curated vault that publishes none
+ * and that this index has no positions for — and it is rendered as words.
+ * Showing an empty list there would tell a depositor the vault is exposed to
+ * nothing, which is the most dangerous sentence this object can produce.
+ *
+ * `unattributedPct` sits next to the legs for the same reason: without it
+ * the weights read as the whole picture and overstate every one.
+ */
+function Exposure({ e }: { e?: MarketExposure | null }) {
+  if (!e) return null
+  const weighted = (e.legs ?? []).some((l) => l.weightPct != null)
+  return (
+    <section className="sec">
+      <div className="sec-h">
+        <h2>Whose credit</h2>
+        <span className="sub">what this market&rsquo;s money sits behind</span>
+      </div>
+      <div className="card" style={{ padding: 12 }}>
+        <div className="expo">
+          {e.status === 'unavailable' && (
+            <div className="none">
+              <b>Not readable.</b> This provider publishes no allocation, and the
+              index has no positions for it yet — so nothing here is known.
+              That is not the same as &ldquo;exposed to nothing&rdquo;.
+            </div>
+          )}
+          {e.status === 'none' && (
+            <div className="none">Read, and nothing in it names a desk this index knows.</div>
+          )}
+          {e.status === 'resolved' && !!e.legs?.length && (
+            <>
+              <div className="legs">
+                {e.legs.map((l) => (
+                  <span key={l.id} className={`desk-chip lg${l.via ? ' via' : ''}`}
+                    title={l.via ? `reached through the token\u2019s own exposure` : l.name}>
+                    {l.name}{l.weightPct != null && <b style={{ marginLeft: 5, opacity: .7 }}>{l.weightPct.toFixed(1)}%</b>}
+                  </span>
+                ))}
+              </div>
+              <div className="meta">
+                <span title={`source: ${e.source}`}>
+                  {e.source === 'ledger-allocation'
+                    ? 'from the vault\u2019s own positions in this index'
+                    : e.source === 'market-collateral'
+                      ? 'what can be posted against this market'
+                      : e.source}
+                </span>
+                {e.unattributedPct != null && e.unattributedPct > 0 && (
+                  <span title="the share whose collateral names no desk — without it the weights above read as the whole picture">
+                    unattributed {e.unattributedPct.toFixed(1)}%
+                  </span>
+                )}
+                {!weighted && (
+                  <span title="nothing says how much of a deposit backs which collateral, and an equal split would be a number nobody can act on">
+                    unweighted
+                  </span>
+                )}
+                {e.asOf && <span title="the oldest position read the weights came from">as of <Ago ts={e.asOf} /></span>}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}

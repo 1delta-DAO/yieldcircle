@@ -17,7 +17,39 @@ export interface Named {
   marketUid?: string | null
   marketName?: string | null
 }
-export interface Valued {
+/**
+ * Whose credit a token leaves you holding (pos-indexer tickets/0011).
+ * `issuer` is the INSTRUMENT — whose contract the token is. `issuerExposures`
+ * is the desk BEHIND it, reached by the token-list walk: a PT over sUSDe is
+ * Pendle's contract and Ethena's solvency, and both are true. `hops` says how
+ * far the walk went, so a two-hop attribution can be shown as the weaker
+ * claim it is. Both null for a token nobody issues — never `[]`.
+ */
+export interface IssuerRef { id: string; name: string }
+export interface IssuerExposure extends IssuerRef { hops: number }
+export interface Desked {
+  issuer?: IssuerRef | null
+  issuerExposures?: IssuerExposure[] | null
+}
+
+/**
+ * A market's POSITION exposure: whose credit the money IN it sits behind —
+ * a curated vault's allocation, or what can be posted against a lending
+ * market. Read `status` before `legs`: `unavailable` means no allocation
+ * could be read, and rendering it as an empty list would tell a depositor
+ * the vault is exposed to nothing.
+ */
+export interface MarketExposure {
+  status: 'resolved' | 'none' | 'unavailable'
+  source: string
+  legs: { id: string; name: string; weightPct?: number; via?: boolean }[] | null
+  legCount: number
+  unattributedPct: number | null
+  asOf: string | null
+  refreshedAt: string
+}
+
+export interface Valued extends Desked {
   amount?: string | null
   amountRaw: string
   amountUsd: number | null
@@ -106,9 +138,10 @@ export interface MarketRow extends Named {
   assetLogo?: string | null
   supplyApr?: number | null
   borrowApr?: number | null
+  exposure?: MarketExposure | null
   [k: string]: unknown
 }
-export interface Holder extends AccountIdentity {
+export interface Holder extends AccountIdentity, Desked {
   account: string
   side: string
   amountUsd: number | null

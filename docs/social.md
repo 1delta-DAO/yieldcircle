@@ -710,3 +710,66 @@ Morpho-type lender the market IS the lender key, so they swap — the lender
 field carries "Morpho cbBTC-USDC 86" and the market field carries the leg,
 "Loan USDC". A feed card can show both; a page whose whole subject is this
 market should not headline "Loan USDC".
+
+---
+
+## 15 · The issuer filter — whose credit, not where
+
+*Added 2026-09-23. Built in `pos-indexer` as tickets/0011 → its
+`docs/issuer-exposure.md`; this is the product half.*
+
+`§14`'s protocol filter answers **where** a row sits: Morpho, Aave, a Fluid
+vault. It was the only vocabulary this feed had, and it cannot answer the
+question a depositor actually asks about a dollar: **whose solvency,
+administration and redemption terms am I holding?**
+
+A deposit into a Morpho USDC market collateralised by `PT-reUSD` was a "USDC
+deposit" in the feed. Nothing said Pendle and nothing said Re. You could not
+find it by either name.
+
+### Three facts, one control
+
+| | the question | on a `PT-sUSDe` row |
+| --- | --- | --- |
+| **instrument** | whose contract IS this token? | Pendle |
+| **token exposure** | whose credit does it leave me holding? | Ethena |
+| **position exposure** | whose credit does this row's money sit behind? | the market's collateral set, or the vault's allocation |
+
+`issuerMatch` picks which are consulted: `any` (default, all three), `direct`
+(the instrument alone), `exposure` (the credit behind it). **`any` is a union,
+not a sum** — a row whose token is Circle's *and* whose market allocation also
+reaches Circle is one Circle row. Measured on the live ledger,
+`issuers=circle`: `any` 11 696, `direct` 5 520, `exposure` 9 487. Never
+present the three as a partition.
+
+### What the app shows
+
+- **`IssuerChips` beside `ProtocolChips`** on Feed, Hot and Stream —
+  `useIssuerFilter(window)`, the same contract as `useProtocolFilter`, fed from
+  `GET /issuers` so no empty choice is ever offered and a desk that leaves the
+  window is dropped from the selection. The `any / issued by / exposed to`
+  segment appears only once a desk is picked, because the mode means nothing
+  without one. A chip whose every row is indirect carries a small `via`.
+- **Desk chips on the card**, next to the market. The instrument chip first;
+  the credit behind it is a second, dimmer, dashed chip ("via Ethena") —
+  because a two-hop attribution is a weaker **claim**, not a smaller risk.
+  A row with no desk renders nothing: nobody issues WETH, and an "unknown"
+  chip on every second row is noise pretending to be information.
+- **A "Whose credit" panel on the market page** — the legs with their weights,
+  what share is unattributed, and when the allocation was read.
+
+### The one sentence this must never say
+
+`status = 'unavailable'` means the allocation **could not be read** — a
+curated vault that publishes none and that the index has no positions for.
+Rendering it as an empty leg list would tell a depositor the vault is exposed
+to nothing, which is the most dangerous thing this object could imply. The
+panel says it in words instead. Same for `unattributedPct`: without it the
+legs that ARE named read as the whole picture and overstate every one.
+
+### A ticker is not an identity
+
+`PT-reUSD` answers to `issuers=re` (Re Protocol), **not** `resolv`. There are
+two different `reUSD` tokens on Ethereum — `0x5086bf35…` "Re Protocol reUSD"
+and `0x57ab1e00…` "Resupply USD" — and Resolv's tokens are `USR`, `RLP` and
+`wstUSR`. The index takes the desk from the token list, never from the symbol.

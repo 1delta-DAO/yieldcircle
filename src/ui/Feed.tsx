@@ -21,6 +21,7 @@ import { positionKey } from '../social/api'
 import { useSocialWrite } from '../social/sign'
 import { useMenu } from './useMenu'
 import { ProtocolChips, useProtocolFilter } from './ProtocolFilter'
+import { DeskChips, IssuerChips, useIssuerFilter } from './IssuerFilter'
 import { protocolKeyOf } from '../model/uid'
 import { Ago, Comments, Money, Who, describeTx } from './social-bits'
 import { ChainCorner } from './ChainMark'
@@ -40,12 +41,14 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   const tab: Tab = tabIn === 'following' || tabIn === 'everyone' ? tabIn : 'menu'
   const chainsParam = allChains ? undefined : chainIds.join(',')
   const pf = useProtocolFilter('7d')
+  const inf = useIssuerFilter('7d')
   const [limit, setLimit] = React.useState(40)
-  React.useEffect(() => setLimit(40), [tab, chainsParam, pf.param])
+  React.useEffect(() => setLimit(40), [tab, chainsParam, pf.param, inf.param, inf.matchParam])
 
+  const desks = { issuers: inf.param, issuerMatch: inf.matchParam }
   const q = tab === 'following'
-    ? { follower: account, follow: 'all' as const, chainIds: chainsParam, protocols: pf.param }
-    : { chainIds: chainsParam, protocols: pf.param }
+    ? { follower: account, follow: 'all' as const, chainIds: chainsParam, protocols: pf.param, ...desks }
+    : { chainIds: chainsParam, protocols: pf.param, ...desks }
   const feed = useFeedPage(q, limit, tab !== 'following' || !!account)
 
   const all = feed.data?.txs ?? []
@@ -76,6 +79,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
       </div>
 
       <ProtocolChips f={pf} />
+      <IssuerChips f={inf} />
 
       {tab === 'following' && !account && <div className="note">Connect a wallet to see what the people and markets you follow are doing. Reading anyone is possible because the chain is public; the feed is just the part you chose.</div>}
       {tab === 'following' && account && !follows.isLoading && !follows.wallets.length && !follows.markets.length && (
@@ -163,6 +167,7 @@ function Card({ tx, profile, strategy, comments, open, onToggle, only }: {
               <span className="t50">{leg.lenderName ?? leg.lenderKey}</span>
             </a>
           )}
+          {leg && <DeskChips x={leg} />}
         </div>
         <div className="fc-n">
           <span className="big"><Money usd={tx.volumeUsd ?? leg?.amountUsd} status={leg?.usdStatus} fromIndex={leg?.amountFromIndex} amount={leg?.amount} symbol={leg?.symbol} /></span>

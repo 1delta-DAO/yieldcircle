@@ -112,15 +112,32 @@ function Choose({ f, touch }: { f: ReturnType<typeof useConnectFlow>; touch: boo
 /** The desktop case: the wallet is a phone across the room. */
 function Qr({ f }: { f: ReturnType<typeof useConnectFlow> }) {
   const [copied, setCopied] = React.useState(false)
-  React.useEffect(() => { if (!f.uri && !f.isPending && f.wc) f.connect({ connector: f.wc }) }, [f.uri, f.isPending, f.wc])
+  /**
+   * ONCE. Keying this on `!f.uri && !f.isPending` instead re-fires the moment a
+   * failed attempt settles — which is an unbounded reconnect loop against the
+   * relay that starves the tab, and it is silent because each attempt looks
+   * like the first. A retry here is the user's decision, not a reflex.
+   */
+  const started = React.useRef(false)
+  React.useEffect(() => {
+    if (started.current || !f.wc) return
+    started.current = true
+    f.connect({ connector: f.wc })
+  }, [f.wc, f.connect])
+  const retry = () => { if (f.wc) { f.cancel(); f.connect({ connector: f.wc }) } }
   return (
     <div className="tsec">
       <span className="lbl">Scan with your wallet</span>
-      {f.uri ? <QrSvg text={f.uri} /> : <div className="qrbox skel" aria-label="Preparing" />}
+      {f.uri
+        ? <QrSvg text={f.uri} />
+        : <div className="qrbox skel" aria-label={f.error ? 'Could not reach WalletConnect' : 'Preparing'}>
+            <span className="t50" style={{ fontSize: 12, padding: 12, textAlign: 'center' }}>{f.error ? 'Could not reach WalletConnect' : 'Preparing…'}</span>
+          </div>}
       <div className="actions" style={{ marginTop: 10 }}>
         <button className="btn" disabled={!f.uri} onClick={() => { if (f.uri) { void navigator.clipboard?.writeText(f.uri); setCopied(true); setTimeout(() => setCopied(false), 1500) } }}>
           {copied ? 'Copied' : 'Copy link'}
         </button>
+        {f.error && <button className="btn" onClick={retry}>Try again</button>}
       </div>
     </div>
   )

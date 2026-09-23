@@ -18,7 +18,7 @@ import { CHAINS } from '../sdk/queries'
  *   #/alerts                 what happened while you were away
  */
 export type Mode = 'add' | 'reduce' | 'close' | 'manage'
-export type View = 'home' | 'explore' | 'group' | 'feed' | 'wallet' | 'market' | 'board' | 'me' | 'alerts'
+export type View = 'home' | 'explore' | 'group' | 'feed' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator'
 export interface Route {
   view: View
   group?: string
@@ -28,6 +28,8 @@ export interface Route {
   m?: Mode
   /** #/w/<addr> */
   addr?: string
+  /** #/c/<curatorId> — a desk (pos-indexer tickets/0013) */
+  curatorId?: string
   /** #/m/<uid> */
   uid?: string
   /** feed tab / board window — a plain `?t=` so a link carries it */
@@ -60,6 +62,8 @@ export function parseRoute(hash = location.hash): Route {
   if (head === 'alerts') return { view: 'alerts', ...base }
   if (head === 'w' && seg[1] && ADDR.test(seg[1])) return { view: 'wallet', addr: seg[1].toLowerCase(), ...base }
   if (head === 'm' && seg[1]) return { view: 'market', uid: seg.slice(1).join('/'), ...base }
+  // a desk id is a registry slug or `cand:<chain>:<address>` — the colons survive the hash
+  if (head === 'c' && seg[1]) return { view: 'curator', curatorId: decodeURIComponent(seg.slice(1).join('/')), ...base }
   if (head && GROUP_IDS.has(head)) return { view: 'group', group: head, ...base }
   return { view: 'home', ...base }
 }

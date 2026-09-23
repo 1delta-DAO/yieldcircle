@@ -11,9 +11,10 @@
 import React from 'react'
 import { useAccount } from 'wagmi'
 import { marketHref, walletHref } from '../state/AppState'
-import { useAccountFlows, useAccountTxs, useIndexPositions } from '../index/queries'
+import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions } from '../index/queries'
 import { useFollowers, useProfile, useProfiles } from '../social/queries'
 import { Badges, FollowButton, Money, Who, Ago, describeTx, tokens } from './social-bits'
+import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { autoName, shortAddr } from '../identity/name'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
@@ -28,6 +29,13 @@ export function Wallet({ addr }: { addr: string }) {
   const p = useProfile(addr)
   const profile = p.data?.profile ?? null
   const followers = useFollowers(addr)
+  /**
+   * Is this address a desk rather than a wallet? A curated vault and the Safe
+   * that steers it both appear in the ledger as ordinary addresses — often
+   * the largest in a market — and a page that renders them as whales with
+   * generated names is telling the reader something false.
+   */
+  const desk = useCuratorsByAccount([addr]).curatorOf(addr)
   const pos = useIndexPositions(isMe ? undefined : addr)
   const flows = useAccountFlows(addr, 30)
   const txs = useAccountTxs(addr, undefined, 40)
@@ -46,6 +54,7 @@ export function Wallet({ addr }: { addr: string }) {
           <div className="sub mono">{shortAddr(addr)}{profile?.xHandle && <> · <a className="pri" href={`https://x.com/${profile.xHandle}`} target="_blank" rel="noreferrer">𝕏 @{profile.xHandle}</a></>}</div>
           {profile?.bio && <p className="wc-bio">{profile.bio}</p>}
           <div className="wc-tags">
+            {desk && <CuratorMark c={desk} sub />}
             <Badges tags={profile?.systemTags} max={4} />
             {profile?.tags?.map((t) => <i key={t} className="badge-tag self" title="self-declared">{t}</i>)}
           </div>
@@ -56,6 +65,15 @@ export function Wallet({ addr }: { addr: string }) {
           <span className="foot">{followers.data?.followers.length ?? 0} follower{(followers.data?.followers.length ?? 0) === 1 ? '' : 's'}</span>
         </div>
       </header>
+
+      {desk && (
+        <div className="note deskn">
+          This address {desk.via === 'vault' ? 'is one of' : 'controls'}{' '}
+          <a className="pri" href={curatorHref(desk.curatorId)}>{curatorLabel(desk)}</a>’s {desk.nVaults} vault
+          {desk.nVaults === 1 ? '' : 's'} — what it does here is an allocation decision for its depositors, not a
+          wallet's own trade. {desk.verified ? 'It is listed in a curator registry we read.' : 'No curator registry we read names it, which is a fact about the registry.'}
+        </div>
+      )}
 
       <div className="wstats">
         <Stat k="Net value" v={isMe ? '—' : usd(pos.data?.totals.navUsd)} s={isMe ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}`} loading={!isMe && pos.isLoading} />

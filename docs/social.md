@@ -773,3 +773,105 @@ legs that ARE named read as the whole picture and overstate every one.
 two different `reUSD` tokens on Ethereum — `0x5086bf35…` "Re Protocol reUSD"
 and `0x57ab1e00…` "Resupply USD" — and Resolv's tokens are `USR`, `RLP` and
 `wstUSR`. The index takes the desk from the token list, never from the symbol.
+
+---
+
+## 16 · What wallets SAY, and who manages it
+
+Two axes landed in `pos-indexer` on 2026-09-23 (its tickets 0012 and 0013) and
+this app is their front end. They are different in kind from everything above
+them, and the UI keeps that difference visible.
+
+Everything else on a page here is something the chain **did**. These two are:
+
+- **a claim** — what a wallet says about an asset, a market, a lender, a desk
+  or a curator, weighted by what the ledger says that wallet holds;
+- **an entity** — the curator: who decides where a managed vault's money goes,
+  proved from `owner()` / `curator()` on chain rather than from a label.
+
+### 16.1 Ratings — `src/ui/Rate.tsx`
+
+One tap for the three conviction labels (🚀 would farm · 👀 watching · 💀
+would avoid), a second tap and usually a link for the serious ones
+(`exploited`, `under-exploit`, `bad-debt`, `unaudited`, `depeg-risk`,
+`illiquid-exit`, `good-curator`, `bad-curator`). The friction **is** the
+signal: a claim like bad debt without a link is a mood, and the service
+refuses it.
+
+The vocabulary is fetched, never hardcoded (`GET /rating-labels`, versioned) —
+a client that ships its own list ships one that can drift from what writes are
+validated against.
+
+What makes it worth anything is the weight, and the weight is not ours to
+invent: the index computes it from the rater's stake **in that exact subject**,
+their NAV, how long they have been on chain, whether they have ever been
+liquidated, whether their realized yield is positive and exact, and whether
+they have linked an X account. A wallet the index has never seen writes
+successfully and counts **zero** — refusing the unknown would make this a
+members' club and would hide the first sighting of an exploit.
+
+Three rules this component is the last line of defence for:
+
+1. **Zero ratings is not a verdict.** "Nobody has rated this yet", in words.
+   Never a tick, never a 0/5, never a green state. A reader who cannot tell
+   "nobody looked" from "everybody approved" has been misled by the UI, not by
+   the data.
+2. **`contested` stays contested.** Eleven wallets disagreeing is the single
+   most useful thing this axis can say. It gets the warm colour, not the error
+   colour, because disagreement is information and not a failure.
+3. **Every weight expands into its parts** on hover, and a positive claim from
+   a holder carries a quiet `own book` mark — shown, never silently
+   re-weighted. A ranking nobody can check is an opinion.
+
+On a list (`Feed`, `Hot`) the row form is `RateMark`: counts only, from the
+batch route. The weighted verdict needs a per-subject stake join and lives on
+the subject's own page — a chip that disagreed with the page it links to would
+be worse than a chip that says less.
+
+### 16.2 The ledger's own witness
+
+A claim and a fact are different things, so the market page draws them apart.
+Above the claims sits `idx.market_stress`, computed for every market whoever
+said what: an outflow spike against that market's **own** normal, a
+liquidation spike, a supply index that FELL (a loss carried by depositors),
+an asset below its peg. An incident banner needs both halves — and the fact
+half is not derived from the claims, or it would be the claims wearing a lab
+coat.
+
+Two thresholds are worth knowing because the first prod run taught them:
+a spike needs a baseline (a market with no outflow history is not a market in
+trouble), and a **yield-bearing wrapper is not a stable** — sUSDe accrues away
+from $1 by design and is not off its peg.
+
+### 16.3 Curators — `src/ui/Curator.tsx`, `CuratorFilter.tsx`
+
+For the curated half of the vault universe the depositor does not pick the
+market. A desk does, daily, sometimes across four lenders. The app now treats
+that desk as a first-class thing:
+
+- **a filter**, beside protocols and desks-by-credit. Single-select, because
+  the index resolves one curator to its vaults' addresses and filters the
+  ledger on those. A desk with no vault in scope answers an **empty** feed,
+  never the unfiltered one;
+- **a mark on a row** (`CuratorMark`), with a dot for how the mapping was
+  established — ● proved on chain, ◐ stated by a registry or an override,
+  ○ guessed from a name match. A name match is not a proof and must not read
+  like one;
+- **a page** at `#/c/<id>`: AUM and depositors, the depositor return (the
+  share price, net of fees, AUM-weighted — with a line saying how many of its
+  vaults the number actually covers), worst drawdown, concentration, the
+  allocation rolled up three ways (where · what · whose credit), its vaults
+  with the arm that proved each, its depositors, its tape (one row per
+  transaction: a reallocation is ONE move), what wallets say about it, and a
+  thread;
+- **a card on a wallet page** when the address is a desk or one of its vaults
+  — a curated vault is often the largest holder in a market, and rendering it
+  as a whale with a generated name tells the reader something false.
+
+### The sentence this axis must never say
+
+**"Unverified curator" is not a warning.** `verified` means exactly *"listed
+in a curator registry we read"*, and most desks are not — 188 of the 233 the
+index knows are unnamed candidates, including some of the largest vaults in
+the book. The page says that in words. A red shield on most of the universe
+would make a registry we do not run into a gatekeeper.

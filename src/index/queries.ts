@@ -80,10 +80,11 @@ export function useHot(
   protocols?: string,
   issuers?: string,
   issuerMatch?: api.IssuerMatch,
+  curator?: string,
 ) {
   return useQuery({
-    queryKey: ['hot', window, chainIds ?? 'all', protocols ?? 'all', issuers ?? 'all', issuerMatch ?? 'any', limit],
-    queryFn: () => api.hot({ window, chainIds, protocols, issuers, issuerMatch, limit }),
+    queryKey: ['hot', window, chainIds ?? 'all', protocols ?? 'all', issuers ?? 'all', issuerMatch ?? 'any', curator ?? 'all', limit],
+    queryFn: () => api.hot({ window, chainIds, protocols, issuers, issuerMatch, curator, limit }),
     staleTime: 2 * MIN,
     refetchInterval: 2 * MIN,
     placeholderData: (prev) => prev,
@@ -106,6 +107,67 @@ export function useIssuers(window: '1h' | '6h' | '24h' | '7d', chainIds?: string
     queryFn: () => api.issuers({ window, chainIds, limit: 40 }),
     staleTime: 5 * MIN,
   })
+}
+
+// ---------------------------------------------------------------- curators
+
+/** The desk book, ranked by AUM — a measured quantity, never a score. */
+export function useCurators(chainIds?: string, limit = 60) {
+  return useQuery({
+    queryKey: ['curators', chainIds ?? 'all', limit],
+    queryFn: () => api.curators({ win: '30d', chainIds, limit }),
+    staleTime: 10 * MIN,
+  })
+}
+export function useCurator(id: string | undefined) {
+  return useQuery({ enabled: !!id, queryKey: ['curator', id], queryFn: () => api.curator(id!), staleTime: 5 * MIN, retry: false })
+}
+export function useCuratorAllocation(id: string | undefined) {
+  return useQuery({ enabled: !!id, queryKey: ['curator-alloc', id], queryFn: () => api.curatorAllocation(id!), staleTime: 5 * MIN, retry: false })
+}
+export function useCuratorTxs(id: string | undefined, limit = 40) {
+  return useQuery({ enabled: !!id, queryKey: ['curator-txs', id, limit], queryFn: () => api.curatorTxs(id!, limit), staleTime: 60_000, retry: false })
+}
+export function useCuratorHolders(id: string | undefined, limit = 12) {
+  return useQuery({ enabled: !!id, queryKey: ['curator-holders', id, limit], queryFn: () => api.curatorHolders(id!, limit), staleTime: 5 * MIN, retry: false })
+}
+/**
+ * Which of these addresses are desks. Batched for a whole view, so a feed
+ * page costs one request — and a wallet that is really a manager stops
+ * rendering as a whale with a generated name.
+ */
+export function useCuratorsByAccount(addresses: string[]) {
+  const want = [...new Set(addresses.map((a) => a?.toLowerCase()).filter(Boolean))].sort()
+  const q = useQuery({
+    enabled: want.length > 0,
+    queryKey: ['curators-by-account', want.join(',')],
+    queryFn: () => api.curatorsByAccount(want),
+    staleTime: 10 * MIN,
+    retry: false,
+  })
+  const map = q.data?.curators ?? {}
+  return { curatorOf: (a: string | undefined) => (a ? (map[a.toLowerCase()] ?? null) : null), isLoading: q.isLoading }
+}
+
+/**
+ * What the LEDGER sees happening to these markets. Kept apart from what
+ * wallets SAY about them on purpose: an incident needs a claim and a fact,
+ * and this is the fact.
+ */
+export function useStress(markets: string[]) {
+  const want = [...new Set(markets.filter(Boolean))].sort()
+  const q = useQuery({
+    enabled: want.length > 0,
+    queryKey: ['stress', want.join(',')],
+    queryFn: () => api.stress(want),
+    staleTime: 2 * MIN,
+    retry: false,
+  })
+  return {
+    stressOf: (uid: string | undefined) => (uid ? (q.data?.stress?.[uid] ?? null) : null),
+    thresholds: q.data?.thresholds,
+    isLoading: q.isLoading,
+  }
 }
 
 /** Is the index up, and does it answer for this build at all? One call, cached for the session. */

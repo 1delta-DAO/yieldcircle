@@ -6,13 +6,15 @@
  */
 import React from 'react'
 import { go, marketHref } from '../state/AppState'
-import { useHolders, useMarket, useMarketFlow, useMarketTxs } from '../index/queries'
+import { useCuratorsByAccount, useHolders, useMarket, useMarketFlow, useMarketTxs, useStress } from '../index/queries'
 import type { FlowBucket } from '../index/api'
 import { useProfiles } from '../social/queries'
 import { useMenu } from './useMenu'
 import { parseUid, protocolKeyOf } from '../model/uid'
 import { prettyProtocol } from './ProtocolFilter'
 import { DeskChips } from './IssuerFilter'
+import { CuratorMark } from './CuratorFilter'
+import { Rate } from './Rate'
 import { Ago, FollowButton, Money, Who, describeTx } from './social-bits'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { Thread } from './Thread'
@@ -30,6 +32,15 @@ export function Market({ uid }: { uid: string }) {
   const s = menu.forUid(uid)
   const parts = parseUid(uid)
   const { profile } = useProfiles((holders.data?.holders ?? []).map((h) => h.account))
+  /** the ledger's own witness for this market — a fact, kept apart from the claims */
+  const stress = useStress([uid])
+  const st = stress.stressOf(uid)
+  /**
+   * A curated vault's biggest holder is very often another vault: the desk
+   * that allocates into it. Naming those is the difference between "a whale
+   * entered" and "Steakhouse reallocated".
+   */
+  const desks = useCuratorsByAccount((holders.data?.holders ?? []).map((h) => h.account))
 
   /**
    * Name the market from whatever knows it.
@@ -95,6 +106,36 @@ export function Market({ uid }: { uid: string }) {
         </div>
       )}
 
+      {/*
+        What the LEDGER sees. Computed for every market whoever said what, so
+        it is a fact and is presented as one — separately from the claims
+        below, which are opinions with weights.
+      */}
+      {st && st.flags.length > 0 && (
+        <div className="stress">
+          <span className="s-k">the index sees</span>
+          {st.flags.map((f) => (
+            <span key={f} className="s-f">
+              {f === 'outflow-spike'
+                ? `${usdShort(st.outflow6hUsd)} withdrawn in 6 h — ${st.outflowRatio ? `${st.outflowRatio.toFixed(1)}×` : 'well above'} this market's own normal`
+                : f === 'index-drop'
+                  ? `its share price fell ${st.indexDropBps} bps — a loss carried by depositors`
+                  : f === 'liquidation-spike'
+                    ? `${st.liquidations24h} liquidations in 24 h`
+                    : `the asset is ${st.depegBps} bps below its peg`}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <section className="sec" style={{ marginTop: 20 }}>
+        <div className="sec-h">
+          <h2>What holders say</h2>
+          <span className="sub">claims, weighted by what the claimant holds here — never a score</span>
+        </div>
+        <div className="card pad"><Rate kind="market" subject={uid} /></div>
+      </section>
+
       <Exposure e={m.data?.exposure} />
 
       <div className="mgrid">
@@ -108,7 +149,7 @@ export function Market({ uid }: { uid: string }) {
                 <span className="rank">{i + 1}</span>
                 <Who account={h.account} profile={profile(h.account)} idx={h} sub={h.side === 'borrow' ? 'debt' : undefined} plain />
                 <span className="sp" />
-                <span className="v"><Money usd={h.amountUsd} amount={h.amount} symbol={h.symbol} short /><DeskChips x={h} max={1} /></span>
+                <span className="v"><Money usd={h.amountUsd} amount={h.amount} symbol={h.symbol} short /><DeskChips x={h} max={1} /><CuratorMark c={desks.curatorOf(h.account)} /></span>
               </a>
             ))}</div>
           </div>

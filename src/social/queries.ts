@@ -69,8 +69,49 @@ export function useMyFollows(account: string | undefined) {
     wallets: follows.filter((f) => f.targetKind === 'wallet').map((f) => f.target.toLowerCase()),
     // a market target is stored VERBATIM (a uid's protocol segment is case-significant)
     markets: follows.filter((f) => f.targetKind === 'market').map((f) => f.target),
-    isFollowing: (kind: 'wallet' | 'market', target: string) =>
+    /** a desk the feed expands to its vault addresses (pos-indexer tickets/0013 §8.4) */
+    curators: follows.filter((f) => f.targetKind === 'curator').map((f) => f.target),
+    isFollowing: (kind: 'wallet' | 'market' | 'curator', target: string) =>
       follows.some((f) => f.targetKind === kind && (kind === 'wallet' ? f.target.toLowerCase() === target.toLowerCase() : f.target === target)),
+    isLoading: q.isLoading,
+  }
+}
+
+// ---------------------------------------------------------------- ratings
+
+/** The vocabulary, from the service. Cached hard: it changes with a deploy, not with a page. */
+export function useRatingLabels() {
+  return useQuery({ queryKey: ['rating-labels'], queryFn: api.ratingLabels, staleTime: 30 * MIN, retry: false })
+}
+
+/**
+ * Everything said about one subject, with every component of every weight.
+ * `follower` adds the trust-graph view — the same votes restricted to the
+ * wallets you follow, and EMPTY when you follow nobody.
+ */
+export function useRatings(kind: api.RatingSubjectKind | undefined, key: string | undefined, follower?: string) {
+  return useQuery({
+    enabled: !!kind && !!key,
+    queryKey: ['ratings', kind, key, follower ?? null],
+    queryFn: () => api.ratings(kind!, key!, follower),
+    staleTime: 30_000,
+    retry: false,
+  })
+}
+
+/** 🚀 / 💀 counts for a whole list in one request. Counts, not weights — see the api note. */
+export function useRatingCounts(subjects: { kind: api.RatingSubjectKind; key: string }[]) {
+  const stable = subjects.map((s) => `${s.kind}/${s.key}`).sort().join(',')
+  const q = useQuery({
+    enabled: subjects.length > 0,
+    queryKey: ['rating-counts', stable],
+    queryFn: () => api.ratingCounts(subjects),
+    staleTime: MIN,
+    retry: false,
+  })
+  const counts = q.data?.counts ?? {}
+  return {
+    ratingOf: (kind: api.RatingSubjectKind, key: string): api.RatingCount | null => counts[kind]?.[key] ?? null,
     isLoading: q.isLoading,
   }
 }
@@ -82,5 +123,6 @@ export function useSocialRefresh() {
     thread: (kind: SubjectKind, key: string) => { void qc.invalidateQueries({ queryKey: ['thread', kind, key] }); void qc.invalidateQueries({ queryKey: ['counts'] }) },
     follows: (account?: string) => { void qc.invalidateQueries({ queryKey: ['follows', account?.toLowerCase()] }); void qc.invalidateQueries({ queryKey: ['followers'] }); void qc.invalidateQueries({ queryKey: ['feed1'] }) },
     profile: (account?: string) => { void qc.invalidateQueries({ queryKey: ['profile', account?.toLowerCase()] }); void qc.invalidateQueries({ queryKey: ['profiles'] }) },
+    ratings: (kind: api.RatingSubjectKind, key: string) => { void qc.invalidateQueries({ queryKey: ['ratings', kind, key] }); void qc.invalidateQueries({ queryKey: ['rating-counts'] }) },
   }
 }

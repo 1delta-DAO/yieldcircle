@@ -18,11 +18,13 @@ import { go, marketHref } from '../state/AppState'
 import { useApp } from '../state/AppState'
 import { useHot } from '../index/queries'
 import type { HotMarket } from '../index/api'
-import { useCounts } from '../social/queries'
+import { useCounts, useRatingCounts } from '../social/queries'
 import { useMenu } from './useMenu'
 import { Comments } from './social-bits'
 import { ProtocolChips, useProtocolFilter } from './ProtocolFilter'
 import { IssuerChips, useIssuerFilter } from './IssuerFilter'
+import { CuratorChips, useCuratorFilter } from './CuratorFilter'
+import { RateMark } from './Rate'
 import { ChainCorner } from './ChainMark'
 import { Sk, StratMark, Tok, Toks, pct, usdShort } from './bits'
 import { chainLabel } from '../sdk/queries'
@@ -38,7 +40,8 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
   const menu = useMenu()
   const pf = useProtocolFilter(win)
   const inf = useIssuerFilter(win)
-  const q = useHot(win, allChains ? undefined : chainIds.join(','), showAll ? 40 : 24, pf.param, inf.param, inf.matchParam)
+  const cf = useCuratorFilter()
+  const q = useHot(win, allChains ? undefined : chainIds.join(','), showAll ? 40 : 24, pf.param, inf.param, inf.matchParam, cf.param)
   const rows = q.data?.markets ?? []
 
   // a market nobody here can open is a log line, not an option — the menu
@@ -53,6 +56,10 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
   const next = WINDOWS[WINDOWS.indexOf(win) + 1]
 
   const counts = useCounts(
+    React.useMemo(() => shown.map((x) => ({ kind: 'market' as const, key: x.m.marketUid })), [shown]),
+  )
+  /** what wallets have SAID about these markets — one request for the grid */
+  const rated = useRatingCounts(
     React.useMemo(() => shown.map((x) => ({ kind: 'market' as const, key: x.m.marketUid })), [shown]),
   )
 
@@ -81,6 +88,7 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
       </div>
       <ProtocolChips f={pf} max={7} />
       <IssuerChips f={inf} max={6} />
+      {showAll && <CuratorChips f={cf} max={6} />}
       {q.isLoading && !rows.length && (
         <div className="hot-grid">{[0, 1, 2, 3].map((i) => <div key={i} className="hotcard"><Sk w="70%" /><Sk w="40%" /></div>)}</div>
       )}
@@ -95,14 +103,22 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
       )}
       <div className="hot-grid">
         {shown.map(({ m, s }) => (
-          <HotCard key={m.marketUid} m={m} s={s} peak={peak} comments={counts.count('market', m.marketUid)} />
+          <HotCard key={m.marketUid} m={m} s={s} peak={peak} comments={counts.count('market', m.marketUid)}
+            rating={rated.ratingOf('market', m.marketUid)} />
         ))}
       </div>
     </section>
   )
 }
 
-function HotCard({ m, s, peak, comments }: { m: HotMarket; s: Strategy | null; peak: Peak; comments: number }) {
+function HotCard({ m, s, peak, comments, rating }: {
+  m: HotMarket
+  s: Strategy | null
+  peak: Peak
+  comments: number
+  /** what wallets said about it — counts only; the verdict lives on the market page */
+  rating?: ReturnType<ReturnType<typeof useRatingCounts>['ratingOf']>
+}) {
   const parts = m.marketUid.split(':')
   const chainId = parts[1]
   const open = () => (s ? go(s.group, { u: s.asset, s: s.id, k: s.kind }) : (location.hash = marketHref(m.marketUid)))
@@ -132,6 +148,7 @@ function HotCard({ m, s, peak, comments }: { m: HotMarket; s: Strategy | null; p
           {m.nLiquidations > 0 && <span className="liqs" title="liquidations in this window">{m.nLiquidations} liq</span>}
         </span>
         <span className="sp" />
+        <RateMark c={rating} />
         <Comments n={comments} onClick={() => { location.hash = marketHref(m.marketUid) }} />
       </div>
     </article>

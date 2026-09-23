@@ -167,7 +167,7 @@ export function describeTx(kinds: Record<string, number>): { verb: string; cls: 
 
 // ---------------------------------------------------------------- follow
 export function FollowButton({ kind, target, small, label, quiet }: {
-  kind: 'wallet' | 'market'
+  kind: 'wallet' | 'market' | 'curator'
   target: string
   small?: boolean
   label?: string

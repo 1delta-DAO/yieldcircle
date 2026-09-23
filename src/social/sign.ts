@@ -9,6 +9,7 @@
  */
 import { useAccount, useSignTypedData } from 'wagmi'
 import * as api from './api'
+import type { RatingSubjectKind } from './api'
 import type { SubjectKind } from './types'
 
 export const DOMAIN = { name: '1delta social', version: '1' } as const
@@ -63,6 +64,22 @@ export const TYPES = {
     { name: 'action', type: 'string' },
     { name: 'signedAt', type: 'uint256' },
   ],
+  /**
+   * A claim about a SUBJECT — an asset, a market, a lender, an issuer, a
+   * curator or an account. Additive: a new type leaves every other type's
+   * struct hash alone, so every signature already stored still verifies.
+   */
+  Rating: [
+    { name: 'author', type: 'address' },
+    { name: 'subjectKind', type: 'string' },
+    { name: 'subjectKey', type: 'string' },
+    { name: 'label', type: 'string' },
+    { name: 'action', type: 'string' },
+    { name: 'evidenceUrl', type: 'string' },
+    { name: 'note', type: 'string' },
+    { name: 'nonce', type: 'string' },
+    { name: 'signedAt', type: 'uint256' },
+  ],
 } as const
 export type PrimaryType = keyof typeof TYPES
 
@@ -111,8 +128,29 @@ export function useSocialWrite() {
       send('Message', { subjectKind, subjectKey, parentId, body }),
     react: (subjectKind: SubjectKind, subjectKey: string, kind: string, on: boolean) =>
       send('Reaction', { subjectKind, subjectKey, kind, action: on ? 'add' : 'remove' }),
-    follow: (targetKind: 'wallet' | 'market', target: string, on: boolean) =>
+    follow: (targetKind: 'wallet' | 'market' | 'curator', target: string, on: boolean) =>
       send('Follow', { targetKind, target, action: on ? 'follow' : 'unfollow' }),
+    /**
+     * Say something about a subject. Everyone may write — a wallet the index
+     * has never seen is stored and counts ZERO — because refusing the unknown
+     * would make this a members' club and would hide the first sighting of an
+     * exploit. `evidenceUrl` is required by the service for the accusatory
+     * labels and refused for the conviction ones.
+     */
+    rate: (
+      subjectKind: RatingSubjectKind,
+      subjectKey: string,
+      label: string,
+      o: { evidenceUrl?: string; note?: string; remove?: boolean } = {},
+    ) =>
+      send('Rating', {
+        subjectKind,
+        subjectKey,
+        label,
+        action: o.remove ? 'remove' : 'add',
+        evidenceUrl: o.evidenceUrl ?? '',
+        note: o.note ?? '',
+      }),
     remove: (messageId: number) => send('Delete', { messageId }),
     profile: (p: { handle: string; displayName: string; bio: string; avatarUrl: string; tags: string[]; visibility: 'public' | 'unlisted' }) =>
       send('Profile', p),

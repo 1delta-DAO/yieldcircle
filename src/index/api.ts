@@ -42,6 +42,8 @@ export interface RecentQuery extends Params {
   follow?: 'wallets' | 'markets' | 'all'
   accounts?: string
   markets?: string
+  /** one desk's vaults, resolved server-side to their addresses (pos-indexer tickets/0013) */
+  curator?: string
 }
 export const recentTxs = (q: RecentQuery, signal?: AbortSignal) =>
   get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, group: 'tx' }, signal)
@@ -116,7 +118,7 @@ export interface HotMarket {
   /** 0..1 — the same for how often people acted in it */
   pEvents: number
 }
-export const hot = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; issuers?: string; issuerMatch?: IssuerMatch; limit?: number } = {}) =>
+export const hot = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; issuers?: string; issuerMatch?: IssuerMatch; curator?: string; limit?: number } = {}) =>
   get<{ window: string; hours: number; method: string; markets: HotMarket[] }>('/hot', p)
 
 /**
@@ -157,5 +159,158 @@ export interface IssuerFacet {
 }
 export const issuers = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainIds?: string; limit?: number } = {}) =>
   get<{ window: string; hours: number; issuers: IssuerFacet[] }>('/issuers', p)
+
+/**
+ * Curators — WHO decides where a curated vault's money goes.
+ *
+ * The fifth axis, and the one a depositor in a managed vault is actually
+ * exposed to: `/protocols` says where a dollar sits, `/issuers` says whose
+ * credit it is, and neither can say who picked the market. A curator is an
+ * ADDRESS SET the index proves from `owner()` / `curator()` on chain, names
+ * from Morpho's registry or a checked-in override, and never guesses.
+ *
+ * **`verified` means exactly "listed in a curator registry we read", and its
+ * absence is not a warning.** Most desks are unnamed candidates — a fact
+ * about the registry, not about them — and they get the same page.
+ */
+export interface CuratorRow {
+  curatorId: string
+  /** an unnamed desk, identified by the address that controls its vaults */
+  candidate: boolean
+  name: string | null
+  logoUri: string | null
+  description?: string | null
+  socials?: { type?: string; url?: string }[] | null
+  verified: boolean
+  source: string
+  aumUpstream: number | null
+  nVaults?: number
+  nChains?: number
+  chains?: string[]
+  aumUsd?: number | null
+  nHolders?: number | null
+  nMoves?: number | null
+  /** AUM-weighted growth of its vaults' SHARE INDEX — what a depositor earned, net of fees */
+  depositorReturnPct?: number | null
+  /** false = a vault had no index sample at the window's start and is left OUT of the number */
+  returnExact?: boolean
+  worstDrawdownBps?: number | null
+  hhi?: number | null
+}
+export interface CuratorStats {
+  win: string
+  nVaults: number
+  nChains: number
+  aumUsd: number | null
+  inflowUsd: number | null
+  outflowUsd: number | null
+  nHolders: number | null
+  nMoves: number | null
+  nMarketsTouched: number | null
+  nLenders: number | null
+  depositorReturnPct: number | null
+  returnExact: boolean
+  nVaultsReturned: number | null
+  worstDrawdownBps: number | null
+  nLiquidations: number | null
+  hhi: number | null
+  /** a 30 d window over a 3 d ledger answers about 3 days, and says so here */
+  windowCoveredFrom: string | null
+  computedAt: string
+}
+export interface CuratorProfile extends CuratorRow {
+  verifiedMeaning: string
+  addresses: { chainId: string; address: string; role: string | null; source: string }[]
+  vaults: {
+    marketUid: string
+    chainId: string
+    address: string
+    name: string | null
+    symbol: string | null
+    provider: string | null
+    aumUsd: number | null
+    /** chain-role | registry | manual | name-match */
+    arm: string
+    /** proved | stated | guessed — a name match is not a proof and must not read like one */
+    confidence: string
+  }[]
+  stats: Record<string, CuratorStats>
+  window: string
+}
+export interface AllocationSlice { key: string; name: string | null; logo: string | null; usd: number; pct: number | null }
+export interface CuratorAllocation {
+  curatorId: string
+  totalUsd: number
+  markets: {
+    marketUid: string
+    marketName: string | null
+    chainId: string
+    protocol: string
+    assetGroup: string | null
+    symbol: string | null
+    usd: number
+    pct: number | null
+    exposureStatus: string
+    legs: { id: string; name?: string; weightPct?: number }[] | null
+  }[]
+  byProtocol: AllocationSlice[]
+  byAssetGroup: AllocationSlice[]
+  byIssuer: AllocationSlice[]
+  unattributedUsd: number
+  unattributedPct: number | null
+  hhi: number | null
+}
+/** `GET /curators/by-account` — is this address a desk, and which one? */
+export interface AccountCurator {
+  curatorId: string
+  name: string | null
+  logoUri: string | null
+  verified: boolean
+  role: string | null
+  /** `direct` = an address the desk controls; `vault` = the address IS one of its vaults */
+  via: 'direct' | 'vault'
+  chainId: string
+  nVaults: number
+  aumUsd: number | null
+}
+
+export const curators = (p: { win?: string; limit?: number; chainIds?: string } = {}) =>
+  get<{ win: string; curators: CuratorRow[] }>('/curators', p)
+export const curator = (id: string, win = '30d') =>
+  get<CuratorProfile>(`/curators/${encodeURIComponent(id)}`, { win })
+export const curatorAllocation = (id: string) =>
+  get<CuratorAllocation>(`/curators/${encodeURIComponent(id)}/allocation`)
+export const curatorTxs = (id: string, limit = 50) =>
+  get<{ curatorId: string; vaults: number; txs: TxBundle[] }>(`/curators/${encodeURIComponent(id)}/events`, { limit })
+export const curatorHolders = (id: string, limit = 20) =>
+  get<{ curatorId: string; holders: { account: string; amountUsd: number; vaults: number; since: string | null; accountKind?: AccountKind; accountLabel?: string | null }[] }>(
+    `/curators/${encodeURIComponent(id)}/holders`, { limit },
+  )
+/** Batch: which of these addresses are desks. What lets a row know it is looking at a manager, not a whale. */
+export const curatorsByAccount = (addresses: string[]) =>
+  get<{ curators: Record<string, AccountCurator> }>('/curators/by-account', { addresses: addresses.join(',') })
+
+/**
+ * The ledger's own witness (pos-indexer tickets/0012 §9): what the index can
+ * SEE happening to a market, computed for every market regardless of what
+ * anyone claimed about it. The other half of an incident: a claim and a fact
+ * are different things, and this app keeps them apart on the page.
+ *
+ * `outflowRatio` is NULL where the market has no baseline to be unusual
+ * against — no baseline, no claim.
+ */
+export interface StressRow {
+  outflow6hUsd: number | null
+  inflow6hUsd: number | null
+  outflowRatio: number | null
+  liquidations24h: number | null
+  /** a SUPPLY index that fell: a loss socialised onto depositors */
+  indexDropBps: number | null
+  depegBps: number | null
+  flags: string[]
+  computedAt: string
+}
+export const stress = (markets: string[]) =>
+  get<{ thresholds: Record<string, number>; stress: Record<string, StressRow> }>('/stress', { markets: markets.join(',') })
 
 export const health = () => get<{ ok: boolean; chains?: string[] }>('/health')

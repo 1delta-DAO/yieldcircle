@@ -1,6 +1,11 @@
 /** Wire shapes of the social service (`pos-indexer/packages/social`). */
 
-export type SubjectKind = 'market' | 'event' | 'wallet' | 'position'
+/**
+ * What a thread can hang on. `curator` (pos-indexer tickets/0013) joins the
+ * four originals: a desk's page needs the same comment surface a market has,
+ * and the key is its curator id.
+ */
+export type SubjectKind = 'market' | 'event' | 'wallet' | 'position' | 'curator'
 
 export interface Profile {
   account: string
@@ -24,7 +29,7 @@ export interface Profile {
 }
 export interface ProfileResponse { account: string; profile: Profile | null; follows: Follow[] }
 
-export interface Follow { targetKind: 'wallet' | 'market'; target: string; createdAt?: string }
+export interface Follow { targetKind: 'wallet' | 'market' | 'curator'; target: string; createdAt?: string }
 export interface Follower { account: string; createdAt?: string }
 
 export interface Message {

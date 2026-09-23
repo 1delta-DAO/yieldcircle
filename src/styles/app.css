@@ -1004,3 +1004,115 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
 .expo .legs{display:flex;flex-wrap:wrap;gap:5px}
 .expo .meta{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--tx40)}
 .expo .none{font-size:12.5px;color:var(--tx50);line-height:1.5}
+
+/* ---------------------------------------------------------------- ratings
+
+   What wallets SAY, as opposed to what the chain did. Everything else on a
+   page here is a fact; this is a claim, so it is drawn quieter than the
+   numbers beside it and never as a badge of approval.
+
+   The three states earn three colours, and `contested` gets the warm one
+   because disagreement is information — it is not a failure state and must
+   not read as an error. */
+.rate{display:flex;flex-direction:column;gap:10px}
+.rline{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.rempty{font-size:12.5px;color:var(--tx50)}
+.rstat{border:1px solid var(--line2);border-radius:999px;padding:0 9px;font-size:11px;line-height:21px;color:var(--tx50);white-space:nowrap}
+.rstat.rs-consensus{border-color:rgba(63,191,127,.5);color:var(--success)}
+.rstat.rs-contested{border-color:rgba(226,163,58,.5);color:var(--warning)}
+.rstat.rs-claimed{color:var(--tx70)}
+.rchip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:999px;
+  padding:0 9px;font-size:11.5px;line-height:21px;color:var(--tx70);white-space:nowrap}
+.rchip .re{font-size:11px}
+.rchip .rc{font-family:var(--mono);font-size:10.5px;color:var(--tx50)}
+.rchip .rw{font-family:var(--mono);font-size:10px;color:var(--tx40)}
+.rp-up{color:var(--success)}.rp-down{color:var(--error)}.rp-flat{color:var(--tx50)}
+.rfollow{font-size:11.5px;color:var(--info)}
+.rmore{font-size:11.5px;color:var(--tx50);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+.rmore:hover{color:var(--tx)}
+
+.rbtns{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.rbtn{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 11px;border:1px solid var(--line2);
+  border-radius:999px;font-size:12.5px;color:var(--tx70);white-space:nowrap}
+.rbtn:hover{border-color:var(--tx50);color:var(--tx)}
+.rbtn[aria-pressed="true"]{border-color:var(--primary);background:#062830;color:var(--tx)}
+.rbtn:disabled{opacity:.45;cursor:not-allowed}
+.rbtn .re{font-size:13px}
+.rflag{position:relative}
+.rflag>summary{list-style:none;cursor:pointer}
+.rflag>summary::-webkit-details-marker{display:none}
+.rflag-menu{position:absolute;z-index:30;top:calc(100% + 6px);left:0;width:300px;max-width:78vw;padding:6px;
+  border:1px solid var(--line2);border-radius:var(--r);background:var(--b200);box-shadow:0 10px 30px rgba(0,0,0,.6)}
+.rflag-menu button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:7px 9px;
+  border-radius:8px;text-align:left;font-size:12.5px}
+.rflag-menu button:hover{background:var(--b300)}
+.rm{font-size:11px;color:var(--tx40);line-height:1.45}
+.rm.foot{padding:6px 9px 2px}
+.rerr{font-size:11.5px;color:var(--error)}
+.rproof{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px;border:1px solid var(--line2);border-radius:var(--r)}
+.rproof input{flex:1 1 180px;min-width:150px;min-height:30px;padding:0 9px;border:1px solid var(--line2);
+  border-radius:8px;background:var(--b300);color:var(--tx);font:12.5px var(--sans)}
+
+/* one line per vote, and every weight expands into its parts on hover —
+   a ranking nobody can check is an opinion */
+.rvotes{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--line);padding-top:8px}
+.rvote{display:flex;align-items:center;gap:8px;min-height:28px;font-size:12px}
+.rvote .rv-l{font-weight:500}
+.rvote .rv-b{border:1px dashed var(--line2);border-radius:999px;padding:0 6px;font-size:10px;line-height:15px;color:var(--tx40)}
+.rvote .rv-s,.rvote .rv-w{font-family:var(--mono);font-size:11px;color:var(--tx50)}
+.rvote .rv-w{color:var(--tx40)}
+.rvote .rv-t{font-size:11px;color:var(--tx40)}
+.rvote .rv-e{font-size:11px;color:var(--primary)}
+
+/* the row form: counts only, never a weight — a chip that disagreed with the
+   page it links to would be worse than one that says less */
+.rmark{display:inline-flex;align-items:center;gap:6px;vertical-align:middle}
+.rm-i{display:inline-flex;align-items:center;gap:3px;font-size:11.5px}
+.rm-i .rm-c{font-family:var(--mono);font-size:10px;color:var(--tx40)}
+
+/* ---------------------------------------------------------------- curators
+
+   The desk behind a vault. The dot is the ARM that established the mapping,
+   because a name match is not a proof and must not read like one. */
+.cmark{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:999px;
+  padding:0 8px;font-size:11px;line-height:19px;color:var(--tx50);white-space:nowrap;max-width:190px}
+.cmark:hover{color:var(--tx);border-color:var(--tx50)}
+.cmark img,.cmark .plogo{width:13px;height:13px;border-radius:50%;flex:none;object-fit:cover;background:#111}
+.cmark .plogo{display:grid;place-items:center;font:600 7px/1 var(--mono);font-style:normal;color:var(--tx50);background:var(--b400)}
+.cmark .cn{overflow:hidden;text-overflow:ellipsis}
+.cmark .cc{color:var(--tx40);font-size:9px}
+.cmark .cs{color:var(--tx40)}
+.note.deskn{border-left:2px solid var(--primary)}
+.note.sm{font-size:12.5px;padding:8px 12px}
+
+.chdr-logo{width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--b300);flex:none}
+i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-style:normal;color:var(--tx50)}
+
+/* the desk's record: components, each with the sentence that says what it
+   covers. No grade, no forecast — the numbers carry their own footnotes. */
+.cstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;margin-top:18px;
+  background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.cstat{display:flex;flex-direction:column;gap:2px;padding:12px 14px;background:var(--b200)}
+.cstat .k{font-size:11px;color:var(--tx40);text-transform:uppercase;letter-spacing:.04em}
+.cstat .v{font:600 19px/1.2 var(--mono)}
+.cstat .n{font-size:11px;color:var(--tx40);line-height:1.4}
+
+.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}
+.alloc{display:flex;flex-direction:column;gap:5px;min-width:0}
+.alloc-h{display:flex;align-items:baseline;gap:8px;font-weight:600;font-size:13px;margin-bottom:2px}
+.alloc-h .sub{font-weight:400;font-size:11px;color:var(--tx40)}
+.alloc-row{display:grid;grid-template-columns:minmax(0,1fr) 64px 42px;align-items:center;gap:8px;font-size:12px}
+.alloc-row .a-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx70)}
+.alloc-row .a-bar{height:5px;border-radius:3px;background:var(--b400);overflow:hidden}
+.alloc-row .a-bar i{display:block;height:100%;background:var(--primary);opacity:.65}
+.alloc-row .a-p{font-family:var(--mono);font-size:11px;color:var(--tx50);text-align:right}
+.row .arm{font-size:10.5px;color:var(--tx40);white-space:nowrap}
+
+/* ------------------------------------------------------- the ledger's witness
+
+   A FACT about a market, drawn apart from the claims: an incident needs both,
+   and a page that mixed them would let one borrow the other's authority. */
+.stress{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:16px;padding:9px 13px;
+  border:1px solid rgba(226,163,58,.45);border-radius:var(--r);background:rgba(226,163,58,.06);font-size:12.5px}
+.stress .s-k{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--warning)}
+.stress .s-f{color:var(--tx70)}

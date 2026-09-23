@@ -14,14 +14,16 @@
 import React from 'react'
 import { useApp } from '../state/AppState'
 import { go, marketHref } from '../state/AppState'
-import { useFeedPage } from '../index/queries'
+import { useCuratorsByAccount, useFeedPage } from '../index/queries'
 import type { TxBundle, TxLeg } from '../index/types'
-import { useCounts, useMyFollows, useProfiles } from '../social/queries'
+import { useCounts, useMyFollows, useProfiles, useRatingCounts } from '../social/queries'
 import { positionKey } from '../social/api'
 import { useSocialWrite } from '../social/sign'
 import { useMenu } from './useMenu'
 import { ProtocolChips, useProtocolFilter } from './ProtocolFilter'
 import { DeskChips, IssuerChips, useIssuerFilter } from './IssuerFilter'
+import { CuratorChips, CuratorMark, useCuratorFilter } from './CuratorFilter'
+import { RateMark } from './Rate'
 import { protocolKeyOf } from '../model/uid'
 import { Ago, Comments, Money, Who, describeTx } from './social-bits'
 import { ChainCorner } from './ChainMark'
@@ -42,13 +44,16 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   const chainsParam = allChains ? undefined : chainIds.join(',')
   const pf = useProtocolFilter('7d')
   const inf = useIssuerFilter('7d')
+  const cf = useCuratorFilter()
   const [limit, setLimit] = React.useState(40)
-  React.useEffect(() => setLimit(40), [tab, chainsParam, pf.param, inf.param, inf.matchParam])
+  React.useEffect(() => setLimit(40), [tab, chainsParam, pf.param, inf.param, inf.matchParam, cf.param])
 
   const desks = { issuers: inf.param, issuerMatch: inf.matchParam }
+  // a desk resolves server-side to its vaults' addresses, so "what has
+  // Steakhouse been doing" is this feed with one extra parameter
   const q = tab === 'following'
-    ? { follower: account, follow: 'all' as const, chainIds: chainsParam, protocols: pf.param, ...desks }
-    : { chainIds: chainsParam, protocols: pf.param, ...desks }
+    ? { follower: account, follow: 'all' as const, chainIds: chainsParam, protocols: pf.param, curator: cf.param, ...desks }
+    : { chainIds: chainsParam, protocols: pf.param, curator: cf.param, ...desks }
   const feed = useFeedPage(q, limit, tab !== 'following' || !!account)
 
   const all = feed.data?.txs ?? []
@@ -62,6 +67,13 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   const subjects = txs.map((t) => ({ kind: 'position' as const, key: cardKey(t, pf.picked) })).filter((s) => !!s.key)
   const counts = useCounts(subjects)
   const { profile } = useProfiles(txs.map((t) => t.accounts[0]).filter(Boolean))
+  /** an actor that is really a desk is named as one, not as a whale */
+  const who = useCuratorsByAccount(txs.map((t) => t.accounts[0]).filter(Boolean))
+  /** 🚀 / 💀 counts for the markets on screen — one request for the page */
+  const rated = useRatingCounts(
+    [...new Set(txs.map((t) => primaryLeg(t, pf.picked)?.marketUid).filter((u): u is string => !!u))]
+      .map((key) => ({ kind: 'market' as const, key })),
+  )
   const [open, setOpen] = React.useState<string | null>(null)
 
   return (
@@ -80,6 +92,14 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
 
       <ProtocolChips f={pf} />
       <IssuerChips f={inf} />
+      <CuratorChips f={cf} />
+      {cf.param && (
+        <div className="note sm">
+          Only what <b>{cf.curators.find((c) => c.curatorId === cf.param)?.name ?? 'this desk'}</b> did with its
+          vaults' money. A desk with no vault in scope answers an empty feed, never the unfiltered one —{' '}
+          <a className="pri" href={`#/c/${encodeURIComponent(cf.param)}`}>open the desk ›</a>
+        </div>
+      )}
 
       {tab === 'following' && !account && <div className="note">Connect a wallet to see what the people and markets you follow are doing. Reading anyone is possible because the chain is public; the feed is just the part you chose.</div>}
       {tab === 'following' && account && !follows.isLoading && !follows.wallets.length && !follows.markets.length && (
@@ -95,6 +115,8 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
         {txs.map((t) => (
           <Card key={`${t.chainId}:${t.txHash}`} tx={t} profile={profile(t.accounts[0] ?? '')}
             strategy={menu.forUid(primaryLeg(t, pf.picked)?.marketUid)} only={pf.picked}
+            curator={who.curatorOf(t.accounts[0])}
+            rating={rated.ratingOf('market', primaryLeg(t, pf.picked)?.marketUid ?? '')}
             comments={counts.count('position', cardKey(t, pf.picked))} open={open === t.txHash} onToggle={() => setOpen(open === t.txHash ? null : t.txHash)} />
         ))}
       </div>
@@ -136,7 +158,7 @@ export function cardKey(t: TxBundle, only?: string[]): string {
   return positionKey({ chainId: t.chainId, account: l.account, marketUid: l.marketUid, side: l.side, posId: l.posId })
 }
 
-function Card({ tx, profile, strategy, comments, open, onToggle, only }: {
+function Card({ tx, profile, strategy, comments, open, onToggle, only, curator, rating }: {
   tx: TxBundle
   profile: ReturnType<ReturnType<typeof useProfiles>['profile']>
   strategy: Strategy | null
@@ -145,6 +167,10 @@ function Card({ tx, profile, strategy, comments, open, onToggle, only }: {
   onToggle: () => void
   /** the active protocol filter, so the card headlines the leg that matched */
   only?: string[]
+  /** the desk this actor belongs to, when it is one */
+  curator?: ReturnType<ReturnType<typeof useCuratorsByAccount>['curatorOf']>
+  /** what wallets have said about the market this card is about */
+  rating?: ReturnType<ReturnType<typeof useRatingCounts>['ratingOf']>
 }) {
   const leg = primaryLeg(tx, only)
   const who = tx.accounts[0] ?? leg?.account ?? ''
@@ -157,7 +183,10 @@ function Card({ tx, profile, strategy, comments, open, onToggle, only }: {
           the chain and the buttons hold the same width on every card, so the feed reads down
           the column instead of leaving a hole in the middle of each card. */}
       <div className="fc-g">
-        <div className="fc-who"><Who account={who} profile={profile} size={30} idx={leg} /></div>
+        <div className="fc-who">
+          <Who account={who} profile={profile} size={30} idx={leg} />
+          <CuratorMark c={curator} />
+        </div>
         <div className="fc-b">
           <span className={`verb ${cls}`}>{verb}</span>
           {leg && (
@@ -168,6 +197,7 @@ function Card({ tx, profile, strategy, comments, open, onToggle, only }: {
             </a>
           )}
           {leg && <DeskChips x={leg} />}
+          <RateMark c={rating} />
         </div>
         <div className="fc-n">
           <span className="big"><Money usd={tx.volumeUsd ?? leg?.amountUsd} status={leg?.usdStatus} fromIndex={leg?.amountFromIndex} amount={leg?.amount} symbol={leg?.symbol} /></span>

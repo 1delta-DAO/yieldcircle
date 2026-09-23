@@ -74,6 +74,114 @@ export const xProofText = (account: string, nonce: string) =>
 export const xUnlink = (signed: unknown) =>
   call<{ ok?: boolean }>('/x-link', post('/x-link', { signed }))
 
+// ---------------------------------------------------------------- ratings
+
+/**
+ * What other wallets SAY about a thing, weighted by what the ledger says they
+ * hold (pos-indexer docs/community-ratings.md).
+ *
+ * The vocabulary is CLOSED and versioned and comes from the service, because
+ * a client that hardcodes the list ships a vocabulary that can drift from the
+ * one writes are validated against.
+ *
+ * Three rules this app inherits and must not break:
+ *   1. zero ratings renders as zero ratings, in words — never as a tick;
+ *   2. `contested` is shown as contested, not collapsed to a number;
+ *   3. every weight expands to its components, because a ranking nobody can
+ *      check is an opinion.
+ */
+export type RatingSubjectKind = 'asset' | 'market' | 'lender' | 'issuer' | 'account' | 'curator'
+export interface RatingLabel {
+  key: string
+  group: string
+  mutex: boolean
+  polarity: 1 | 0 | -1
+  subjects: RatingSubjectKind[]
+  evidence: 'required' | 'optional' | 'none'
+  halfLifeDays: number | null
+  expiresHours?: number
+  emoji?: string
+  title: string
+  meaning: string
+}
+export interface RatingVote {
+  account: string
+  label: string
+  emoji?: string
+  polarity: number
+  signedAt: string
+  evidenceUrl: string | null
+  note: string | null
+  holder: boolean
+  /** a positive claim from a holder: talking their book. Shown, never silently re-weighted. */
+  ownBook: boolean
+  stakeUsd: number | null
+  tenureDays: number | null
+  accountKind: string | null
+  accountLabel: string | null
+  weight: number
+  decay: number
+  components: Record<string, number>
+}
+export interface RatingLabelAgg {
+  label: string
+  group: string
+  polarity: number
+  emoji?: string
+  title: string
+  wallets: number
+  weight: number
+  weightHolders: number
+  weightNonHolders: number
+  walletsHolders: number
+  topWalletShare: number
+  medianTenureDays: number | null
+  newestAt: string
+  evidence: { account: string; url: string; note: string | null }[]
+  zeroWeightWallets: number
+}
+export interface RatingGroupAgg {
+  group: string
+  status: 'none' | 'claimed' | 'contested' | 'consensus'
+  top: string | null
+  topShare: number
+  opposingShare: number
+  wallets: number
+  weight: number
+  labels: string[]
+}
+export interface RatingAggregate {
+  subjectKind: string
+  subjectKey: string
+  labels: RatingLabelAgg[]
+  groups: RatingGroupAgg[]
+  totals: { wallets: number; weight: number; holders: number; zeroWeightWallets: number }
+  labelsVersion: number
+  /** the same votes restricted to the wallets you follow — empty when you follow nobody, never the global set */
+  byFollowed: Record<string, { wallets: number; weight: number }> | null
+  votes: RatingVote[]
+}
+export interface RatingCount {
+  wallets: number
+  labels: Record<string, { wallets: number; polarity: number; emoji?: string; newestAt: string }>
+}
+
+export const ratingLabels = () =>
+  call<{ version: number; subjectKinds: RatingSubjectKind[]; labels: RatingLabel[] }>('/rating-labels')
+export const ratings = (kind: RatingSubjectKind, key: string, follower?: string) =>
+  call<RatingAggregate>(`/ratings/${kind}/${encodeURIComponent(key)}${follower ? `?follower=${follower}` : ''}`)
+/** Batch, for a list view: COUNTS, not weights — the weighted verdict lives on the subject's own page. */
+export const ratingCounts = (subjects: { kind: RatingSubjectKind; key: string }[]) =>
+  call<{ counts: Record<string, Record<string, RatingCount>> }>('/ratings/counts', post('/ratings/counts', { subjects }))
+export const ratingsTop = (kind: RatingSubjectKind, label: string, limit = 25) =>
+  call<{ kind: string; label: string; subjects: { subjectKind: string; subjectKey: string; label: string; wallets: number; weight: number; walletsHolders: number; status: string }[] }>(
+    `/ratings/top?kind=${kind}&label=${label}&limit=${limit}`,
+  )
+export const ratingsBy = (account: string, limit = 50) =>
+  call<{ account: string; ratings: { subjectKind: string; subjectKey: string; label: string; emoji?: string; polarity: number; evidenceUrl: string | null; note: string | null; signedAt: string; active: boolean }[] }>(
+    `/ratings/by/${account}?limit=${limit}`,
+  )
+
 export interface WriteResult { ok?: boolean; id?: number | null; duplicate?: boolean; authorStake?: number | null; profile?: Profile | null; follows?: Follow[] }
 export const write = (primaryType: string, message: Record<string, unknown>, signature: string) =>
   call<WriteResult>('/write', post('/write', { primaryType, message, signature }))

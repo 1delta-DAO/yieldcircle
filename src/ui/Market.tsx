@@ -19,7 +19,7 @@ import { Ago, FollowButton, Money, Who, describeTx } from './social-bits'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
-import { indexChainLabel } from '../index/types'
+import { indexChainLabel, subjectOf } from '../index/types'
 import type { MarketExposure } from '../index/types'
 import { primaryLeg } from './Feed'
 
@@ -133,7 +133,7 @@ export function Market({ uid }: { uid: string }) {
           <h2>What holders say</h2>
           <span className="sub">claims, weighted by what the claimant holds here — never a score</span>
         </div>
-        <div className="card pad"><Rate kind="market" subject={uid} /></div>
+        <div className="card pad rate-card"><Rate kind="market" subject={uid} /></div>
       </section>
 
       <Exposure e={m.data?.exposure} />
@@ -165,9 +165,9 @@ export function Market({ uid }: { uid: string }) {
               const l = primaryLeg(t), d = describeTx(t.kinds)
               return (
                 <div key={`${t.chainId}:${t.txHash}`} className="tape-item">
-                  <a className="tape-row" href={`#/w/${t.accounts[0] ?? l?.account}`}>
+                  <a className="tape-row" href={`#/w/${subjectOf(t).account || l?.account}`}>
                     <span className={`verb ${d.cls}`}>{d.verb}</span>
-                    <span className="tr-m"><Who account={t.accounts[0] ?? l?.account ?? ''} size={20} plain /></span>
+                    <span className="tr-m"><Who account={subjectOf(t).account || l?.account || ''} idx={subjectOf(t)} size={20} plain /></span>
                     <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} amount={l?.amount} symbol={l?.symbol} short /></span>
                     <span className="tr-t"><Ago ts={t.blockTs} /></span>
                   </a>

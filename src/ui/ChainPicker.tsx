@@ -18,6 +18,13 @@
  * distinct, each button carries its name as a title, and the menu spells all
  * five out for anyone who wants the words.
  *
+ * Two lists meet here. The ROW carries `CHAINS` — the chains with strategies,
+ * the ones whose colours people know — because fifteen marks do not fit a
+ * header that also holds eight destinations. The MENU spells out
+ * `SCOPE_CHAINS`, every chain the index follows, under a line that says the
+ * rest are indexed but have no strategies yet: a position on Monad is as real
+ * as one on Base, and being unable to narrow to it would make it unreadable.
+ *
  * "All" stays the ABSENCE of a selection rather than a member of it (see
  * `AppState`), so a chain added tomorrow is in scope without anyone
  * re-picking. Alt-click narrows to one chain on the row; the menu spells that
@@ -26,7 +33,7 @@
  */
 import React from 'react'
 import { useApp } from '../state/AppState'
-import { CHAINS } from '../sdk/queries'
+import { CHAINS, SCOPE_CHAINS } from '../sdk/queries'
 import { ChainMark } from './ChainMark'
 import { Popover } from './bits'
 
@@ -34,7 +41,7 @@ export function ChainPicker() {
   const { chains, setChains, toggleChain, allChains, chainLabelFor } = useApp()
   const btn = React.useRef<HTMLButtonElement>(null)
   const [open, setOpen] = React.useState(false)
-  const picked = allChains ? CHAINS : CHAINS.filter((c) => chains.includes(c.id))
+  const picked = allChains ? CHAINS : SCOPE_CHAINS.filter((c) => chains.includes(c.id))
   return (
     <>
       <div className="seg chainseg" role="group" aria-label="Chains">
@@ -59,7 +66,8 @@ export function ChainPicker() {
       </button>
 
       <Popover anchor={btn} open={open} onClose={() => setOpen(false)} width={232} align="right">
-        <div className="chainmenu" role="group" aria-label="Chains">
+        <div className="chainmenu" role="group" aria-label="Chains"
+          style={{ maxHeight: 'min(64vh, 560px)', overflowY: 'auto' }}>
           <button className="cm-row" role="checkbox" aria-checked={allChains} onClick={() => setChains([])}>
             <span className="cm-tick" aria-hidden>{allChains ? '✓' : ''}</span>
             <span className="cm-n">All chains</span>
@@ -67,18 +75,28 @@ export function ChainPicker() {
           <div className="cm-sep" role="separator" />
           {/* in "All" mode no single chain is ticked — the same thing the segmented row says, and
               clicking one there narrows to it rather than removing it from a selection that is empty */}
-          {CHAINS.map((c) => {
+          {SCOPE_CHAINS.map((c, i) => {
             const on = chains.includes(c.id)
             return (
-              <div key={c.id} className="cm-line">
-                <button className="cm-row" role="checkbox" aria-checked={on} onClick={() => toggleChain(c.id)}>
-                  <span className="cm-tick" aria-hidden>{on ? '✓' : ''}</span>
-                  <ChainMark chainId={c.id} size={16} />
-                  <span className="cm-n">{c.label}</span>
-                </button>
-                <button className="cm-only" onClick={() => { setChains([c.id]); setOpen(false) }}
-                  aria-label={`Only ${c.label}`}>only</button>
-              </div>
+              <React.Fragment key={c.id}>
+                {i === CHAINS.length ? (
+                  <>
+                    <div className="cm-sep" role="separator" />
+                    <div style={{ padding: '4px 10px 2px', fontSize: 11, opacity: 0.6 }}>
+                      indexed — no strategies here yet
+                    </div>
+                  </>
+                ) : null}
+                <div className="cm-line">
+                  <button className="cm-row" role="checkbox" aria-checked={on} onClick={() => toggleChain(c.id)}>
+                    <span className="cm-tick" aria-hidden>{on ? '✓' : ''}</span>
+                    <ChainMark chainId={c.id} size={16} />
+                    <span className="cm-n">{c.label}</span>
+                  </button>
+                  <button className="cm-only" onClick={() => { setChains([c.id]); setOpen(false) }}
+                    aria-label={`Only ${c.label}`}>only</button>
+                </div>
+              </React.Fragment>
             )
           })}
         </div>

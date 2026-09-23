@@ -18,7 +18,7 @@ import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { autoName, shortAddr } from '../identity/name'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
-import { indexChainLabel } from '../index/types'
+import { indexChainLabel, type IndexPosition, type PositionGroup } from '../index/types'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
 import { primaryLeg } from './Feed'
@@ -90,21 +90,7 @@ export function Wallet({ addr }: { addr: string }) {
           <div className="card">
             {pos.isLoading && <div className="empty"><Sk w={220} /></div>}
             {!pos.isLoading && !rows.length && <div className="empty">The index has no open position for this wallet on the chains it follows.</div>}
-            {rows.length > 0 && (
-              <table className="tbl strat-t">
-                <colgroup><col /><col style={{ width: 110 }} /><col className="hide-m" style={{ width: 90 }} /><col style={{ width: 28 }} /></colgroup>
-                <thead><tr><th>Market</th><th className="r">Value</th><th className="r hide-m">Rate</th><th /></tr></thead>
-                <tbody>{rows.map((r) => (
-                  <tr key={`${r.marketUid}:${r.side}:${r.posId}`} onClick={() => { location.hash = marketHref(r.marketUid) }}>
-                    <td><div className="nm"><Tok sym={r.symbol ?? '?'} logo={r.assetLogo ?? undefined} /><span><b>{r.marketName ?? r.symbol}</b> <span className="t50">· {r.lenderName ?? r.lenderKey}</span></span>{r.side === 'borrow' && <span className="pill k-borrow">debt</span>}</div>
-                      <small className="hide-m">{indexChainLabel(r.chainId, chainLabel)}{r.accrual?.exact ? ' · accrual exact' : r.accrual ? ' · accrual ≈' : ''}</small></td>
-                    <td className="r"><Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} /><small>{r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}</small></td>
-                    <td className="r hide-m">{r.aprNow != null ? <span className="ok">{pct(r.aprNow)}</span> : <span className="t40">—</span>}</td>
-                    <td className="r t40">›</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            )}
+            {rows.length > 0 && <Book rows={rows} groups={pos.data?.groups} />}
           </div>
         )}
       </section>
@@ -136,6 +122,111 @@ export function Wallet({ addr }: { addr: string }) {
         <div className="card pad"><Thread kind="wallet" subjectKey={addr} placeholder="Ask them something, or say what you make of the book." /></div>
       </section>
     </>
+  )
+}
+
+/**
+ * The book as POSITIONS, not as legs. A loop arrives from the index as a
+ * collateral row and a debt row — two rows that share one liquidation — and
+ * listing them side by side leaves the reader to net $45,067 against $10,302
+ * in their head and to conclude, from two rates of 0.00 % and 4.14 %, that
+ * the wallet is paying to lose money. The index folds them (`groups`) and
+ * states the equity and the rate ON that equity; the legs stay, one tap down,
+ * because the ledger holds legs and a market page joins to them.
+ */
+function Book({ rows, groups }: { rows: IndexPosition[]; groups?: PositionGroup[] }) {
+  const byLeg = new Map(rows.map((r) => [`${r.marketUid}|${r.side}|${r.posId}`, r]))
+  // no `groups` (an older index) → every leg is its own position, which is
+  // exactly what this page showed before and never a blank table
+  const gs: PositionGroup[] = groups?.length
+    ? groups
+    : rows.map((r) => ({
+        key: `${r.marketUid}|${r.side}|${r.posId}`, chainId: r.chainId, account: r.account, posId: r.posId,
+        riskKey: r.marketUid, lenderKey: r.lenderKey, marketUids: [r.marketUid],
+        supplyUsd: r.side === 'borrow' ? 0 : r.amountUsd ?? 0, debtUsd: r.side === 'borrow' ? r.amountUsd ?? 0 : 0,
+        equityUsd: (r.side === 'borrow' ? -1 : 1) * (r.amountUsd ?? 0), leverage: null, annualUsd: null,
+        netAprPct: r.aprEffective ?? r.aprNow, blend: 'none', reason: null, exact: true, unpriced: 0,
+        legs: [{ marketUid: r.marketUid, side: r.side, posId: r.posId }],
+      }))
+  return (
+    <table className="tbl strat-t">
+      <colgroup><col /><col style={{ width: 110 }} /><col className="hide-m" style={{ width: 90 }} /><col style={{ width: 28 }} /></colgroup>
+      <thead><tr><th>Position</th><th className="r">Value</th><th className="r hide-m">Rate</th><th /></tr></thead>
+      <tbody>
+        {gs.map((g) => {
+          const legs = g.legs.map((l) => byLeg.get(`${l.marketUid}|${l.side}|${l.posId}`)).filter((r): r is IndexPosition => !!r)
+          if (legs.length === 0) return null
+          if (legs.length === 1) return <LegRow key={g.key} r={legs[0]} />
+          return <React.Fragment key={g.key}>
+            <tr className="grp" onClick={() => { location.hash = marketHref(legs[0].marketUid) }}>
+              <td>
+                <div className="nm">
+                  <Tok sym={legs[0].symbol ?? '?'} logo={legs[0].assetLogo ?? undefined} />
+                  <span><b>{loopLabel(legs)}</b> <span className="t50">· {legs[0].lenderName ?? legs[0].lenderKey}</span></span>
+                  {g.leverage != null && g.leverage > 1.05 && <span className="pill">{g.leverage.toFixed(2)}×</span>}
+                </div>
+                <small className="hide-m">
+                  {indexChainLabel(legs[0].chainId, chainLabel)} · {usdShort(g.supplyUsd)} collateral over {usdShort(g.debtUsd)} of debt
+                </small>
+              </td>
+              <td className="r"><b>{usd(g.equityUsd)}</b><small>equity</small></td>
+              <td className="r hide-m"><NetRate g={g} /></td>
+              <td className="r t40">›</td>
+            </tr>
+            {legs.map((r) => <LegRow key={`${r.marketUid}:${r.side}:${r.posId}`} r={r} sub />)}
+          </React.Fragment>
+        })}
+      </tbody>
+    </table>
+  )
+}
+
+/** `syrupUSDT / USDT` — what the position is, from its own legs. */
+function loopLabel(legs: IndexPosition[]): string {
+  const coll = legs.find((l) => l.side !== 'borrow')
+  const debt = legs.find((l) => l.side === 'borrow')
+  if (coll && debt) return `${coll.symbol ?? '?'} / ${debt.symbol ?? '?'} loop`
+  return legs[0].marketName ?? legs[0].symbol ?? 'position'
+}
+
+/**
+ * The net rate, or the reason there is none. A refusal is shown in words:
+ * a fixed-term loan carries its own rate and a blended figure across terms
+ * would be a rate nobody can hold.
+ */
+function NetRate({ g }: { g: PositionGroup }) {
+  if (g.netAprPct == null)
+    return <span className="t40" title={g.reason ?? 'no rate for this position yet'}>—</span>
+  const cls = g.netAprPct >= 0 ? 'ok' : 'warn'
+  const why = `${usd(g.annualUsd ?? 0)} a year on ${usd(g.equityUsd)} of equity${g.exact ? '' : ' — a floor: a leg has no rate yet'}`
+  return <span className={cls} title={why}>{pct(g.netAprPct)}{g.exact ? '' : '+'}</span>
+}
+
+/**
+ * One leg. The rate is the EFFECTIVE one — the pool's plus what the token
+ * itself earns — because a Morpho collateral leg pays 0.00 % from the pool
+ * and 4.68 % from inside syrupUSDT, and only one of those numbers was ever
+ * on this page.
+ */
+function LegRow({ r, sub }: { r: IndexPosition; sub?: boolean }) {
+  const rate = r.aprEffective ?? r.aprNow
+  const why = r.intrinsicApr != null
+    ? `${pct(r.intrinsicApr)} the token itself${r.intrinsicSource === 'asset' ? ' (from the asset, not this market)' : ''} + ${pct(r.aprNow ?? 0)} the pool`
+    : 'the pool’s own rate; nobody publishes a yield for this token'
+  return (
+    <tr className={sub ? 'leg' : undefined} onClick={() => { location.hash = marketHref(r.marketUid) }}>
+      <td>
+        <div className="nm">
+          {!sub && <Tok sym={r.symbol ?? '?'} logo={r.assetLogo ?? undefined} />}
+          <span>{sub && <span className="t40">└ </span>}<b>{r.marketName ?? r.symbol}</b> <span className="t50">· {r.lenderName ?? r.lenderKey}</span></span>
+          {r.side === 'borrow' && <span className="pill k-borrow">debt</span>}
+        </div>
+        <small className="hide-m">{indexChainLabel(r.chainId, chainLabel)}{r.accrual?.exact ? ' · accrual exact' : r.accrual ? ' · accrual ≈' : ''}</small>
+      </td>
+      <td className="r"><Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} /><small>{r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}</small></td>
+      <td className="r hide-m">{rate != null ? <span className={r.side === 'borrow' ? 'warn' : 'ok'} title={why}>{pct(rate)}</span> : <span className="t40">—</span>}</td>
+      <td className="r t40">›</td>
+    </tr>
   )
 }
 

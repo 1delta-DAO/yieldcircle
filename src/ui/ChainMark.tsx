@@ -2,14 +2,17 @@
  * Chain marks, drawn rather than fetched.
  *
  * Every other icon in this app that comes from a URL has a fallback path and
- * a load error to handle; a chain is one of five known things, so it is a
- * path. Inline SVG costs no request, is crisp at 14px and at 28px, and cannot
+ * a load error to handle; a chain is one of a known few, so it is a path.
+ * Inline SVG costs no request, is crisp at 14px and at 28px, and cannot
  * half-render — the same reason the brand mark and the character are paths.
  *
- * The index follows chains this app has no strategies for (Polygon,
- * Optimism), so a ledger row can name a chain the selector does not offer.
- * That one gets a mark too — its id's first characters on a plain disc —
- * because a row from it must not be the only nameless thing on the page.
+ * The index follows chains this app has no strategies for, so a ledger row can
+ * name a chain the selector does not offer. Since 2026-09-23 that is ten of
+ * them, and they are in `CHAIN_INFO` with a name and an explorer even though
+ * no one drew them a glyph: the mark falls back to the chain's own short name
+ * on its disc, and only a chain this file has never heard of gets the grey
+ * two-character disc — because a row from it must not be the only nameless,
+ * unlinkable thing on the page.
  */
 
 export interface ChainInfo { id: string; name: string; short: string; color: string; explorer: string; explorerName: string }
@@ -19,7 +22,26 @@ export const CHAIN_INFO: Record<string, ChainInfo> = {
   '42161': { id: '42161', name: 'Arbitrum', short: 'ARB', color: '#12aaff', explorer: 'https://arbiscan.io', explorerName: 'Arbiscan' },
   '56': { id: '56', name: 'BNB Chain', short: 'BNB', color: '#f0b90b', explorer: 'https://bscscan.com', explorerName: 'BscScan' },
   '43114': { id: '43114', name: 'Avalanche', short: 'AVAX', color: '#e84142', explorer: 'https://snowscan.xyz', explorerName: 'Snowscan' },
+  // The ten the index added on 2026-09-23. They carry a name, a colour and an
+  // explorer but no drawn glyph: a mark is a brand, and an invented one is
+  // worse than the chain's own letters on its own disc, which is what these
+  // render (see `ChainMark`). The colour is the chain's where it is widely
+  // known and slate where it is not — a wrong brand colour says something
+  // false about the chain, a neutral one says nothing.
+  '10': { id: '10', name: 'Optimism', short: 'OP', color: '#ff0420', explorer: 'https://optimistic.etherscan.io', explorerName: 'Optimistic Etherscan' },
+  '137': { id: '137', name: 'Polygon', short: 'POL', color: '#8247e5', explorer: 'https://polygonscan.com', explorerName: 'Polygonscan' },
+  '143': { id: '143', name: 'Monad', short: 'MON', color: '#836ef9', explorer: 'https://monadscan.com', explorerName: 'MonadScan' },
+  '999': { id: '999', name: 'HyperEVM', short: 'HYPE', color: '#1a9e8f', explorer: 'https://hyperevmscan.io', explorerName: 'HyperEVMScan' },
+  '4663': { id: '4663', name: 'Robinhood Chain', short: 'HOOD', color: '#00a804', explorer: 'https://robinscan.io', explorerName: 'Robinscan' },
+  '9745': { id: '9745', name: 'Plasma', short: 'XPL', color: '#64748b', explorer: 'https://plasmascan.to', explorerName: 'Plasmascan' },
+  '5042': { id: '5042', name: 'Arc', short: 'ARC', color: '#64748b', explorer: 'https://explorer.arc.io', explorerName: 'Arc Explorer' },
+  '4217': { id: '4217', name: 'Tempo', short: 'TEMPO', color: '#64748b', explorer: 'https://explore.tempo.xyz', explorerName: 'Tempo Explorer' },
+  '988': { id: '988', name: 'Stable', short: 'STBL', color: '#64748b', explorer: 'https://stablescan.xyz', explorerName: 'Stablescan' },
+  '98866': { id: '98866', name: 'Plume', short: 'PLUME', color: '#64748b', explorer: 'https://explorer.plume.org', explorerName: 'Plume Explorer' },
 }
+
+/** the ids `Glyph` draws; the rest wear their own letters */
+const DRAWN = new Set(['1', '8453', '42161', '56', '43114'])
 export const chainInfo = (id: string | undefined): ChainInfo | undefined => (id ? CHAIN_INFO[id] : undefined)
 
 /**
@@ -93,12 +115,21 @@ export function ChainMark({ chainId, size = 16, title }: { chainId: string; size
         {chainId.slice(0, 2)}
       </i>
     )
+  // a chain we know but do not draw: its own letters, sized to fit the disc
+  const letters = DRAWN.has(c.id) ? null : c.short.slice(0, 4)
   return (
     <svg className="chainmark" viewBox="0 0 24 24" width={size} height={size} style={{ width: size, height: size }}
       role="img" aria-label={c.name}>
       <title>{title ?? c.name}</title>
       <circle cx="12" cy="12" r="12" fill={c.color} />
-      <Glyph id={c.id} />
+      {letters ? (
+        <text x="12" y="12.6" textAnchor="middle" dominantBaseline="middle" fill="#fff" fontWeight="700"
+          fontSize={letters.length > 3 ? 7.4 : letters.length > 2 ? 9 : 11} letterSpacing="-.3">
+          {letters}
+        </text>
+      ) : (
+        <Glyph id={c.id} />
+      )}
     </svg>
   )
 }

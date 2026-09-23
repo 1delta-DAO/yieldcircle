@@ -104,6 +104,19 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .tbl.strat-t td:first-child .nm{overflow:visible}
 .tbl.strat-t td > small{max-width:100%}
 .tbl.strat-t td > small{display:block;font-size:11px;color:var(--tx50);font-family:var(--mono);line-height:1.3;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* a POSITION and its legs (pos-indexer tickets/0018). The group row carries the
+   equity and the net rate; its legs sit under it, quieter and shorter, so the
+   eye reads one position per block instead of four unrelated rows. */
+.tbl.strat-t tr.grp td{border-top:1px solid var(--line)}
+.tbl.strat-t tr.grp:first-child td{border-top:none}
+.tbl.strat-t tr.grp td .nm b{font-weight:600}
+.tbl.strat-t tr.leg td{height:42px;background:var(--b200)}
+.tbl.strat-t tr.leg td .nm b{font-weight:400;color:var(--tx70)}
+.tbl.strat-t tr.leg td:first-child{padding-left:28px}
+.tbl.strat-t tr.leg td:first-child > small{margin-left:14px}
+/* where a vault put the money in the same transaction, and the count of
+   wallets a solver batched — quiet, because neither is the headline */
+.nested{font-size:11px;white-space:nowrap}
 .card.scroll{overflow-x:auto}
 /* asset page: idle strip + kind toggle */
 .idle-strip{display:flex;flex-direction:column;gap:6px;margin-top:14px}
@@ -1038,10 +1051,18 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
 .rbtn[aria-pressed="true"]{border-color:var(--primary);background:#062830;color:var(--tx)}
 .rbtn:disabled{opacity:.45;cursor:not-allowed}
 .rbtn .re{font-size:13px}
-.rflag{position:relative}
-.rflag>summary{list-style:none;cursor:pointer}
+.rflag>summary{list-style:none;cursor:pointer;width:max-content}
 .rflag>summary::-webkit-details-marker{display:none}
-.rflag-menu{position:absolute;z-index:30;top:calc(100% + 6px);left:0;width:300px;max-width:78vw;padding:6px;
+/* The menu hangs off the BUTTON ROW, not off the chip, and the card it sits in
+   stops clipping. Anchored to the chip it had two failure modes: a card clips
+   to its radius, so the panel was cut off at the border, and left:0 from a chip
+   near the right edge ran it off a phone. Anchored to the row, left:0 is the
+   card's own left edge and max-width:100% is the card's width. */
+/* only the card that holds the rate widget: every other card keeps clipping
+   its children to its own radius */
+.card.pad.rate-card{overflow:visible}
+.rbtns{position:relative}
+.rflag-menu{position:absolute;z-index:30;top:calc(100% + 6px);left:0;width:340px;max-width:100%;padding:6px;
   border:1px solid var(--line2);border-radius:var(--r);background:var(--b200);box-shadow:0 10px 30px rgba(0,0,0,.6)}
 .rflag-menu button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:7px 9px;
   border-radius:8px;text-align:left;font-size:12.5px}
@@ -1086,6 +1107,9 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
 .note.sm{font-size:12.5px;padding:8px 12px}
 
 .chdr-logo{width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--b300);flex:none}
+/* a lockup is not a square: cropping a circle out of its middle shows the join
+   between the two marks and neither of the marks */
+img.chdr-logo.wide{width:auto;height:40px;max-width:150px;border-radius:9px;object-fit:contain;padding:3px 7px}
 i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-style:normal;color:var(--tx50)}
 
 /* the desk's record: components, each with the sentence that says what it

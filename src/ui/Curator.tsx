@@ -16,6 +16,7 @@
  * warning.** `verified` means exactly "listed in a curator registry we read",
  * and most desks are not. That is a fact about the registry.
  */
+import React from 'react'
 import { useCurator, useCuratorAllocation, useCuratorHolders, useCuratorTxs } from '../index/queries'
 import { useProfiles } from '../social/queries'
 import type { AllocationSlice } from '../index/api'
@@ -51,6 +52,33 @@ function Slices({ title, note, rows, pretty }: {
   )
 }
 
+/**
+ * A desk's mark is not always square. Several are lockups — two logos with an
+ * "x" between them — and a 40px circle with `object-fit:cover` crops one of
+ * those to its middle, which is the right half of the first mark beside the
+ * left half of the second. The artwork says which it is, so we ask it: wider
+ * than it is tall, and we keep it whole in a rounded box rather than cutting a
+ * circle out of the join.
+ */
+function CuratorLogo({ src }: { src?: string | null }) {
+  const [shape, setShape] = React.useState<'square' | 'wide' | 'none'>('square')
+  React.useEffect(() => setShape('square'), [src])
+  if (!src || shape === 'none') return <i className="chdr-logo plogo">c</i>
+  return (
+    <img
+      className={`chdr-logo${shape === 'wide' ? ' wide' : ''}`}
+      src={src}
+      alt=""
+      onLoad={(e) => {
+        const im = e.currentTarget
+        if (im.naturalWidth > im.naturalHeight * 1.3) setShape('wide')
+      }}
+      // a logo that will not load should leave the letter, not a broken picture
+      onError={() => setShape('none')}
+    />
+  )
+}
+
 export function Curator({ id }: { id: string }) {
   const c = useCurator(id)
   const alloc = useCuratorAllocation(id)
@@ -72,7 +100,7 @@ export function Curator({ id }: { id: string }) {
     <>
       <a className="crumb" href="#/feed">‹ Feed</a>
       <header className="mhdr">
-        {d?.logoUri ? <img className="chdr-logo" src={d.logoUri} alt="" /> : <i className="chdr-logo plogo">c</i>}
+        <CuratorLogo src={d?.logoUri} />
         <div>
           <h1>{d ? curatorLabel(d) : c.isLoading ? '…' : id}</h1>
           <div className="sub">
@@ -134,7 +162,7 @@ export function Curator({ id }: { id: string }) {
 
       <section className="sec">
         <div className="sec-h"><h2>What depositors say</h2><span className="sub">weighted by what the sayer has given this desk to manage</span></div>
-        <div className="card pad"><Rate kind="curator" subject={id} /></div>
+        <div className="card pad rate-card"><Rate kind="curator" subject={id} /></div>
       </section>
 
       <section className="sec">

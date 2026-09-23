@@ -6,6 +6,11 @@ import type { VaultListing } from './types'
 import { toRaw } from '../model/leverage'
 
 const HOUR = 3600_000
+/**
+ * The chains this app has STRATEGIES on: every entry costs one earn query,
+ * one vault registry and three optimizer archetypes per refresh, so a chain
+ * belongs here when it has something to offer, not when it exists.
+ */
 export const CHAINS: { id: string; label: string }[] = [
   { id: '1', label: 'Ethereum' },
   { id: '8453', label: 'Base' },
@@ -13,7 +18,31 @@ export const CHAINS: { id: string; label: string }[] = [
   { id: '56', label: 'BNB' },
   { id: '43114', label: 'Avalanche' },
 ]
-export const chainLabel = (id: string) => CHAINS.find((c) => c.id === id)?.label ?? id
+/**
+ * The chains the INDEX follows — the scope of the feed, the hot board, a
+ * wallet's positions and a market page. It is a superset of `CHAINS`: the
+ * index gained ten more on 2026-09-23, and a position on one of them is as
+ * real as a position on Base even though no strategy here targets it. The
+ * picker offers these; the strategy queries above narrow back to `CHAINS`, so
+ * scoping to Monad costs nothing upstream and simply shows no strategies.
+ */
+export const SCOPE_CHAINS: { id: string; label: string }[] = [
+  ...CHAINS,
+  { id: '10', label: 'Optimism' },
+  { id: '999', label: 'HyperEVM' },
+  { id: '143', label: 'Monad' },
+  { id: '9745', label: 'Plasma' },
+  { id: '137', label: 'Polygon' },
+  { id: '5042', label: 'Arc' },
+  { id: '4663', label: 'Robinhood' },
+  { id: '4217', label: 'Tempo' },
+  { id: '988', label: 'Stable' },
+  { id: '98866', label: 'Plume' },
+]
+const STRATEGY_IDS = new Set(CHAINS.map((c) => c.id))
+/** the scope, narrowed to the chains a strategy query can answer for */
+const strategyChains = (chainIds: string[]) => chainIds.filter((id) => STRATEGY_IDS.has(id))
+export const chainLabel = (id: string) => SCOPE_CHAINS.find((c) => c.id === id)?.label ?? id
 
 /** Same-denomination carry archetypes: the collateral and the debt are the same money, so this is carry, not a price bet. */
 const LOOP_ARCHETYPES: Pick<OptimizerQuery, 'collateralTags' | 'debtTags' | 'includeExpired'>[] = [
@@ -41,7 +70,8 @@ const vaultQuery = (chainId: string) => ({
 /** One chain's registry, from the shared cache — `{}` on failure, never a rejection. */
 export const vaultIndex = (chainId: string, qc: QueryClient): Promise<VaultIndex> => qc.ensureQueryData(vaultQuery(chainId)).catch(() => ({}) as VaultIndex)
 /** The same registries for several chains, keyed `chainId:address`, for the holdings side. */
-export function useVaultIndex(chainIds: string[]): VaultIndex {
+export function useVaultIndex(scope: string[]): VaultIndex {
+  const chainIds = strategyChains(scope)
   const qs = useQueries({ queries: chainIds.map(vaultQuery) })
   const data = qs.map((q) => q.data)
   return useMemo(() => {
@@ -53,7 +83,8 @@ export function useVaultIndex(chainIds: string[]): VaultIndex {
 }
 
 /** Both listings for the selected chains, normalised and curated. Chains load in parallel and merge as they land. */
-export function useCatalog(chainIds: string[]) {
+export function useCatalog(scope: string[]) {
+  const chainIds = strategyChains(scope)
   const qc = useQueryClient()
   const earn = useQueries({
     queries: chainIds.map((chainId) => ({

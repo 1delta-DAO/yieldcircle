@@ -15,7 +15,7 @@ import React from "react";
 import { useApp } from "../state/AppState";
 import { go, marketHref } from "../state/AppState";
 import { useCuratorsByAccount, useFeedPage } from "../index/queries";
-import type { TxBundle, TxLeg } from "../index/types";
+import type { TxBundle, TxLeg, TxSubject } from "../index/types";
 import {
   useCounts,
   useMyFollows,
@@ -32,7 +32,7 @@ import { RateMark } from "./Rate";
 import { protocolKeyOf } from "../model/uid";
 import { Ago, Comments, Money, Who, describeTx } from "./social-bits";
 import { ChainCorner } from "./ChainMark";
-import { indexChainLabel } from "../index/types";
+import { indexChainLabel, subjectOf } from "../index/types";
 import { Sk, Tok, TxLink, pct } from "./bits";
 import { Thread } from "./Thread";
 import { chainLabel } from "../sdk/queries";
@@ -92,11 +92,11 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
     .filter((s) => !!s.key);
   const counts = useCounts(subjects);
   const { profile } = useProfiles(
-    txs.map((t) => t.accounts[0]).filter(Boolean),
+    txs.map((t) => subjectOf(t).account).filter(Boolean),
   );
   /** an actor that is really a desk is named as one, not as a whale */
   const who = useCuratorsByAccount(
-    txs.map((t) => t.accounts[0]).filter(Boolean),
+    txs.map((t) => subjectOf(t).account).filter(Boolean),
   );
   /** 🚀 / 💀 counts for the markets on screen — one request for the page */
   const rated = useRatingCounts(
@@ -229,10 +229,10 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           <Card
             key={`${t.chainId}:${t.txHash}`}
             tx={t}
-            profile={profile(t.accounts[0] ?? "")}
+            profile={profile(subjectOf(t).account)}
             strategy={menu.forUid(primaryLeg(t, pf.picked)?.marketUid)}
             only={pf.picked}
-            curator={who.curatorOf(t.accounts[0])}
+            curator={who.curatorOf(subjectOf(t).account)}
             rating={rated.ratingOf(
               "market",
               primaryLeg(t, pf.picked)?.marketUid ?? "",
@@ -269,6 +269,35 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
       )}
     </div>
   );
+}
+
+/**
+ * The two things a card must say when a transaction is not one wallet doing
+ * one thing: where a vault put the money (the pass-through leg, which is the
+ * same dollars one layer down and is deliberately NOT in the total), and that
+ * a solver batched several wallets into one transaction.
+ */
+function Nested({ into, subject }: { into?: TxLeg; subject: TxSubject }) {
+  if (into)
+    return (
+      <span
+        className="t40 nested"
+        title="the vault put this deposit to work in the same transaction — the same money, counted once"
+      >
+        → {into.marketName ?? into.lenderName ?? "a market"}
+      </span>
+    );
+  if (subject.reason === "multi")
+    return (
+      <span
+        className="t40 nested"
+        title="one transaction, several unrelated wallets — this card headlines the largest"
+      >
+        +{subject.accounts - 1} more{" "}
+        {subject.accounts === 2 ? "wallet" : "wallets"}
+      </span>
+    );
+  return null;
 }
 
 /**
@@ -331,8 +360,18 @@ function Card({
   rating?: ReturnType<ReturnType<typeof useRatingCounts>["ratingOf"]>;
 }) {
   const leg = primaryLeg(tx, only);
-  const who = tx.accounts[0] ?? leg?.account ?? "";
-  const { verb, cls } = describeTx(tx.kinds);
+  /**
+   * The identity travels as ONE object (`subject`). It used to be assembled
+   * from two: the address came from `accounts[0]` and the name and the VAULT
+   * pill from the headline leg — so a deposit into a curated vault showed the
+   * depositor's identicon under the vault's name and linked to the depositor,
+   * while the money was counted on both layers and read as double.
+   */
+  const s = subjectOf(tx);
+  const who = s.account || leg?.account || "";
+  const { verb, cls } = describeTx(tx.kinds, s.reason === "desk");
+  /** where a vault put the money in the same transaction */
+  const into = tx.legs.find((l) => l.passthrough);
   const borrow = tx.legs.find((l) => l.side === "borrow");
   const key = cardKey(tx, only);
   return (
@@ -342,7 +381,7 @@ function Card({
           the column instead of leaving a hole in the middle of each card. */}
       <div className="fc-g">
         <div className="fc-who">
-          <Who account={who} profile={profile} size={30} idx={leg} />
+          <Who account={who} profile={profile} size={30} idx={s} />
           <CuratorMark c={curator} />
         </div>
         <div className="fc-b">
@@ -363,6 +402,7 @@ function Card({
           )}
           {leg && <DeskChips x={leg} />}
           <RateMark c={rating} />
+          <Nested into={into} subject={s} />
         </div>
         <div className="fc-n">
           <span className="big">

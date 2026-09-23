@@ -8,6 +8,7 @@
  * still has a shape while telling you the place is alive.
  */
 import React from 'react'
+import { subjectOf } from '../index/types'
 import { go, marketHref, walletHref } from '../state/AppState'
 import { useApp } from '../state/AppState'
 import { useFeedPage } from '../index/queries'
@@ -48,7 +49,7 @@ export function Stream({ rows = 12 }: { rows?: number }) {
   const all = q.data?.txs ?? []
   const inMenu = (t: TxBundle) => t.legs.some((l) => l.marketUid && menu.byUid.has(l.marketUid))
   const list = (scope === 'menu' ? all.filter(inMenu) : all).slice(0, rows)
-  const { profile } = useProfiles(list.map((t) => t.accounts[0]).filter(Boolean))
+  const { profile } = useProfiles(list.map((t) => subjectOf(t).account).filter(Boolean))
 
   return (
     <section className="sec stream-sec">
@@ -73,7 +74,7 @@ export function Stream({ rows = 12 }: { rows?: number }) {
         {list.map((t) => {
           const l = primaryLeg(t, pf.picked)
           const d = describeTx(t.kinds)
-          const who = t.accounts[0] ?? l?.account ?? ''
+          const who = subjectOf(t).account || l?.account || ''
           return (
             <a key={`${t.chainId}:${t.txHash}`} className="srow" href={l?.marketUid ? marketHref(l.marketUid) : walletHref(who)}>
               <Who account={who} profile={profile(who)} size={22} idx={l} plain />
@@ -116,7 +117,7 @@ export function Pulse() {
       <span className="p-lbl">live</span>
       {t && l ? (
         <a className="p-body" key={t.txHash} href={l.marketUid ? marketHref(l.marketUid) : '#/feed'}>
-          <Who account={t.accounts[0] ?? l.account} size={18} plain />
+          <Who account={subjectOf(t).account || l.account} idx={subjectOf(t)} size={18} plain />
           <span className={`verb ${d!.cls}`}>{d!.verb}</span>
           <span className="t70">{l.marketName ?? l.symbol}</span>
           <span className="mono"><Money usd={t.volumeUsd ?? l.amountUsd} amount={l.amount} symbol={l.symbol} short /></span>

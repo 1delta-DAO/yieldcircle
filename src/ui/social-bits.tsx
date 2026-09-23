@@ -146,7 +146,21 @@ export function Action({ kind, side }: { kind: string; side?: string }) {
  * borrow in the same transaction, and calling that "opened a loop" rather than
  * listing both is the difference between a feed and a log.
  */
-export function describeTx(kinds: Record<string, number>): { verb: string; cls: string } {
+/**
+ * What happened, in a word. `desk` re-words it for a curated vault acting on
+ * its depositors' behalf: a vault that moves money between two markets is
+ * reallocating, and calling that "rebalanced" reads as a trader's decision
+ * when it is an allocation decision made for other people's money.
+ */
+export function describeTx(kinds: Record<string, number>, desk?: boolean): { verb: string; cls: string } {
+  if (desk) {
+    const d = describeTx(kinds)
+    const DESK: Record<string, string> = { rebalanced: 'reallocated', deposited: 'allocated', withdrew: 'pulled out', moved: 'moved funds' }
+    return { ...d, verb: DESK[d.verb] ?? d.verb }
+  }
+  return plainVerb(kinds)
+}
+function plainVerb(kinds: Record<string, number>): { verb: string; cls: string } {
   const bare = new Set<string>()
   for (const k of Object.keys(kinds)) bare.add(k.includes('/') ? k.slice(k.indexOf('/') + 1) : k)
   const has = (...ks: string[]) => ks.some((k) => bare.has(k))

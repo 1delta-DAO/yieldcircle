@@ -1,6 +1,6 @@
 import React from 'react'
 import { useAccount } from 'wagmi'
-import { CHAINS } from '../sdk/queries'
+import { SCOPE_CHAINS } from '../sdk/queries'
 
 /**
  * Route = the hash. The catalogue's routes are unchanged; the social ones are
@@ -110,7 +110,7 @@ interface AppCtx {
 const Ctx = React.createContext<AppCtx | null>(null)
 const LS = 'yieldcircle.chains'
 const OLD_LS = 'yieldcircle.chain'
-const ALL = () => CHAINS.map((c) => c.id)
+const ALL = () => SCOPE_CHAINS.map((c) => c.id)
 /** the stored selection, dropping any chain this build no longer offers */
 function readChains(): string[] {
   try {
@@ -124,7 +124,7 @@ function readChains(): string[] {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [chains, setChainsRaw] = React.useState<string[]>(readChains)
   const setChains = (c: string[]) => {
-    const next = c.length === CHAINS.length ? [] : c
+    const next = c.length === SCOPE_CHAINS.length ? [] : c
     setChainsRaw(next)
     try { localStorage.setItem(LS, JSON.stringify(next)) } catch { /* private mode */ }
   }
@@ -138,7 +138,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     allChains
       ? 'every chain'
       : chains.length === 1
-        ? (CHAINS.find((c) => c.id === chains[0])?.label ?? chains[0])
+        ? (SCOPE_CHAINS.find((c) => c.id === chains[0])?.label ?? chains[0])
         : `${chains.length} chains`
   const account = viewAs && ADDR.test(viewAs) ? viewAs : address
   return <Ctx.Provider value={{ chains, setChains, toggleChain, chainIds, allChains, chainLabelFor, account, signer: address?.toLowerCase(), viewAs, setViewAs, isConnected }}>{children}</Ctx.Provider>

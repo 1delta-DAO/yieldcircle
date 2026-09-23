@@ -10,6 +10,7 @@
  * tab is closed.
  */
 import React from 'react'
+import { subjectOf } from '../index/types'
 import { useApp, marketHref } from '../state/AppState'
 import { useFeedPage } from '../index/queries'
 import { useFollowers, useMyFollows, useProfiles } from '../social/queries'
@@ -40,7 +41,7 @@ export function Alerts() {
   const has = f.wallets.length + f.markets.length > 0
   const feed = useFeedPage({ follower: account, follow: 'all', chainIds: allChains ? undefined : chainIds.join(',') }, 60, !!account && has)
   const txs = feed.data?.txs ?? []
-  const { profile } = useProfiles(txs.map((t) => t.accounts[0]).filter(Boolean))
+  const { profile } = useProfiles(txs.map((t) => subjectOf(t).account).filter(Boolean))
 
   const [seen] = React.useState(readSeen)
   React.useEffect(() => { if (txs.length) writeSeen(Date.now()) }, [txs.length])
@@ -83,8 +84,8 @@ function Group({ title, rows, profile, loading, empty }: {
         <div className="tape">{rows.map((t) => {
           const l = primaryLeg(t), d = describeTx(t.kinds)
           return (
-            <a key={`${t.chainId}:${t.txHash}`} className="tape-row alert" href={l?.marketUid ? marketHref(l.marketUid) : `#/w/${t.accounts[0]}`}>
-              <Who account={t.accounts[0] ?? ''} profile={profile(t.accounts[0] ?? '')} size={22} plain />
+            <a key={`${t.chainId}:${t.txHash}`} className="tape-row alert" href={l?.marketUid ? marketHref(l.marketUid) : `#/w/${subjectOf(t).account}`}>
+              <Who account={subjectOf(t).account} profile={profile(subjectOf(t).account)} idx={subjectOf(t)} size={22} plain />
               <span className={`verb ${d.cls}`}>{d.verb}</span>
               <span className="tr-m">{l?.marketName ?? l?.symbol ?? ''} <span className="t50">{l?.lenderName ?? ''}</span></span>
               <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} amount={l?.amount} symbol={l?.symbol} short /></span>

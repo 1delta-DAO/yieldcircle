@@ -8,8 +8,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "deploy": "pnpm build && wrangler pages deploy dist --project-name yieldcircle --branch main",
-    "deploy:preview": "pnpm build && wrangler pages deploy dist --project-name yieldcircle --branch preview",
+    "shots": "node scripts/shots.mjs",
+    "shots:baseline": "node scripts/shots.mjs --baseline",
+    "deploy": "node scripts/check-env.mjs && pnpm build && wrangler pages deploy dist --project-name yieldcircle --branch main",
+    "deploy:preview": "node scripts/check-env.mjs && pnpm build && wrangler pages deploy dist --project-name yieldcircle --branch preview",
     "logos": "node scripts/logos.mjs",
     "brand": "python3 brand/gen.py && node scripts/brand.mjs"
   },
@@ -17,6 +19,7 @@
     "@tanstack/react-query": "5.91.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "uqr": "^0.1.3",
     "viem": "^2.47.6",
     "wagmi": "^2.19.0"
   },
@@ -25,10 +28,16 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "playwright": "^1.59.1",
     "typescript": "5.9.3",
     "vite": "^8.0.1"
   },
   "engines": {
     "node": ">=22"
+  },
+  "pnpm": {
+    "overrides": {
+      "@walletconnect/logger>pino": "10.0.0"
+    }
   }
 }

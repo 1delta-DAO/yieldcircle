@@ -5,6 +5,7 @@
  */
 import type { EarnPosition, TokenBalance } from '../sdk/types'
 import { baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
+import { marketTag } from './market'
 import { venueLabel } from './strategies'
 
 export interface Holding {
@@ -44,7 +45,15 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         amount: parseFloat(p.assets) || 0, symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18 })
       continue
     }
-    const venue = p.brand ?? venueLabel(p.lender)
+    // `Morpho sUSDS-USDT 97`: the positions route names the MARKET where the catalogue names the
+    // family. Split it — the family is the venue, the rest says which of its markets this is, and
+    // the API's own casing is kept for the family word (`LlamaLend`, not venueLabel's `Llamalend`).
+    const lead = venueLabel(p.lender)
+    const full = (p.name ?? p.brand ?? '').trim()
+    const named = full.toLowerCase().startsWith(lead.toLowerCase())
+    const protocol = named ? full.slice(0, lead.length) : lead
+    const instance = named ? full.slice(lead.length).trim() : ''
+    const venueOf = (symbol: string | undefined) => { const t = marketTag(instance, symbol ?? ''); return t ? `${protocol} · ${t}` : protocol }
     const accounts = p.crossMargin ? [{ accountId: '0', health: p.health, legs: p.legs, netUsd: p.netUsd, borrowedUsd: p.borrowedUsd, suppliedUsd: p.suppliedUsd }] : p.subAccounts
     for (const a of accounts) {
       const supply = a.legs.filter((l) => l.depositsUsd > 0.5).sort((x, y) => y.depositsUsd - x.depositsUsd)
@@ -57,12 +66,14 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         // same test as the catalogue's: same money, not the same display tab
         const directional = !debtBase || !sameMoney(debtBase, asset)
         const lev = a.suppliedUsd > 0 && a.netUsd > 0 ? a.suppliedUsd / a.netUsd : p.leverage
-        out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'loop', label: `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue, valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
+        out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'loop', label: `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
           amount: parseFloat(coll.deposits) || 0, symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtAmount: parseFloat(d.debt) || 0, accountId: p.crossMargin ? undefined : a.accountId, lender: p.lender })
       } else {
         for (const l of supply) {
           const asset = baseOfSymbol(l.asset.symbol); if (!asset) continue
-          out.push({ key: `${p.positionUid}:${a.accountId}:${l.marketUid}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${l.asset.symbol} · Lend on ${venue}`, venue, valueUsd: l.depositsUsd, apr: p.depositApr, earnUid: l.earnUid, logo: l.asset.logoURI,
+          // the label is the FAMILY, `venue` the market inside it: the two are printed together
+          // (the asset page) and one under the other (the explorer), so neither may repeat the other
+          out.push({ key: `${p.positionUid}:${a.accountId}:${l.marketUid}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${l.asset.symbol} · Lend on ${protocol}`, venue: venueOf(l.asset.symbol), valueUsd: l.depositsUsd, apr: p.depositApr, earnUid: l.earnUid, logo: l.asset.logoURI,
             amount: parseFloat(l.deposits) || 0, symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, accountId: p.crossMargin ? undefined : a.accountId, lender: p.lender })
         }
       }

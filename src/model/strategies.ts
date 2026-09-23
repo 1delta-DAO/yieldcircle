@@ -6,6 +6,7 @@
 import type { EarnMarket, OptimizerRowRaw } from '../sdk/types'
 import { baseOfCollateral, baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
+import { marketTag } from './market'
 import STRATEGY_TOKENS from '../data/strategy-tokens.json'
 /** `chain:vaultAddress` → the share token you end up holding (scripts/logos.mjs, from the chain token lists). */
 const strategyToken = (chainId: string, ref: string | undefined) => (ref ? (STRATEGY_TOKENS as Record<string, { symbol: string; logoURI: string | null }>)[`${chainId}:${ref.toLowerCase()}`] : undefined)
@@ -35,6 +36,8 @@ export interface SimpleStrategy extends Base {
   brand: string
   /** `AAVE_V3`, `MORPHO_BLUE`, `vault.morpho`, … — the family the venue badge is drawn from */
   protocolKey: string
+  /** which market of the venue this is (`wstETH 86`, `Ethena Ecosystem`) — '' when the venue has one */
+  market: string
   via: string
   /** lending · savings · staking · fixed · vault */
   source: string
@@ -76,6 +79,8 @@ export interface LoopStrategy extends Base {
 }
 export type Strategy = SimpleStrategy | LoopStrategy
 
+/** `Capy Fi` is `CapyFi`: the same words, said with different spaces and case. */
+const sameWords = (a: string, b: string) => a.replace(/\s+/g, '').toLowerCase() === b.replace(/\s+/g, '').toLowerCase()
 const num = (v: string | number | null | undefined): number => { if (v == null || v === '') return 0; const n = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(n) ? n : 0 }
 /** One vocabulary for both listings: the API's 1–5 score → low / medium / high. Its colour words are ignored on purpose. */
 const riskOf = (score: number | undefined, _label?: string): { risk: Risk; riskLabel: string } => {
@@ -106,21 +111,27 @@ export function simpleFromEarn(m: EarnMarket): SimpleStrategy | null {
   // the share token, resolved from the vault address: the listing's own logoURI is the ASSET's on nearly every row
   const share = isVault ? strategyToken(m.chainId, m.ref) : undefined
   const shareSym = m.shareToken?.symbol ?? share?.symbol
+  // WHICH market: `Lend on Morpho` is the same sentence for three hundred Morpho markets and the
+  // ticket deposits into one of them. Skipped when it only repeats the venue (`Capy Fi · CapyFi`).
+  const tag = isVault ? '' : marketTag(m.name, m.asset.symbol)
+  const market = tag && !sameWords(tag, brand) && !sameWords(tag, protocol) ? tag : ''
   let via: string, source: string, holds: string
   if (m.venue === 'vault.lst') { via = `Stake with ${brand}`; source = 'staking'; holds = shareSym ?? named ?? asset }
   else if (m.venue === 'vault.savings') { via = `${brand} savings`; source = 'savings'; holds = shareSym ?? (named || asset) }
   else if (m.venue === 'vault.pendle') { via = 'Fixed on Pendle'; source = 'fixed'; holds = 'PT ' + (named || asset).replace(/^PT\s*/, '').split(' ')[0] }
   else if (isVault) { via = brand === protocol ? `${protocol} vault` : `${brand} vault · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || asset) }
-  else { via = `Lend on ${protocol}`; source = 'lending'; holds = asset }
+  // the BRAND, not the protocol: `Aave V3` and `Aave V4` are both "Aave" upstream, and a V4
+  // isolated market is not the V3 pool the same sentence would have named
+  else { via = `Lend on ${brand}${market ? ` · ${market}` : ''}`; source = 'lending'; holds = asset }
   const ownLogo = m.logoURI && m.logoURI !== m.asset.logoURI ? m.logoURI : undefined
   const logo = share?.logoURI ?? ownLogo ?? (isVault ? undefined : m.asset.logoURI)
   const exitMode = m.exit?.mode ?? 'instant'
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const maturity = typeof m.maturity?.maturity === 'number' ? m.maturity.maturity : undefined
   return {
-    id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, holds, venue: brand === protocol ? protocol : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
+    id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
     rate, risk, riskLabel, tvlUsd: tvl,
-    earnUid: m.earnUid, via, source, assetAddress: m.asset.address, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
+    earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0,
   }
 }

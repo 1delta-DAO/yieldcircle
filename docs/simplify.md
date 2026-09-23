@@ -54,6 +54,14 @@ liquidity, liquidation buffer and rate sensitivity live.
   list without opening it.
 - **Asset chips.** With six dollar assets, filtering by what you own is the
   first move most people make.
+- **Which market, on the row.** `Lend on Morpho` is the same sentence for three
+  hundred Morpho markets, and the ticket deposits into exactly one of them —
+  the one whose collateral and LLTV decide what the money is lent against. The
+  row says `Lend on Morpho Blue · wstETH 86`, from the listing's own market name
+  (`src/model/market.ts`), and it names the venue by BRAND, because `Aave V3`
+  and `Aave V4` are both "Aave" upstream and an isolated V4 market is not the V3
+  pool. Venues the listing cannot name past a `0x481d` vault tail (Euler, Venus'
+  isolated pools) stay on the family alone: four hex digits are not a choice.
 
 ## Alternatives considered
 

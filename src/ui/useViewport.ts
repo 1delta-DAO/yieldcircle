@@ -29,7 +29,9 @@ export function useViewport(): Viewport {
  * `(hover: none)` is the honest signal; a touch screen below desk width counts too (some
  * emulators and convertibles report hover while the finger is the pointer).
  */
-const isTouch = () => typeof window !== 'undefined' && (window.matchMedia('(hover: none)').matches || (navigator.maxTouchPoints > 0 && window.matchMedia(NARROW).matches))
+/** Non-React read — the wallet hand-off has to decide inside a click handler, before any await. */
+export const readTouch = (): boolean => typeof window !== 'undefined' && (window.matchMedia('(hover: none)').matches || (navigator.maxTouchPoints > 0 && window.matchMedia(NARROW).matches))
+const isTouch = readTouch
 export function useTouch(): boolean {
   const [t, setT] = React.useState(isTouch)
   React.useEffect(() => {

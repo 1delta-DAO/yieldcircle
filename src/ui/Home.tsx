@@ -74,14 +74,28 @@ function Yours() {
         <span className="y-chev">{open ? '▴' : '▾'}</span>
       </button>
       {open && (
-        <div className="gcards yours-open">
-          {GROUPS.filter((g) => byGroup(g.id).length).map((g) => (
-            <div key={g.id} className="card">
-              <div className="ch"><GroupIcon id={g.id} color={g.color} size={24} /><span className="t">{g.name}</span>
-                <span className="sp" /><span className="m">{usd(byGroup(g.id).reduce((a, x) => a + x.totalUsd, 0))}</span></div>
-              <div className="list">{byGroup(g.id).map((x) => <AssetRows key={x.asset} b={x} />)}</div>
-            </div>
-          ))}
+        /**
+         * One block, not one card per group. The groups are a filing system,
+         * not the content: a full-width header per group gave four headings
+         * as much weight as the balances under them, and the eye had to skip
+         * past a heading to reach every number it came for. They are a
+         * caption now — enough to say where a run of rows belongs, quiet
+         * enough that the balance stays the loudest thing on its line.
+         */
+        <div className="yours-open">
+          <div className="card">
+            {GROUPS.filter((g) => byGroup(g.id).length).map((g) => (
+              <React.Fragment key={g.id}>
+                <div className="gcap">
+                  <i className="dot" style={{ background: g.color }} />
+                  <span className="n">{g.name}</span>
+                  <span className="sp" />
+                  <span className="m">{usd(byGroup(g.id).reduce((a, x) => a + x.totalUsd, 0))}</span>
+                </div>
+                {byGroup(g.id).map((x) => <AssetRows key={x.asset} b={x} />)}
+              </React.Fragment>
+            ))}
+          </div>
         </div>
       )}
     </>

@@ -797,6 +797,16 @@ a.who:hover .wn b{color:var(--primary)}
 .yours .y-chev{color:var(--tx40);flex:none}
 .yours-open{margin-bottom:18px}
 .yours-open .card{border-top-left-radius:0;border-top-right-radius:0;border-top:0}
+/* the group, said as a caption rather than a header bar: the rule above it is
+   the separator, the words only name what the run of rows below belongs to */
+.gcap{display:flex;align-items:center;gap:7px;padding:10px 16px 6px;border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx40)}
+.gcap:first-child{border-top:0}
+.gcap .dot{width:5px;height:5px;border-radius:50%;flex:none;opacity:.85}
+.gcap .m{letter-spacing:.02em;color:var(--tx50)}
+/* the caption already carries the separator; a second rule 20px under it just
+   boxes the heading back in */
+.gcap + .row.arow{border-top:0}
 @media (max-width:760px){ .yours .y-s,.yours .y-yr{display:none} }
 
 /* ---------- the two-column home ---------- */

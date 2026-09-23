@@ -51,6 +51,40 @@ export interface EarnMarket {
 }
 export interface EarnResponse { start: number; count: number; total: number; items: EarnMarket[]; appliedDefaults?: Record<string, unknown> }
 
+// ---------------------------------------------------------------- vault registry
+/**
+ * One row of `/v1/data/vaults` — the share-token registry behind every
+ * `venueKind: 'vault'` row of the earn listing, keyed by the same address the
+ * listing calls `ref`.
+ *
+ * It exists here because the earn listing does NOT carry the vault's identity:
+ * `shareToken` is null on all 208 vault rows the catalogue keeps (measured
+ * 2026-09-23, five chains) and `name` is the synthesised `"USDC \u00b7 0x5b8b"`,
+ * whose address tail is not a token anyone holds. This endpoint — the same
+ * worker, one call per chain, the whole set in one page — carries `symbol`
+ * (560/560), `name` (560/560) and `curatorName` (451/560). Without it a
+ * MetaMorpho vault with no curator renders as the bare words "Morpho vault"
+ * and two vaults of the same curator on the same asset collapse into one row
+ * in `dedupe`, because its key is (chain, asset, holds, venue).
+ */
+export interface VaultListing {
+  chainId: string
+  provider: string
+  vaultAddress: string
+  /** the share token's own symbol (`steakUSDC`, `gtUSDC`, `OUSD-V1`) */
+  symbol?: string | null
+  /** the share token's own ERC-20 name (`Steakhouse USDC`, `OUSD Vault V1`) */
+  name?: string | null
+  /** the listing's generic label (`Morpho USDC`) — the thing we are replacing */
+  displayName?: string | null
+  curatorName?: string | null
+  /** the share token itself — its logo is the vault's own, where one exists (185 of 1103 rows) */
+  shareAsset?: { logoURI?: string | null } | null
+  /** the underlying's long name (`USD Coin`) — what a vault name may repeat without saying anything */
+  underlyingInfo?: { asset?: { name?: string | null; symbol?: string | null } | null } | null
+}
+export interface VaultsResponse { start: number; count: number; total: number; items: VaultListing[] }
+
 // ---------------------------------------------------------------- earn positions
 export interface EarnPositionAsset { address: string; symbol?: string; decimals?: number; priceUsd?: number; logoURI?: string }
 export interface EarnPositionLeg { earnUid?: string; marketUid: string; asset: EarnPositionAsset; side: 'supply' | 'borrow' | 'both' | 'none'; deposits: string; depositsUsd: number; debt: string; debtUsd: number }

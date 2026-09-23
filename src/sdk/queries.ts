@@ -1,7 +1,8 @@
-import { useQueries, useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
-import { bridgeStatus, fetchEarn, fetchEarnPositions, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopOpen, type OptimizerQuery } from './api'
+import { useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
+import { bridgeStatus, fetchEarn, fetchEarnPositions, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, fetchVaults, loopOpen, type OptimizerQuery } from './api'
 import { capPerAsset, dedupe, loopFromRow, simpleFromEarn, type LoopStrategy, type SimpleStrategy } from '../model/strategies'
+import type { VaultListing } from './types'
 import { toRaw } from '../model/leverage'
 
 const HOUR = 3600_000
@@ -21,12 +22,46 @@ const LOOP_ARCHETYPES: Pick<OptimizerQuery, 'collateralTags' | 'debtTags' | 'inc
   { collateralTags: ['btc'], debtTags: ['btc'] },
 ]
 
+/**
+ * The vault registry for one chain, keyed by vault address — the share token's
+ * symbol, name and curator, none of which the earn listing carries (see
+ * `VaultListing`). Cached under its own key and shared by every earn query, so
+ * it costs one request per chain per hour; an empty map on failure, because a
+ * decoration must never take the listing down with it.
+ */
+export type VaultIndex = Record<string, VaultListing>
+const vaultQuery = (chainId: string) => ({
+  queryKey: ['vaults', chainId],
+  queryFn: async (): Promise<VaultIndex> => {
+    const r = await fetchVaults(chainId)
+    return Object.fromEntries(r.items.map((v) => [v.vaultAddress.toLowerCase(), v]))
+  },
+  staleTime: HOUR,
+})
+/** One chain's registry, from the shared cache — `{}` on failure, never a rejection. */
+export const vaultIndex = (chainId: string, qc: QueryClient): Promise<VaultIndex> => qc.ensureQueryData(vaultQuery(chainId)).catch(() => ({}) as VaultIndex)
+/** The same registries for several chains, keyed `chainId:address`, for the holdings side. */
+export function useVaultIndex(chainIds: string[]): VaultIndex {
+  const qs = useQueries({ queries: chainIds.map(vaultQuery) })
+  const data = qs.map((q) => q.data)
+  return useMemo(() => {
+    const out: VaultIndex = {}
+    data.forEach((d, i) => { for (const [a, v] of Object.entries(d ?? {})) out[`${chainIds[i]}:${a}`] = v })
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chainIds.join(','), ...data])
+}
+
 /** Both listings for the selected chains, normalised and curated. Chains load in parallel and merge as they land. */
 export function useCatalog(chainIds: string[]) {
+  const qc = useQueryClient()
   const earn = useQueries({
     queries: chainIds.map((chainId) => ({
       queryKey: ['earn', chainId],
-      queryFn: async () => { const r = await fetchEarn({ chainId, count: 800, maxRiskScore: 4, minTvlUsd: 1_000_000 }); return r.items.map(simpleFromEarn).filter((x): x is SimpleStrategy => !!x) },
+      queryFn: async () => {
+        const [vaults, r] = await Promise.all([vaultIndex(chainId, qc), fetchEarn({ chainId, count: 800, maxRiskScore: 4, minTvlUsd: 1_000_000 })])
+        return r.items.map((m) => simpleFromEarn(m, vaults[String(m.ref).toLowerCase()])).filter((x): x is SimpleStrategy => !!x)
+      },
       staleTime: 10 * 60_000,
     })),
   })

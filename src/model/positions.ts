@@ -3,7 +3,7 @@
  * `/v1/data/earn/positions` (vault rows are standalone; a lending account with debt is a loop,
  * one without is a plain deposit per leg) and `/v1/data/token/balances` for idle.
  */
-import type { EarnPosition, TokenBalance } from '../sdk/types'
+import type { EarnPosition, TokenBalance, VaultListing } from '../sdk/types'
 import { baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
 import { marketTag } from './market'
 import { venueLabel } from './strategies'
@@ -36,12 +36,20 @@ export interface Holding {
   accountId?: string
   lender?: string
 }
-export function holdingsFrom(items: EarnPosition[]): Holding[] {
+/**
+ * `vaults` is the registry the catalogue already loads (`VaultListing`): the
+ * positions route names a vault the same way the listing does — `USDC · 0x5b8b`
+ * — so without it a held vault reads as its asset and an address tail. Keyed
+ * `chainId:address`, optional, decoration only.
+ */
+export function holdingsFrom(items: EarnPosition[], vaults: Record<string, VaultListing> = {}): Holding[] {
   const out: Holding[] = []
   for (const p of items) {
     if (p.venueKind === 'vault') {
       const asset = baseOfSymbol(p.asset.symbol); if (!asset || p.suppliedUsd < 0.5) continue
-      out.push({ key: p.positionUid, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${p.name ?? asset} · ${p.brand ?? p.venue}`, venue: p.brand ?? p.venue, valueUsd: p.suppliedUsd, apr: p.apr ?? p.rate?.total, earnUid: p.earnUid, logo: p.logoURI,
+      const v = vaults[`${p.chainId}:${String(p.vault ?? '').toLowerCase()}`]
+      const brand = p.brand ?? v?.curatorName ?? p.venue
+      out.push({ key: p.positionUid, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${v?.name ?? p.name ?? asset} · ${brand}`, venue: brand, valueUsd: p.suppliedUsd, apr: p.apr ?? p.rate?.total, earnUid: p.earnUid, logo: p.logoURI,
         amount: parseFloat(p.assets) || 0, symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18 })
       continue
     }

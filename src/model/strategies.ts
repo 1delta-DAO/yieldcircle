@@ -3,7 +3,7 @@
  * `/v1/data/earn` row on a base asset; a loop is one `/pairs/optimize` row whose collateral
  * resolves to a base asset and whose debt is the same denomination. Pure functions.
  */
-import type { EarnMarket, OptimizerRowRaw } from '../sdk/types'
+import type { EarnMarket, OptimizerRowRaw, VaultListing } from '../sdk/types'
 import { baseOfCollateral, baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
 import { marketTag } from './market'
@@ -46,6 +46,10 @@ export interface SimpleStrategy extends Base {
   priceUsd?: number
   exitMode: string
   exitWord: string
+  /** the vault's (or market's) own address — `ref` upstream. The identity two rows of one curator differ by. */
+  ref: string
+  /** the share token's own name (`Steakhouse Prime USDC`, `OUSD Vault V1`), from the vault registry */
+  vaultName?: string
   canDeposit: boolean
   reason?: string
   maturity?: number
@@ -101,8 +105,45 @@ const riskOf = (score: number | undefined, _label?: string): { risk: Risk; riskL
 }
 const EXIT_WORD: Record<string, string> = { instant: 'Any time', 'instant-capped': 'Any time', 'instant-or-queued': 'Any time or queued', queued: 'Queued', 'fixed-cooldown': 'Cooldown', 'request-based': 'Queued', 'market-sale': 'Sell on market', 'off-chain': 'Off-chain' }
 
-/** `/earn` row → plain deposit, or null when it is not a strategy on a base asset we present. */
-export function simpleFromEarn(m: EarnMarket): SimpleStrategy | null {
+const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/g, '')
+/** carried by names, carries nothing: `Safe x Steakhouse`, `Gauntlet x Lista USD1 Vault` */
+const FILLER = new Set(['x', 'and', 'of', 'the', 'by', 'vault', 'vaults'])
+/**
+ * Which vault of the venue this is, in the vault's own words.
+ *
+ * The registry name minus everything the row already says — the curator, the
+ * protocol, the asset's symbol AND its long name, and the word "vault" itself.
+ * `Steakhouse Prime USDC` under Steakhouse Financial on USDC is `Prime`;
+ * `Steakhouse USDC` is nothing; `Fluid USD Coin` is nothing (`USD Coin` is
+ * what USDC is called, not which vault this is); `OUSD Vault V1` under the
+ * bare `Morpho` brand is `OUSD V1`, which the share symbol `OUSD-V1` already
+ * says, so it is dropped too. What survives is exactly the part that tells two
+ * vaults of one curator apart.
+ */
+export function vaultTag(name: string | null | undefined, known: (string | null | undefined)[], holds: string): string {
+  const kn = known.flatMap((w) => (w ?? '').split(/[^A-Za-z0-9]+/)).map(norm).filter((w) => w.length > 1)
+  // a prefix counts as the same word in both directions: `Spark` is `SparkDAO`,
+  // `Sylva` is `Sylva.money`, `USDCcore` carries `USDC`
+  const same = (n: string) => kn.some((k) => k === n || (n.length >= 4 && k.startsWith(n)) || (k.length >= 4 && n.startsWith(k)))
+  const kept = (name ?? '').split(/\s+/).filter((w) => { const n = norm(w); return n.length > 0 && !FILLER.has(n) && !same(n) })
+  const tag = kept.slice(0, 3).join(' ')
+  // `OUSD V1` next to the symbol `OUSD-V1`: the row already says it
+  return !tag || sameWords(tag.replace(/[-_]/g, ''), holds.replace(/[-_]/g, '')) ? '' : tag
+}
+
+/**
+ * `/earn` row → plain deposit, or null when it is not a strategy on a base asset we present.
+ *
+ * `vault` is the matching `/v1/data/vaults` row (see `VaultListing`) and is
+ * what makes a vault row NAMEABLE: the earn listing carries `shareToken: null`
+ * on every vault it serves and a synthesised `"USDC · 0x5b8b"` name, so
+ * without the registry a curator-less MetaMorpho vault reads as the bare words
+ * "Morpho vault" and three Gauntlet USDT vaults share one identity — which
+ * `dedupe`, keyed on (chain, asset, holds, venue), then collapses to one row.
+ * Optional on purpose: a registry that fails to load must cost labels, never
+ * the listing.
+ */
+export function simpleFromEarn(m: EarnMarket, vault?: VaultListing): SimpleStrategy | null {
   const asset = baseOfSymbol(m.asset.symbol)
   if (!asset) return null
   if (m.basket) return null
@@ -115,27 +156,36 @@ export function simpleFromEarn(m: EarnMarket): SimpleStrategy | null {
   const dep = m.capabilities.find((c) => c.action === 'deposit'); if (!dep) return null
   if ((m.risk?.score ?? 5) > 4) return null
   const protocol = m.protocol?.name ?? m.venue
-  const brand = m.brand ?? protocol
+  // the curator is the brand when upstream has none: `vault.morpho` with no
+  // curator answers brand = protocol = 'Morpho', and "Morpho vault" is the
+  // label that says nothing
+  const curator = m.curator?.name ?? vault?.curatorName ?? undefined
+  const brand = m.brand && !sameWords(m.brand, protocol) ? m.brand : curator && !sameWords(curator, protocol) ? curator : m.brand ?? protocol
   // the server names unnamed vaults "USDC · 0x28b3": the address tail is not a token you hold
   const clean = (m.name ?? '').replace(/\s*·\s*0x[0-9a-f]{4,}$/i, '').trim()
   const named = clean && clean.toUpperCase() !== asset.toUpperCase() && clean.toUpperCase() !== m.asset.symbol.toUpperCase() ? clean : ''
   // the share token, resolved from the vault address: the listing's own logoURI is the ASSET's on nearly every row
   const share = isVault ? strategyToken(m.chainId, m.ref) : undefined
-  const shareSym = m.shareToken?.symbol ?? share?.symbol
+  // the registry first — it answers for 208 of 208 vault rows, the build-time
+  // token map for 136 (it only knows tokens that made it into a chain token list)
+  const shareSym = m.shareToken?.symbol ?? vault?.symbol ?? share?.symbol
   // WHICH market: `Lend on Morpho` is the same sentence for three hundred Morpho markets and the
   // ticket deposits into one of them. Skipped when it only repeats the venue (`Capy Fi · CapyFi`).
-  const tag = isVault ? '' : marketTag(m.name, m.asset.symbol)
+  // WHICH vault: the same question on the vault side, answered from the registry name
+  const tag = isVault
+    ? vaultTag(vault?.name, [brand, protocol, curator, m.asset.symbol, vault?.underlyingInfo?.asset?.name], shareSym ?? asset)
+    : marketTag(m.name, m.asset.symbol)
   const market = tag && !sameWords(tag, brand) && !sameWords(tag, protocol) ? tag : ''
   let via: string, source: string, holds: string
   if (m.venue === 'vault.lst') { via = `Stake with ${brand}`; source = 'staking'; holds = shareSym ?? named ?? asset }
   else if (m.venue === 'vault.savings') { via = `${brand} savings`; source = 'savings'; holds = shareSym ?? (named || asset) }
   else if (m.venue === 'vault.pendle') { via = 'Fixed on Pendle'; source = 'fixed'; holds = 'PT ' + (named || asset).replace(/^PT\s*/, '').split(' ')[0] }
-  else if (isVault) { via = brand === protocol ? `${protocol} vault` : `${brand} vault · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || asset) }
+  else if (isVault) { const who = `${brand}${market ? ` ${market}` : ''} vault`; via = sameWords(brand, protocol) ? who : `${who} · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || asset) }
   // the BRAND, not the protocol: `Aave V3` and `Aave V4` are both "Aave" upstream, and a V4
   // isolated market is not the V3 pool the same sentence would have named
   else { via = `Lend on ${brand}${market ? ` · ${market}` : ''}`; source = 'lending'; holds = asset }
   const ownLogo = m.logoURI && m.logoURI !== m.asset.logoURI ? m.logoURI : undefined
-  const logo = share?.logoURI ?? ownLogo ?? (isVault ? undefined : m.asset.logoURI)
+  const logo = share?.logoURI ?? vault?.shareAsset?.logoURI ?? ownLogo ?? (isVault ? undefined : m.asset.logoURI)
   const exitMode = m.exit?.mode ?? 'instant'
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const maturity = typeof m.maturity?.maturity === 'number' ? m.maturity.maturity : undefined
@@ -143,7 +193,7 @@ export function simpleFromEarn(m: EarnMarket): SimpleStrategy | null {
     id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
     rate, risk, riskLabel, tvlUsd: tvl,
     earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
-    exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0,
+    exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, ref: m.ref, vaultName: vault?.name ?? undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0,
     headline: m.termSheet?.supply?.headline || undefined, description: m.termSheet?.supply?.description || undefined,
   }
 }
@@ -205,11 +255,20 @@ export function loopFromRow(r: OptimizerRowRaw): LoopStrategy | null {
   }
 }
 
-/** Keep the best row per (asset, holds, venue) so the same pair on one venue does not repeat per e-mode / sub-market. */
+/**
+ * Keep the best row per (asset, holds, venue) so the same pair on one venue does not repeat per e-mode / sub-market.
+ *
+ * A VAULT is keyed by its own address instead. Two vaults of one curator on
+ * one asset are two products with two rates and two sets of collateral — not
+ * one market seen twice — and keying them by (asset, holds, venue) silently
+ * dropped seven of the 78 (2026-09-23: three Gauntlet USDT vaults on Ethereum,
+ * paying 9.77 / 8.79 / 7.92 %, became one row). The cap per asset still
+ * decides how many of them a reader is shown.
+ */
 export function dedupe<T extends Strategy>(rows: T[]): T[] {
   const best = new Map<string, T>()
   for (const r of rows) {
-    const k = `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? r.debt : ''}`
+    const k = r.kind === 'simple' && r.source === 'vault' ? `${r.chainId}|${r.ref}` : `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? r.debt : ''}`
     const cur = best.get(k)
     if (!cur || r.rate > cur.rate) best.set(k, r)
   }

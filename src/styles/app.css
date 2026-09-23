@@ -211,9 +211,6 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .empty{padding:18px 14px;color:var(--tx50);font-size:13px}
 
 /* positions */
-.hb{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12.5px}
-.hb i{display:inline-block;width:46px;height:5px;border-radius:3px;background:var(--b400);position:relative;overflow:hidden}
-.hb i::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--w,50%);background:var(--c,var(--success))}
 .blend{font-family:var(--mono);color:var(--tx70);font-size:12.5px}
 
 
@@ -813,16 +810,17 @@ a.who:hover .wn b{color:var(--primary)}
 .hc-ev .fresh{margin-left:7px;color:var(--success)}
 .hc-ev .liqs{margin-left:7px;color:var(--error)}
 
-/* the score, drawn as the two things it is made of */
-.heat{display:flex;flex-direction:column;gap:4px}
-.heat .hb{display:flex;align-items:center;gap:8px}
-.heat .k{font-style:normal;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--tx40);width:26px;flex:none}
-.heat .bar{flex:1;height:5px;border-radius:3px;background:var(--b400);overflow:hidden;display:block}
-.heat .bar > i{display:block;height:100%;border-radius:3px;background:var(--primary)}
-.heat .bar.big > i{background:var(--violet)}
-/* the percentile in figures: five cards at the top of a ranking all have long
-   bars, and the number is what tells them apart at a glance */
-.heat .p{font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--tx50);width:20px;text-align:right;flex:none}
+/* the two dimensions the ranking is made of. Every card in this section is in
+   the top few percent of the whole index, so the bars are scaled to the biggest
+   card on screen — a bar that pins at 99% on every card is a decoration. */
+.heat{display:flex;flex-direction:column;gap:5px;margin:2px 0 1px}
+.heat .hrow{display:flex;align-items:center;gap:8px;min-width:0}
+.heat .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx40);flex:none;min-width:48px;line-height:1.1;white-space:nowrap}
+.heat .bar{flex:1;min-width:24px;height:5px;border-radius:3px;background:var(--b400);overflow:hidden;display:block}
+.heat .bar > span{display:block;height:100%;border-radius:3px;background:var(--primary)}
+.heat .bar.big > span{background:var(--violet)}
+/* the count in figures: the bar is a comparison, this is the fact behind it */
+.heat .p{font-family:var(--mono);font-size:11px;color:var(--tx70);flex:none;min-width:44px;text-align:right;line-height:1.1;white-space:nowrap}
 
 /* ---------- stream ---------- */
 .stream{display:flex;flex-direction:column}

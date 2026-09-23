@@ -13,6 +13,17 @@ export interface EarnAvailability { canDeposit: boolean; canWithdraw: boolean; g
 export interface EarnRisk { yieldProfile?: string; denomination?: string; score?: number; label?: string; illiquid?: boolean; vault?: { level?: string; score?: number } }
 export interface EarnActionInput { asset: string; symbol?: string; mode?: string; needs?: string[] }
 export interface EarnCapability { action: string; via?: string; requires?: string[]; acceptsPayAsset?: boolean; async?: boolean; inputs?: EarnActionInput[] }
+/**
+ * The `?terms=digest` sheet, narrowed to what this app reads.
+ *
+ * Structurally different from `terms=full`: `headline`, `description` and
+ * `tags` sit at the side root, NOT under an `info` object. Every field is
+ * optional here because the worker fail-softs the whole block — a term-sheet
+ * bug must never take down the listing it decorates.
+ */
+export interface EarnTermsDigest {
+  supply?: { headline?: string; description?: string; tags?: string[] }
+}
 export interface EarnMarket {
   earnUid: string
   chainId: string
@@ -36,6 +47,7 @@ export interface EarnMarket {
   risk?: EarnRisk
   capabilities: EarnCapability[]
   maturity?: { maturity?: number; kind?: string; [k: string]: unknown }
+  termSheet?: EarnTermsDigest
 }
 export interface EarnResponse { start: number; count: number; total: number; items: EarnMarket[]; appliedDefaults?: Record<string, unknown> }
 

@@ -56,6 +56,17 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
     React.useMemo(() => shown.map((x) => ({ kind: 'market' as const, key: x.m.marketUid })), [shown]),
   )
 
+  /**
+   * Every card here is in the top few percent of everything the index tracks,
+   * so a percentile bar pins them all at 99% and tells the reader nothing. The
+   * bars are scaled to the busiest and biggest card *on screen* instead, which
+   * is the comparison someone reading a ranked list is actually making.
+   */
+  const peak = React.useMemo(() => ({
+    ev: Math.max(1, ...shown.map((x) => x.m.nEvents)),
+    vol: Math.max(1, ...shown.map((x) => x.m.volumeUsd)),
+  }), [shown])
+
   return (
     <section className="sec hot-sec">
       <div className="sec-h">
@@ -84,14 +95,14 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
       )}
       <div className="hot-grid">
         {shown.map(({ m, s }) => (
-          <HotCard key={m.marketUid} m={m} s={s} comments={counts.count('market', m.marketUid)} />
+          <HotCard key={m.marketUid} m={m} s={s} peak={peak} comments={counts.count('market', m.marketUid)} />
         ))}
       </div>
     </section>
   )
 }
 
-function HotCard({ m, s, comments }: { m: HotMarket; s: Strategy | null; comments: number }) {
+function HotCard({ m, s, peak, comments }: { m: HotMarket; s: Strategy | null; peak: Peak; comments: number }) {
   const parts = m.marketUid.split(':')
   const chainId = parts[1]
   const open = () => (s ? go(s.group, { u: s.asset, s: s.id, k: s.kind }) : (location.hash = marketHref(m.marketUid)))
@@ -112,15 +123,11 @@ function HotCard({ m, s, comments }: { m: HotMarket; s: Strategy | null; comment
         <ChainCorner chainId={chainId} />
       </div>
 
-      <Heat m={m} />
+      <Heat m={m} peak={peak} />
 
       <div className="hc-f">
         <span className="hc-ev">
-          <b>{m.nEvents}</b> move{m.nEvents === 1 ? '' : 's'}
-          <span className="t40"> · </span>
           <b>{m.nWallets}</b> wallet{m.nWallets === 1 ? '' : 's'}
-          <span className="t40"> · </span>
-          <b>{usdShort(m.volumeUsd)}</b>
           {m.nNewWallets > 0 && <span className="fresh" title={`${m.nNewWallets} of them had never been in this market`}>+{m.nNewWallets} new</span>}
           {m.nLiquidations > 0 && <span className="liqs" title="liquidations in this window">{m.nLiquidations} liq</span>}
         </span>
@@ -131,24 +138,43 @@ function HotCard({ m, s, comments }: { m: HotMarket; s: Strategy | null; comment
   )
 }
 
+type Peak = { ev: number; vol: number }
+
 /**
- * The score, drawn as what it is: two percentiles side by side. A bar that is
- * long on the left and short on the right says "busy but small" — which is the
- * thing a single number would have hidden.
+ * The two dimensions the ranking is made of, drawn as what they are: how many
+ * moves, and how much money. Either alone lies — a long bar on the left and a
+ * short one on the right says "busy but small", which is the thing a single
+ * score would have hidden.
+ *
+ * The figure at the end of each bar is the real count, so the bar never has to
+ * be believed on its own; the percentile against the whole index lives in the
+ * tooltip, where it is context rather than the headline it cannot support.
  */
-function Heat({ m }: { m: HotMarket }) {
+function Heat({ m, peak }: { m: HotMarket; peak: Peak }) {
   return (
-    <div className="heat" title={`busier than ${Math.round(m.pEvents * 100)}% of the markets the index has valued, and bigger than ${Math.round(m.pVolume * 100)}% of them`}>
-      <span className="hb">
-        <i className="k">busy</i>
-        <i className="bar"><i style={{ width: `${Math.max(2, m.pEvents * 100)}%` }} /></i>
-        <i className="p">{Math.round(m.pEvents * 100)}</i>
+    <div className="heat">
+      <HeatBar
+        k="moves" v={m.nEvents} max={peak.ev} fig={String(m.nEvents)}
+        title={`${m.nEvents} moves in this window — busier than ${Math.round(m.pEvents * 100)}% of every market the index has valued`}
+      />
+      <HeatBar
+        k="volume" v={m.volumeUsd} max={peak.vol} fig={usdShort(m.volumeUsd)} tone="big"
+        title={`${usdShort(m.volumeUsd)} moved in this window — bigger than ${Math.round(m.pVolume * 100)}% of every market the index has valued`}
+      />
+    </div>
+  )
+}
+
+function HeatBar({ k, v, max, fig, tone, title }: { k: string; v: number; max: number; fig: string; tone?: 'big'; title: string }) {
+  // a market with a real number in it never shows an empty track
+  const w = Math.max(2, Math.min(100, (v / (max || 1)) * 100))
+  return (
+    <div className="hrow" title={title}>
+      <span className="k">{k}</span>
+      <span className={tone === 'big' ? 'bar big' : 'bar'} role="img" aria-label={title}>
+        <span style={{ width: `${w}%` }} />
       </span>
-      <span className="hb">
-        <i className="k">big</i>
-        <i className="bar big"><i style={{ width: `${Math.max(2, m.pVolume * 100)}%` }} /></i>
-        <i className="p">{Math.round(m.pVolume * 100)}</i>
-      </span>
+      <span className="p">{fig}</span>
     </div>
   )
 }

@@ -31,7 +31,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: St
     <div className="ticket">
       <div className="grab" />
       <div className="th">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />}
-        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part.</> : (SOURCE_WORDS[s.source] ?? SOURCE_WORDS.vault)}</Info></div><div className="s">{s.asset} strategy · {s.kind === 'loop' ? s.venue : s.via} · {chainLabel(s.chainId)}</div></div>
+        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part.</> : <SimpleWords s={s} />}</Info></div><div className="s">{s.asset} strategy · {s.kind === 'loop' ? s.venue : s.via} · {chainLabel(s.chainId)}</div></div>
         <KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
       {holding && (
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
@@ -61,6 +61,29 @@ function CopyBanner({ who, s }: { who: string; s: Strategy }) {
       <Who account={who} profile={profile(who)} size={24} />
       <span className="t70">is in this {s.kind === 'loop' ? 'loop' : 'strategy'}. You are opening the same one — your own size.</span>
     </div>
+  )
+}
+
+/**
+ * What this strategy IS, in the row's own words.
+ *
+ * `s.description` is the server's per-row explainer (`termSheet.supply`) —
+ * templated from that row's live numbers, or the vault's hand-written copy
+ * where it has any. `SOURCE_WORDS` below is the fallback and used to be the
+ * whole story: one sentence per SOURCE, so every savings row in the list was
+ * explained by the same twelve words. Two Bitway USDT products on BNB — a
+ * different vault, a different strategy and a different rate each — read as
+ * the same deposit, which is exactly the confusion that is being fixed.
+ *
+ * The headline leads because it is the numeric summary (rate · term · exit)
+ * and the description elaborates on it; neither is ever hand-written here.
+ */
+function SimpleWords({ s }: { s: SimpleStrategy }) {
+  return (
+    <>
+      {s.headline && <div className="t70" style={{ marginBottom: 6 }}>{s.headline}</div>}
+      {s.description ?? SOURCE_WORDS[s.source] ?? SOURCE_WORDS.vault}
+    </>
   )
 }
 

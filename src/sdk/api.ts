@@ -7,8 +7,16 @@ import { apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } from '../ve
 import type { ApiTx, EarnPositionsResponse, EarnResponse, LoopActions, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
 
 // ---------------------------------------------------------------- deposits (supply side)
+// `terms: 'digest'` — NOT 'none'. The digest is where the row's own prose lives:
+// `termSheet.supply.headline` (one line, templated from this row's live numbers)
+// and `.description` (1-3 sentences, the vault's hand-written copy where it has
+// any). Asking for 'none' is what left every strategy explained by a generic
+// sentence chosen from its SOURCE, so two different Bitway USDT products read
+// identically. `full` additionally inlines the exposure `items[]` and would be
+// several kB per row on a 500-row page — that is a detail-view request, not a
+// listing one.
 export function fetchEarn(p: { chainId: string; count?: number; maxRiskScore?: number; minTvlUsd?: number }) {
-  const params: ApiParams = { chainId: p.chainId, count: p.count ?? 500, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'none' }
+  const params: ApiParams = { chainId: p.chainId, count: p.count ?? 500, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest' }
   return apiFetchLoose<EarnResponse>('/v1/data/earn', { params })
 }
 

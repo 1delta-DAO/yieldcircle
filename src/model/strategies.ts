@@ -50,6 +50,17 @@ export interface SimpleStrategy extends Base {
   reason?: string
   maturity?: number
   rewards: number
+  /** `termSheet.supply.headline` — one line, templated from THIS row's numbers. */
+  headline?: string
+  /**
+   * `termSheet.supply.description` — 1-3 sentences saying what the row is.
+   *
+   * Per ROW, which is the point: the generic per-source sentence it replaces
+   * described a category, so the two Bitway USDT products (different vaults,
+   * different strategies, different rates) read as the same thing. Absent when
+   * the worker served no sheet; callers fall back to the source wording.
+   */
+  description?: string
 }
 export interface LoopStrategy extends Base {
   kind: 'loop'
@@ -133,6 +144,7 @@ export function simpleFromEarn(m: EarnMarket): SimpleStrategy | null {
     rate, risk, riskLabel, tvlUsd: tvl,
     earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0,
+    headline: m.termSheet?.supply?.headline || undefined, description: m.termSheet?.supply?.description || undefined,
   }
 }
 

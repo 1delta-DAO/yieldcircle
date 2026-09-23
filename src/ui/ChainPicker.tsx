@@ -18,19 +18,18 @@
  * distinct, each button carries its name as a title, and the menu spells all
  * five out for anyone who wants the words.
  *
- * Two lists meet here. The ROW carries `CHAINS` — the chains with strategies,
- * the ones whose colours people know — because fifteen marks do not fit a
- * header that also holds eight destinations. The MENU spells out
- * `SCOPE_CHAINS`, every chain the index follows, under a line that says the
- * rest are indexed but have no strategies yet: a position on Monad is as real
- * as one on Base, and being unable to narrow to it would make it unreadable.
+ * One list, two depths. The ROW draws the first five of `CHAINS` — the ones
+ * with the most of everything, and as many marks as a header that also holds
+ * eight destinations can take. The MENU spells out all fifteen; nothing
+ * separates them, because they are the same kind of thing: the API answers
+ * with strategies on Monad, HyperEVM, Plasma and Optimism too.
  *
- * The row therefore ENDS in the menu. `.chainbtn` only exists below 1000px, so
- * a desktop that shows the row and nothing else could reach the five and never
- * the other ten — a list you cannot open is the same as a list that is not
- * there. The trailing button opens the same popover, and when the scope holds
- * chains the row does not draw it wears their marks instead of its count, so
- * "Monad only" never reads as "nothing is selected".
+ * The row therefore ENDS in the menu. `.chainbtn` only exists below 1080px, so
+ * a desktop that shows the row and nothing else could reach five chains and
+ * never the other ten — a list you cannot open is the same as a list that is
+ * not there. The trailing button opens the same popover, and when the scope
+ * holds chains the row does not draw it wears their marks instead of its
+ * count, so "Monad only" never reads as "nothing is selected".
  *
  * "All" stays the ABSENCE of a selection rather than a member of it (see
  * `AppState`), so a chain added tomorrow is in scope without anyone
@@ -40,26 +39,26 @@
  */
 import React from 'react'
 import { useApp } from '../state/AppState'
-import { CHAINS, SCOPE_CHAINS } from '../sdk/queries'
+import { CHAINS } from '../sdk/queries'
 import { ChainMark } from './ChainMark'
 import { Popover } from './bits'
 
-const ROW_IDS = new Set(CHAINS.map((c) => c.id))
-/** the chains the row does not draw — what the trailing button stands for */
-const OFF_ROW = SCOPE_CHAINS.filter((c) => !ROW_IDS.has(c.id))
+/** what the row draws, and what the trailing button stands for */
+const ROW = CHAINS.slice(0, 5)
+const OFF_ROW = CHAINS.slice(5)
 
 export function ChainPicker() {
   const { chains, setChains, toggleChain, allChains, chainLabelFor } = useApp()
   const btn = React.useRef<HTMLButtonElement>(null)
   const more = React.useRef<HTMLButtonElement>(null)
   const [open, setOpen] = React.useState<null | 'btn' | 'more'>(null)
-  const picked = allChains ? CHAINS : SCOPE_CHAINS.filter((c) => chains.includes(c.id))
+  const picked = allChains ? ROW : CHAINS.filter((c) => chains.includes(c.id))
   const offRowPicked = OFF_ROW.filter((c) => chains.includes(c.id))
   return (
     <>
       <div className="seg chainseg" role="group" aria-label="Chains">
         <button aria-pressed={allChains} onClick={() => setChains([])} title="Every chain">All</button>
-        {CHAINS.map((c) => (
+        {ROW.map((c) => (
           <button key={c.id} aria-pressed={chains.includes(c.id)} aria-label={c.label}
             title={`${c.label} — alt-click for only this one`}
             onClick={(e) => (e.altKey ? setChains([c.id]) : toggleChain(c.id))}>
@@ -69,7 +68,7 @@ export function ChainPicker() {
         <button ref={more} aria-haspopup="dialog" aria-expanded={open === 'more'}
           aria-pressed={offRowPicked.length > 0}
           aria-label={`More chains — ${OFF_ROW.map((c) => c.label).join(', ')}`}
-          title={`Also indexed: ${OFF_ROW.map((c) => c.label).join(', ')}`}
+          title={OFF_ROW.map((c) => c.label).join(', ')}
           onClick={() => setOpen((o) => (o === 'more' ? null : 'more'))}>
           {offRowPicked.length ? (
             <>
@@ -102,18 +101,10 @@ export function ChainPicker() {
           <div className="cm-sep" role="separator" />
           {/* in "All" mode no single chain is ticked — the same thing the segmented row says, and
               clicking one there narrows to it rather than removing it from a selection that is empty */}
-          {SCOPE_CHAINS.map((c, i) => {
+          {CHAINS.map((c) => {
             const on = chains.includes(c.id)
             return (
               <React.Fragment key={c.id}>
-                {i === CHAINS.length ? (
-                  <>
-                    <div className="cm-sep" role="separator" />
-                    <div style={{ padding: '4px 10px 2px', fontSize: 11, opacity: 0.6 }}>
-                      indexed — no strategies here yet
-                    </div>
-                  </>
-                ) : null}
                 <div className="cm-line">
                   <button className="cm-row" role="checkbox" aria-checked={on} onClick={() => toggleChain(c.id)}>
                     <span className="cm-tick" aria-hidden>{on ? '✓' : ''}</span>

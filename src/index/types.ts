@@ -226,7 +226,7 @@ export interface Following { source: string; accounts: number; markets: number }
 /**
  * The index follows chains this app offers no strategies on, so a ledger row
  * could name a chain `sdk/queries.ts` had no label for. It no longer can:
- * `SCOPE_CHAINS` names every chain the index follows and `chainLabel` reads
+ * `CHAINS` names every chain the index follows and `chainLabel` reads
  * from it, which is why this map — once `{ '137': 'Polygon', '10': 'Optimism' }`
  * — is empty rather than a second, staler copy of the same names. It stays as
  * the seam: the next chain the index adds before this app hears about it lands

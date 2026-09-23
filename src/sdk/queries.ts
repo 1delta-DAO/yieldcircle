@@ -1,15 +1,25 @@
 import { useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { bridgeStatus, fetchEarn, fetchEarnPositions, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, fetchVaults, loopOpen, type OptimizerQuery } from './api'
+import { bridgeStatus, fetchChains, fetchEarn, fetchEarnPositions, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, fetchVaults, loopOpen, type OptimizerQuery } from './api'
 import { capPerAsset, dedupe, loopFromRow, simpleFromEarn, type LoopStrategy, type SimpleStrategy } from '../model/strategies'
 import type { VaultListing } from './types'
 import { toRaw } from '../model/leverage'
 
 const HOUR = 3600_000
 /**
- * The chains this app has STRATEGIES on: every entry costs one earn query,
- * one vault registry and three optimizer archetypes per refresh, so a chain
- * belongs here when it has something to offer, not when it exists.
+ * The chains this app works on — the ones the index follows, which is also
+ * the scope of the feed, the hot board, a wallet and a market page.
+ *
+ * It was briefly two lists, on the theory that the ten added on 2026-09-23
+ * had no strategies to fetch. They do: measured against the API the same day,
+ * `/v1/data/earn` answers 57 rows on Monad, 54 on HyperEVM, 19 on Optimism and
+ * Plasma, 14 on Robinhood, 9 on Plume, 7 on Arc, and the optimizer pairs 33
+ * loops on Monad and 24 on Plasma. Only Tempo and Stable answer nothing, and
+ * they are here because a position on them is still a position — an empty
+ * listing says that honestly, a missing chain does not.
+ *
+ * The cost is real and worth knowing: each entry is one earn query, one vault
+ * registry and three optimizer archetypes per refresh, all cached ten minutes.
  */
 export const CHAINS: { id: string; label: string }[] = [
   { id: '1', label: 'Ethereum' },
@@ -17,17 +27,6 @@ export const CHAINS: { id: string; label: string }[] = [
   { id: '42161', label: 'Arbitrum' },
   { id: '56', label: 'BNB' },
   { id: '43114', label: 'Avalanche' },
-]
-/**
- * The chains the INDEX follows — the scope of the feed, the hot board, a
- * wallet's positions and a market page. It is a superset of `CHAINS`: the
- * index gained ten more on 2026-09-23, and a position on one of them is as
- * real as a position on Base even though no strategy here targets it. The
- * picker offers these; the strategy queries above narrow back to `CHAINS`, so
- * scoping to Monad costs nothing upstream and simply shows no strategies.
- */
-export const SCOPE_CHAINS: { id: string; label: string }[] = [
-  ...CHAINS,
   { id: '10', label: 'Optimism' },
   { id: '999', label: 'HyperEVM' },
   { id: '143', label: 'Monad' },
@@ -39,10 +38,30 @@ export const SCOPE_CHAINS: { id: string; label: string }[] = [
   { id: '988', label: 'Stable' },
   { id: '98866', label: 'Plume' },
 ]
-const STRATEGY_IDS = new Set(CHAINS.map((c) => c.id))
-/** the scope, narrowed to the chains a strategy query can answer for */
-const strategyChains = (chainIds: string[]) => chainIds.filter((id) => STRATEGY_IDS.has(id))
-export const chainLabel = (id: string) => SCOPE_CHAINS.find((c) => c.id === id)?.label ?? id
+/**
+ * Names and logos from the API's own chain directory, keyed by id — one
+ * request for every chain, cached for a day, and a failure is simply no
+ * decoration (`CHAINS` above still names them and `ChainMark` still draws
+ * them). It is what makes a chain wear the same mark here as everywhere else
+ * in 1delta.
+ */
+export const chainsQuery = {
+  queryKey: ['chain-directory'],
+  queryFn: async () => {
+    const r = await fetchChains()
+    const out: Record<string, { name: string; logo?: string }> = {}
+    for (const c of r.items ?? []) out[String(c.chainId)] = { name: c.name, logo: c.logoURI || undefined }
+    return out
+  },
+  staleTime: 24 * HOUR,
+  gcTime: 24 * HOUR,
+  retry: 1,
+}
+export function useChainMeta(): Record<string, { name: string; logo?: string }> {
+  return useQuery(chainsQuery).data ?? EMPTY_CHAIN_META
+}
+const EMPTY_CHAIN_META: Record<string, { name: string; logo?: string }> = {}
+export const chainLabel = (id: string) => CHAINS.find((c) => c.id === id)?.label ?? id
 
 /** Same-denomination carry archetypes: the collateral and the debt are the same money, so this is carry, not a price bet. */
 const LOOP_ARCHETYPES: Pick<OptimizerQuery, 'collateralTags' | 'debtTags' | 'includeExpired'>[] = [
@@ -70,8 +89,7 @@ const vaultQuery = (chainId: string) => ({
 /** One chain's registry, from the shared cache — `{}` on failure, never a rejection. */
 export const vaultIndex = (chainId: string, qc: QueryClient): Promise<VaultIndex> => qc.ensureQueryData(vaultQuery(chainId)).catch(() => ({}) as VaultIndex)
 /** The same registries for several chains, keyed `chainId:address`, for the holdings side. */
-export function useVaultIndex(scope: string[]): VaultIndex {
-  const chainIds = strategyChains(scope)
+export function useVaultIndex(chainIds: string[]): VaultIndex {
   const qs = useQueries({ queries: chainIds.map(vaultQuery) })
   const data = qs.map((q) => q.data)
   return useMemo(() => {
@@ -83,8 +101,7 @@ export function useVaultIndex(scope: string[]): VaultIndex {
 }
 
 /** Both listings for the selected chains, normalised and curated. Chains load in parallel and merge as they land. */
-export function useCatalog(scope: string[]) {
-  const chainIds = strategyChains(scope)
+export function useCatalog(chainIds: string[]) {
   const qc = useQueryClient()
   const earn = useQueries({
     queries: chainIds.map((chainId) => ({

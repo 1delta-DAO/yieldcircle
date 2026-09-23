@@ -1,19 +1,25 @@
 /**
- * Chain marks, drawn rather than fetched.
+ * Chain marks: the API's logo, with a drawn one underneath it.
  *
- * Every other icon in this app that comes from a URL has a fallback path and
- * a load error to handle; a chain is one of a known few, so it is a path.
- * Inline SVG costs no request, is crisp at 14px and at 28px, and cannot
- * half-render — the same reason the brand mark and the character are paths.
+ * `/v1/data/chains` names every chain 1delta knows and gives it a logo, so a
+ * chain wears the same mark here as in the rest of the product and a chain
+ * added upstream needs no art here. That is the first choice.
  *
- * The index follows chains this app has no strategies for, so a ledger row can
- * name a chain the selector does not offer. Since 2026-09-23 that is ten of
- * them, and they are in `CHAIN_INFO` with a name and an explorer even though
- * no one drew them a glyph: the mark falls back to the chain's own short name
- * on its disc, and only a chain this file has never heard of gets the grey
- * two-character disc — because a row from it must not be the only nameless,
+ * It is not the only one, because an icon fetched from a URL can be slow,
+ * blocked or 404, and a header full of empty discs is worse than a plain one.
+ * So `CHAIN_INFO` keeps what this app can draw with no request at all — the
+ * five oldest chains as paths, the rest as their own short name on their own
+ * colour — and the mark falls back to it while the directory loads and
+ * forever if the image fails. A chain neither knows gets the grey
+ * two-character disc, because a row from it must not be the only nameless,
  * unlinkable thing on the page.
+ *
+ * The colour and the explorer stay local on purpose: the directory carries
+ * neither, and an explorer link is the one thing a reader uses to check what
+ * this app claims.
  */
+import React from 'react'
+import { useChainMeta } from '../sdk/queries'
 
 export interface ChainInfo { id: string; name: string; short: string; color: string; explorer: string; explorerName: string }
 export const CHAIN_INFO: Record<string, ChainInfo> = {
@@ -108,10 +114,19 @@ function Glyph({ id }: { id: string }) {
  * a background of their own.
  */
 export function ChainMark({ chainId, size = 16, title }: { chainId: string; size?: number; title?: string }) {
+  const meta = useChainMeta()[chainId]
+  const [imgFailed, setImgFailed] = React.useState(false)
   const c = chainInfo(chainId)
+  const name = title ?? c?.name ?? meta?.name ?? chainId
+  if (meta?.logo && !imgFailed)
+    return (
+      <img className="chainmark" src={meta.logo} alt="" role="img" aria-label={name} title={name}
+        width={size} height={size} style={{ width: size, height: size }} loading="lazy"
+        onError={() => setImgFailed(true)} />
+    )
   if (!c)
     return (
-      <i className="chainmark unknown" style={{ width: size, height: size, fontSize: size * 0.42 }} title={title ?? chainId}>
+      <i className="chainmark unknown" style={{ width: size, height: size, fontSize: size * 0.42 }} title={name}>
         {chainId.slice(0, 2)}
       </i>
     )
@@ -120,7 +135,7 @@ export function ChainMark({ chainId, size = 16, title }: { chainId: string; size
   return (
     <svg className="chainmark" viewBox="0 0 24 24" width={size} height={size} style={{ width: size, height: size }}
       role="img" aria-label={c.name}>
-      <title>{title ?? c.name}</title>
+      <title>{name}</title>
       <circle cx="12" cy="12" r="12" fill={c.color} />
       {letters ? (
         <text x="12" y="12.6" textAnchor="middle" dominantBaseline="middle" fill="#fff" fontWeight="700"
@@ -137,10 +152,11 @@ export function ChainMark({ chainId, size = 16, title }: { chainId: string; size
 /** A mark with its name beside it — the selector, and anywhere with room. */
 export function ChainTag({ chainId, size = 15 }: { chainId: string; size?: number }) {
   const c = chainInfo(chainId)
+  const meta = useChainMeta()[chainId]
   return (
     <span className="chaintag">
       <ChainMark chainId={chainId} size={size} />
-      <span>{c?.name ?? chainId}</span>
+      <span>{c?.name ?? meta?.name ?? chainId}</span>
     </span>
   )
 }

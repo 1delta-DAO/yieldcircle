@@ -30,6 +30,15 @@ export function fetchVaults(chainId: string) {
   return apiFetch<VaultsResponse>('/v1/data/vaults', { params: { chainId, count: 1000, includeExpired: true } })
 }
 
+// The chain directory: id, name and a logo, for every chain the API knows.
+// Names and logos live upstream so a chain is called what the rest of 1delta
+// calls it and wears the same mark, instead of a hand-kept copy here going
+// stale the day a chain is added. `ChainMark` keeps drawn glyphs as the
+// instant fallback, so a slow or failed logo never leaves a blank disc.
+export function fetchChains() {
+  return apiFetch<{ items: { chainId: string; name: string; logoURI?: string }[] }>('/v1/data/chains')
+}
+
 // ---------------------------------------------------------------- loops
 export interface OptimizerQuery {
   chainId: string

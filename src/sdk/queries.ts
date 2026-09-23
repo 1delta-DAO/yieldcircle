@@ -63,11 +63,27 @@ export function useChainMeta(): Record<string, { name: string; logo?: string }> 
 const EMPTY_CHAIN_META: Record<string, { name: string; logo?: string }> = {}
 export const chainLabel = (id: string) => CHAINS.find((c) => c.id === id)?.label ?? id
 
-/** Same-denomination carry archetypes: the collateral and the debt are the same money, so this is carry, not a price bet. */
+/**
+ * Same-denomination carry archetypes: the collateral and the debt are the same
+ * money, so this is carry, not a price bet.
+ *
+ * `rwa` joined them on 2026-09-23. A tokenised credit fund borrowed against in
+ * dollars is the same trade as sUSDe borrowed in dollars — the app simply
+ * never asked for it, and the API had it all along: measured that day,
+ * `collateralTags=rwa&debtTags=stablecoin` answers 34 pairs on Ethereum, 34 on
+ * BNB, 4 on Monad and 3 on Plasma, none of which any archetype here matched.
+ *
+ * It does NOT fix Plume, whose two RWA markets are borrowed in `pUSD` — an
+ * asset the upstream feed leaves with `tags: []` where the same chain's USDC
+ * carries `['stablecoin','usdc']` and its own collateral carries `['rwa']`.
+ * With no debt tag they appear (nOPAL/pUSD at +28 %, nALPHA/pUSD at −35 %),
+ * and so does every genuine price bet, so the fix is the tag, upstream.
+ */
 const LOOP_ARCHETYPES: Pick<OptimizerQuery, 'collateralTags' | 'debtTags' | 'includeExpired'>[] = [
   { collateralTags: ['lst', 'lrt'], debtTags: ['wnative'] },
   { collateralTags: ['stablecoin', 'savings', 'pendle'], debtTags: ['stablecoin'], includeExpired: false },
   { collateralTags: ['btc'], debtTags: ['btc'] },
+  { collateralTags: ['rwa'], debtTags: ['stablecoin'] },
 ]
 
 /**

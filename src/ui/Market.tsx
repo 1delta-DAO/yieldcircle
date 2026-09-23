@@ -147,36 +147,80 @@ export function Market({ uid }: { uid: string }) {
 }
 
 /**
- * Thirty days of the SUPPLY side as bars — money in above the line, out below.
- * The rollup answers one row per (side, day), so the debt side is dropped
- * rather than added: a market's borrow flow is a different story and mixing
- * the two makes a chart that means nothing.
+ * Thirty days of the SUPPLY side: money in above the line, out below. The
+ * rollup answers one row per (side, day), so the debt side is dropped rather
+ * than added — a market's borrow flow is a different story and mixing the two
+ * makes a chart that means nothing.
+ *
+ * The window is drawn as a calendar, not as a list of the days that happen to
+ * have rows: a market with two busy days out of thirty was rendering as two
+ * half-width blocks, which reads as "half in, half out" when it means "quiet
+ * for four weeks, then this". Empty days stay empty and say so.
+ *
+ * Both halves are measured off the same zero line at the middle, so the line
+ * is a real axis rather than wherever each column's pair happened to centre.
  */
+const DAY = 86_400_000
+const dayKey = (t: number | string) => new Date(t).toISOString().slice(0, 10)
+
 function Flow({ rows }: { rows: FlowBucket[] }) {
   const byDay = new Map<string, { inUsd: number; outUsd: number }>()
   for (const r of rows) {
     if (r.side === 'borrow') continue
-    const cur = byDay.get(r.ts) ?? { inUsd: 0, outUsd: 0 }
+    const k = dayKey(r.ts)
+    const cur = byDay.get(k) ?? { inUsd: 0, outUsd: 0 }
     cur.inUsd += r.inflow_usd ?? 0
     cur.outUsd += r.outflow_usd ?? 0
-    byDay.set(r.ts, cur)
+    byDay.set(k, cur)
   }
-  const last = [...byDay.entries()].sort((a, b) => Date.parse(a[0]) - Date.parse(b[0])).slice(-30)
-  if (!last.length) return null
-  const peak = Math.max(0, ...last.map(([, v]) => Math.max(v.inUsd, v.outUsd)))
-  if (peak === 0) return null   // a chart of nothing says less than no chart
-  const max = peak
-  const net = last.reduce((a, [, v]) => a + v.inUsd - v.outUsd, 0)
+  const end = Date.now()
+  const days = Array.from({ length: 30 }, (_, i) => {
+    const t = end - (29 - i) * DAY
+    const k = dayKey(t)
+    return { k, t, ...(byDay.get(k) ?? { inUsd: 0, outUsd: 0 }) }
+  })
+  const max = Math.max(0, ...days.map((d) => Math.max(d.inUsd, d.outUsd)))
+  if (max === 0) return null   // a chart of nothing says less than no chart
+  const totIn = days.reduce((a, d) => a + d.inUsd, 0)
+  const totOut = days.reduce((a, d) => a + d.outUsd, 0)
+  const net = totIn - totOut
+  const day = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
   return (
     <div className="card flowcard">
-      <div className="ch"><span className="t">Deposits · 30 days</span><span className="sp" /><span className={`m ${net >= 0 ? 'ok' : 'bad'}`}>{net >= 0 ? '+' : '−'}{usdShort(Math.abs(net))} net</span></div>
-      <div className="flow" role="img" aria-label={`net ${usd(net)} over 30 days`}>
-        {last.map(([ts, v]) => (
-          <span key={ts} className="fbar" title={`${new Date(ts).toLocaleDateString()} · in ${usdShort(v.inUsd)} · out ${usdShort(v.outUsd)}`}>
-            <i className="up" style={{ height: `${(v.inUsd / max) * 100}%` }} />
-            <i className="dn" style={{ height: `${(v.outUsd / max) * 100}%` }} />
-          </span>
-        ))}
+      <div className="ch">
+        <span className="t">Deposits · 30 days</span>
+        <span className="sp" />
+        <span className={`m ${net >= 0 ? 'ok' : 'bad'}`}>{net >= 0 ? '+' : '−'}{usdShort(Math.abs(net))} net</span>
+      </div>
+      {/* the two words are the legend: without them a red block below a green
+          one is just a colour, and the reader has to guess which way is out */}
+      <div className="flow-body">
+        <div className="flow-side">
+          <span className="in">in</span>
+          <span className="out">out</span>
+        </div>
+        <div className="flow" role="img"
+          aria-label={`${usd(totIn)} deposited and ${usd(totOut)} withdrawn over 30 days, ${usd(net)} net`}>
+          {days.map((d) => (
+            <span key={d.k} className="fbar"
+              title={d.inUsd || d.outUsd
+                ? `${day(d.t)} · in ${usdShort(d.inUsd)} · out ${usdShort(d.outUsd)}`
+                : `${day(d.t)} · nothing moved`}>
+              <i className="half up"><i style={{ height: `${(d.inUsd / max) * 100}%` }} /></i>
+              <i className="half dn"><i style={{ height: `${(d.outUsd / max) * 100}%` }} /></i>
+            </span>
+          ))}
+          <i className="zero" aria-hidden="true" />
+        </div>
+      </div>
+      {/* the scale, said in figures: a bar is only readable against the day
+          that set the height of every other one */}
+      <div className="flow-f">
+        <span>{day(days[0].t)}</span>
+        <span className="sp" />
+        <span className="pk">tallest day {usdShort(max)}</span>
+        <span className="sp" />
+        <span>today</span>
       </div>
     </div>
   )

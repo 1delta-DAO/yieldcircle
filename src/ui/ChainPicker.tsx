@@ -25,6 +25,13 @@
  * rest are indexed but have no strategies yet: a position on Monad is as real
  * as one on Base, and being unable to narrow to it would make it unreadable.
  *
+ * The row therefore ENDS in the menu. `.chainbtn` only exists below 1000px, so
+ * a desktop that shows the row and nothing else could reach the five and never
+ * the other ten — a list you cannot open is the same as a list that is not
+ * there. The trailing button opens the same popover, and when the scope holds
+ * chains the row does not draw it wears their marks instead of its count, so
+ * "Monad only" never reads as "nothing is selected".
+ *
  * "All" stays the ABSENCE of a selection rather than a member of it (see
  * `AppState`), so a chain added tomorrow is in scope without anyone
  * re-picking. Alt-click narrows to one chain on the row; the menu spells that
@@ -37,11 +44,17 @@ import { CHAINS, SCOPE_CHAINS } from '../sdk/queries'
 import { ChainMark } from './ChainMark'
 import { Popover } from './bits'
 
+const ROW_IDS = new Set(CHAINS.map((c) => c.id))
+/** the chains the row does not draw — what the trailing button stands for */
+const OFF_ROW = SCOPE_CHAINS.filter((c) => !ROW_IDS.has(c.id))
+
 export function ChainPicker() {
   const { chains, setChains, toggleChain, allChains, chainLabelFor } = useApp()
   const btn = React.useRef<HTMLButtonElement>(null)
-  const [open, setOpen] = React.useState(false)
+  const more = React.useRef<HTMLButtonElement>(null)
+  const [open, setOpen] = React.useState<null | 'btn' | 'more'>(null)
   const picked = allChains ? CHAINS : SCOPE_CHAINS.filter((c) => chains.includes(c.id))
+  const offRowPicked = OFF_ROW.filter((c) => chains.includes(c.id))
   return (
     <>
       <div className="seg chainseg" role="group" aria-label="Chains">
@@ -53,10 +66,24 @@ export function ChainPicker() {
             <ChainMark chainId={c.id} size={15} />
           </button>
         ))}
+        <button ref={more} aria-haspopup="dialog" aria-expanded={open === 'more'}
+          aria-pressed={offRowPicked.length > 0}
+          aria-label={`More chains — ${OFF_ROW.map((c) => c.label).join(', ')}`}
+          title={`Also indexed: ${OFF_ROW.map((c) => c.label).join(', ')}`}
+          onClick={() => setOpen((o) => (o === 'more' ? null : 'more'))}>
+          {offRowPicked.length ? (
+            <>
+              {offRowPicked.slice(0, 2).map((c) => <ChainMark key={c.id} chainId={c.id} size={15} />)}
+              {offRowPicked.length > 2 ? <span style={{ fontSize: 11.5 }}>+{offRowPicked.length - 2}</span> : null}
+            </>
+          ) : (
+            <span style={{ fontSize: 11.5 }}>+{OFF_ROW.length}</span>
+          )}
+        </button>
       </div>
 
-      <button ref={btn} className="chainbtn" aria-haspopup="dialog" aria-expanded={open}
-        aria-label={`Chains — ${chainLabelFor()}`} onClick={() => setOpen((o) => !o)}>
+      <button ref={btn} className="chainbtn" aria-haspopup="dialog" aria-expanded={open === 'btn'}
+        aria-label={`Chains — ${chainLabelFor()}`} onClick={() => setOpen((o) => (o === 'btn' ? null : 'btn'))}>
         {/* the marks of what is in scope, overlapped like a stack of coins; past three it is a count anyway */}
         <span className="marks" aria-hidden>
           {picked.slice(0, 3).map((c) => <ChainMark key={c.id} chainId={c.id} size={15} />)}
@@ -65,7 +92,7 @@ export function ChainPicker() {
         <svg viewBox="0 0 12 12" width="9" height="9" aria-hidden><path d="M2 4.2 6 8.2 10 4.2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
 
-      <Popover anchor={btn} open={open} onClose={() => setOpen(false)} width={232} align="right">
+      <Popover anchor={open === 'more' ? more : btn} open={open !== null} onClose={() => setOpen(null)} width={232} align="right">
         <div className="chainmenu" role="group" aria-label="Chains"
           style={{ maxHeight: 'min(64vh, 560px)', overflowY: 'auto' }}>
           <button className="cm-row" role="checkbox" aria-checked={allChains} onClick={() => setChains([])}>
@@ -93,7 +120,7 @@ export function ChainPicker() {
                     <ChainMark chainId={c.id} size={16} />
                     <span className="cm-n">{c.label}</span>
                   </button>
-                  <button className="cm-only" onClick={() => { setChains([c.id]); setOpen(false) }}
+                  <button className="cm-only" onClick={() => { setChains([c.id]); setOpen(null) }}
                     aria-label={`Only ${c.label}`}>only</button>
                 </div>
               </React.Fragment>

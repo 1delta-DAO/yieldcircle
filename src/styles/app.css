@@ -949,7 +949,9 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
 /* the marks overlap like a stack of coins, so three of them cost the width of two */
 .chainbtn .marks{display:inline-flex;align-items:center;padding-right:5px}
 .chainbtn .marks .chainmark{margin-right:-5px;box-shadow:0 0 0 1.5px var(--bg);border-radius:50%}
-@media (max-width:1000px){ .top .chainseg{display:none} .top .chainbtn{display:inline-flex} }
+/* 1000 → 1080 on 2026-09-23: the row gained the button that opens the other ten chains,
+   and at 1010px that was 20px more than the header had (measured), so the page scrolled sideways */
+@media (max-width:1080px){ .top .chainseg{display:none} .top .chainbtn{display:inline-flex} }
 @media (max-width:520px){ .chainbtn .cl{display:none} }
 .chainmenu{padding:5px;display:flex;flex-direction:column;gap:1px}
 .chainmenu .cm-line{display:flex;align-items:center;gap:2px}

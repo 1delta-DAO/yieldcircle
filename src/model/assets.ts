@@ -72,6 +72,11 @@ const WRAPPER: Record<string, string> = {
   SLISBNB: 'BNB', WBETH: 'ETH', BNBX: 'BNB', ANKRBNB: 'BNB',
   SAVAX: 'AVAX', GGAVAX: 'AVAX', SAVUSD: 'avUSD',
   WHYPE: 'HYPE', WMON: 'MON', WXPL: 'XPL', WPLUME: 'PLUME', WPOL: 'POL', WMATIC: 'POL', MATIC: 'POL',
+  // Monad / HyperEVM liquid staking. Upstream carried no `props.lst` for any of them until
+  // token-lists' LST_MANUAL named them (2026-09-24), and a position only has a symbol: without
+  // these, shMON resolved to MON only by falling back to the DEBT leg's symbol.
+  SHMON: 'MON', SMON: 'MON', GMON: 'MON', APRMON: 'MON',
+  KHYPE: 'HYPE', STHYPE: 'HYPE', WSTHYPE: 'HYPE', BEHYPE: 'HYPE', LSTHYPE: 'HYPE', SHYPE: 'HYPE', HYPED: 'HYPE', VHYPE: 'HYPE',
   // Avalanche's bridged ERC-20s keep a '.e' suffix; the same money either way
   'USDC.E': 'USDC', 'USDT.E': 'USDT', 'DAI.E': 'DAI', 'WETH.E': 'ETH', 'WBTC.E': 'WBTC',
   WSTETH: 'ETH', STETH: 'ETH', WEETH: 'ETH', EETH: 'ETH', CBETH: 'ETH', RETH: 'ETH', EZETH: 'ETH', RSETH: 'ETH', OSETH: 'ETH', METH: 'ETH', FRXETH: 'ETH', SFRXETH: 'ETH', ETHX: 'ETH', SWETH: 'ETH',

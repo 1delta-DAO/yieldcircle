@@ -6,7 +6,7 @@
  */
 import React from 'react'
 import { Character, unearned, specFor } from '../identity/character'
-import { labelFor, shortAddr } from '../identity/name'
+import { AUTO_TITLE, labelFor, shortAddr } from '../identity/name'
 import { useMyFollows, useSocialRefresh } from '../social/queries'
 import { useSocialWrite } from '../social/sign'
 import type { Profile } from '../social/types'
@@ -78,6 +78,13 @@ export function Face({ account, profile, size = 28, idx }: { account: string; pr
   return <Character addr={account} avatarUrl={profile?.avatarUrl} size={size} title={`${name.label} · ${shortAddr(account)}`} />
 }
 
+/**
+ * "This name was invented." A wallet nobody has signed a profile for reads as
+ * "Amber Otter" like any chosen name, and the difference matters when the name
+ * is attached to a claim — so it is said, not implied by a dimming.
+ */
+export const AutoTag = () => <i className="pill auto" title={AUTO_TITLE}>auto</i>
+
 /** A face and a name, linking to the wallet page. The index's word for an address beats a made-up one. */
 export function Who({ account, profile, size = 28, idx, sub, plain }: {
   account: string
@@ -98,6 +105,7 @@ export function Who({ account, profile, size = 28, idx, sub, plain }: {
         <b>{name.label}{bad.length > 0 && <i className="unearned" title={`claims ${bad.map((g) => g.why).join(', ')}`}>!</i>}</b>
         {sub != null ? <small>{sub}</small> : name.generated && <small className="t40">{shortAddr(account)}</small>}
       </span>
+      {name.generated && <AutoTag />}
       {name.kind && name.kind !== 'eoa' && name.kind !== 'unknown' && name.kind !== 'contract' && <span className={`pill kind ${name.kind}`}>{name.kind}</span>}
       {profile?.xHandle && <span className="xtag" title={`linked to @${profile.xHandle} on X`}>𝕏</span>}
     </>

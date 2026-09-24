@@ -565,6 +565,10 @@ a.who:hover .wn b{color:var(--primary)}
 .pill.kind.vault{border-color:#3b2a52;color:var(--violet)}
 .pill.kind.protocol{border-color:#14454f;color:var(--primary)}
 .pill.kind.router,.pill.kind.contract{border-color:var(--line2);color:var(--tx40)}
+/* an invented name, marked: quiet, because "auto" is a fact about the NAME,
+   not a warning about the wallet (pos-indexer tickets/0019) */
+.pill.auto{flex:none;font-size:9px;padding:0 5px;font-style:normal;font-weight:500;text-transform:none;letter-spacing:.02em;border-style:dashed;border-color:var(--line2);color:var(--tx40)}
+h1 .pill.auto{vertical-align:middle;margin-left:9px}
 .badges{display:inline-flex;gap:4px;flex-wrap:wrap}
 .badge-tag{display:inline-block;font-size:10px;font-style:normal;letter-spacing:.03em;padding:2px 7px;border-radius:999px;border:1px solid #1f4a35;color:var(--success);white-space:nowrap;background:#0a1a13}
 .badge-tag.self{border-color:var(--line2);color:var(--tx50);background:transparent}

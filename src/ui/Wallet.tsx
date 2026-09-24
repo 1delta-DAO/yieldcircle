@@ -13,12 +13,12 @@ import { useAccount } from 'wagmi'
 import { marketHref, walletHref } from '../state/AppState'
 import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions } from '../index/queries'
 import { useFollowers, useProfile, useProfiles } from '../social/queries'
-import { Badges, FollowButton, Money, Who, Ago, describeTx, tokens } from './social-bits'
+import { AutoTag, Badges, FollowButton, Money, Who, Ago, describeTx, tokens } from './social-bits'
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
-import { autoName, shortAddr } from '../identity/name'
+import { labelFor, shortAddr } from '../identity/name'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
-import { indexChainLabel, type IndexPosition, type PositionGroup } from '../index/types'
+import { indexChainLabel, type AccountIdentity, type IndexPosition, type PositionGroup } from '../index/types'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
 import { primaryLeg } from './Feed'
@@ -40,6 +40,19 @@ export function Wallet({ addr }: { addr: string }) {
   const flows = useAccountFlows(addr, 30)
   const txs = useAccountTxs(addr, undefined, 40)
   const rows = pos.data?.positions ?? []
+  /**
+   * What the index calls this address, read off the rows the page already
+   * loaded — every ledger leg is stamped with `accountKind` / `accountLabel`.
+   * A labelled address is not a generated name and takes no `auto` tag.
+   */
+  const idx = React.useMemo<AccountIdentity | null>(
+    () =>
+      (txs.data?.txs ?? [])
+        .flatMap((t) => t.legs)
+        .find((l) => l.account === addr && (l.accountLabel || l.accountKind)) ?? null,
+    [txs.data, addr],
+  )
+  const name = labelFor(addr, profile, idx)
   const spec = specFor(addr, profile?.avatarUrl)
   const bad = profile?.avatarUrl ? unearned(spec, profile.systemTags ?? []) : []
   const f = flows.data?.totals
@@ -50,7 +63,7 @@ export function Wallet({ addr }: { addr: string }) {
       <header className="wcard">
         <Character addr={addr} avatarUrl={profile?.avatarUrl} size={72} />
         <div className="wc-t">
-          <h1>{profile?.handle ? `@${profile.handle}` : profile?.displayName || autoName(addr)}</h1>
+          <h1>{name.label}{name.generated && <AutoTag />}</h1>
           <div className="sub mono">{shortAddr(addr)}{profile?.xHandle && <> · <a className="pri" href={`https://x.com/${profile.xHandle}`} target="_blank" rel="noreferrer">𝕏 @{profile.xHandle}</a></>}</div>
           {profile?.bio && <p className="wc-bio">{profile.bio}</p>}
           <div className="wc-tags">

@@ -45,9 +45,22 @@ export function displayFor(addr: string, profile?: NameLike | null): { label: st
 }
 
 /**
+ * The one line every surface says about a generated name. Copy identical to
+ * the index's own UI (`apps/ui/src/components/Identity.tsx::AUTO_TITLE`), so
+ * the same wallet gets the same explanation in both clients.
+ */
+export const AUTO_TITLE =
+  'no signed profile yet — this name and face are generated from the address, the same everywhere'
+
+/**
  * What the INDEX says an address is, which outranks a made-up name: a vault
  * share token is "Steakhouse Financial USDC", not a whale called Amber Otter,
  * and a roster emitter is the protocol itself.
+ *
+ * `generated` is the whole point of the return (pos-indexer tickets/0019): a
+ * made-up name must be MARKED wherever it renders, and only this function
+ * knows — a renderer that asks `!handle && !displayName` calls every labelled
+ * vault auto.
  */
 export function labelFor(
   addr: string,

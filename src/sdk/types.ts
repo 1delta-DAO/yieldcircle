@@ -41,7 +41,23 @@ export interface EarnMarket {
   basket?: unknown
   rate: EarnRate
   tvl: EarnAmount
+  /**
+   * What can leave right now: a lending market's unborrowed balance, a vault's
+   * withdrawable assets. Present on every `lending` row (347/347 measured over
+   * Ethereum, Base, Arbitrum and HyperEVM, 2026-09-24) and on 125 of 217 vault
+   * rows, which is why the ticket renders its absence in words rather than
+   * assuming a market with no figure is a market with no liquidity.
+   */
   liquidity?: EarnAmount
+  /** borrowed / deposited, 0–1. Lending rows only — a vault has no utilisation of its own. */
+  utilization?: number
+  /**
+   * `refs.marketUid` is the lender market this row IS, in the index's own
+   * `<lender>:<chain>:<ref>` shape. It is the key the interest-rate-model
+   * endpoint takes, and it is absent on exactly the rows that have no curve to
+   * draw: the vaults.
+   */
+  refs?: { marketUid?: string; oracleDescription?: string }
   exit: EarnExit
   availability: EarnAvailability
   risk?: EarnRisk
@@ -135,3 +151,46 @@ export interface LoopPayAssetsData { payAssets: LoopPayAsset[]; strict: boolean;
 
 // ---------------------------------------------------------------- balances
 export interface TokenBalance { address: string; symbol: string; decimals: number; balanceRaw: string; balance: string; priceUSD?: number; balanceUSD?: number }
+
+// ---------------------------------------------------------------- interest-rate model
+/**
+ * One point of a lending market's rate curve: at this utilisation, borrowers
+ * pay `borrowRate` and lenders earn `depositRate`, both in percent.
+ */
+export interface IrmPoint { utilization: number; borrowRate: number; depositRate: number }
+/**
+ * `/v1/data/lending/irm` — the whole (utilisation → rate) curve of one market,
+ * 21 points at 5 % steps, plus where the market sits on it at this block.
+ *
+ * It is the only endpoint that answers **why** a rate is what it is: the
+ * headline APY is a single number that moves for reasons the listing never
+ * states, and the curve says the reason out loud — how much room is left
+ * before the kink, and how violently the rate moves past it.
+ *
+ * Not every lender has one. Measured 2026-09-24 over four chains, 23 families
+ * answer a curve (Aave, Morpho, Euler, Compound, Fluid, Silo, Dolomite,
+ * LlamaLend, Moonwell, Venus, Spark, Gearbox, Exactly, …) and 14 do not,
+ * nearly all of them for a real reason — Liquity, Sky, Frankencoin, Resupply
+ * and Teller do not price debt off a utilisation curve at all. A vault has no
+ * curve either: it is a wrapper over markets that each have their own.
+ */
+export interface IrmCurve {
+  marketUid: string
+  protocol: string
+  lenderKey: string
+  chainId: string
+  marketName?: string
+  /** decimal strings, in the asset's own units */
+  totalDeposits?: string
+  totalDebt?: string
+  totalLiquidity?: string
+  totalDepositsUsd?: string
+  totalDebtUsd?: string
+  totalLiquidityUsd?: string
+  /** percent, as the market pays it right now — the curve's own numbers, rewards NOT included */
+  depositRate?: string
+  variableBorrowRate?: string
+  currentUtilization: number
+  points: IrmPoint[]
+}
+export interface IrmResponse { count: number; items: IrmCurve[] }

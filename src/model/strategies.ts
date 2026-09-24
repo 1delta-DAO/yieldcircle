@@ -7,6 +7,7 @@ import type { EarnMarket, OptimizerRowRaw, VaultListing } from '../sdk/types'
 import { baseOfCollateral, baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
 import { marketTag } from './market'
+import type { HideCode } from './visibility'
 import STRATEGY_TOKENS from '../data/strategy-tokens.json'
 /** `chain:vaultAddress` → the share token you end up holding (scripts/logos.mjs, from the chain token lists). */
 const strategyToken = (chainId: string, ref: string | undefined) => (ref ? (STRATEGY_TOKENS as Record<string, { symbol: string; logoURI: string | null }>)[`${chainId}:${ref.toLowerCase()}`] : undefined)
@@ -28,7 +29,15 @@ interface Base {
   rate: number
   risk: Risk
   riskLabel: string
+  /** the API's own 1-5 score, before it is folded into the three words above — what `Settings.maxRisk` caps */
+  riskScore: number
   tvlUsd: number
+  /**
+   * Set only on a copy the catalogue puts in its HIDDEN list: which floor left
+   * this row out. The row itself is otherwise complete, so letting it in is a
+   * re-filter rather than a refetch (`model/visibility.ts`).
+   */
+  hide?: HideCode
 }
 export interface SimpleStrategy extends Base {
   kind: 'simple'
@@ -46,6 +55,26 @@ export interface SimpleStrategy extends Base {
   priceUsd?: number
   exitMode: string
   exitWord: string
+  /**
+   * What can leave the market right now (`EarnMarket.liquidity`), and how much
+   * of the deposits are lent out. Size and liquidity are two different
+   * questions — a $200m pool that is 99 % borrowed is a pool you cannot get
+   * out of today — and the ticket used to answer neither, showing only the
+   * size, tucked under the exit word.
+   *
+   * `undefined` is not zero: 92 of 217 vault rows report no figure, and those
+   * say so in words rather than rendering as a market with nothing free.
+   */
+  liquidityUsd?: number
+  /** borrowed / deposited, 0–1 — lending rows only. */
+  utilization?: number
+  /**
+   * The lender market this row is, in the index's uid shape — `refs.marketUid`
+   * upstream, which is exactly the key the rate-curve endpoint takes. Absent
+   * on vault rows, which have no curve of their own, so it also gates the
+   * popover: no uid, no offer to open one.
+   */
+  marketUid?: string
   /** the vault's (or market's) own address — `ref` upstream. The identity two rows of one curator differ by. */
   ref: string
   /** the share token's own name (`Steakhouse Prime USDC`, `OUSD Vault V1`), from the vault registry */
@@ -90,9 +119,27 @@ export interface LoopStrategy extends Base {
   rec: number
   tiers: TierLeverages
   borrowLiquidityUsd: number
+  /** the collateral earns on its own (staking, savings, a PT, a fund) — false makes the loop a pure rate bet */
+  collateralYields: boolean
   expiry?: number
 }
 export type Strategy = SimpleStrategy | LoopStrategy
+
+/**
+ * One row of either listing, judged.
+ *
+ * `s` is built whenever the app could show the row at all — including when a
+ * floor currently hides it, because the floors move. `hide` is set only when
+ * there is nothing to build: an asset the whitelist does not map, a debt in
+ * another money, a market with no variable borrow. `label` names the row
+ * either way, so a list of what was left out can give examples.
+ */
+export interface Candidate<T extends Strategy> {
+  s: T | null
+  hide: HideCode | null
+  label: string
+  chainId: string
+}
 
 /** `Capy Fi` is `CapyFi`: the same words, said with different spaces and case. */
 const sameWords = (a: string, b: string) => a.replace(/\s+/g, '').toLowerCase() === b.replace(/\s+/g, '').toLowerCase()
@@ -143,18 +190,22 @@ export function vaultTag(name: string | null | undefined, known: (string | null 
  * Optional on purpose: a registry that fails to load must cost labels, never
  * the listing.
  */
-export function simpleFromEarn(m: EarnMarket, vault?: VaultListing): SimpleStrategy | null {
+export function classifyEarn(m: EarnMarket, vault?: VaultListing): Candidate<SimpleStrategy> {
+  const label = `${m.asset?.symbol ?? '?'} \u00b7 ${m.protocol?.name ?? m.brand ?? m.venue}`
+  const no = (hide: HideCode): Candidate<SimpleStrategy> => ({ s: null, hide, label, chainId: m.chainId })
   const asset = baseOfSymbol(m.asset.symbol)
-  if (!asset) return null
-  if (m.basket) return null
+  if (!asset) return no('unmapped')
+  if (m.basket) return no('basket')
+  // the structural gates only: a row nobody can deposit into is not a strategy
+  // at any floor. Size, rate and risk are floors and live in `softHide`.
+  if (!m.availability?.canDeposit) return no('closed')
+  const dep = m.capabilities.find((c) => c.action === 'deposit'); if (!dep) return no('closed')
   const rate = m.rate?.total ?? 0
-  if (!(rate > 0.01) || rate > 25) return null                         // dead rows and outliers
   const tvl = m.tvl?.usd ?? 0
   const isVault = m.venueKind === 'vault'
-  if (tvl < 2e6) return null                                           // real size only
-  if (!m.availability?.canDeposit) return null
-  const dep = m.capabilities.find((c) => c.action === 'deposit'); if (!dep) return null
-  if ((m.risk?.score ?? 5) > 4) return null
+  // a row the API left unscored is treated as its worst: hidden by the default
+  // cap of 4, shown by "everything"
+  const riskScore = m.risk?.score ?? 5
   const protocol = m.protocol?.name ?? m.venue
   // the curator is the brand when upstream has none: `vault.morpho` with no
   // curator answers brand = protocol = 'Morpho', and "Morpho vault" is the
@@ -189,13 +240,15 @@ export function simpleFromEarn(m: EarnMarket, vault?: VaultListing): SimpleStrat
   const exitMode = m.exit?.mode ?? 'instant'
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const maturity = typeof m.maturity?.maturity === 'number' ? m.maturity.maturity : undefined
-  return {
+  const s: SimpleStrategy = {
     id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
-    rate, risk, riskLabel, tvlUsd: tvl,
+    rate, risk, riskLabel, riskScore, tvlUsd: tvl,
     earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
+    liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
     exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, ref: m.ref, vaultName: vault?.name ?? undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0,
     headline: m.termSheet?.supply?.headline || undefined, description: m.termSheet?.supply?.description || undefined,
   }
+  return { s, hide: null, label, chainId: m.chainId }
 }
 
 /** Lender keys carry 64-hex market ids — shorten to the family name. */
@@ -214,45 +267,61 @@ export function venueLabel(lender: string, curator?: string | null): string {
   return lender.replace(/(_(?:[0-9A-F]{40}|[0-9A-F]{6,8}|\d+))+$/i, '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-/** optimizer row → loop, or null when it is not a same-denomination carry on a base asset. */
-export function loopFromRow(r: OptimizerRowRaw): LoopStrategy | null {
+/**
+ * Optimizer row → a loop, or the structural reason there is none.
+ *
+ * Same-denomination carry on a base asset is the only shape the ticket can
+ * build, so those four gates answer with a code. Everything else the old
+ * version rejected here — thin borrow liquidity, a risk score over the cap, a
+ * collateral that earns nothing, a carry that costs more than it pays — is a
+ * FLOOR, kept in `Settings` and applied by `softHide` at render, so the list
+ * can say how many rows it is holding back and let them in.
+ */
+export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const L = r.underlyingInfoLong.asset, S = r.underlyingInfoShort.asset
+  const label = `${L.symbol}/${S.symbol}`
+  const no = (hide: HideCode): Candidate<LoopStrategy> => ({ s: null, hide, label, chainId: r.chainId })
   // float debt only: a BROKERED market (Lista broker, Midnight book, Term repo) has no variable borrow and needs a term picker the
   // simple ticket does not have. A `fixedTerm` block alone is not that — Lista's float-first markets carry one too.
-  if (r.variableBorrowDisabledShort || r.isBasketLong) return null
+  if (r.isBasketLong) return no('basket')
+  if (r.variableBorrowDisabledShort) return no('brokered')
   const asset = baseOfCollateral(L, S.symbol)
-  if (!asset) return null
+  if (!asset) return no('unmapped')
   const debtBase = baseOfSymbol(S.symbol)
+  if (!debtBase) return no('unmapped')
   // the SAME MONEY, not merely the same tab: 'More' holds BNB, AVAX, the euro
   // and gold together, and sAVAX against EURC is a price bet wearing a carry's
   // clothes (docs: assets.ts `denomOf`)
-  if (!debtBase || !sameMoney(debtBase, asset)) return null
-  // a carry needs collateral that yields on its own (staking, savings, a PT, a fund); lending one plain stable against another is a rate bet on a small market
+  if (!sameMoney(debtBase, asset)) return no('cross-denom')
+  // a carry needs collateral that yields on its own (staking, savings, a PT, a fund); lending one plain stable
+  // against another is a rate bet on a small market — a FLOOR (`Settings.showRateBets`), not a structural gate
   const p = L.props ?? {}
-  if (!(p.lst || p.savings || p.pendle || p.spectra || p.rwa || (L.intrinsicYield ?? 0) > 0)) return null
+  const collateralYields = !!(p.lst || p.savings || p.pendle || p.spectra || p.rwa || (L.intrinsicYield ?? 0) > 0)
   // the at-size legs (quoted at $10k of collateral) when the venue has a depth grid, else the sticker
   const dep = num(r.depositAprAtAmount) || num(r.depositAprLong), bor = num(r.borrowAprAtAmount) || num(r.borrowAprShort), maxLev = num(r.maxLeverage)
-  if (!(dep > 0) || !(maxLev >= 2)) return null
-  const liq = num(r.borrowLiquidityUsdShort); if (liq < 100_000) return null
+  // no leverage and no collateral value are the two the ticket cannot build around;
+  // a collateral paying nothing simply lands in the negative-carry bucket below
+  if (!(maxLev >= 2)) return no('no-leverage')
+  const liq = num(r.borrowLiquidityUsdShort)
   const worst = Math.max(0, ...r.risk.breakdown.map((b) => b.score ?? 0), r.risk.maxTokenScore ?? 0)
-  if (worst > 4) return null                                                        // only the critical tier is hidden
   const liqLtv = num(r.collateralFactorLong) || num(r.ltv)
-  if (!(liqLtv > 0.3)) return null
+  if (!(liqLtv > 0.3)) return no('thin-ltv')
   const tiers = tierLeverages(maxLev)
   const rec = tiers[DEFAULT_TIER]
+  // no outlier cap here: at 75 % of a 28x range a thin carry is legitimately a big number, and the card says what it risks
   const rate = netAprAtLeverage(dep, bor, rec)
-  if (rate <= 0) return null   // no outlier cap here: at 75 % of a 28× range a thin carry is legitimately a big number, and the card says what it risks
   const { risk, riskLabel } = riskOf(worst)
   const venue = venueLabel(r.lender, r.curatorNameLong)
-  return {
+  const s: LoopStrategy = {
     id: `l:${r.marketLongUid}|${r.marketShortUid}`, kind: 'loop', chainId: r.chainId, group: groupOf(asset), asset, holds: L.symbol, venue, venueKey: r.lender, logo: L.logoURI,
-    rate, risk, riskLabel, tvlUsd: num(r.totalDepositsUsdLong),
+    rate, risk, riskLabel, riskScore: worst, tvlUsd: num(r.totalDepositsUsdLong),
     lender: r.lender, debt: S.symbol, marketLongUid: r.marketLongUid, marketShortUid: r.marketShortUid,
     collateralAddress: L.address, debtAddress: S.address, decimalsLong: L.decimals ?? 18, decimalsShort: S.decimals ?? 18,
     priceLong: r.underlyingInfoLong.prices?.priceUsd, priceShort: r.underlyingInfoShort.prices?.priceUsd, logoLong: L.logoURI, logoShort: S.logoURI,
-    dep, bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq,
+    dep, bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields,
     expiry: L.props?.pendle?.expiry ?? L.props?.spectra?.expiry,
   }
+  return { s, hide: null, label, chainId: r.chainId }
 }
 
 /**
@@ -265,10 +334,12 @@ export function loopFromRow(r: OptimizerRowRaw): LoopStrategy | null {
  * paying 9.77 / 8.79 / 7.92 %, became one row). The cap per asset still
  * decides how many of them a reader is shown.
  */
+export const rowKey = (r: Strategy): string =>
+  r.kind === 'simple' && r.source === 'vault' ? `${r.chainId}|${r.ref}` : `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? r.debt : ''}`
 export function dedupe<T extends Strategy>(rows: T[]): T[] {
   const best = new Map<string, T>()
   for (const r of rows) {
-    const k = r.kind === 'simple' && r.source === 'vault' ? `${r.chainId}|${r.ref}` : `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? r.debt : ''}`
+    const k = rowKey(r)
     const cur = best.get(k)
     if (!cur || r.rate > cur.rate) best.set(k, r)
   }

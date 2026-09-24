@@ -7,6 +7,7 @@ import { Character } from '../identity/character'
 import { useProfile } from '../social/queries'
 import { useUnseen } from './Alerts'
 import { ChainPicker } from './ChainPicker'
+import { SettingsMenu } from './SettingsMenu'
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { signer } = useApp()
@@ -26,6 +27,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </nav>
         <span className="sp" />
         <ChainPicker />
+        <SettingsMenu />
         {signer && <AlertsBell active={r.view === 'alerts'} />}
         {signer && <Me addr={signer} active={r.view === 'me' || (r.view === 'wallet' && r.addr === signer)} />}
         <ConnectButton />

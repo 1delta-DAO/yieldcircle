@@ -1,0 +1,88 @@
+/**
+ * The floors, in the header.
+ *
+ * Every switch here is also reachable from the `+` under a list that is
+ * holding rows back — this is the same state seen whole, for the times when
+ * the question is "what am I not being shown at all?" rather than "what is
+ * missing from this list?". The two that cost a request say so, because a
+ * control that quietly triples the page weight is not an honest control.
+ */
+import React from 'react'
+import { DEFAULTS, NO_CAP, useSettings, type Settings } from '../state/Settings'
+import { Popover } from './bits'
+
+const MONEY = (x: number) => (x === 0 ? 'Any' : x >= 1e6 ? `$${x / 1e6}m+` : `$${x / 1e3}k+`)
+
+export function SettingsMenu() {
+  const { st, set, reset, widened } = useSettings()
+  const btn = React.useRef<HTMLButtonElement>(null)
+  const [open, setOpen] = React.useState(false)
+  return (
+    <>
+      <button ref={btn} className={`iconbtn${widened ? ' on' : ''}`} aria-haspopup="dialog" aria-expanded={open}
+        aria-label={widened ? `Menu settings — ${widened} widened` : 'Menu settings'} title="What the menu shows"
+        onClick={() => setOpen((o) => !o)}>
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.4">
+          <circle cx="8" cy="8" r="2.1" />
+          <path d="M8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3" strokeLinecap="round" />
+        </svg>
+        {widened > 0 && <i className="ndot">{widened}</i>}
+      </button>
+      <Popover anchor={btn} open={open} onClose={() => setOpen(false)} width={320} align="right">
+        <div className="setmenu">
+          <div className="sm-h">
+            <b>What the menu shows</b>
+            <button className="sm-reset" disabled={widened === 0} onClick={() => reset()}>Reset</button>
+          </div>
+          <p className="sm-p">The list is curated by default: real size, a collateral that earns on its own, a carry that pays more than it costs. Widen it here — every row a switch lets in says on the row what was wrong with it.</p>
+
+          <Row label="Deposit size" note="one more request">
+            <Seg value={st.minTvlUsd} onPick={(v) => set({ minTvlUsd: v })} opts={[2_000_000, 250_000, 0]} fmt={MONEY} />
+          </Row>
+          <Row label="Borrow liquidity" note="loops">
+            <Seg value={st.minBorrowLiquidityUsd} onPick={(v) => set({ minBorrowLiquidityUsd: v })} opts={[100_000, 25_000, 0]} fmt={MONEY} />
+          </Row>
+          <Row label="Risk cap" note="the API's 1-5 score">
+            <Seg value={st.maxRisk} onPick={(v) => set({ maxRisk: v })} opts={[2, 4, 5]} fmt={(v) => (v === 2 ? 'Careful' : v === 4 ? 'Standard' : 'Any')} />
+          </Row>
+
+          <Check on={st.showRateBets} onChange={(v) => set({ showRateBets: v })}
+            label="Rate bets" sub="loops whose collateral earns nothing by itself" />
+          <Check on={st.showNegative} onChange={(v) => set({ showNegative: v })}
+            label="Negative carry" sub="loops that cost more than they pay" />
+          <Check on={st.minRate === 0 && st.maxRate === NO_CAP} onChange={(v) => set(v ? { minRate: 0, maxRate: NO_CAP } : { minRate: DEFAULTS.minRate, maxRate: DEFAULTS.maxRate })}
+            label="Extreme rates" sub="under 0.01 % and over 25 % — idle markets and spikes" />
+          <Check on={st.wideNet} onChange={(v) => set({ wideNet: v })}
+            label="Wider pair search" sub="ask the optimizer without collateral tags — finds untagged collateral (sUSDp, syzUSD), costs a request per chain" />
+        </div>
+      </Popover>
+    </>
+  )
+}
+
+function Row({ label, note, children }: { label: string; note?: string; children: React.ReactNode }) {
+  return (
+    <div className="sm-row">
+      <div className="sm-l">{label}{note && <small>{note}</small>}</div>
+      {children}
+    </div>
+  )
+}
+function Seg<T extends number>({ value, opts, fmt, onPick }: { value: T; opts: T[]; fmt: (v: T) => string; onPick: (v: T) => void }) {
+  return (
+    <div className="seg sm">
+      {opts.map((o) => <button key={o} aria-pressed={value === o} onClick={() => onPick(o)}>{fmt(o)}</button>)}
+    </div>
+  )
+}
+function Check({ on, onChange, label, sub }: { on: boolean; onChange: (v: boolean) => void; label: string; sub: string }) {
+  return (
+    <button className="sm-check" role="checkbox" aria-checked={on} onClick={() => onChange(!on)}>
+      <span className="sm-tick" aria-hidden>{on ? '✓' : ''}</span>
+      <span className="sm-t"><b>{label}</b><small>{sub}</small></span>
+    </button>
+  )
+}
+
+/** Whether anything at all has been widened — the word the lists use for their own state. */
+export const isCurated = (st: Settings) => (Object.keys(DEFAULTS) as (keyof Settings)[]).every((k) => st[k] === DEFAULTS[k])

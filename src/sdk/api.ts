@@ -4,7 +4,7 @@
  * (collateral / debt); the API's in/out naming is translated here and nowhere else.
  */
 import { apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } from '../vendor/allocator/http'
-import type { ApiTx, EarnPositionsResponse, EarnResponse, LoopActions, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance, VaultsResponse } from './types'
+import type { ApiTx, EarnPositionsResponse, EarnResponse, IrmResponse, LoopActions, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance, VaultsResponse } from './types'
 
 // ---------------------------------------------------------------- deposits (supply side)
 // `terms: 'digest'` — NOT 'none'. The digest is where the row's own prose lives:
@@ -28,6 +28,21 @@ export function fetchEarn(p: { chainId: string; count?: number; maxRiskScore?: n
 // the caller catches.
 export function fetchVaults(chainId: string) {
   return apiFetch<VaultsResponse>('/v1/data/vaults', { params: { chainId, count: 1000, includeExpired: true } })
+}
+
+/**
+ * The rate curve behind a lending market (see `IrmCurve`), by the market uid
+ * the earn listing carries as `refs.marketUid`.
+ *
+ * **Eight at a time.** The endpoint answers `INTERNAL_ERROR` above that —
+ * measured 2026-09-24: 8 uids is the last size that works, 10 is a 500, and
+ * every uid in the failing batch resolves on its own. The cap is here rather
+ * than at the call site so no caller can rediscover it the hard way; the
+ * ticket asks for one uid anyway, when the reader opens the curve.
+ */
+export const IRM_MAX_BATCH = 8
+export function fetchIrm(marketUids: string[]) {
+  return apiFetch<IrmResponse>('/v1/data/lending/irm', { params: { marketUids: marketUids.slice(0, IRM_MAX_BATCH).join(',') } })
 }
 
 // The chain directory: id, name and a logo, for every chain the API knows.

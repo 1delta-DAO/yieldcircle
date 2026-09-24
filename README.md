@@ -39,6 +39,37 @@ and sUSDe / USDT on Aave is a USDe loop. The resolution is in
 `baseOfSymbol` / `baseOfCollateral`: `savings.underlying`, `lst.asset`, the
 parenthesised underlying of a PT's name, then the symbol itself.
 
+## What the menu leaves out, and how to see it
+
+The catalogue is **curated**: real size, a collateral that earns on its own, a
+carry that pays more than it costs, a risk cap. That is right as a default and
+wrong as a wall — on a young chain almost everything is under the floors, and
+the list came back empty with nothing on screen admitting that anything had
+been left out. HyperEVM on 2026-09-24 read as *zero loops* while the optimizer
+had 104 pairs for it.
+
+So every gate now keeps its count (`model/visibility.ts`):
+
+| | |
+|---|---|
+| **structural** | no switch can show it: an asset outside the whitelist, a debt in another money, a market with no variable borrow, a basket |
+| **soft** | a floor in `state/Settings.tsx`: size, borrow liquidity, risk score, rate bets, negative carry, extreme rates |
+
+Under every list is a **not shown** bar: one chip per gate with its count, `+`
+moves exactly that floor, `−` puts it back, and the last line counts what no
+switch can fix. A row a switch lets in wears the reason it was out
+(`thin borrow · $83k borrowable`), so a widened list never reads like a curated
+one. The same switches live whole behind the gear in the header.
+
+Two of them change the REQUEST and say so: `minTvlUsd` is the earn listing's
+own filter (asking for everything is 3.8 MB on Ethereum against 2.6 MB), and
+**wider pair search** drops the optimizer's collateral tags — the archetypes
+only return what upstream has tagged, and a token with `props: null` is
+invisible to all of them however good it is. On HyperEVM that is the difference
+between three pairs and thirty-six, among them `sUSDp/USDC` (9.08 % against
+5.70 %) and `syzUSD/USDC`. Everything else is applied to rows already in hand,
+so it flips without a round trip.
+
 **Positions follow the same layers.** Group → asset → idle (the wallet balance,
 from `/v1/data/token/balances`) + strategies (from `/v1/data/earn/positions`:
 vault rows are standalone; a lending account with debt is a loop, one without

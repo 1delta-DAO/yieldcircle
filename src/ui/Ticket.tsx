@@ -11,6 +11,7 @@ import { Who } from './social-bits'
 import { useProfiles } from '../social/queries'
 import { stepsFrom, useLadder, type Ladder } from './useLadder'
 import { GetAsset, type Target } from './GetAsset'
+import { IrmLink } from './Irm'
 import { uidOf } from '../model/uid'
 import { SayWhy } from './SayWhy'
 import { TicketSocial } from './TicketSocial'
@@ -108,9 +109,15 @@ function SimpleTicket({ s, idle, allIdle }: { s: SimpleStrategy; idle?: Idle; al
     return stepsFrom(env.actions, s.via)
   })
   const more = !!idle && amount > idle.amount
+  // the exit line, said with this market's own numbers where it has them: a
+  // pool that is 94 % lent out is not the "rare, short" case the generic
+  // sentence describes, and the figure to check it against is right there
+  const tight = s.utilization != null && s.utilization >= 0.9
   const risks = [
     s.source === 'lending' ? 'Rate floats with utilisation.' : s.source === 'fixed' ? 'Carry ends at maturity; roll or redeem.' : s.source === 'staking' ? 'Staking rate drifts with network activity; slashing is socialised.' : 'Rate is set by the protocol and can change.',
-    s.exitWord !== 'Any time' ? `Exit is ${s.exitWord.toLowerCase()}: you may wait to get out at par.` : 'Withdrawals wait if the pool is fully borrowed (rare, short).',
+    s.exitWord !== 'Any time' ? `Exit is ${s.exitWord.toLowerCase()}: you may wait to get out at par.`
+      : tight ? `${Math.round(s.utilization! * 100)}% of this market is lent out — only ${usdShort(s.liquidityUsd)} can be withdrawn right now, and a bigger exit waits for a borrower to repay.`
+      : 'Withdrawals wait if the pool is fully borrowed (rare, short).',
     ...(s.risk >= 3 ? ['Rated high risk by the API\'s venue and token scoring.'] : []),
     ...(s.rewards > 0.05 ? [`${pct(s.rewards)} of the rate is incentives that can stop without notice.`] : []),
   ]
@@ -122,12 +129,21 @@ function SimpleTicket({ s, idle, allIdle }: { s: SimpleStrategy; idle?: Idle; al
         <GetLine account={account} short={!idle || more} symbol={s.asset} open={getOpen} onOpen={() => setGetOpen(true)} />
         {getOpen && <GetAsset target={{ chainId: s.chainId, address: s.assetAddress, symbol: s.asset, decimals: s.decimals, price, logo: s.logo }} need={Math.max(0, amount - (idle?.amount ?? 0))} sources={allIdle} onClose={() => setGetOpen(false)} />}</div>
       <div className="tsec"><div className="cells">
-        <div className="c hero"><span className="k">You earn</span><span className={`v ${s.rate >= 3 ? 'ok' : ''}`}>{pct(s.rate)}</span><span className="s">{s.maturity ? `fixed to ${new Date(s.maturity * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'variable'}{s.rewards > 0.05 ? ` · incl. ${pct(s.rewards)} rewards` : ''}</span></div>
+        <div className="c hero"><span className="k">You earn</span><span className={`v ${s.rate >= 3 ? 'ok' : ''}`}>{pct(s.rate)}</span><span className="s">{s.maturity ? `fixed to ${new Date(s.maturity * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'variable'}{s.rewards > 0.05 ? ` · incl. ${pct(s.rewards)} rewards` : ''}</span>
+          {/* what MOVES the headline: absent on a vault and on the families that do not price off utilisation, which is exactly when there is nothing to open */}
+          <IrmLink uid={s.marketUid} side="supply" rewards={s.rewards} /></div>
         <div className="c"><span className="k">Per year</span><span className="v">{usd(yearly)}</span><span className="s">≈ {usd(yearly / 12)} / month</span></div>
         {/* the vault's own name under the share token: `steakUSDC` / `Steakhouse USDC`. WHICH vault is the thing the venue alone never says. */}
         <div className="c"><span className="k">You hold</span><span className="v">{s.holds}</span><span className="s" title={s.vaultName ? `${s.vaultName} · ${s.venue}` : s.venue}>{s.vaultName ?? s.venue}</span></div>
         <div className="c"><span className="k">Risk</span><span className="v" style={{ fontSize: 14 }}><RiskDot r={s.risk} label={s.riskLabel} /></span><span className="s">{s.source} yield</span></div>
-        <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{s.exitWord}</span><span className="s">{usdShort(s.tvlUsd)} in the strategy</span></div>
+        <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{s.exitWord}</span><span className="s">{s.exitWord === 'Any time' ? 'same block' : 'may take time'}</span></div>
+        {/* SIZE and LIQUIDITY are two questions, and the ticket used to answer
+            neither properly — the size hid under the exit word and how much of
+            it could actually leave was nowhere. A $200m pool that is 99 % lent
+            out is not a $200m pool you can get out of today. */}
+        <div className="c"><span className="k">Market size</span><span className="v">{usdShort(s.tvlUsd)}</span><span className="s">{s.source === 'vault' ? 'in the vault' : 'total deposited'}</span></div>
+        <div className="c"><span className="k">Liquidity</span><span className={`v ${s.liquidityUsd != null && s.tvlUsd > 0 && s.liquidityUsd < s.tvlUsd * 0.05 ? 'warn' : ''}`}>{s.liquidityUsd != null ? usdShort(s.liquidityUsd) : '—'}</span>
+          <span className="s">{s.utilization != null ? `${Math.round(s.utilization * 100)}% lent out` : s.liquidityUsd != null ? 'can leave now' : 'not reported'}</span></div>
       </div></div>
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={i === 0 && s.risk >= 2 ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
       <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${s.asset}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} />
@@ -195,8 +211,12 @@ function LoopTicket({ s, idle, allIdle }: { s: LoopStrategy; idle: Idle[]; allId
         <div className="c hero"><span className="k">Net yield</span><span className={`v ${net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{pct(net)}</span><span className="s">earn {pct(s.dep)} on {num(L, 1)}× · pay {pct(s.bor)} on {num(L - 1, 1)}×</span></div>
         <div className="c"><span className="k">Per year</span><span className="v">{usd(yearly)}</span><span className="s">vs {usd(E * s.dep / 100)} unlevered</span></div>
         <div className="c"><span className="k">If borrow +2%</span><span className={`v ${netWorst < 0 ? 'bad' : netWorst < 1 ? 'warn' : ''}`}>{pct(netWorst)}</span><span className="s">rate sensitivity</span></div>
-        <div className="c"><span className="k">You hold</span><span className="v">{usd(C)}</span><span className="s">{s.holds} on {s.venue}</span></div>
-        <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · floating · {usdShort(s.borrowLiquidityUsd)} to borrow</span></div>
+        {/* a loop is two markets, so it gets two curves: the one that pays you
+            and the one that charges you. The borrow leg is the one that ends
+            loops — the "If borrow +2%" cell above says how much it would hurt,
+            the curve says how close the market is to doing it. */}
+        <div className="c"><span className="k">You hold</span><span className="v">{usd(C)}</span><span className="s">{s.holds} on {s.venue}</span><IrmLink uid={s.marketLongUid} side="supply" label="supply curve" rewards={s.rewardsLong} /></div>
+        <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · floating · {usdShort(s.borrowLiquidityUsd)} to borrow</span><IrmLink uid={s.marketShortUid} side="borrow" label="borrow curve" rewards={s.rewardsShort} /></div>
         <div className="c"><span className="k">Entry cost</span><span className="v">{q.isFetching && !econ ? <Sk w={60} h={14} /> : econ ? usd(econ.entryCostUsd.total) : '—'}</span><span className="s">{econ ? `${econ.breakEvenDays.total != null ? `earned back in ${Math.ceil(econ.breakEvenDays.total)} days` : 'slippage, fees, gas'}` : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
         <div className="c"><span className="k">Health</span><span className={`v ${(simHf ?? hf) < 1.1 ? 'bad' : (simHf ?? hf) < 1.25 ? 'warn' : 'ok'}`}>{(simHf ?? hf).toFixed(2)}</span><span className="s">{simHf ? 'simulated by the API' : 'from the liquidation threshold'}</span></div>
       </div>

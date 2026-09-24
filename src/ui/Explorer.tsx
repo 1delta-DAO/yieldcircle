@@ -27,7 +27,7 @@ export function Explorer() {
       <section className="sec" style={{ marginTop: b.account ? 28 : 6 }}><div className="sec-h"><h2>Explore</h2><span className="sub">What you can hold, and what it can earn. Tap an asset for its strategies.</span></div></section>
       {b.errors.length > 0 && !b.anyData && <div className="err">The listing could not be loaded from <b>{new URL(BACKEND_BASE_URL).host}</b>: {b.errors[0].message}{/portal\.1delta\.io/.test(BACKEND_BASE_URL) && <><br /><span className="t70">This build is on the public, per-IP rate-limited endpoint. Set <code>VITE_BACKEND_BASE_URL</code> for the build (on Cloudflare Pages: an environment variable for Production <i>and</i> Preview, then retry the deployment; Vite bakes it in at build time).</span></>}</div>}
       {GROUPS.map((g) => <GroupBlock key={g.id} gid={g.id} strategies={b.all.filter((s) => s.group === g.id)} books={byGroup(g.id)} loading={b.isLoading} hasAccount={!!b.account} />)}
-      <section className="sec"><div className="note"><b>Live.</b> Rates and sizes come from the 1delta API (plain deposits from the earn listing, loops from the pair optimizer), filtered to base assets, low-to-medium risk and real size. A loop is opened in one flash-funded transaction.</div></section>
+      <section className="sec"><div className="note"><b>Live.</b> Rates and sizes come from the 1delta API (plain deposits from the earn listing, loops from the pair optimizer), filtered to base assets, low-to-medium risk and real size. Every list says underneath it how many rows those floors are holding back, and the gear in the header moves them. A loop is opened in one flash-funded transaction.</div></section>
     </>
   )
 }

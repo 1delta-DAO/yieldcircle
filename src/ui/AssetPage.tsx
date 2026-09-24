@@ -5,12 +5,14 @@ import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
 import { useBook } from './useBook'
 import { Ticket } from './Ticket'
-import { GroupIcon, Info, KindPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd } from './bits'
+import { GroupIcon, Info, KindPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort } from './bits'
 import { chainLabel } from '../sdk/queries'
 import { uidOf } from '../model/uid'
 import { useCounts } from '../social/queries'
 import { Comments } from './social-bits'
 import { marketHref } from '../state/AppState'
+import { HiddenBar } from './Hidden'
+import { HIDES, hideDetail, letIn } from '../model/visibility'
 
 /** One list, one number per row. The list decides which; the ticket decides how much and how levered. */
 export function AssetPage({ group, route }: { group: Group; route: Route }) {
@@ -25,6 +27,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const picks = React.useMemo(() => markPicks(inGroup), [inGroup.length])
   const list = all.filter((s) => s.kind === kind).sort((x, y) => (Number(picks.has(y.id)) - Number(picks.has(x.id))) || y.rate - x.rate)
   const nS = all.filter((s) => s.kind === 'simple').length, nL = all.filter((s) => s.kind === 'loop').length
+  // the rows a floor is holding back, scoped exactly as the list is
+  const heldBack = b.hidden.filter((s) => s.group === group.id && (u === 'all' || s.asset === u) && s.kind === kind)
   const books = b.books.filter((x) => x.group === group.id && (u === 'all' || x.asset === u))
   const idle = books.filter((x) => x.idle && x.idle.usd >= 1)
   const bestFor = (a: string) => inGroup.filter((s) => s.asset === a).sort((x, y) => y.rate - x.rate)[0]
@@ -84,12 +88,12 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                 <thead><tr><th>{kind === 'simple' ? 'Deposit' : 'Loop'}</th><th className="r">{kind === 'simple' ? 'APY' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier: earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}</th><th /></tr></thead>
                 <tbody>{list.map((s) => { const h = held(s); const pick = picks.has(s.id); return (
                   <tr key={s.id} aria-selected={sel?.id === s.id} onClick={() => go(group.id, { u, s: s.id, k: s.kind })}>
-                    <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}</div>
+                    <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}<WhyIn s={s} /></div>
                       {/* the qualifiers read as one sentence. Risk had a column of
                           its own where eight rows in nine said the same word; here it
                           sits second, so it is the part a narrow screen keeps rather
                           than the part it truncates. */}
-                      <small>{u === 'all' ? `${s.asset} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${s.exitWord.toLowerCase()}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.source}` : ''}</small></td>
+                      <small>{u === 'all' ? `${s.asset} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${s.exitWord.toLowerCase()}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.source}` : ''}{s.tvlUsd > 0 && <> · <Size s={s} /></>}</small></td>
                     {/* the rate, on its own: nothing else in this cell to read past */}
                     <td className="r"><span className={s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}>{pct(s.rate)}</span></td>
                     {/* a bubble on a row nobody has posted on is furniture, so it
@@ -100,8 +104,9 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                     </td>
                   </tr>) })}</tbody>
               </table>
-            ) : <div className="empty">No {kind === 'simple' ? 'plain deposit' : 'loop'} for this filter{b.errors.length ? ` (${b.errors[0].message})` : ''}.</div>}
+            ) : <div className="empty">No {kind === 'simple' ? 'plain deposit' : 'loop'} for this filter{b.errors.length ? ` (${b.errors[0].message})` : ''}{heldBack.length ? ` — ${heldBack.length} held back by the floors below` : ''}.</div>}
           </div>
+          <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />
         </div>
         <aside className={sel ? '' : 'closed'} id="aside">{sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} onClose={() => go(group.id, { u, k: sel.kind })} />}</aside>
       </div>
@@ -144,6 +149,37 @@ function AssetChips({ group, route, assets, u, all, max = 6 }: { group: Group; r
       {open && ranked.length > max && <button className="chip more" onClick={() => setOpen(false)}>less</button>}
     </div>
   )
+}
+
+/**
+ * How big the market is, at the end of the row's sentence — and, on hover,
+ * how much of it can actually leave.
+ *
+ * Size belongs on the row because it is the second thing anyone asks after the
+ * rate, and because a high rate on a small market is a different proposition
+ * from the same rate on a deep one. Liquidity stays in the title and in the
+ * ticket: it is the number you check before committing, not while scanning.
+ */
+function Size({ s }: { s: Strategy }) {
+  const liq = s.kind === 'simple' ? s.liquidityUsd : s.borrowLiquidityUsd
+  const title = s.kind === 'loop'
+    ? `${usdShort(s.tvlUsd)} deposited in the collateral market · ${usdShort(liq)} available to borrow`
+    : `${usdShort(s.tvlUsd)} deposited${liq != null ? ` · ${usdShort(liq)} available to withdraw right now` : ' · how much can be withdrawn right now is not reported'}`
+  // a market that is all but lent out is the one case worth a mark on the row
+  const tight = s.kind === 'simple' && s.utilization != null && s.utilization >= 0.95
+  return <span className={tight ? 'warn' : undefined} title={title}>{usdShort(s.tvlUsd)}{tight ? ' · thin' : ''}</span>
+}
+
+/**
+ * The floor this row would have failed with the defaults — so a widened list
+ * never reads like a curated one. A $12k-liquidity loop and a $40m one are not
+ * the same row, and the difference is the whole reason the switch exists.
+ */
+function WhyIn({ s }: { s: Strategy }) {
+  const code = letIn(s)
+  if (!code) return null
+  const d = hideDetail(s, code)
+  return <span className="pill why" title={`${HIDES[code].why}${d ? ` (${d})` : ''}`}>{HIDES[code].word}{d ? <span className="d"> {d}</span> : null}</span>
 }
 
 /** `medium risk`, in the row's own sentence rather than in a column of its own. */

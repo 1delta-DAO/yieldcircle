@@ -117,6 +117,19 @@ export interface HotMarket {
   pVolume: number
   /** 0..1 — the same for how often people acted in it */
   pEvents: number
+  /**
+   * What the market is, from the index's own book — optional because an older
+   * index answers without them, and a card that only has the uid says so
+   * rather than inventing a name.
+   */
+  name?: string | null
+  lenderKey?: string | null
+  symbol?: string | null
+  assetLogo?: string | null
+  collateralSymbol?: string | null
+  collateralLogo?: string | null
+  lenderName?: string | null
+  lenderLogo?: string | null
 }
 export const hot = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; issuers?: string; issuerMatch?: IssuerMatch; curator?: string; limit?: number } = {}) =>
   get<{ window: string; hours: number; method: string; markets: HotMarket[] }>('/hot', p)

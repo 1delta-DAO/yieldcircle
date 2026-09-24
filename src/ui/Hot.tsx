@@ -11,7 +11,14 @@
  *
  * A row is only useful if it can be acted on, so each one is matched to the
  * catalogue: matched rows open the ticket, unmatched ones say so and link the
- * market instead.
+ * market instead. They are never DROPPED for being unmatched. This board
+ * answers "what are people doing", and the catalogue answers "what can I do
+ * here" — hiding the second question's misses from the first one turns a fact
+ * into an advertisement. Measured on 2026-09-24: HyperLend moved $117m across
+ * eleven HyperEVM markets in 7d and the home board read "Quiet on HyperEVM",
+ * because the catalogue asks for `maxRiskScore: 4` and every HyperLend market
+ * scores 5 ("high") — the WHYPE market, $211m of TVL, among them. The only
+ * HyperLend row the menu held was a PT market paying 0 %.
  */
 import React from 'react'
 import { go, marketHref } from '../state/AppState'
@@ -51,7 +58,8 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
     [rows, menu.byUid],
   )
   const inMenu = paired.filter((x) => x.s)
-  const shown = (showAll ? [...inMenu, ...paired.filter((x) => !x.s)] : inMenu).slice(0, limit)
+  // menu rows first — they can be opened — then the rest of the ranking
+  const shown = [...inMenu, ...paired.filter((x) => !x.s)].slice(0, limit)
   /** an empty window is usually a short one — offer the next size up rather than a dead end */
   const next = WINDOWS[WINDOWS.indexOf(win) + 1]
 
@@ -94,10 +102,8 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
       )}
       {!q.isLoading && !shown.length && (
         <div className="note hot-empty">
-          <b>Quiet on {chainLabelFor()}</b> in the last {win}
-          {rows.length > 0 && !inMenu.length ? ' — the markets that moved are ones this app has no row for' : ''}.
-          The index ranks only what it has <b>valued</b>, so an unpriced market stays out rather than
-          appearing cold.
+          <b>Quiet on {chainLabelFor()}</b> in the last {win}. The index ranks only what it has
+          <b> valued</b>, so an unpriced market stays out rather than appearing cold.
           {next && <button className="lnk" onClick={() => setWin(next)}> Try the last {next} ›</button>}
         </div>
       )}
@@ -130,10 +136,22 @@ function HotCard({ m, s, peak, comments, rating }: {
           s.kind === 'loop'
             ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} />
             : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />
-        ) : <Tok sym={parts[0]?.split('_')[0] ?? '?'} size={26} />}
+        ) : m.collateralSymbol && m.symbol ? (
+          <Toks a={m.collateralSymbol} b={m.symbol} logoA={m.collateralLogo ?? undefined} logoB={m.assetLogo ?? undefined} />
+        ) : (
+          <Tok sym={m.symbol ?? parts[0]?.split('_')[0] ?? '?'} logo={m.assetLogo ?? undefined} size={26} />
+        )}
         <div className="hc-n">
-          <b>{s ? (s.kind === 'loop' ? `${s.holds} / ${s.debt}` : s.holds) : shortUid(m.marketUid)}</b>
-          <small>{s ? (s.kind === 'loop' ? s.venue : s.via) : 'not in the menu'}</small>
+          {/* an unmatched row is still a real market: the index knows its asset
+              and its lender, so the card says WHYPE on HyperLend, not a uid */}
+          <b>{s
+            ? (s.kind === 'loop' ? `${s.holds} / ${s.debt}` : s.holds)
+            : (m.collateralSymbol && m.symbol ? `${m.collateralSymbol} / ${m.symbol}` : m.symbol ?? shortUid(m.marketUid))}</b>
+          <small>{s
+            ? (s.kind === 'loop' ? s.venue : s.via)
+            : m.lenderName
+              ? `${m.lenderName} · not in the menu`
+              : 'not in the menu'}</small>
         </div>
         {s && <span className="hc-rate">{pct(s.rate)}</span>}
         <ChainCorner chainId={chainId} />

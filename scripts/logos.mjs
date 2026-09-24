@@ -65,12 +65,42 @@ const wrapped = Object.fromEntries(
   ),
 )
 
+/**
+ * A gas coin is identified by its CHAIN, not by its ticker.
+ *
+ * `logos-by-symbol.json` ranks one winner per ticker over every asset group, which is the right
+ * shape for a balance row and the wrong one for a coin whose ticker three unrelated tokens also
+ * ship: MON went to a 2024 CoinGecko upload, HYPE to a green blob, PLUME to another Plume. The
+ * chain's own list has no such ambiguity — the row at the zero address IS that chain's gas coin —
+ * so its ASSET GROUP is looked up in the group-keyed `logos.json` instead. Nothing is curated
+ * here either: the override only fires when the ticker's winner and the group's winner disagree,
+ * which on 2026-09-24 was HYPE, MON and PLUME and no one else (ETH, BNB, AVAX, POL, XPL, USDC on
+ * Arc, USDT0 on Stable and pathUSD on Tempo all already agreed).
+ *
+ * Which chains have which coin is `NATIVE` in src/model/positions.ts — read from there, so the
+ * app keeps one answer to "what is chain N's gas" rather than two.
+ */
+const positions = readFileSync(new URL('../src/model/positions.ts', import.meta.url), 'utf8')
+const natives = [...literalBody(positions, 'const NATIVE:').matchAll(/(?:'([^']+)'|([A-Za-z0-9._$]+))\s*:\s*'([^']+)'/g)]
+  .map((m) => [m[1] ?? m[2], m[3].toUpperCase()])
+let byGroup = {}
+try { byGroup = JSON.parse(readFileSync(join(root, 'logos.json'), 'utf8')) } catch { /* group index optional */ }
+const nativeIcon = {}
+for (const [chainId, sym] of natives) {
+  let list
+  try { list = JSON.parse(readFileSync(join(root, `${chainId}.json`), 'utf8')).list } catch { continue }
+  const row = Object.entries(list).find(([a]) => /^0x0+$/i.test(a))?.[1]
+  const uri = row?.assetGroup ? byGroup[row.assetGroup] : undefined
+  if (uri && index[sym] && uri !== index[sym]) nativeIcon[sym] = uri
+}
+if (Object.keys(nativeIcon).length) console.log(`gas coin icon taken from its asset group: ${Object.keys(nativeIcon).join(', ')}`)
+
 const out = {}
 const missing = []
 for (const sym of [...bases, ...Object.keys(wrapped)]) {
   // A bridged or renamed wrapper (USDC.e, DAI.e) is folded into its base's asset group upstream,
   // so it has no ticker of its own — it draws as what it is, the base asset.
-  const uri = index[sym] ?? index[wrapped[sym]]
+  const uri = nativeIcon[sym] ?? index[sym] ?? index[wrapped[sym]]
   if (uri) out[sym] = uri
   else missing.push(sym)
 }

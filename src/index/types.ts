@@ -212,6 +212,38 @@ export interface Holder extends AccountIdentity, Desked {
   posId?: string | null
   asOfTs?: string
 }
+/**
+ * A vault as the index's `/vaults` book has it — the SHARE TOKEN's own row.
+ *
+ * A curated vault is an address in the ledger like any other, so a page
+ * opened on one is really a vault page: `supplyRate` is what it pays its
+ * depositors, which is the number its positions do not carry (those are the
+ * markets it lends INTO) and the first thing anyone looking at the address
+ * wants. `valueUsd` is what this index has read holders for; `tvlUsd` is the
+ * whole vault as the listing states it, and the two are different questions.
+ */
+export interface VaultRow {
+  marketUid: string
+  chainId: string
+  provider: string | null
+  name: string | null
+  symbol: string | null
+  address: string | null
+  /** percent APR a depositor earns — `null` is "nobody publishes one", never 0 */
+  supplyRate: number | null
+  /** raw asset per raw share at `indexTs`, as a decimal string */
+  supplyIndex: string | null
+  indexTs: string | null
+  tvlUsd: number | null
+  valueUsd: number | null
+  holders: number
+  assetSymbol: string | null
+  assetLogo: string | null
+  curatorId: string | null
+  curatorName: string | null
+  async: boolean
+  expiry: number | null
+}
 export interface TrendingMarket extends Named {
   chainId: string
   netUsd: number

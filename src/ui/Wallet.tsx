@@ -11,14 +11,14 @@
 import React from 'react'
 import { useAccount } from 'wagmi'
 import { marketHref, walletHref } from '../state/AppState'
-import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions } from '../index/queries'
+import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
 import { useFollowers, useProfile, useProfiles } from '../social/queries'
 import { AutoTag, Badges, FollowButton, Money, Who, Ago, describeTx, tokens } from './social-bits'
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
-import { indexChainLabel, type AccountIdentity, type IndexPosition, type PositionGroup } from '../index/types'
+import { indexChainLabel, type AccountIdentity, type IndexPosition, type PositionGroup, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
 import { primaryLeg } from './Feed'
@@ -36,6 +36,13 @@ export function Wallet({ addr }: { addr: string }) {
    * generated names is telling the reader something false.
    */
   const desk = useCuratorsByAccount([addr]).curatorOf(addr)
+  /**
+   * …and is it a vault itself? The positions below are the markets it lends
+   * INTO; the rate it pays its own depositors is on the share token and was
+   * on no page this app served, so someone looking at Felix USDC saw four
+   * Morpho legs and no answer to "what does this vault yield".
+   */
+  const vaults = useVaultsAt(addr).data?.vaults ?? []
   const pos = useIndexPositions(isMe ? undefined : addr)
   const flows = useAccountFlows(addr, 30)
   const txs = useAccountTxs(addr, undefined, 40)
@@ -88,6 +95,8 @@ export function Wallet({ addr }: { addr: string }) {
         </div>
       )}
 
+      {vaults.map((v) => <VaultCard key={v.marketUid} v={v} />)}
+
       <div className="wstats">
         <Stat k="Net value" v={isMe ? '—' : usd(pos.data?.totals.navUsd)} s={isMe ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}`} loading={!isMe && pos.isLoading} />
         <Stat k="Deposited · 30d" v={usdShort(f?.depositedUsd)} s={f ? `withdrew ${usdShort(f.withdrawnUsd)}` : ''} loading={flows.isLoading} />
@@ -135,6 +144,52 @@ export function Wallet({ addr }: { addr: string }) {
         <div className="card pad"><Thread kind="wallet" subjectKey={addr} placeholder="Ask them something, or say what you make of the book." /></div>
       </section>
     </>
+  )
+}
+
+/**
+ * What the vault itself pays, for a page opened on a vault's own address.
+ *
+ * `supplyRate` is the vault's deposit rate as the listing states it — the
+ * number a depositor holds, which is NOT any of the rates on the positions
+ * below: those are the markets the vault lends INTO, and a Morpho collateral
+ * leg reads 0.00 % there by construction. Felix USDC showed four Morpho legs
+ * and nowhere its own 3.81 %.
+ *
+ * `null` is shown in words. Nobody publishing a rate for this vault and the
+ * vault paying nothing are different facts, and this card must not turn the
+ * first into the second.
+ *
+ * The share price is deliberately absent: the index stores it RAW (asset per
+ * share in raw units), and a vault row carries only the UNDERLYING's
+ * decimals, so feUSDC2's 1.047e-12 cannot be unshifted here without guessing
+ * the share token's. It belongs on the vault's own page, where the read knows
+ * both.
+ */
+function VaultCard({ v }: { v: VaultRow }) {
+  const rate = v.supplyRate
+  return (
+    <div className="card pad vaultc">
+      <div className="sec-h">
+        <h2>
+          <Tok sym={v.assetSymbol ?? v.symbol ?? '?'} logo={v.assetLogo ?? undefined} size={18} />{' '}
+          {v.name ?? v.symbol ?? 'Vault'}
+        </h2>
+        <span className="sub">
+          {v.provider ? `${v.provider} · ` : ''}{indexChainLabel(v.chainId, chainLabel)} · the vault's own numbers
+          {v.async ? ' · entering and leaving go through a request' : ''}
+          {v.indexTs ? <> · read <Ago ts={v.indexTs} /> ago</> : ''}
+        </span>
+      </div>
+      <div className="vaultc-n">
+        <Stat k="Deposit APY" v={rate == null ? <span className="t40">—</span> : <span className="ok">{pct(rate)}</span>}
+          s={rate == null ? 'nobody publishes one' : 'what a depositor earns'} />
+        <Stat k="TVL" v={usdShort(v.tvlUsd)} s="the whole vault" />
+        <Stat k="Holders" v={v.holders.toLocaleString('en-US')}
+          s={v.valueUsd != null ? `${usdShort(v.valueUsd)} read here` : 'read by this index'} />
+      </div>
+      <a className="btn sm" href={marketHref(v.marketUid)}>Open the vault</a>
+    </div>
   )
 }
 

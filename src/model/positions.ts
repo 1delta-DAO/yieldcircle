@@ -96,19 +96,44 @@ export const isNativeAddress = (a: string) => /^0x0{40}$/i.test(a) || /^0xe{40}$
 /**
  * What the native coin of a chain IS. It used to be "BNB on 56, ETH
  * everywhere else", which was true until Avalanche was offered and then said
- * a wallet's AVAX was ether.
+ * a wallet's AVAX was ether — and true again until HyperEVM was offered and
+ * called 1.56 HYPE "1.5591 ETH / $142".
+ *
+ * That kept happening because the map was the ONLY answer and a new chain is
+ * added in four other files first. It is the fallback now: the balances route
+ * names the coin on the row itself (`symbol: 'HYPE'`, `name: 'Native'`), so a
+ * chain nobody thought about here still reads its own coin. The map stays
+ * because it is the offline answer and because it is where the reader finds
+ * out what a chain's gas is — each entry below was read off
+ * `/v1/data/token/balances` on 2026-09-24, not guessed.
+ *
+ * Ethereum, Base, Arbitrum, Optimism and Robinhood Chain are ETH and are
+ * absent on purpose: the DEFAULT is right for them. A chain's ticker is not
+ * its gas coin — Optimism's mark says `OP` and its gas is ether.
  */
-const NATIVE: Record<string, string> = { '56': 'BNB', '43114': 'AVAX' }
-export const nativeSymbol = (chainId: string): string => NATIVE[chainId] ?? 'ETH'
+const NATIVE: Record<string, string> = {
+  '56': 'BNB', '43114': 'AVAX',
+  '999': 'HYPE', '143': 'MON', '137': 'POL', '9745': 'XPL', '98866': 'PLUME',
+  // three chains pay their fees in a dollar. Arc's coin IS USDC and Stable's IS USDT0, so those
+  // balances belong in the US Dollar group with every other dollar, not in a drawer of oddities.
+  // Tempo's pathUSD is dollar-priced too, but `assets.ts` keeps it in More and says why there.
+  '5042': 'USDC', '988': 'USDT0', '4217': 'pathUSD',
+}
+/** The coin the row reported, else what this chain is known to use, else ether. */
+export const nativeSymbol = (chainId: string, reported?: string): string => reported || NATIVE[chainId] || 'ETH'
 export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
   const out: Idle[] = []
   for (const b of items) {
     const native = isNativeAddress(b.address)
-    const asset = native ? nativeSymbol(chainId) : baseOfSymbol(b.symbol); if (!asset) continue
+    // `symbol` is the token as held: native reads as the chain coin (ETH on Base, BNB on BNB Chain), never "ETH" on BNB
+    const symbol = native ? nativeSymbol(chainId, b.symbol) : b.symbol
+    // The whitelist decides what an ERC-20 balance IS, and drops the ones this app does not
+    // present. A gas coin is never dropped: the wallet holds it whether or not the whitelist
+    // carries it, so an unlisted one stands for itself (group `MORE`) rather than vanishing.
+    const asset = baseOfSymbol(symbol) ?? (native ? symbol : undefined); if (!asset) continue
     const amount = parseFloat(b.balance); if (!(amount > 0)) continue
     const usd = b.balanceUSD ?? amount * (b.priceUSD ?? 0)
-    // `symbol` is the token as held: native reads as the chain coin (ETH on Base, BNB on BNB Chain), never "ETH" on BNB
-    out.push({ asset, symbol: native ? nativeSymbol(chainId) : b.symbol, amount, usd, address: native ? '0x0000000000000000000000000000000000000000' : b.address.toLowerCase(), decimals: b.decimals, price: b.priceUSD ?? (amount ? usd / amount : 0), chainId })
+    out.push({ asset, symbol, amount, usd, address: native ? '0x0000000000000000000000000000000000000000' : b.address.toLowerCase(), decimals: b.decimals, price: b.priceUSD ?? (amount ? usd / amount : 0), chainId })
   }
   return out
 }

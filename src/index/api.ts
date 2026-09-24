@@ -5,7 +5,7 @@
  * and nowhere else.
  */
 import { INDEX_BASE_URL } from '../config/backend'
-import type { AccountKind, FlowsResponse, Following, Holder, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle } from './types'
+import type { AccountKind, FlowsResponse, Following, Holder, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
 
 /** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
 export type IssuerMatch = 'any' | 'direct' | 'exposure'
@@ -76,6 +76,13 @@ export const marketFlow = (uid: string, p: { hours?: number; bucket?: 'hour' | '
   get<{ marketUid: string; bucket: string; hours: number; flow: FlowBucket[] }>(
     `/markets/${encodeURIComponent(uid)}/flow`, p,
   )
+/**
+ * The vault rows for ONE share token, across every chain that carries it.
+ * What a wallet page asks when the address it was opened on is a vault: the
+ * rate it pays depositors lives on the token, not on the positions it holds.
+ */
+export const vaultsAt = (address: string) =>
+  get<{ vaults: VaultRow[] }>('/vaults', { address, limit: 10 })
 export const trending = (p: { window?: '1h' | '24h' | '7d'; chainId?: string; side?: string; limit?: number } = {}) =>
   get<{ window: string; markets: TrendingMarket[] }>('/trending', p)
 /**

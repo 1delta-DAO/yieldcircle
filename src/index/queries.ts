@@ -46,6 +46,21 @@ export function useIndexPositions(account: string | undefined) {
     staleTime: MIN,
   })
 }
+/**
+ * Is this address a vault, and what does it pay? One call, answered from the
+ * vault book by the share token. An address that is not a vault answers an
+ * empty list, which is the same shape as "not a vault" and needs no second
+ * question.
+ */
+export function useVaultsAt(address: string | undefined) {
+  return useQuery({
+    enabled: !!address,
+    queryKey: ['vaults-at', address],
+    queryFn: () => api.vaultsAt(address!),
+    staleTime: 5 * MIN,
+    retry: false,
+  })
+}
 export function useMarket(uid: string | undefined) {
   return useQuery({ enabled: !!uid, queryKey: ['market', uid], queryFn: () => api.market(uid!), staleTime: 10 * MIN, retry: false })
 }

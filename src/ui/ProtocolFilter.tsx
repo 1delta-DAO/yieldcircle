@@ -21,6 +21,7 @@ import React from 'react'
 import { useApp } from '../state/AppState'
 import { useProtocols } from '../index/queries'
 import type { ProtocolFacet } from '../index/api'
+import { useSticky } from '../state/sticky'
 
 /** `CAPY_FI` → `Capy Fi`, for the few keys no lender listing names. */
 export function prettyProtocol(key: string): string {
@@ -38,10 +39,10 @@ export const protocolName = (p: ProtocolFacet) => p.name ?? prettyProtocol(p.pro
 
 const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n))
 
-export function useProtocolFilter(window: '1h' | '6h' | '24h' | '7d' = '7d') {
+export function useProtocolFilter(window: '1h' | '6h' | '24h' | '7d' = '7d', scope = 'page') {
   const { chainIds, allChains } = useApp()
   const q = useProtocols(window, allChains ? undefined : chainIds.join(','))
-  const [picked, setPicked] = React.useState<string[]>([])
+  const [picked, setPicked] = useSticky<string[]>(`${scope}:protocols`, [])
   // a protocol that leaves the window (or the chain scope) must not go on
   // filtering invisibly — drop it from the selection the moment it is gone
   const available = React.useMemo(() => new Set((q.data?.protocols ?? []).map((p) => p.protocol)), [q.data])

@@ -37,17 +37,18 @@ import { Sk, StratMark, Tok, Toks, pct, usdShort } from './bits'
 import { chainLabel } from '../sdk/queries'
 import { indexChainLabel } from '../index/types'
 import type { Strategy } from '../model/strategies'
+import { useSticky } from '../state/sticky'
 
 type Win = '1h' | '6h' | '24h' | '7d'
 const WINDOWS: Win[] = ['1h', '6h', '24h', '7d']
 
 export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean }) {
   const { chainIds, allChains, chainLabelFor } = useApp()
-  const [win, setWin] = React.useState<Win>('24h')
+  const [win, setWin] = useSticky<Win>('hot:win', '24h')
   const menu = useMenu()
-  const pf = useProtocolFilter(win)
-  const inf = useIssuerFilter(win)
-  const cf = useCuratorFilter()
+  const pf = useProtocolFilter(win, 'hot')
+  const inf = useIssuerFilter(win, 'hot')
+  const cf = useCuratorFilter('hot')
   const q = useHot(win, allChains ? undefined : chainIds.join(','), showAll ? 40 : 24, pf.param, inf.param, inf.matchParam, cf.param)
   const rows = q.data?.markets ?? []
 

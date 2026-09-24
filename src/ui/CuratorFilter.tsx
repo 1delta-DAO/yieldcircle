@@ -19,6 +19,7 @@ import { useApp } from '../state/AppState'
 import { useCurators } from '../index/queries'
 import type { AccountCurator, CuratorRow } from '../index/api'
 import { usdShort } from './bits'
+import { useSticky } from '../state/sticky'
 
 /** `cand:1:0x5555…` → "the desk at 0x5555…" — an unnamed desk is not a nameless one. */
 export function curatorLabel(c: { curatorId: string; name?: string | null }): string {
@@ -29,10 +30,10 @@ export function curatorLabel(c: { curatorId: string; name?: string | null }): st
 
 export const curatorHref = (id: string) => `#/c/${encodeURIComponent(id)}`
 
-export function useCuratorFilter() {
+export function useCuratorFilter(scope = 'page') {
   const { chainIds, allChains } = useApp()
   const q = useCurators(allChains ? undefined : chainIds.join(','), 60)
-  const [picked, setPicked] = React.useState<string | undefined>()
+  const [picked, setPicked] = useSticky<string | undefined>(`${scope}:curator`, undefined)
   const list = q.data?.curators ?? []
   React.useEffect(() => {
     if (!q.data || !picked) return

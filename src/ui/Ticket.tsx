@@ -6,6 +6,7 @@ import type { Holding, Idle } from '../model/positions'
 import { earnDeposit, earnWithdraw, loopClose, loopOpen, NATIVE_SENTINEL, ZERO } from '../sdk/api'
 import { chainLabel, useLoopPayAssets, useLoopQuote } from '../sdk/queries'
 import { useApp, type Mode } from '../state/AppState'
+import { useSticky } from '../state/sticky'
 import { DecimalInput, Info, KindPill, RiskDot, Sk, StratMark, Tok, Toks, num, pct, usd, usdShort } from './bits'
 import { Who } from './social-bits'
 import { useProfiles } from '../social/queries'
@@ -124,7 +125,7 @@ function SimpleTicket({ s, idle, allIdle }: { s: SimpleStrategy; idle?: Idle; al
   const [getOpen, setGetOpen] = React.useState(false)
   const unit = unitOf(s.asset)
   const price = s.priceUsd ?? idle?.price ?? (unit === '$' ? 1 : 0)
-  const [amount, setAmount] = React.useState<number>(() => (unit === '$' ? 1000 : Math.min(idle?.amount ?? 1, 1)))
+  const [amount, setAmount] = useSticky<number>(`t:${s.id}:amount`, () => (unit === '$' ? 1000 : Math.min(idle?.amount ?? 1, 1)))
   const amtUsd = amount * price
   const yearly = amtUsd * s.rate / 100
   const key = [s.id, amount, account ?? ''].join('|')
@@ -189,12 +190,12 @@ function LoopTicket({ s, idle, allIdle }: { s: LoopStrategy; idle: Idle[]; allId
   }, [pay.data, s.id])
   // the pay-with chips read the exact token: native is the zero address in the balances (and the API), wrapped is its own entry
   const balOf = (address: string, _symbol: string) => idle.find((i) => i.address === address.toLowerCase())
-  const [role, setRole] = React.useState<'collateral' | 'debt' | 'native' | null>(null)
+  const [role, setRole] = useSticky<'collateral' | 'debt' | 'native' | null>(`t:${s.id}:role`, null)
   const chosen = opts.find((o) => o.role === role) ?? [...opts].sort((a, b) => (balOf(b.address, b.symbol)?.usd ?? 0) - (balOf(a.address, a.symbol)?.usd ?? 0))[0]
   const bal = chosen ? balOf(chosen.address, chosen.symbol) : undefined
   const price = chosen?.price || bal?.price || (unit === '$' ? 1 : 0)
-  const [amount, setAmount] = React.useState<number>(() => (unit === '$' ? 1000 : 1))
-  const [tier, setTier] = React.useState<TierId>(DEFAULT_TIER)
+  const [amount, setAmount] = useSticky<number>(`t:${s.id}:amount`, () => (unit === '$' ? 1000 : 1))
+  const [tier, setTier] = useSticky<TierId>(`t:${s.id}:tier`, DEFAULT_TIER)
   const L = s.tiers[tier]
   const E = amount * price, C = E * L, D = E * (L - 1)
   const net = netAprAtLeverage(s.dep, s.bor, L), drop = liqBuffer(s.liqLtv, L), hf = healthAt(s.liqLtv, L)
@@ -264,7 +265,7 @@ function LoopTicket({ s, idle, allIdle }: { s: LoopStrategy; idle: Idle[]; allId
 function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mode: Mode }) {
   const { account, isConnected } = useApp()
   const all = mode === 'close'
-  const [amount, setAmount] = React.useState<number>(() => +(h.amount / 2).toFixed(6))
+  const [amount, setAmount] = useSticky<number>(`t:${h.key}:withdraw`, () => +(h.amount / 2).toFixed(6))
   const eff = all ? h.amount : Math.min(amount, h.amount)
   const share = h.amount > 0 ? eff / h.amount : 0
   const key = [s?.id ?? h.key, mode, eff, account ?? ''].join('|')

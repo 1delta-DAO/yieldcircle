@@ -21,6 +21,7 @@ import { primaryLeg } from './Feed'
 import { useMenu } from './useMenu'
 import { ProtocolChips, useProtocolFilter } from './ProtocolFilter'
 import { IssuerChips, useIssuerFilter } from './IssuerFilter'
+import { useSticky } from '../state/sticky'
 
 type Scope = 'menu' | 'following' | 'everyone'
 
@@ -30,14 +31,14 @@ export function Stream({ rows = 12 }: { rows?: number }) {
   const follows = useMyFollows(account)
   const menu = useMenu()
   const canFollow = follows.wallets.length + follows.markets.length > 0
-  const [scope, setScope] = React.useState<Scope>('menu')
+  const [scope, setScope] = useSticky<Scope>('stream:scope', 'menu')
   // a wallet that follows nobody would get an empty stream, which on a home
   // page reads as "broken" rather than "you follow nobody" — so the default
   // only becomes `following` once there is something to follow
   React.useEffect(() => { if (canFollow) setScope('following') }, [canFollow])
 
-  const pf = useProtocolFilter('24h')
-  const inf = useIssuerFilter('24h')
+  const pf = useProtocolFilter('24h', 'stream')
+  const inf = useIssuerFilter('24h', 'stream')
   const desks = { issuers: inf.param, issuerMatch: inf.matchParam }
   const q = useFeedPage(
     scope === 'following'

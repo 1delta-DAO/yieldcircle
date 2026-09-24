@@ -8,15 +8,21 @@ import { useProfile } from '../social/queries'
 import { useUnseen } from './Alerts'
 import { ChainPicker } from './ChainPicker'
 import { SettingsMenu } from './SettingsMenu'
+import { useBack } from '../state/sticky'
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const { signer } = useApp()
   const r = useRoute()
+  const { back } = useBack()
   return (
     <>
       <header className="top"><div className="inner">
         {/* the wordmark while there is room for it, the mark alone on a phone — where every
             pixel it takes comes off the nav, which has four destinations to fit */}
+        {/* one step back to the page you came from — its inputs are kept (useSticky), so a click away is never a loss */}
+        {r.view !== 'home' && <button className="back" onClick={back} aria-label="Back" title="Back">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>}
         <span className="brand"><Logo height={32} /><a className="brandmark" href="#/" aria-label="YieldCircle"><Mark size={26} /></a></span>
         <nav>
           <a href="#/" aria-current={r.view === 'home' ? 'page' : undefined}>Home</a>

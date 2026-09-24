@@ -87,9 +87,9 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   const tab: Tab =
     tabIn === "following" || tabIn === "everyone" ? tabIn : "menu";
   const chainsParam = allChains ? undefined : chainIds.join(",");
-  const pf = useProtocolFilter("7d");
-  const inf = useIssuerFilter("7d");
-  const cf = useCuratorFilter();
+  const pf = useProtocolFilter("7d", "feed");
+  const inf = useIssuerFilter("7d", "feed");
+  const cf = useCuratorFilter("feed");
   const [limit, setLimit] = React.useState(40);
   React.useEffect(
     () => setLimit(40),

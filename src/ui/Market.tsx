@@ -21,12 +21,14 @@ import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
 import { indexChainLabel, subjectOf } from '../index/types'
 import type { MarketExposure } from '../index/types'
-import { primaryLeg } from './Feed'
+import { Flows, primaryLeg } from './Feed'
 
 export function Market({ uid }: { uid: string }) {
   const m = useMarket(uid)
   const holders = useHolders(uid, undefined, 15)
   const txs = useMarketTxs(uid, 40)
+  /** which transaction in the tape is showing its legs */
+  const [legsOpen, setLegsOpen] = React.useState<string | null>(null)
   const flow = useMarketFlow(uid, 24 * 30)
   const menu = useMenu()
   const s = menu.forUid(uid)
@@ -163,15 +165,28 @@ export function Market({ uid }: { uid: string }) {
             {!txs.isLoading && !txs.data?.txs.length && <div className="empty">Nothing yet.</div>}
             <div className="tape">{(txs.data?.txs ?? []).map((t) => {
               const l = primaryLeg(t), d = describeTx(t.kinds)
+              const id = `${t.chainId}:${t.txHash}`
               return (
-                <div key={`${t.chainId}:${t.txHash}`} className="tape-item">
-                  <a className="tape-row" href={`#/w/${subjectOf(t).account || l?.account}`}>
-                    <span className={`verb ${d.cls}`}>{d.verb}</span>
-                    <span className="tr-m"><Who account={subjectOf(t).account || l?.account || ''} idx={subjectOf(t)} size={20} plain /></span>
-                    <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} amount={l?.amount} symbol={l?.symbol} short /></span>
-                    <span className="tr-t"><Ago ts={t.blockTs} /></span>
-                  </a>
-                  <TxLink chainId={t.chainId} hash={t.txHash} />
+                /* "folded per transaction" had no way to unfold: a four-leg
+                   rebalance read as one line and one number */
+                <div key={id} className="tape-fold">
+                  <div className="tape-item">
+                    <a className="tape-row" href={`#/w/${subjectOf(t).account || l?.account}`}>
+                      <span className={`verb ${d.cls}`}>{d.verb}</span>
+                      <span className="tr-m"><Who account={subjectOf(t).account || l?.account || ''} idx={subjectOf(t)} size={20} plain /></span>
+                      <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} amount={l?.amount} symbol={l?.symbol} short /></span>
+                      <span className="tr-t"><Ago ts={t.blockTs} /></span>
+                    </a>
+                    {t.legs.length > 1 && (
+                      <button className="tape-legs" aria-expanded={legsOpen === id}
+                        title="what moved, leg by leg"
+                        onClick={() => setLegsOpen(legsOpen === id ? null : id)}>
+                        {t.legs.length} legs
+                      </button>
+                    )}
+                    <TxLink chainId={t.chainId} hash={t.txHash} />
+                  </div>
+                  {legsOpen === id && <div className="tape-flows"><Flows tx={t} /></div>}
                 </div>
               )
             })}</div>

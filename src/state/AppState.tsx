@@ -26,6 +26,8 @@ export interface Route {
   s?: string
   k: 'simple' | 'loop' | undefined
   m?: Mode
+  /** a running position the catalogue has no row for — its `Holding.key`, managed from the position alone */
+  h?: string
   /** #/w/<addr> */
   addr?: string
   /** #/c/<curatorId> — a desk (pos-indexer tickets/0013) */
@@ -49,6 +51,7 @@ export function parseRoute(hash = location.hash): Route {
   const base = {
     u: p.get('u') ?? 'all',
     s: p.get('s') ?? undefined,
+    h: p.get('h') ?? undefined,
     k: p.get('k') === 'loop' ? ('loop' as const) : p.get('k') === 'simple' ? ('simple' as const) : undefined,
     m: m === 'reduce' || m === 'close' || m === 'manage' ? (m as Mode) : m === 'add' ? ('add' as Mode) : undefined,
     t: p.get('t') ?? undefined,

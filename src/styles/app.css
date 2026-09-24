@@ -637,8 +637,35 @@ h1 .pill.auto{vertical-align:middle;margin-left:9px}
 .fc-n .big{flex:1 1 auto;text-align:right;font-size:19px;color:var(--tx);font-weight:500}
 .fc-n .fc-apr{width:44px;text-align:right;flex:none}
 .fc-n .fc-legs{width:50px;text-align:right;flex:none}
+/* the handle into the bundle: a count that does nothing reads as a label */
+button.fc-legs{color:var(--tx50);border-bottom:1px dashed var(--line2);line-height:1.2}
+button.fc-legs:hover{color:var(--tx)}
+button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:var(--primary)}
 .fc-a{grid-area:act;display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:142px}
-.fc-t{border-top:1px solid var(--line);margin:10px -14px -10px;padding:0 14px;background:#0d0d0d;border-radius:0 0 var(--r) var(--r)}
+.fc-t{border-top:1px solid var(--line);margin:0 -14px;padding:0 14px;background:#0d0d0d}
+.fc-g + .fc-t{margin-top:10px}
+.fc-t:last-child{margin-bottom:-10px;border-radius:0 0 var(--r) var(--r)}
+
+/* the flows, in the caption register the rest of the app uses: the words name
+   the direction, the mono column holds the money, and the totals sit in the
+   caption because they do not follow from the rows */
+.flows{display:flex;flex-direction:column;gap:2px;padding:9px 0 11px}
+.flcap{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--tx40);padding-bottom:5px}
+.flrow{display:flex;align-items:center;gap:9px;min-height:26px;min-width:0;font-size:12.5px;color:var(--tx70)}
+.flrow .flv{width:78px;flex:none;font-size:12.5px}
+.flrow .tok{flex:none}
+.flrow .fln{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx)}
+.flrow .flr{font-family:var(--mono);font-size:11px;flex:none}
+.flrow .flu{font-family:var(--mono);font-size:12.5px;color:var(--tx);white-space:nowrap;flex:none;min-width:76px;text-align:right}
+/* the same money one layer down: present, and visibly not part of the total */
+.flrow.via{opacity:.55}
+.flrow.via .fln::before{content:"↳ ";color:var(--tx40)}
+.flnote{font-size:11px;color:var(--tx40);line-height:1.5;padding-top:7px}
+@media (max-width:640px){
+  .flrow .flv{width:66px;font-size:12px}
+  .flrow .flu{min-width:64px}
+}
 .feed-more{display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap}
 
 /* ---------- threads ---------- */
@@ -713,6 +740,15 @@ h1 .pill.auto{vertical-align:middle;margin-left:9px}
 .tape-item>.tape-row{flex:1 1 auto;min-width:0;border-bottom:0}
 .tape-item:hover{background:#131313}
 .tape-item>.txlink{padding:0 14px 0 4px;align-self:center}
+/* the way into a folded transaction, in the tape's own quiet register */
+.tape-fold{border-bottom:1px solid var(--line-soft)}
+.tape-fold:last-child{border-bottom:0}
+.tape-fold>.tape-item{border-bottom:0}
+.tape-legs{flex:none;align-self:center;padding:0 2px;font-family:var(--mono);font-size:10.5px;
+  color:var(--tx40);border-bottom:1px dashed var(--line2);line-height:1.2;white-space:nowrap}
+.tape-legs:hover{color:var(--tx70)}
+.tape-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:var(--primary)}
+.tape-flows{padding:0 16px;background:#0d0d0d;border-top:1px solid var(--line)}
 .tr-m{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx70)}
 .tr-v{font-family:var(--mono);text-align:right;color:var(--tx)}
 .tr-t{text-align:right}
@@ -818,7 +854,9 @@ h1 .pill.auto{vertical-align:middle;margin-left:9px}
   .row.wrow{gap:8px}
   .row.wrow .follow{display:none}
   .fcard{padding:12px 13px}
-  .fc-t{margin:10px -13px -12px;padding:0 13px}
+  .fc-t{margin:0 -13px;padding:0 13px}
+  .fc-g + .fc-t{margin-top:10px}
+  .fc-t:last-child{margin-bottom:-12px}
   .wcard{gap:14px;padding:14px}
   .wstat .v{font-size:18px}
   /* the nav scrolls rather than pushing the wallet button off the edge; the fade says so */

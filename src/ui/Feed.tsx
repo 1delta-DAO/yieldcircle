@@ -430,6 +430,87 @@ export function cardKey(t: TxBundle, only?: string[]): string {
   });
 }
 
+/**
+ * One leg's own word. `plainVerb` reads the whole bundle and answers what the
+ * transaction was FOR ("opened a loop"); this reads a single row and answers
+ * what that row did, which is the thing a summary of the flows has to say.
+ */
+const LEG_VERB: [RegExp, string, string][] = [
+  [/liquidat/i, "liquidated", "k-liq"],
+  [/borrow/i, "borrowed", "k-borrow"],
+  [/repay/i, "repaid", "k-repay"],
+  [/deposit|supply|mint/i, "put in", "k-in"],
+  [/withdraw|redeem|burn/i, "took out", "k-out"],
+  [/transfer_in/i, "received", "k-in"],
+  [/transfer_out/i, "sent", "k-out"],
+  [/transfer/i, "moved", "k-move"],
+  [/accrual/i, "accrued", "k-move"],
+];
+function legVerb(l: TxLeg): { verb: string; cls: string } {
+  const k = l.kind.includes("/") ? l.kind.slice(l.kind.indexOf("/") + 1) : l.kind;
+  for (const [re, verb, cls] of LEG_VERB) if (re.test(k)) return { verb, cls };
+  return { verb: k.replace(/_/g, " "), cls: "k-move" };
+}
+
+/**
+ * What actually moved, leg by leg.
+ *
+ * The card headlines ONE leg, because a transaction is about one thing and a
+ * feed that headlines four is a log. But a loop is a deposit AND a borrow, a
+ * rebalance is a withdrawal here and a deposit there, and until now the rest
+ * of the bundle was a bare count — "2 legs" — with no way to open it. The
+ * reader could see that something else happened and not what.
+ *
+ * The totals are stated because they do not follow from the rows: `volumeUsd`
+ * is what changed hands and `netUsd` is what it came to, and on a rebalance
+ * those are a large number and roughly zero. A passthrough leg is the same
+ * money one layer down, so it is shown and marked, never added.
+ */
+export function Flows({ tx }: { tx: TxBundle }) {
+  const via = tx.legs.filter((l) => l.passthrough).length;
+  return (
+    <div className="flows">
+      <div className="flcap">
+        <span>flows</span>
+        <span className="sp" />
+        <span>
+          {tx.volumeUsd != null && <>moved <Money usd={tx.volumeUsd} short /></>}
+          {tx.volumeUsd != null && tx.netUsd != null && " · "}
+          {tx.netUsd != null && <>net <Money usd={tx.netUsd} short /></>}
+        </span>
+      </div>
+      {tx.legs.map((l, i) => {
+        const v = legVerb(l);
+        return (
+          <div
+            key={`${l.logIndex}:${l.account}:${i}`}
+            className={`flrow${l.passthrough ? " via" : ""}`}
+            title={l.passthrough ? "the vault put this to work in the same transaction — the same money, counted once" : undefined}
+          >
+            <span className={`flv verb ${v.cls}`}>{v.verb}</span>
+            <Tok sym={l.symbol ?? "?"} logo={l.assetLogo ?? undefined} size={16} />
+            <span className="fln">
+              {l.marketName ?? l.symbol ?? "a market"}
+              <span className="t50"> · {l.lenderName ?? l.lenderKey}</span>
+            </span>
+            <span className="sp" />
+            {l.apr != null && <span className="flr ok">{pct(l.apr)}</span>}
+            <span className="flu">
+              <Money usd={l.amountUsd} status={l.usdStatus} amount={l.amount} symbol={l.symbol} short />
+            </span>
+          </div>
+        );
+      })}
+      {(via > 0 || tx.unpriced > 0) && (
+        <div className="flnote">
+          {via > 0 && <>{via === 1 ? "One leg is" : `${via} legs are`} the same money one layer down — shown, not counted. </>}
+          {tx.unpriced > 0 && <>{tx.unpriced} of these had no price at the block, so the total is short by whatever they were worth.</>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Card({
   tx,
   profile,
@@ -469,6 +550,8 @@ function Card({
   const into = tx.legs.find((l) => l.passthrough);
   const borrow = tx.legs.find((l) => l.side === "borrow");
   const key = cardKey(tx, only);
+  /** independent of the thread: you can read the legs and the comments at once */
+  const [flows, setFlows] = React.useState(false);
   return (
     <article className="fcard">
       {/* one line, five columns: who · what · how much · when · what you can do. The money,
@@ -524,9 +607,20 @@ function Card({
           <span className="fc-apr ok">
             {leg?.apr != null ? pct(leg.apr) : ""}
           </span>
-          <span className="fc-legs t40">
-            {tx.nRows > 1 ? `${tx.nRows} legs` : ""}
-          </span>
+          {/* the count was the only trace of the rest of the bundle and there was
+              no way to open it — it is the handle now */}
+          {tx.legs.length > 1 ? (
+            <button
+              className="fc-legs lnk"
+              aria-expanded={flows}
+              onClick={() => setFlows((f) => !f)}
+              title="what moved, leg by leg"
+            >
+              {tx.legs.length} legs
+            </button>
+          ) : (
+            <span className="fc-legs t40" />
+          )}
         </div>
         <div className="fc-when">
           <ChainCorner chainId={tx.chainId} />
@@ -556,6 +650,11 @@ function Card({
           ) : null}
         </div>
       </div>
+      {flows && (
+        <div className="fc-t">
+          <Flows tx={tx} />
+        </div>
+      )}
       {open && key && (
         <div className="fc-t">
           <Thread

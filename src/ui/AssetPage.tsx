@@ -4,7 +4,7 @@ import { markPicks, type Strategy } from '../model/strategies'
 import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
 import { useBook } from './useBook'
-import { Ticket } from './Ticket'
+import { HoldingTicket, Ticket } from './Ticket'
 import { GroupIcon, Info, KindPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort } from './bits'
 import { chainLabel } from '../sdk/queries'
 import { uidOf } from '../model/uid'
@@ -21,8 +21,11 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const inGroup = b.all.filter((s) => s.group === group.id)
   const assets = [...new Set([...inGroup.map((s) => s.asset), ...b.books.filter((x) => x.group === group.id).map((x) => x.asset)])]
   const u = assets.includes(route.u) ? route.u : 'all'
-  const sel = route.s ? b.all.find((s) => s.id === route.s) ?? null : null
-  const kind: 'simple' | 'loop' = sel ? sel.kind : route.k ?? 'simple'
+  // a floor hides a row from the list, never from the wallet that is in it: the held-back rows are whole strategies
+  const sel = route.s ? b.all.find((s) => s.id === route.s) ?? b.hidden.find((s) => s.id === route.s) ?? null : null
+  // a position with no row at all is still the wallet's: managed from what the positions route says about it
+  const offMenu = !sel && route.h ? b.holdings.find((h) => h.key === route.h) ?? null : null
+  const kind: 'simple' | 'loop' = sel ? sel.kind : offMenu ? offMenu.kind : route.k ?? 'simple'
   const all = inGroup.filter((s) => u === 'all' || s.asset === u)
   const picks = React.useMemo(() => markPicks(inGroup), [inGroup.length])
   const list = all.filter((s) => s.kind === kind).sort((x, y) => (Number(picks.has(y.id)) - Number(picks.has(x.id))) || y.rate - x.rate)
@@ -42,11 +45,15 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const counts = useCounts(React.useMemo(() => uids.map((x) => ({ kind: 'market' as const, key: x.uid })), [uids]))
   const commentsOn = (x: Strategy) => { const u = uidOf(x); return u ? counts.count('market', u) : 0 }
   const running: { h: Holding; s: Strategy | null }[] = b.holdings.filter((h) => !h.directional && h.group === group.id && (u === 'all' || h.asset === u)).sort((x, y) => y.valueUsd - x.valueUsd)
-    .map((h) => ({ h, s: inGroup.find((s) => matches(s, h)) ?? null }))
+    .map((h) => ({ h, s: inGroup.find((s) => matches(s, h)) ?? b.hidden.find((s) => s.group === group.id && matches(s, h)) ?? null }))
+  // what an off-menu row can still do: a loop can always be unwound; a deposit needs the earn uid to withdraw through
+  const canManage = (h: Holding) => h.kind === 'loop' ? !!h.collateralUid && !!h.debtUid : !!h.earnUid
+  const ticketOpen = !!sel || !!offMenu
+  const close = () => go(group.id, { u, k: kind })
   return (
     <>
       <a className="crumb" href="#/explore">‹ Explore</a>
-      <div className={`asset${sel ? '' : ' noticket'}`}>
+      <div className={`asset${ticketOpen ? '' : ' noticket'}`}>
         <div className="main">
           <div className="hdr">
             <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {u}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div></div></div>
@@ -63,15 +70,15 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
               <div className="card"><table className="tbl strat-t">
                 <colgroup><col /><col style={{ width: 96 }} /><col style={{ width: 100 }} /><col className="hide-m hide-t" style={{ width: 70 }} /><col className="hide-m hide-t" style={{ width: 138 }} /><col style={{ width: 32 }} /></colgroup>
                 <thead><tr><th>Position</th><th className="r">Value</th><th className="r">Earning</th><th className="r hide-m hide-t">Health</th><th className="r hide-m hide-t">Manage</th><th /></tr></thead>
-                <tbody>{running.map(({ h, s }) => { const open = (m: 'add' | 'reduce' | 'manage') => s && go(group.id, { u, s: s.id, k: s.kind, m }); return (
-                  <tr key={h.key} aria-selected={!!s && sel?.id === s.id} onClick={() => (s ? open('add') : undefined)} style={s ? undefined : { cursor: 'default' }}>
+                <tbody>{running.map(({ h, s }) => { const open = (m: 'add' | 'reduce' | 'manage') => s && go(group.id, { u, s: s.id, k: s.kind, m }); const can = !s && canManage(h); const openOff = () => go(group.id, { u, h: h.key, k: h.kind, m: h.kind === 'loop' ? 'manage' : 'reduce' }); return (
+                  <tr key={h.key} aria-selected={s ? sel?.id === s.id : offMenu?.key === h.key} onClick={() => (s ? open('add') : can ? openOff() : undefined)} style={s || can ? undefined : { cursor: 'default' }}>
                     <td><div className="nm">{s ? (s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />) : <Tok sym={h.symbol} logo={h.logo} />}<span><b>{h.label.split(' · ')[0]}</b> <span className="t50">· {h.venue}</span></span><KindPill kind={h.kind} /></div>
                       <small className="hide-m">{chainLabel(h.chainId)}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}{h.kind === 'loop' && h.debtSymbol ? ` · owes ${amt(h.debtSymbol, h.debtAmount ?? 0)}` : ''}</small></td>
                     <td className="r"><span>{usd(h.valueUsd)}</span><small>{h.kind === 'loop' ? 'equity' : num(h.amount, h.amount >= 100 ? 0 : 3)}</small></td>
                     <td className="r"><span className={h.apr != null && h.apr >= 0 ? 'ok' : h.apr != null ? 'bad' : ''}>{h.apr != null ? pct(h.apr) : '—'}</span><small>{usd(h.valueUsd * (h.apr ?? 0) / 100)}/yr</small></td>
                     <td className="r hide-m hide-t">{h.health != null ? <span className={h.health < 1.1 ? 'bad' : h.health < 1.25 ? 'warn' : 'ok'}>{h.health.toFixed(2)}</span> : <span className="t40">—</span>}</td>
-                    <td className="r hide-m hide-t" onClick={(e) => e.stopPropagation()}>{s ? <span className="acts"><button className="btn sm" onClick={() => open('add')}>Add</button><button className="btn sm" onClick={() => open(h.kind === 'loop' ? 'manage' : 'reduce')}>{h.kind === 'loop' ? 'Manage' : 'Withdraw'}</button></span> : <span className="t40" style={{ fontSize: 12 }}>not in the menu</span>}</td>
-                    <td className="r t40" style={{ width: 20 }}>{s ? '›' : ''}</td>
+                    <td className="r hide-m hide-t" onClick={(e) => e.stopPropagation()}>{s ? <span className="acts"><button className="btn sm" onClick={() => open('add')}>Add</button><button className="btn sm" onClick={() => open(h.kind === 'loop' ? 'manage' : 'reduce')}>{h.kind === 'loop' ? 'Manage' : 'Withdraw'}</button></span> : can ? <span className="acts"><button className="btn sm" title="Not in the menu: this position can be reduced or closed here, not added to" onClick={openOff}>{h.kind === 'loop' ? 'Manage' : 'Withdraw'}</button></span> : <span className="t40" style={{ fontSize: 12 }}>not in the menu</span>}</td>
+                    <td className="r t40" style={{ width: 20 }}>{s || can ? '›' : ''}</td>
                   </tr>) })}</tbody>
               </table></div></section>
           )}
@@ -108,9 +115,12 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
           </div>
           <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />
         </div>
-        <aside className={sel ? '' : 'closed'} id="aside">{sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} onClose={() => go(group.id, { u, k: sel.kind })} />}</aside>
+        <aside className={ticketOpen ? '' : 'closed'} id="aside">
+          {sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} onClose={close} />}
+          {offMenu && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
+        </aside>
       </div>
-      {sel && <div className="scrim" onClick={() => go(group.id, { u, k: sel.kind })} />}
+      {ticketOpen && <div className="scrim" onClick={close} />}
     </>
   )
 }

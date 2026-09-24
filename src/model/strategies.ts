@@ -144,10 +144,17 @@ export interface Candidate<T extends Strategy> {
 /** `Capy Fi` is `CapyFi`: the same words, said with different spaces and case. */
 const sameWords = (a: string, b: string) => a.replace(/\s+/g, '').toLowerCase() === b.replace(/\s+/g, '').toLowerCase()
 const num = (v: string | number | null | undefined): number => { if (v == null || v === '') return 0; const n = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(n) ? n : 0 }
-/** One vocabulary for both listings: the API's 1–5 score → low / medium / high. Its colour words are ignored on purpose. */
+/**
+ * One vocabulary for both listings: the API's 1–5 score, bucketed exactly as
+ * the API's own words bucket it — 1–2 low, 3–4 medium, 5 high, 0 / missing
+ * unknown (measured 2026-09-25 on both the earn listing and the optimizer:
+ * every `low`/`medium`/`high` label sits on those scores). The score, not the
+ * label, is read, because the earn listing mixes in colour words that disagree
+ * with it (`2 yellow`, `4 red`). An unknown wears the medium dot, never low.
+ */
 const riskOf = (score: number | undefined, _label?: string): { risk: Risk; riskLabel: string } => {
-  const s = score ?? 2
-  const risk: Risk = s <= 1 ? 1 : s <= 2 ? 2 : 3
+  if (!score) return { risk: 2, riskLabel: 'Unknown' }
+  const risk: Risk = score <= 2 ? 1 : score <= 4 ? 2 : 3
   return { risk, riskLabel: risk === 1 ? 'Low' : risk === 2 ? 'Medium' : 'High' }
 }
 const EXIT_WORD: Record<string, string> = { instant: 'Any time', 'instant-capped': 'Any time', 'instant-or-queued': 'Any time or queued', queued: 'Queued', 'fixed-cooldown': 'Cooldown', 'request-based': 'Queued', 'market-sale': 'Sell on market', 'off-chain': 'Off-chain' }
@@ -350,7 +357,7 @@ export function markPicks(rows: Strategy[]): Set<string> {
   const picks = new Set<string>()
   const byKey = new Map<string, Strategy>()
   for (const r of rows) {
-    if (r.risk > 2) continue
+    if (r.risk > 2 || r.riskLabel === 'Unknown') continue
     if (r.tvlUsd < (r.kind === 'simple' ? 2e7 : 0) || (r.kind === 'loop' && r.borrowLiquidityUsd < 2e6)) continue
     const k = `${r.asset}|${r.kind}`
     const cur = byKey.get(k)

@@ -726,9 +726,11 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .copybtn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--tx50);cursor:pointer;padding:0}
 .copybtn:hover{color:var(--tx);border-color:var(--tx40)}
 .copybtn.ok{color:var(--success);border-color:currentColor}
-.addrx{display:inline-flex;align-items:center;gap:5px}
+.addrx{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
 .addrx a{display:inline-flex;opacity:.8}
 .addrx a:hover{opacity:1}
+.addrx a.quiet{opacity:.35;filter:grayscale(1)}
+.addrx a.quiet:hover{opacity:.8;filter:none}
 .wc-bio{margin:2px 0 0;font-size:13.5px;line-height:1.5;color:var(--tx70);max-width:62ch}
 .wc-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
 .wc-a{display:flex;flex-direction:column;align-items:flex-end;gap:6px}

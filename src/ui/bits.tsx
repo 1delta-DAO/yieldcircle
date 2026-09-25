@@ -225,7 +225,8 @@ export function CopyButton({ text, label = 'Copy address' }: { text: string; lab
  * address is the same on every EVM chain but its history is not. Chains this
  * app has no explorer for are left out rather than linked to a guess.
  */
-export function AddrExplorers({ addr, chainIds }: { addr: string; chainIds: string[] }) {
+/** `seen`, when given, dims every chain outside it — an explorer link for a chain the index has no activity on. */
+export function AddrExplorers({ addr, chainIds, seen }: { addr: string; chainIds: string[]; seen?: Set<string> }) {
   const ids = [...new Set(chainIds)].filter((id) => addressUrl(id, addr))
   if (!ids.length) return null
   return (
@@ -233,7 +234,7 @@ export function AddrExplorers({ addr, chainIds }: { addr: string; chainIds: stri
       {ids.map((id) => {
         const where = chainInfo(id)!.explorerName
         return (
-          <a key={id} href={addressUrl(id, addr)} target="_blank" rel="noreferrer" title={`Open on ${where}`} aria-label={`Open the address on ${where}`}>
+          <a key={id} className={seen && !seen.has(id) ? 'quiet' : undefined} href={addressUrl(id, addr)} target="_blank" rel="noreferrer" title={`Open on ${where}`} aria-label={`Open the address on ${where}`}>
             <ChainMark chainId={id} size={16} title={where} />
           </a>
         )

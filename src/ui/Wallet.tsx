@@ -10,7 +10,7 @@
  */
 import React from 'react'
 import { useAccount } from 'wagmi'
-import { marketHref, walletHref } from '../state/AppState'
+import { marketHref, useApp, walletHref } from '../state/AppState'
 import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
 import { useFollowers, useProfile, useProfiles } from '../social/queries'
 import { AutoTag, Badges, FollowButton, Money, Who, Ago, describeTx, tokens } from './social-bits'
@@ -18,7 +18,7 @@ import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
 import { AddrExplorers, CopyButton, Sk, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
-import { indexChainLabel, type AccountIdentity, type IndexPosition, type PositionGroup, type VaultRow } from '../index/types'
+import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
 import { primaryLeg } from './Feed'
@@ -44,10 +44,27 @@ export function Wallet({ addr }: { addr: string }) {
    * Morpho legs and no answer to "what does this vault yield".
    */
   const vaults = useVaultsAt(addr).data?.vaults ?? []
-  const pos = useIndexPositions(isMe ? undefined : addr)
-  const flows = useAccountFlows(addr, 30)
-  const txs = useAccountTxs(addr, undefined, 40)
-  const rows = pos.data?.positions ?? []
+  /**
+   * The chain selector scopes this page like every other one. The account
+   * routes take one `chainId` only, so a single chain is asked for
+   * server-side and a multi-chain selection is cut here from the full answer
+   * (the tape over-fetches so the cut still leaves a page of moves).
+   */
+  const { chainIds, allChains, chainLabelFor } = useApp()
+  const one = !allChains && chainIds.length === 1 ? chainIds[0] : undefined
+  const cut = !allChains && !one
+  const inScope = React.useCallback((id: string) => allChains || chainIds.includes(id), [allChains, chainIds])
+  const pos = useIndexPositions(isMe ? undefined : addr, one)
+  const flows = useAccountFlows(addr, 30, one)
+  const txsQ = useAccountTxs(addr, one, cut ? 200 : 40)
+  const rows = React.useMemo(() => (pos.data?.positions ?? []).filter((r) => inScope(r.chainId)), [pos.data, inScope])
+  const groups = React.useMemo(() => pos.data?.groups?.filter((g) => inScope(g.chainId)), [pos.data, inScope])
+  const nav = !cut
+    ? pos.data?.totals.navUsd
+    : groups
+      ? groups.reduce((t, g) => t + g.supplyUsd - g.debtUsd, 0)
+      : rows.reduce((t, r) => t + (r.amountUsd ?? 0) * (r.side === 'borrow' ? -1 : 1), 0)
+  const txList = React.useMemo(() => (txsQ.data?.txs ?? []).filter((t) => inScope(t.chainId)).slice(0, 40), [txsQ.data, inScope])
   /**
    * What the index calls this address, read off the rows the page already
    * loaded — every ledger leg is stamped with `accountKind` / `accountLabel`.
@@ -55,24 +72,28 @@ export function Wallet({ addr }: { addr: string }) {
    */
   const idx = React.useMemo<AccountIdentity | null>(
     () =>
-      (txs.data?.txs ?? [])
+      (txsQ.data?.txs ?? [])
         .flatMap((t) => t.legs)
         .find((l) => l.account === addr && (l.accountLabel || l.accountKind)) ?? null,
-    [txs.data, addr],
+    [txsQ.data, addr],
   )
   const name = labelFor(addr, profile, idx)
   const spec = specFor(addr, profile?.avatarUrl)
   const bad = profile?.avatarUrl ? unearned(spec, profile.systemTags ?? []) : []
-  const f = flows.data?.totals
-  /** the chains this address has been seen on, busiest first; Ethereum when the index has seen it nowhere */
+  const f = React.useMemo(() => (cut && flows.data ? flowTotals(flows.data.flows.filter((r) => inScope(r.chainId))) : flows.data?.totals), [cut, flows.data, inScope])
+  /**
+   * An explorer per chain in scope: the ones the index has seen this address
+   * on first, busiest first, then the rest of the selection, dimmed.
+   */
   const chains = React.useMemo(() => {
     const n = new Map<string, number>()
     const bump = (id: string | undefined, by = 1) => { if (id) n.set(id, (n.get(id) ?? 0) + by) }
     rows.forEach((r) => bump(r.chainId))
     flows.data?.flows.forEach((r) => bump(r.chainId, r.nEvents))
-    txs.data?.txs.forEach((t) => bump(t.chainId))
-    return n.size ? [...n.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id) : ['1']
-  }, [rows, flows.data, txs.data])
+    txsQ.data?.txs.forEach((t) => bump(t.chainId))
+    const seen = [...n.entries()].filter(([id]) => inScope(id)).sort((a, b) => b[1] - a[1]).map(([id]) => id)
+    return { ids: [...seen, ...chainIds.filter((id) => !n.has(id))], seen: new Set(seen) }
+  }, [rows, flows.data, txsQ.data, inScope, chainIds])
 
   return (
     <>
@@ -81,7 +102,7 @@ export function Wallet({ addr }: { addr: string }) {
         <Character addr={addr} avatarUrl={profile?.avatarUrl} size={72} />
         <div className="wc-t">
           <h1>{name.label}{name.generated && <AutoTag />}</h1>
-          <div className="sub mono wc-addr"><span title={addr}>{shortAddr(addr)}</span><CopyButton text={addr} /><AddrExplorers addr={addr} chainIds={chains} />{profile?.xHandle && <> · <a className="pri" href={`https://x.com/${profile.xHandle}`} target="_blank" rel="noreferrer">𝕏 @{profile.xHandle}</a></>}</div>
+          <div className="sub mono wc-addr"><span title={addr}>{shortAddr(addr)}</span><CopyButton text={addr} /><AddrExplorers addr={addr} chainIds={chains.ids} seen={chains.seen} />{profile?.xHandle && <> · <a className="pri" href={`https://x.com/${profile.xHandle}`} target="_blank" rel="noreferrer">𝕏 @{profile.xHandle}</a></>}</div>
           {profile?.bio && <p className="wc-bio">{profile.bio}</p>}
           <div className="wc-tags">
             {desk && <CuratorMark c={desk} sub />}
@@ -117,7 +138,7 @@ export function Wallet({ addr }: { addr: string }) {
       {vaults.map((v) => <VaultCard key={v.marketUid} v={v} />)}
 
       <div className="wstats">
-        <Stat k="Net value" v={isMe ? '—' : usd(pos.data?.totals.navUsd)} s={isMe ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}`} loading={!isMe && pos.isLoading} />
+        <Stat k="Net value" v={isMe ? '—' : usd(nav)} s={isMe ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}`} loading={!isMe && pos.isLoading} />
         <Stat k="Deposited · 30d" v={usdShort(f?.depositedUsd)} s={f ? `net ${usdShort(f.depositedUsd - f.withdrawnUsd)} in` : ''} loading={flows.isLoading} />
         <Stat k="Withdrawn · 30d" v={usdShort(f?.withdrawnUsd)} s="supply taken out" loading={flows.isLoading} />
         <Stat k="Borrowed · 30d" v={usdShort(f?.borrowedUsd)} s={f ? `net ${usdShort(f.borrowedUsd - f.repaidUsd)} drawn` : ''} loading={flows.isLoading} />
@@ -132,8 +153,8 @@ export function Wallet({ addr }: { addr: string }) {
         ) : (
           <div className="card">
             {pos.isLoading && <div className="empty"><Sk w={220} /></div>}
-            {!pos.isLoading && !rows.length && <div className="empty">The index has no open position for this wallet on the chains it follows.</div>}
-            {rows.length > 0 && <Book rows={rows} groups={pos.data?.groups} />}
+            {!pos.isLoading && !rows.length && <div className="empty">The index has no open position for this wallet on {allChains ? 'the chains it follows' : chainLabelFor()}.</div>}
+            {rows.length > 0 && <Book rows={rows} groups={groups} />}
           </div>
         )}
       </section>
@@ -141,9 +162,9 @@ export function Wallet({ addr }: { addr: string }) {
       <section className="sec">
         <div className="sec-h"><h2>Moves</h2><span className="sub">every transaction the index decoded, folded per transaction</span></div>
         <div className="card">
-          {txs.isLoading && <div className="empty"><Sk w={200} /></div>}
-          {!txs.isLoading && !txs.data?.txs.length && <div className="empty">Nothing on the chains the index follows.</div>}
-          <div className="tape">{(txs.data?.txs ?? []).map((t) => {
+          {txsQ.isLoading && <div className="empty"><Sk w={200} /></div>}
+          {!txsQ.isLoading && !txList.length && <div className="empty">Nothing on {allChains ? 'the chains the index follows' : chainLabelFor()}.</div>}
+          <div className="tape">{txList.map((t) => {
             const l = primaryLeg(t), d = describeTx(t.kinds)
             return (
               <div key={`${t.chainId}:${t.txHash}`} className="tape-item">
@@ -363,4 +384,17 @@ export function WalletList({ accounts, right }: { accounts: { account: string; r
       ))}
     </div>
   )
+}
+
+/** The route's `totals`, summed again over the flow rows a multi-chain selection keeps. */
+function flowTotals(rows: FlowsResponse['flows']): FlowsResponse['totals'] {
+  const t = { depositedUsd: 0, withdrawnUsd: 0, borrowedUsd: 0, repaidUsd: 0, netSupplyUsd: 0, netBorrowUsd: 0, nEvents: 0, unpriced: 0 }
+  for (const r of rows) {
+    if (r.side === 'borrow') { t.borrowedUsd += r.inUsd; t.repaidUsd += r.outUsd } else { t.depositedUsd += r.inUsd; t.withdrawnUsd += r.outUsd }
+    t.nEvents += r.nEvents
+    t.unpriced += r.unpriced
+  }
+  t.netSupplyUsd = t.depositedUsd - t.withdrawnUsd
+  t.netBorrowUsd = t.borrowedUsd - t.repaidUsd
+  return t
 }

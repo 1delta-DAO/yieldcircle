@@ -30,19 +30,19 @@ export function useAccountTxs(account: string | undefined, chainId?: string, lim
     staleTime: 30_000,
   })
 }
-export function useAccountFlows(account: string | undefined, days = 30) {
+export function useAccountFlows(account: string | undefined, days = 30, chainId?: string) {
   return useQuery({
     enabled: !!account,
-    queryKey: ['acct-flows', account, days],
-    queryFn: () => api.accountFlows(account!, { days }),
+    queryKey: ['acct-flows', account, days, chainId],
+    queryFn: () => api.accountFlows(account!, { days, chainId }),
     staleTime: 5 * MIN,
   })
 }
-export function useIndexPositions(account: string | undefined) {
+export function useIndexPositions(account: string | undefined, chainId?: string) {
   return useQuery({
     enabled: !!account,
-    queryKey: ['idx-positions', account],
-    queryFn: () => api.accountPositions(account!),
+    queryKey: ['idx-positions', account, chainId],
+    queryFn: () => api.accountPositions(account!, { chainId }),
     staleTime: MIN,
   })
 }

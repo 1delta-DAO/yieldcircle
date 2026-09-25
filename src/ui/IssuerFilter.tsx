@@ -28,6 +28,7 @@ import { useApp } from '../state/AppState'
 import { useIssuers } from '../index/queries'
 import type { IssuerFacet, IssuerMatch } from '../index/api'
 import { useSticky } from '../state/sticky'
+import { ChipSkeleton } from './ProtocolFilter'
 
 const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n))
 
@@ -41,7 +42,8 @@ export function useIssuerFilter(window: '1h' | '6h' | '24h' | '7d' = '7d', scope
     [q.data],
   )
   React.useEffect(() => {
-    if (!q.data) return
+    // a placeholder (last visit, or the previous window) is not the truth about what is available yet
+    if (!q.data || q.isPlaceholderData) return
     setPicked((cur) => (cur.every((i) => available.has(i)) ? cur : cur.filter((i) => available.has(i))))
   }, [available, q.data])
   return {
@@ -67,7 +69,8 @@ const MATCHES: { k: IssuerMatch; label: string; title: string }[] = [
 
 export function IssuerChips({ f, max = 8 }: { f: IssuerFilterState; max?: number }) {
   const [showAll, setShowAll] = React.useState(false)
-  if (f.isLoading && !f.issuers.length) return null
+  // first visit, nothing kept yet: hold the row's height so the list below does not jump when it lands
+  if (f.isLoading && !f.issuers.length) return <ChipSkeleton className="ichips" />
   if (!f.issuers.length) return null
   const shown = showAll ? f.issuers : f.issuers.slice(0, max)
   const hidden = f.issuers.length - shown.length

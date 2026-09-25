@@ -5,7 +5,7 @@
  * and nowhere else.
  */
 import { INDEX_BASE_URL } from '../config/backend'
-import type { AccountKind, FlowsResponse, Following, Holder, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
+import type { AccountKind, AssetBookRow, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
 
 /** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
 export type IssuerMatch = 'any' | 'direct' | 'exposure'
@@ -44,6 +44,8 @@ export interface RecentQuery extends Params {
   markets?: string
   /** one desk's vaults, resolved server-side to their addresses (pos-indexer tickets/0013) */
   curator?: string
+  /** asset groups, comma-joined (pos-indexer tickets/0026) — an unknown group answers an EMPTY page */
+  assetGroups?: string
 }
 export const recentTxs = (q: RecentQuery, signal?: AbortSignal) =>
   get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, group: 'tx' }, signal)
@@ -138,7 +140,7 @@ export interface HotMarket {
   lenderName?: string | null
   lenderLogo?: string | null
 }
-export const hot = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; issuers?: string; issuerMatch?: IssuerMatch; curator?: string; limit?: number } = {}) =>
+export const hot = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; issuers?: string; issuerMatch?: IssuerMatch; curator?: string; assetGroups?: string; limit?: number } = {}) =>
   get<{ window: string; hours: number; method: string; markets: HotMarket[] }>('/hot', p)
 
 /**
@@ -332,5 +334,22 @@ export interface StressRow {
 }
 export const stress = (markets: string[]) =>
   get<{ thresholds: Record<string, number>; stress: Record<string, StressRow> }>('/stress', { markets: markets.join(',') })
+
+// ---------------------------------------------------------------- assets (pos-indexer tickets/0026)
+
+/**
+ * An asset is keyed by its GROUP — yield-tracer's cross-chain price key
+ * (`USDC`, `WSTETH`, `Lista Staked BNB::slisBNB`, `1-0xabc…`). Case-significant
+ * and always encoded in a path. The server also resolves a lower-case key or a
+ * bare symbol and answers with the canonical `group`.
+ */
+const g = (group: string) => `/assets/${encodeURIComponent(group)}`
+export const assets = (p: { chainIds?: string; q?: string; limit?: number; minUsd?: number } = {}, signal?: AbortSignal) =>
+  get<{ assets: AssetBookRow[]; asOf: string | null }>('/assets', p, signal)
+export const asset = (group: string, chainIds?: string) => get<AssetDetail>(g(group), { chainIds })
+export const assetHistory = (group: string, days = 90, chainIds?: string) =>
+  get<AssetHistory>(`${g(group)}/history`, { days, chainIds })
+export const assetHolders = (group: string, limit = 20, chainIds?: string) =>
+  get<AssetHolders>(`${g(group)}/holders`, { limit, chainIds })
 
 export const health = () => get<{ ok: boolean; chains?: string[] }>('/health')

@@ -5,7 +5,7 @@
  * position alike.
  */
 import React from 'react'
-import { go, marketHref } from '../state/AppState'
+import { go, marketHref, tokenHref } from '../state/AppState'
 import { useCuratorsByAccount, useHolders, useMarket, useMarketFlow, useMarketTxs, useStress } from '../index/queries'
 import type { FlowBucket } from '../index/api'
 import { useProfiles } from '../social/queries'
@@ -22,6 +22,7 @@ import { chainLabel } from '../sdk/queries'
 import { indexChainLabel, subjectOf } from '../index/types'
 import type { MarketExposure } from '../index/types'
 import { Flows, primaryLeg } from './Feed'
+import { TokLink } from './TokenPage'
 
 export function Market({ uid }: { uid: string }) {
   const m = useMarket(uid)
@@ -89,10 +90,22 @@ export function Market({ uid }: { uid: string }) {
     <>
       <a className="crumb" href="#/feed">‹ Feed</a>
       <header className="mhdr">
-        <Tok sym={symbol} logo={logo ?? undefined} size={40} />
+        {/* the asset opens its own page — only by the index's GROUP key: a ticker is not an identity (two reUSDs) */}
+        <TokLink group={m.data?.assetGroup ?? fromTape?.assetGroup} sym={symbol} logo={logo ?? undefined} size={40} />
         <div>
           <h1>{name}</h1>
-          <div className="sub">{lender}{chainId ? ` · ${indexChainLabel(chainId, chainLabel)}` : ''}{s ? ` · in the menu at ${pct(s.rate)}` : ''}</div>
+          <div className="sub">
+            {lender}{chainId ? ` · ${indexChainLabel(chainId, chainLabel)}` : ''}{s ? ` · in the menu at ${pct(s.rate)}` : ''}
+            {m.data?.collateralSymbol && (
+              <span className="mk-coll">
+                {' · against '}
+                <TokLink group={m.data.collateralGroup} sym={m.data.collateralSymbol} logo={m.data.collateralLogo ?? undefined} size={16} />
+                {m.data.collateralGroup
+                  ? <a href={tokenHref(m.data.collateralGroup)}>{m.data.collateralSymbol}</a>
+                  : m.data.collateralSymbol}
+              </span>
+            )}
+          </div>
         </div>
         <span className="sp" />
         <div className="mhdr-a">
@@ -100,6 +113,14 @@ export function Market({ uid }: { uid: string }) {
           {s && <button className="btn sm pri" onClick={() => go(s.group, { u: s.asset, s: s.id, k: s.kind })}>Open ›</button>}
         </div>
       </header>
+      {/* the market's published size (yield-tracer, newest hour) — what the whole market holds, not what the index has read */}
+      {m.data?.totals && (
+        <div className="cstats mk-totals">
+          <div className="cstat"><span className="k">Deposits</span><span className="v">{usdShort(num(m.data.totals.depositsUsd))}</span><span className="n">as of <Ago ts={m.data.totals.ts} /></span></div>
+          <div className="cstat"><span className="k">Borrowed</span><span className="v">{usdShort(num(m.data.totals.debtUsd))}</span><span className="n">{utilOf(m.data.totals)}</span></div>
+          <div className="cstat"><span className="k">Available</span><span className="v">{usdShort(num(m.data.totals.liquidityUsd))}</span><span className="n">what can still be borrowed or withdrawn</span></div>
+        </div>
+      )}
       {!s && <div className="note">This app has no row for this market — it is outside the curated menu (too small, too risky, a chain this build does not offer, or a venue whose ticket is not written). You can still read it here.</div>}
       {m.isError && !fromTape && !holders.data?.holders.length && (
         <div className="note">
@@ -280,6 +301,12 @@ function Flow({ rows }: { rows: FlowBucket[] }) {
       </div>
     </div>
   )
+}
+/** a USD figure may arrive as a numeric string off a Postgres numeric column */
+const num = (x: number | string | null | undefined) => (x == null || x === '' ? null : Number(x))
+const utilOf = (t: { depositsUsd: number | string | null; debtUsd: number | string | null }) => {
+  const d = num(t.depositsUsd), b = num(t.debtUsd)
+  return d && b != null ? `${pct((b / d) * 100, 1)} utilized` : 'borrowed from it'
 }
 /** `0x833589fcd6…2913` — enough of a ref to recognise, when nothing named it. */
 const shortRef = (ref: string | undefined) =>

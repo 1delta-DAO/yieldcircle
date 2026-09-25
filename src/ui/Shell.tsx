@@ -28,6 +28,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <a href="#/" aria-current={r.view === 'home' ? 'page' : undefined}>Home</a>
           <a href="#/feed" aria-current={r.view === 'feed' ? 'page' : undefined}>Feed</a>
           <a href="#/explore" aria-current={r.view === 'explore' ? 'page' : undefined}>Explore</a>
+          <a href="#/t" aria-current={r.view === 'token' ? 'page' : undefined}>Assets</a>
           {GROUPS.map((g) => <a key={g.id} className="hide-t" href={`#/${g.id}`} aria-current={r.group === g.id ? 'page' : undefined}>{g.id === 'MORE' ? 'More' : g.id}</a>)}
           <a href="#/board" aria-current={r.view === 'board' ? 'page' : undefined}>Board</a>
         </nav>

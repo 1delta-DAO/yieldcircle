@@ -11,7 +11,7 @@ import { useMyFollows, useSocialRefresh } from '../social/queries'
 import { useSocialWrite } from '../social/sign'
 import type { Profile } from '../social/types'
 import type { AccountKind, UsdStatus } from '../index/types'
-import { usd, usdShort } from './bits'
+import { Tip, usd, usdShort } from './bits'
 
 // ---------------------------------------------------------------- time
 /** One shared clock: a hundred ages on a screen tick together and cost one timer. */
@@ -83,7 +83,7 @@ export function Face({ account, profile, size = 28, idx }: { account: string; pr
  * "Amber Otter" like any chosen name, and the difference matters when the name
  * is attached to a claim — so it is said, not implied by a dimming.
  */
-export const AutoTag = () => <i className="pill auto" title={AUTO_TITLE}>auto</i>
+export const AutoTag = () => <Tip tip={<><b>Generated name.</b> {AUTO_TITLE[0].toUpperCase() + AUTO_TITLE.slice(1)}.</>}><i className="pill auto">auto</i></Tip>
 
 /** A face and a name, linking to the wallet page. The index's word for an address beats a made-up one. */
 export function Who({ account, profile, size = 28, idx, sub, plain }: {
@@ -121,9 +121,36 @@ export const TAG_LABEL: Record<string, string> = {
   'size-whale': '$1m+ deposited',
   'size-large': '$100k+ deposited',
 }
+/**
+ * What each badge exactly means — the index's rule, in words (pos-indexer
+ * `refreshBadges`). Every one is computed from the ledger, recomputed on a
+ * schedule, and cannot be claimed, bought or transferred.
+ */
+export const TAG_HELP: Record<string, string> = {
+  'held-180d': 'Has a supply position worth at least $100 that has been open for more than 180 days.',
+  'never-liquidated': 'Holds at least one position worth $100 or more, and no position of this address has ever been liquidated. The badge is removed the moment one is.',
+  early: 'Was among the first 100 accounts to enter at least one market the index tracks.',
+  'size-whale': 'Has deposited over $1m in total, lifetime, summed across every market at the price at each deposit. Vaults and protocol contracts are excluded.',
+  'size-large': 'Has deposited over $100k in total, lifetime, summed across every market at the price at each deposit. Vaults and protocol contracts are excluded.',
+}
+const BADGE_FOOT = 'Earned from the on-chain record — it cannot be claimed or bought.'
+export function Badge({ tag }: { tag: string }) {
+  const label = TAG_LABEL[tag] ?? tag
+  return (
+    <Tip tip={<><b>{label}</b> — {TAG_HELP[tag] ?? 'A badge the index computed from this address\'s history.'} <span className="t40">{BADGE_FOOT}</span></>}>
+      <i className="badge-tag">{label}</i>
+    </Tip>
+  )
+}
 export function Badges({ tags, max = 3 }: { tags?: string[] | null; max?: number }) {
   if (!tags?.length) return null
-  return <span className="badges">{tags.slice(0, max).map((t) => <i key={t} className="badge-tag" title={TAG_LABEL[t] ?? t}>{TAG_LABEL[t] ?? t}</i>)}{tags.length > max && <i className="badge-tag more">+{tags.length - max}</i>}</span>
+  const rest = tags.slice(max)
+  return (
+    <span className="badges">
+      {tags.slice(0, max).map((t) => <Badge key={t} tag={t} />)}
+      {rest.length > 0 && <Tip tip={<>Also: {rest.map((t) => TAG_LABEL[t] ?? t).join(', ')}.</>}><i className="badge-tag more">+{rest.length}</i></Tip>}
+    </span>
+  )
 }
 
 // ---------------------------------------------------------------- actions

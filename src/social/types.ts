@@ -3,9 +3,10 @@
 /**
  * What a thread can hang on. `curator` (pos-indexer tickets/0013) joins the
  * four originals: a desk's page needs the same comment surface a market has,
- * and the key is its curator id.
+ * and the key is its curator id. `asset` (tickets/0026) is keyed by the asset
+ * GROUP verbatim — the thread is about the money, across every chain.
  */
-export type SubjectKind = 'market' | 'event' | 'wallet' | 'position' | 'curator'
+export type SubjectKind = 'market' | 'event' | 'wallet' | 'position' | 'curator' | 'asset'
 
 export interface Profile {
   account: string

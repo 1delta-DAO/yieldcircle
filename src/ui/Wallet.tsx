@@ -17,11 +17,12 @@ import { AutoTag, Badges, FollowButton, Money, Who, Ago, describeTx, tokens } fr
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
-import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
+import { AddrExplorers, CopyButton, Sk, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type IndexPosition, type PositionGroup, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
 import { primaryLeg } from './Feed'
+import { TokLink } from './TokenPage'
 
 export function Wallet({ addr }: { addr: string }) {
   const { address } = useAccount()
@@ -63,6 +64,15 @@ export function Wallet({ addr }: { addr: string }) {
   const spec = specFor(addr, profile?.avatarUrl)
   const bad = profile?.avatarUrl ? unearned(spec, profile.systemTags ?? []) : []
   const f = flows.data?.totals
+  /** the chains this address has been seen on, busiest first; Ethereum when the index has seen it nowhere */
+  const chains = React.useMemo(() => {
+    const n = new Map<string, number>()
+    const bump = (id: string | undefined, by = 1) => { if (id) n.set(id, (n.get(id) ?? 0) + by) }
+    rows.forEach((r) => bump(r.chainId))
+    flows.data?.flows.forEach((r) => bump(r.chainId, r.nEvents))
+    txs.data?.txs.forEach((t) => bump(t.chainId))
+    return n.size ? [...n.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id) : ['1']
+  }, [rows, flows.data, txs.data])
 
   return (
     <>
@@ -71,12 +81,12 @@ export function Wallet({ addr }: { addr: string }) {
         <Character addr={addr} avatarUrl={profile?.avatarUrl} size={72} />
         <div className="wc-t">
           <h1>{name.label}{name.generated && <AutoTag />}</h1>
-          <div className="sub mono">{shortAddr(addr)}{profile?.xHandle && <> · <a className="pri" href={`https://x.com/${profile.xHandle}`} target="_blank" rel="noreferrer">𝕏 @{profile.xHandle}</a></>}</div>
+          <div className="sub mono wc-addr"><span title={addr}>{shortAddr(addr)}</span><CopyButton text={addr} /><AddrExplorers addr={addr} chainIds={chains} />{profile?.xHandle && <> · <a className="pri" href={`https://x.com/${profile.xHandle}`} target="_blank" rel="noreferrer">𝕏 @{profile.xHandle}</a></>}</div>
           {profile?.bio && <p className="wc-bio">{profile.bio}</p>}
           <div className="wc-tags">
             {desk && <CuratorMark c={desk} sub />}
             <Badges tags={profile?.systemTags} max={4} />
-            {profile?.tags?.map((t) => <i key={t} className="badge-tag self" title="self-declared">{t}</i>)}
+            {profile?.tags?.map((t) => <Tip key={t} tip={<><b>Self-declared.</b> The owner of this address wrote this tag on their signed profile. Nothing checks it.</>}><i className="badge-tag self">{t}</i></Tip>)}
           </div>
           {bad.length > 0 && <p className="foot warn">This character claims {bad.map((g) => g.why).join(' and ')}, which the index has not confirmed.</p>}
         </div>
@@ -88,10 +98,19 @@ export function Wallet({ addr }: { addr: string }) {
 
       {desk && (
         <div className="note deskn">
-          This address {desk.via === 'vault' ? 'is one of' : 'controls'}{' '}
-          <a className="pri" href={curatorHref(desk.curatorId)}>{curatorLabel(desk)}</a>’s {desk.nVaults} vault
-          {desk.nVaults === 1 ? '' : 's'} — what it does here is an allocation decision for its depositors, not a
-          wallet's own trade. {desk.verified ? 'It is listed in a curator registry we read.' : 'No curator registry we read names it, which is a fact about the registry.'}
+          {desk.via === 'vault' ? (
+            <>
+              This address is one of the {desk.nVaults} vault{desk.nVaults === 1 ? '' : 's'} curated by{' '}
+              <a className="pri" href={curatorHref(desk.curatorId)}>{curatorLabel(desk)}</a>
+            </>
+          ) : (
+            <>
+              This address is {desk.role ? `the ${desk.role}` : 'an address'} of{' '}
+              <a className="pri" href={curatorHref(desk.curatorId)}>{curatorLabel(desk)}</a>, curator of {desk.nVaults} vault
+              {desk.nVaults === 1 ? '' : 's'}
+            </>
+          )}{' '}
+          — what it does here is an allocation decision for depositors, not a wallet's own trade. {desk.verified ? 'It is listed in a curator registry we read.' : 'No curator registry we read names it, which is a fact about the registry.'}
         </div>
       )}
 
@@ -99,8 +118,10 @@ export function Wallet({ addr }: { addr: string }) {
 
       <div className="wstats">
         <Stat k="Net value" v={isMe ? '—' : usd(pos.data?.totals.navUsd)} s={isMe ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}`} loading={!isMe && pos.isLoading} />
-        <Stat k="Deposited · 30d" v={usdShort(f?.depositedUsd)} s={f ? `withdrew ${usdShort(f.withdrawnUsd)}` : ''} loading={flows.isLoading} />
-        <Stat k="Borrowed · 30d" v={usdShort(f?.borrowedUsd)} s={f ? `repaid ${usdShort(f.repaidUsd)}` : ''} loading={flows.isLoading} />
+        <Stat k="Deposited · 30d" v={usdShort(f?.depositedUsd)} s={f ? `net ${usdShort(f.depositedUsd - f.withdrawnUsd)} in` : ''} loading={flows.isLoading} />
+        <Stat k="Withdrawn · 30d" v={usdShort(f?.withdrawnUsd)} s="supply taken out" loading={flows.isLoading} />
+        <Stat k="Borrowed · 30d" v={usdShort(f?.borrowedUsd)} s={f ? `net ${usdShort(f.borrowedUsd - f.repaidUsd)} drawn` : ''} loading={flows.isLoading} />
+        <Stat k="Repaid · 30d" v={usdShort(f?.repaidUsd)} s="debt paid down" loading={flows.isLoading} />
         <Stat k="Moves · 30d" v={f ? String(f.nEvents) : '—'} s={f?.unpriced ? `${f.unpriced} unvalued` : 'valued at the block'} loading={flows.isLoading} />
       </div>
 
@@ -222,19 +243,22 @@ function Book({ rows, groups }: { rows: IndexPosition[]; groups?: PositionGroup[
       <thead><tr><th>Position</th><th className="r">Value</th><th className="r hide-m">Rate</th><th /></tr></thead>
       <tbody>
         {gs.map((g) => {
-          const legs = g.legs.map((l) => byLeg.get(`${l.marketUid}|${l.side}|${l.posId}`)).filter((r): r is IndexPosition => !!r)
-          if (legs.length === 0) return null
-          if (legs.length === 1) return <LegRow key={g.key} r={legs[0]} />
+          const found = g.legs.map((l) => byLeg.get(`${l.marketUid}|${l.side}|${l.posId}`)).filter((r): r is IndexPosition => !!r)
+          if (found.length === 0) return null
+          if (found.length === 1) return <LegRow key={g.key} r={found[0]} />
+          const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
           return <React.Fragment key={g.key}>
-            <tr className="grp" onClick={() => { location.hash = marketHref(legs[0].marketUid) }}>
+            <tr className="grp" onClick={() => { location.hash = marketHref(lead.marketUid) }}>
               <td>
                 <div className="nm">
-                  <Tok sym={legs[0].symbol ?? '?'} logo={legs[0].assetLogo ?? undefined} />
-                  <span><b>{loopLabel(legs)}</b> <span className="t50">· {legs[0].lenderName ?? legs[0].lenderKey}</span></span>
+                  <TokLink group={lead.assetGroup} sym={lead.symbol ?? '?'} logo={lead.assetLogo ?? undefined} />
+                  <span><b title={s.basket ? composition(s) : undefined}>{groupLabel(s)}</b> <span className="t50">· {lead.lenderName ?? lead.lenderKey}</span></span>
                   {g.leverage != null && g.leverage > 1.05 && <span className="pill">{g.leverage.toFixed(2)}×</span>}
+                  {s.basket && <span className="pill" title="several assets share this account's one health factor">cross-margin</span>}
                 </div>
                 <small className="hide-m">
-                  {indexChainLabel(legs[0].chainId, chainLabel)} · {usdShort(g.supplyUsd)} collateral over {usdShort(g.debtUsd)} of debt
+                  {indexChainLabel(lead.chainId, chainLabel)} · {usdShort(g.supplyUsd)} {s.debt.length ? 'collateral' : 'supplied'}{s.collSyms.length > 1 ? ` in ${s.collSyms.join(', ')}` : ''}
+                  {s.debt.length > 0 && <> over {usdShort(g.debtUsd)} of debt{s.debtSyms.length > 1 ? ` in ${s.debtSyms.join(', ')}` : ''}</>}
                 </small>
               </td>
               <td className="r"><b>{usd(g.equityUsd)}</b><small>equity</small></td>
@@ -249,13 +273,35 @@ function Book({ rows, groups }: { rows: IndexPosition[]; groups?: PositionGroup[
   )
 }
 
-/** `syrupUSDT / USDT` — what the position is, from its own legs. */
-function loopLabel(legs: IndexPosition[]): string {
-  const coll = legs.find((l) => l.side !== 'borrow')
-  const debt = legs.find((l) => l.side === 'borrow')
-  if (coll && debt) return `${coll.symbol ?? '?'} / ${debt.symbol ?? '?'} loop`
-  return legs[0].marketName ?? legs[0].symbol ?? 'position'
+/**
+ * One risk set's legs split by side, each side largest first. The index folds
+ * a whole cross-margin account (every Aave reserve backs every debt) into one
+ * group, so a side can hold several assets; `basket` says one of them does.
+ */
+interface Sides { coll: IndexPosition[]; debt: IndexPosition[]; collSyms: string[]; debtSyms: string[]; basket: boolean }
+function sides(legs: IndexPosition[]): Sides {
+  const big = (a: IndexPosition, b: IndexPosition) => Math.abs(b.amountUsd ?? 0) - Math.abs(a.amountUsd ?? 0)
+  const coll = legs.filter((l) => l.side !== 'borrow').sort(big)
+  const debt = legs.filter((l) => l.side === 'borrow').sort(big)
+  // by symbol, not by leg: a Morpho collateral leg and a supply leg of the same token are one asset
+  const syms = (ls: IndexPosition[]) => [...new Set(ls.map((l) => l.symbol ?? '?'))]
+  const collSyms = syms(coll), debtSyms = syms(debt)
+  return { coll, debt, collSyms, debtSyms, basket: collSyms.length > 1 || debtSyms.length > 1 }
 }
+
+/**
+ * What the position is, from its own legs: `syrupUSDT / USDT loop` for one
+ * asset a side, `basket / WETH` or `cbBTC / basket` once a side holds several
+ * — naming only the first would say the account is something it is not. The
+ * legs underneath carry the breakdown.
+ */
+function groupLabel(s: Sides): string {
+  const side = (syms: string[]) => (syms.length > 1 ? 'basket' : syms[0])
+  if (s.coll.length && s.debt.length) return `${side(s.collSyms)} / ${side(s.debtSyms)}${s.basket ? '' : ' loop'}`
+  if (s.coll.length) return s.collSyms.length > 1 ? `${s.collSyms.join(' + ')}` : s.coll[0].marketName ?? s.collSyms[0]
+  return s.debtSyms.length > 1 ? `${s.debtSyms.join(' + ')} debt` : s.debt[0].marketName ?? s.debtSyms[0]
+}
+const composition = (s: Sides) => [s.collSyms.join(', '), s.debtSyms.join(', ')].filter(Boolean).join(' against ')
 
 /**
  * The net rate, or the reason there is none. A refusal is shown in words:
@@ -285,7 +331,7 @@ function LegRow({ r, sub }: { r: IndexPosition; sub?: boolean }) {
     <tr className={sub ? 'leg' : undefined} onClick={() => { location.hash = marketHref(r.marketUid) }}>
       <td>
         <div className="nm">
-          {!sub && <Tok sym={r.symbol ?? '?'} logo={r.assetLogo ?? undefined} />}
+          {!sub && <TokLink group={r.assetGroup} sym={r.symbol ?? '?'} logo={r.assetLogo ?? undefined} />}
           <span>{sub && <span className="t40">└ </span>}<b>{r.marketName ?? r.symbol}</b> <span className="t50">· {r.lenderName ?? r.lenderKey}</span></span>
           {r.side === 'borrow' && <span className="pill k-borrow">debt</span>}
         </div>

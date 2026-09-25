@@ -169,7 +169,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   }, [tab, menu.isLoading, menuReady, feed.isFetching, feed.data, page.length, all.length, limit]);
 
   const subjects = txs
-    .map((t) => ({ kind: "position" as const, key: cardKey(t, pf.picked) }))
+    .map((t) => ({ kind: "position" as const, key: cardKey(t, pf.keys) }))
     .filter((s) => !!s.key);
   const counts = useCounts(subjects);
   const { profile } = useProfiles(
@@ -184,7 +184,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
     [
       ...new Set(
         txs
-          .map((t) => primaryLeg(t, pf.picked)?.marketUid)
+          .map((t) => primaryLeg(t, pf.keys)?.marketUid)
           .filter((u): u is string => !!u),
       ),
     ].map((key) => ({ kind: "market" as const, key })),
@@ -325,14 +325,14 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
             key={`${t.chainId}:${t.txHash}`}
             tx={t}
             profile={profile(subjectOf(t).account)}
-            strategy={menu.forUid(primaryLeg(t, pf.picked)?.marketUid)}
-            only={pf.picked}
+            strategy={menu.forUid(primaryLeg(t, pf.keys)?.marketUid)}
+            only={pf.keys}
             curator={who.curatorOf(subjectOf(t).account)}
             rating={rated.ratingOf(
               "market",
-              primaryLeg(t, pf.picked)?.marketUid ?? "",
+              primaryLeg(t, pf.keys)?.marketUid ?? "",
             )}
-            comments={counts.count("position", cardKey(t, pf.picked))}
+            comments={counts.count("position", cardKey(t, pf.keys))}
             open={open === t.txHash}
             onToggle={() => setOpen(open === t.txHash ? null : t.txHash)}
           />

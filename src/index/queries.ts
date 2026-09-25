@@ -96,31 +96,54 @@ export function useHot(
   issuers?: string,
   issuerMatch?: api.IssuerMatch,
   curator?: string,
+  assetGroups?: string,
 ) {
   return useQuery({
-    queryKey: ['hot', window, chainIds ?? 'all', protocols ?? 'all', issuers ?? 'all', issuerMatch ?? 'any', curator ?? 'all', limit],
-    queryFn: () => api.hot({ window, chainIds, protocols, issuers, issuerMatch, curator, limit }),
+    queryKey: ['hot', window, chainIds ?? 'all', protocols ?? 'all', issuers ?? 'all', issuerMatch ?? 'any', curator ?? 'all', assetGroups ?? 'all', limit],
+    queryFn: () => api.hot({ window, chainIds, protocols, issuers, issuerMatch, curator, assetGroups, limit }),
     staleTime: 2 * MIN,
     refetchInterval: 2 * MIN,
     placeholderData: (prev) => prev,
   })
 }
 
+/**
+ * The filter facets take the index 1.5–6 s to count (measured 2026-09-25,
+ * `/issuers?window=7d` the slowest), and a chip bar that arrives that late
+ * shoves the list under it down. The last answer is kept in localStorage and
+ * shown at once as a placeholder while the fresh one loads — the venues with
+ * activity barely change between visits — and a window switch keeps the
+ * previous chips up instead of blanking them.
+ */
+const lastKey = (key: readonly unknown[]) => 'facet:' + JSON.stringify(key)
+function readLast<T>(key: readonly unknown[]): T | undefined {
+  try { const v = localStorage.getItem(lastKey(key)); return v ? (JSON.parse(v) as T) : undefined } catch { return undefined }
+}
+function keepLast<T>(key: readonly unknown[], v: T): T {
+  try { localStorage.setItem(lastKey(key), JSON.stringify(v)) } catch { /* private mode, quota: the chips still load, just not instantly */ }
+  return v
+}
 /** Which protocols a filter should offer, for the current window and chain scope. */
 export function useProtocols(window: '1h' | '6h' | '24h' | '7d', chainIds?: string) {
+  const key = ['protocols', window, chainIds ?? 'all'] as const
+  type R = Awaited<ReturnType<typeof api.protocols>>
   return useQuery({
-    queryKey: ['protocols', window, chainIds ?? 'all'],
-    queryFn: () => api.protocols({ window, chainIds, limit: 40 }),
+    queryKey: key,
+    queryFn: async () => keepLast(key, await api.protocols({ window, chainIds, limit: 40 })),
     staleTime: 5 * MIN,
+    placeholderData: (prev: R | undefined) => prev ?? readLast<R>(key),
   })
 }
 
 /** Which desks a filter should offer, for the current window and chain scope. */
 export function useIssuers(window: '1h' | '6h' | '24h' | '7d', chainIds?: string) {
+  const key = ['issuers', window, chainIds ?? 'all'] as const
+  type R = Awaited<ReturnType<typeof api.issuers>>
   return useQuery({
-    queryKey: ['issuers', window, chainIds ?? 'all'],
-    queryFn: () => api.issuers({ window, chainIds, limit: 40 }),
+    queryKey: key,
+    queryFn: async () => keepLast(key, await api.issuers({ window, chainIds, limit: 40 })),
     staleTime: 5 * MIN,
+    placeholderData: (prev: R | undefined) => prev ?? readLast<R>(key),
   })
 }
 
@@ -162,6 +185,46 @@ export function useCuratorsByAccount(addresses: string[]) {
   })
   const map = q.data?.curators ?? {}
   return { curatorOf: (a: string | undefined) => (a ? (map[a.toLowerCase()] ?? null) : null), isLoading: q.isLoading }
+}
+
+// ---------------------------------------------------------------- assets (pos-indexer tickets/0026)
+
+/** The asset book: every group with lending activity, biggest first. */
+export function useAssetBook(chainIds?: string, q?: string, limit = 200) {
+  return useQuery({
+    queryKey: ['asset-book', chainIds ?? 'all', q ?? '', limit],
+    queryFn: ({ signal }) => api.assets({ chainIds, q: q || undefined, limit }, signal),
+    staleTime: 5 * MIN,
+    retry: false,
+    placeholderData: (prev) => prev,
+  })
+}
+export function useAsset(group: string | undefined, chainIds?: string) {
+  return useQuery({
+    enabled: !!group,
+    queryKey: ['asset', group, chainIds ?? 'all'],
+    queryFn: () => api.asset(group!, chainIds),
+    staleTime: 5 * MIN,
+    retry: false,
+  })
+}
+export function useAssetHistory(group: string | undefined, days = 90, chainIds?: string) {
+  return useQuery({
+    enabled: !!group,
+    queryKey: ['asset-history', group, days, chainIds ?? 'all'],
+    queryFn: () => api.assetHistory(group!, days, chainIds),
+    staleTime: 10 * MIN,
+    retry: false,
+  })
+}
+export function useAssetHolders(group: string | undefined, limit = 20, chainIds?: string) {
+  return useQuery({
+    enabled: !!group,
+    queryKey: ['asset-holders', group, limit, chainIds ?? 'all'],
+    queryFn: () => api.assetHolders(group!, limit, chainIds),
+    staleTime: 5 * MIN,
+    retry: false,
+  })
 }
 
 /**

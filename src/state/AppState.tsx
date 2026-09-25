@@ -16,9 +16,11 @@ import { CHAINS } from '../sdk/queries'
  *   #/board                  the leaderboard   (?w=24h|7d|30d|all)
  *   #/me                     profile editor
  *   #/alerts                 what happened while you were away
+ *   #/t                      the asset book (every token the index lends)
+ *   #/t/<group>              one asset (group percent-encoded: `Lista Staked BNB::slisBNB`)
  */
 export type Mode = 'add' | 'reduce' | 'close' | 'manage'
-export type View = 'home' | 'explore' | 'group' | 'feed' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator'
+export type View = 'home' | 'explore' | 'group' | 'feed' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token'
 export interface Route {
   view: View
   group?: string
@@ -34,6 +36,8 @@ export interface Route {
   curatorId?: string
   /** #/m/<uid> */
   uid?: string
+  /** #/t/<group> — an asset group key, case-significant; absent on `#/t` (the asset book) */
+  token?: string
   /** feed tab / board window — a plain `?t=` so a link carries it */
   t?: string
   /** who is being copied, when the ticket was opened from a feed card */
@@ -67,6 +71,8 @@ export function parseRoute(hash = location.hash): Route {
   if (head === 'm' && seg[1]) return { view: 'market', uid: seg.slice(1).join('/'), ...base }
   // a desk id is a registry slug or `cand:<chain>:<address>` — the colons survive the hash
   if (head === 'c' && seg[1]) return { view: 'curator', curatorId: decodeURIComponent(seg.slice(1).join('/')), ...base }
+  // an asset group can itself be `ETH` or `USD`, so it lives under its own segment, never in `group`
+  if (head === 't') return { view: 'token', token: seg[1] ? seg.slice(1).join('/') : undefined, ...base }
   if (head && GROUP_IDS.has(head)) return { view: 'group', group: head, ...base }
   return { view: 'home', ...base }
 }
@@ -80,6 +86,8 @@ export function go(path: string, params: Record<string, string | undefined | nul
 /** A market uid carries colons and dots, so it is encoded — and its case is significant, never lowered. */
 export const marketHref = (uid: string) => `#/m/${encodeURIComponent(uid)}`
 export const walletHref = (a: string) => `#/w/${a.toLowerCase()}`
+/** An asset page. The group key is case-significant and may carry spaces and colons. */
+export const tokenHref = (group: string) => `#/t/${encodeURIComponent(group)}`
 
 export function useRoute(): Route {
   const [r, setR] = React.useState(parseRoute)

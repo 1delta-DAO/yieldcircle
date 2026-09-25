@@ -122,10 +122,10 @@ export function CuratorMark({
         (c.verified ? ', listed in a curator registry we read' : ', not in any curator registry we read')
       }
     >
+      {sub && <span className="cs">{c.via === 'vault' ? 'curated by' : c.role ? `${c.role} of` : 'operated by'}</span>}
       {c.logoUri ? <img src={c.logoUri} alt="" loading="lazy" /> : <i className="plogo">c</i>}
       <span className="cn">{curatorLabel(c)}</span>
       {c.confidence && <span className="cc">{MARK[c.confidence] ?? ''}</span>}
-      {sub && <span className="cs">{c.via === 'vault' ? 'vault of' : 'runs'}</span>}
     </a>
   )
 }

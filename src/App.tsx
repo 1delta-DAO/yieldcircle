@@ -6,6 +6,7 @@ import { Feed } from './ui/Feed'
 import { Wallet } from './ui/Wallet'
 import { Market } from './ui/Market'
 import { Curator } from './ui/Curator'
+import { TokenPage, TokenBook } from './ui/TokenPage'
 import { Board } from './ui/Board'
 import { ProfilePage } from './ui/Profile'
 import { Alerts } from './ui/Alerts'
@@ -21,6 +22,7 @@ export default function App() {
         : r.view === 'wallet' && r.addr ? <Wallet key={r.addr} addr={r.addr} />
         : r.view === 'market' && r.uid ? <Market key={r.uid} uid={r.uid} />
         : r.view === 'curator' && r.curatorId ? <Curator key={r.curatorId} id={r.curatorId} />
+        : r.view === 'token' ? (r.token ? <TokenPage key={r.token} group={r.token} /> : <TokenBook />)
         : r.view === 'board' ? <Board window={r.t} />
         : r.view === 'me' ? <ProfilePage />
         : r.view === 'alerts' ? <Alerts />

@@ -1,7 +1,7 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { assetLogo, colorOf, short, unitOf } from '../model/assets'
-import { chainInfo, txUrl } from './ChainMark'
+import { ChainMark, addressUrl, chainInfo, txUrl } from './ChainMark'
 import type { Risk } from '../model/strategies'
 
 export const pct = (x: number | null | undefined, d = 2) => (x == null || !Number.isFinite(x) ? '—' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%')
@@ -85,6 +85,30 @@ export function Popover({ anchor, open, onClose, children, width = 300, align = 
   if (!open) return null
   return createPortal(<div ref={box} className="pop" style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, width: pos?.width ?? width }} role="dialog">{children}</div>, document.body)
 }
+/**
+ * A short explanation on hover (or tap) over something small — a tag, a pill.
+ * The popover stays open while the pointer crosses from the trigger onto it.
+ */
+export function Tip({ tip, children, className, width = 240 }: { tip: React.ReactNode; children: React.ReactNode; className?: string; width?: number }) {
+  const ref = React.useRef<HTMLSpanElement>(null)
+  const [open, setOpen] = React.useState(false)
+  const t = React.useRef<number | undefined>(undefined)
+  const later = (v: boolean, ms: number) => { clearTimeout(t.current); t.current = window.setTimeout(() => setOpen(v), ms) }
+  React.useEffect(() => () => clearTimeout(t.current), [])
+  return (
+    <>
+      <span ref={ref} className={'tip' + (className ? ' ' + className : '')} tabIndex={0}
+        onMouseEnter={() => later(true, 200)} onMouseLeave={() => later(false, 150)}
+        onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); clearTimeout(t.current); setOpen((o) => !o) }}>
+        {children}
+      </span>
+      <Popover anchor={ref} open={open} onClose={() => setOpen(false)} width={width}>
+        <div className="pop-text" onMouseEnter={() => clearTimeout(t.current)} onMouseLeave={() => later(false, 150)}>{tip}</div>
+      </Popover>
+    </>
+  )
+}
 /** ⓘ — the explanation lives here, not in the layout. Tap or hover. */
 export function Info({ children, label = 'What is this?' }: { children: React.ReactNode; label?: string }) {
   const ref = React.useRef<HTMLButtonElement>(null)
@@ -107,19 +131,38 @@ export function Tok({ sym, logo, size = 22 }: { sym: string; logo?: string; size
   if (logo && !bad) return <img className="tok" src={logo} alt="" width={size} height={size} style={{ width: size, height: size, background: '#111' }} onError={() => setBad(true)} title={sym} />
   return <i className="tok" style={{ background: colorOf(sym), width: size, height: size }} title={sym}>{short(sym)}</i>
 }
-const ICON_BASE = 'https://raw.githubusercontent.com/1delta-DAO/protocol-icons/main/lender/'
+const ICON_ROOT = 'https://raw.githubusercontent.com/1delta-DAO/protocol-icons/main/'
+/** `aave_v3` → `lender/aave_v3.webp`; a value with a slash or an extension is a path of its own. */
+const iconUrl = (n: string) => ICON_ROOT + (n.includes('/') ? n : 'lender/' + n) + (/\.\w+$/.test(n) ? '' : '.webp')
+// family → the GENERIC mark. The index hands each protocol the logo of one of its
+// instances (a Compound USDC comet, one Morpho market pair, one Aave V4 spoke), which
+// is the wrong face for the protocol as a whole. Vaults and markets of the same house
+// get different marks on purpose: Morpho Vaults (the bare butterfly) are not Morpho
+// Markets (the blue disc), nor Midnight (the black one).
 const FAMILY: [RegExp, string][] = [
   [/^AAVE_V3_HORIZON/i, 'aave_v3_horizon'], [/^AAVE_V3_PRIME|^AAVE_V3_LIDO/i, 'aave_v3_prime'], [/^AAVE_V3/i, 'aave_v3'], [/^AAVE_V4/i, 'aave_v4'], [/^AAVE_V2/i, 'aave_v2'],
-  [/^MORPHO_BLUE|^vault\.morpho$/i, 'morpho_blue'], [/^MORPHO_MIDNIGHT/i, 'morpho_blue'], [/^FLUID|^vault\.fluid$/i, 'fluid'], [/^LLAMALEND/i, 'llamalend'],
+  [/^vault\.morpho(_blue)?$/i, 'morpho.svg'], [/^MORPHO_BLUE/i, 'morpho_blue'], [/^MORPHO_MIDNIGHT/i, 'morpho_midnight'], [/^FLUID|^vault\.fluid$/i, 'fluid'], [/^LLAMALEND/i, 'llamalend'],
   [/^COMPOUND_V3/i, 'compound_v3'], [/^COMPOUND_V2/i, 'compound_v2'], [/^EULER|^vault\.euler-earn$/i, 'euler_v2'], [/^DOLOMITE/i, 'dolomite'], [/^SPARK/i, 'spark'],
-  [/^LISTA/i, 'lista'], [/^VENUS/i, 'venus'], [/^SILO/i, 'silo'], [/^GEARBOX/i, 'gearbox_v3'], [/^RESUPPLY/i, 'resupply'], [/^FRAXLEND/i, 'fraxlend'], [/^INVERSE/i, 'inverse'],
+  [/^LISTA|^vault\.lista/i, 'lista'], [/^VENUS/i, 'venus'], [/^SILO|^vault\.silo$/i, 'silo'], [/^GEARBOX/i, 'gearbox_v3'], [/^RESUPPLY/i, 'resupply'], [/^FRAXLEND/i, 'fraxlend'], [/^INVERSE/i, 'inverse'],
+  [/^LIQUITY_V2/i, 'liquity_v2'], [/^vault\.pendle$/i, 'aggregator/pendle'],
   [/^CURVANCE/i, 'curvance'], [/^FLYING_TULIP/i, 'flying_tulip'], [/^FRANKENCOIN/i, 'frankencoin'], [/^CAPY_FI/i, 'capy_fi'], [/^AVALON/i, 'avalon'], [/^EXACTLY/i, 'exactly'], [/^XLEND/i, 'xlend'],
 ]
 /** Candidate venue icons, most specific first; the badge walks them on load error and gives up quietly. */
 export function venueIconUrls(key: string): string[] {
   const f = FAMILY.find(([re]) => re.test(key))?.[1]
   const base = key.toLowerCase().replace(/(_[0-9a-f]{40,64}|_\d+)+$/, '')
-  return [...new Set([f, base.startsWith('vault.') ? undefined : base].filter((n): n is string => !!n))].map((n) => ICON_BASE + n + '.webp')
+  return [...new Set([f, base.startsWith('vault.') ? undefined : base].filter((n): n is string => !!n))].map(iconUrl)
+}
+/** A PROTOCOL's mark (a filter chip, not a row): the generic family icon first, the index's instance logo only after it. */
+export function protocolIconUrls(key: string, logoUri?: string | null): string[] {
+  return [...new Set([...venueIconUrls(key), ...(logoUri ? [logoUri] : [])])]
+}
+/** The first of `urls` that loads; the name's first letter when none does. */
+export function ProtocolLogo({ urls, name }: { urls: string[]; name: string }) {
+  const [i, setI] = React.useState(0)
+  React.useEffect(() => setI(0), [urls.join()])
+  if (i < urls.length) return <img src={urls[i]} alt="" width={15} height={15} loading="lazy" onError={() => setI((n) => n + 1)} />
+  return <i className="plogo">{name.slice(0, 1)}</i>
 }
 /** A small venue badge on the corner of a mark: the lender's icon where the icon set has one, else the brand's first letters. */
 export function VenueBadge({ venueKey, brand }: { venueKey: string; brand: string }) {
@@ -164,7 +207,46 @@ export function TxLink({ chainId, hash, label }: { chainId: string | undefined; 
     </a>
   )
 }
+/** Copy a string (an address) to the clipboard, with a moment of "copied" to say it worked. */
+export function CopyButton({ text, label = 'Copy address' }: { text: string; label?: string }) {
+  const [done, setDone] = React.useState(false)
+  React.useEffect(() => { if (!done) return; const t = setTimeout(() => setDone(false), 1400); return () => clearTimeout(t) }, [done])
+  return (
+    <button type="button" className={'copybtn' + (done ? ' ok' : '')} title={done ? 'Copied' : label} aria-label={label}
+      onClick={(e) => { e.stopPropagation(); void navigator.clipboard?.writeText(text).then(() => setDone(true)) }}>
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        {done ? <path d="M5 12.5 10 17.5 19 7" /> : <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15" /></>}
+      </svg>
+    </button>
+  )
+}
+/**
+ * An address on each chain's own explorer — one mark per chain, since an
+ * address is the same on every EVM chain but its history is not. Chains this
+ * app has no explorer for are left out rather than linked to a guess.
+ */
+export function AddrExplorers({ addr, chainIds }: { addr: string; chainIds: string[] }) {
+  const ids = [...new Set(chainIds)].filter((id) => addressUrl(id, addr))
+  if (!ids.length) return null
+  return (
+    <span className="addrx">
+      {ids.map((id) => {
+        const where = chainInfo(id)!.explorerName
+        return (
+          <a key={id} href={addressUrl(id, addr)} target="_blank" rel="noreferrer" title={`Open on ${where}`} aria-label={`Open the address on ${where}`}>
+            <ChainMark chainId={id} size={16} title={where} />
+          </a>
+        )
+      })}
+    </span>
+  )
+}
 export function Sk({ w = 80, h = 12 }: { w?: number | string; h?: number }) { return <span className="sk" style={{ width: w, height: h }} aria-hidden /> }
+/** A group's mark: its base asset's logo (USDC for dollars, WBTC for bitcoin), a coloured disc with a letter when there is none or it fails. */
+const GROUP_SYM: Record<string, string> = { USD: 'USDC', ETH: 'ETH', BTC: 'WBTC' }
 export function GroupIcon({ id, color, size = 20 }: { id: string; color: string; size?: number }) {
+  const [bad, setBad] = React.useState(false)
+  const logo = assetLogo(GROUP_SYM[id])
+  if (logo && !bad) return <img className="ic" src={logo} alt="" width={size} height={size} style={{ width: size, height: size, background: '#111' }} onError={() => setBad(true)} />
   return <i className="ic" style={{ background: color, width: size, height: size, fontSize: size * 0.47 }}>{id === 'MORE' ? '+' : id[0]}</i>
 }

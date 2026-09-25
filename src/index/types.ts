@@ -61,6 +61,8 @@ export interface Valued extends Desked {
   assetName?: string | null
   assetLogo?: string | null
   decimals?: number | null
+  /** the cross-chain asset key, when the index answers one — what an asset page is keyed by */
+  assetGroup?: string | null
 }
 export interface AccountIdentity { accountKind?: AccountKind; accountLabel?: string | null }
 
@@ -201,6 +203,13 @@ export interface MarketRow extends Named {
   supplyApr?: number | null
   borrowApr?: number | null
   exposure?: MarketExposure | null
+  /** the asset page keys of the market's asset and its collateral (tickets/0026) — null when the index names no group */
+  assetGroup?: string | null
+  collateralGroup?: string | null
+  collateralSymbol?: string | null
+  collateralLogo?: string | null
+  /** the market's published size, newest hour — null when nobody publishes one */
+  totals?: { ts: string; depositsUsd: number | null; debtUsd: number | null; liquidityUsd: number | null } | null
   [k: string]: unknown
 }
 export interface Holder extends AccountIdentity, Desked {
@@ -270,3 +279,144 @@ export const indexChainLabel = (id: string | undefined, known: (id: string) => s
   const k = known(id)
   return k === id ? (EXTRA[id] ?? id) : k
 }
+
+// ---------------------------------------------------------------- assets (pos-indexer tickets/0026)
+
+/** One share of a total: a protocol, or a chain (`key` = chain id). */
+export interface AssetSlice {
+  key: string
+  name: string | null
+  logo: string | null
+  usd: number
+  /** share of the slice list's total, 0..100 */
+  pct: number | null
+  markets: number
+}
+export interface AssetBookRow {
+  group: string
+  symbol: string | null
+  name: string | null
+  logoUri: string | null
+  issuer: string | null
+  issuerName: string | null
+  priceUsd: number | null
+  priceChange24hPct: number | null
+  depositsUsd: number
+  borrowsUsd: number
+  collateralUsd: number
+  /** curated vaults over this asset — already inside the markets, NOT added to deposits */
+  vaultTvlUsd: number
+  /** held inside tokens BUILT on this one (stETH over ETH, sUSDS over USDS) — their own assets, not lending */
+  wrappedUsd?: number
+  /** 0..1 */
+  utilization: number | null
+  depositsChange24hPct: number | null
+  intrinsicApr: number | null
+  chains: string[]
+  markets: number
+  protocols: number
+}
+export interface AssetMarket {
+  marketUid: string
+  chainId: string
+  lenderKey: string
+  protocol: string
+  protocolName: string | null
+  protocolLogo: string | null
+  name: string | null
+  role: 'lending' | 'collateral'
+  depositsUsd: number | null
+  borrowsUsd: number | null
+  liquidityUsd: number | null
+  utilization: number | null
+  supplyApr: number | null
+  borrowApr: number | null
+  intrinsicApr: number | null
+  asOf: string | null
+}
+export interface AssetVault {
+  marketUid: string
+  chainId: string
+  address: string
+  name: string | null
+  symbol: string | null
+  provider: string
+  curatorId: string | null
+  curatorName: string | null
+  tvlUsd: number | null
+  supplyApr: number | null
+}
+export interface AssetMember {
+  chainId: string
+  address: string
+  symbol: string | null
+  name: string | null
+  decimals: number | null
+  logoUri: string | null
+  priceUsd: number | null
+  supply: { amount: string; usd: number | null; block: number | null; day: string } | null
+  lentPct: number | null
+  marketCapUsd: number | null
+}
+export interface AssetDetail {
+  group: string
+  symbol: string | null
+  name: string | null
+  logoUri: string | null
+  issuer: string | null
+  issuerName: string | null
+  issuerExposures: { id: string; name?: string; weightPct?: number; via?: string }[] | null
+  intrinsicApr: number | null
+  /** the member to rate — ratings key `<chainId>:<address>` */
+  headline: { chainId: string; address: string } | null
+  price: { usd: number; ts: string; change24hPct: number | null } | null
+  marketCap: { usd: number; source: 'defillama'; chainId: string; address: string; asOf: string } | null
+  totals: {
+    depositsUsd: number; borrowsUsd: number; collateralUsd: number; liquidityUsd: number
+    vaultTvlUsd: number
+    /** held inside wrappers (LSTs, savings tokens) — their own assets, not lent */
+    wrappedUsd?: number
+    utilization: number | null
+    depositsChange24hPct: number | null
+    asOf: string | null
+  }
+  supply: {
+    perChain: { chainId: string; amount: string; usd: number | null; lentPct: number | null }[]
+    /** null when a bridged member would double count */
+    totalUsd: number | null
+    totalNote: string | null
+  }
+  members: AssetMember[]
+  byProtocol: AssetSlice[]
+  byChain: AssetSlice[]
+  borrowsByProtocol: AssetSlice[]
+  collateralByProtocol: AssetSlice[]
+  byProtocolChain: { protocol: string; chainId: string; depositsUsd: number; borrowsUsd: number; collateralUsd: number; markets: number }[]
+  /** curated LENDING vaults only */
+  vaults: AssetVault[]
+  /** tokens built on this one (provider 'lst' | 'savings') — their own assets, not lending */
+  wrappers?: AssetVault[]
+  markets: AssetMarket[]
+  /** the whole market set before the API's 300 cap (older index: absent) */
+  marketCount?: number
+  chainCount?: number
+  /** caveats, rendered verbatim */
+  notes: string[]
+}
+export interface AssetHistory {
+  group: string
+  days: number
+  /** top 8 by latest deposits; the rest folded into `other` */
+  protocols: { key: string; name: string | null; logo: string | null }[]
+  points: { day: string; depositsUsd: number; borrowsUsd: number; collateralUsd: number; byProtocol: Record<string, number> }[]
+}
+export interface AssetHolder {
+  account: string
+  amountUsd: number
+  positions: number
+  chains: string[]
+  accountKind: string | null
+  accountLabel: string | null
+  since: string | null
+}
+export interface AssetHolders { holders: AssetHolder[]; note: string }

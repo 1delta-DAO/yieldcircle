@@ -73,7 +73,7 @@ export function Stream({ rows = 12 }: { rows?: number }) {
           </div>
         )}
         {list.map((t) => {
-          const l = primaryLeg(t, pf.picked)
+          const l = primaryLeg(t, pf.keys)
           const d = describeTx(t.kinds)
           const who = subjectOf(t).account || l?.account || ''
           return (

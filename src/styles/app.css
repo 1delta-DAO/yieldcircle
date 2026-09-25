@@ -570,6 +570,8 @@ a.who:hover .wn b{color:var(--primary)}
 .pill.auto{flex:none;font-size:9px;padding:0 5px;font-style:normal;font-weight:500;text-transform:none;letter-spacing:.02em;border-style:dashed;border-color:var(--line2);color:var(--tx40)}
 h1 .pill.auto{vertical-align:middle;margin-left:9px}
 .badges{display:inline-flex;gap:4px;flex-wrap:wrap}
+.tip{display:inline-flex;cursor:help;outline:none}
+.tip:focus-visible{box-shadow:0 0 0 2px var(--primary);border-radius:999px}
 .badge-tag{display:inline-block;font-size:10px;font-style:normal;letter-spacing:.03em;padding:2px 7px;border-radius:999px;border:1px solid #1f4a35;color:var(--success);white-space:nowrap;background:#0a1a13}
 .badge-tag.self{border-color:var(--line2);color:var(--tx50);background:transparent}
 .badge-tag.more{border-color:var(--line2);color:var(--tx40);background:transparent}
@@ -720,10 +722,17 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .wcard{display:flex;align-items:flex-start;gap:18px;padding:18px;border:1px solid var(--line);border-radius:var(--r);background:var(--b200);margin-top:6px;flex-wrap:wrap}
 .wc-t{flex:1;min-width:200px;display:flex;flex-direction:column;gap:5px}
 .wc-t h1{font-size:23px}
+.wc-addr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.copybtn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--tx50);cursor:pointer;padding:0}
+.copybtn:hover{color:var(--tx);border-color:var(--tx40)}
+.copybtn.ok{color:var(--success);border-color:currentColor}
+.addrx{display:inline-flex;align-items:center;gap:5px}
+.addrx a{display:inline-flex;opacity:.8}
+.addrx a:hover{opacity:1}
 .wc-bio{margin:2px 0 0;font-size:13.5px;line-height:1.5;color:var(--tx70);max-width:62ch}
 .wc-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
 .wc-a{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
-.wstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}
+.wstats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:12px}
 .wstat{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);padding:12px 14px;display:flex;flex-direction:column;gap:3px;min-width:0}
 .wstat .k{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx50);font-weight:600}
 .wstat .v{font-family:var(--mono);font-size:21px;line-height:1.1}
@@ -842,7 +851,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 }
 @media (max-width:1000px){
   .mgrid{grid-template-columns:minmax(0,1fr)}
-  .wstats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .wstats{grid-template-columns:repeat(3,minmax(0,1fr))}
   .vaultc-n{grid-template-columns:repeat(2,minmax(0,1fr))}
   .top nav a.hide-t{display:none}
 }
@@ -860,6 +869,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
   .fc-g + .fc-t{margin-top:10px}
   .fc-t:last-child{margin-bottom:-12px}
   .wcard{gap:14px;padding:14px}
+  .wstats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .wstat .v{font-size:18px}
   /* the nav scrolls rather than pushing the wallet button off the edge; the fade says so */
   .top nav{display:flex;gap:0;flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;
@@ -996,6 +1006,8 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .ec-t b{font-size:15px;font-weight:600;color:var(--tx)}
 .ec-t small{font-size:12px;color:var(--tx50)}
 .ec-g{display:flex}
+i.ic{font-style:normal}
+.ec-g .ic{border-radius:50%;display:grid;place-items:center;font-weight:600;font-style:normal;font-family:var(--mono);color:#000;flex:none;object-fit:cover}
 .ec-g .ic+.ic{margin-left:-7px;box-shadow:0 0 0 2px var(--b200)}
 
 /* ---------- chain marks ---------- */
@@ -1050,11 +1062,16 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
 
 /* protocol chips: local to the list they filter, and never offering an empty choice */
 .pchips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.chips-sk .pchip.sk{pointer-events:none;border-color:var(--line);background:linear-gradient(90deg,var(--b200) 0%,var(--line) 50%,var(--b200) 100%) 0 0/200% 100%;animation:chip-sk 1.2s linear infinite}
+@keyframes chip-sk{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.chips-sk .pchip.sk{animation:none}}
 .pchip{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 10px;border:1px solid var(--line2);
   border-radius:999px;font-size:12px;color:var(--tx50);white-space:nowrap;max-width:210px}
 .pchip:hover{color:var(--tx);border-color:var(--tx50)}
 .pchip[aria-pressed="true"]{border-color:var(--primary);color:var(--tx);background:#062830}
 .pchip img,.pchip .plogo{width:15px;height:15px;border-radius:50%;flex:none;object-fit:cover;background:#111}
+/* an SVG mark is a bare glyph, not a filled disc like the webp set: fit it inside the circle instead of cropping it */
+.pchip img[src$=".svg"],.mark .badge[src$=".svg"]{object-fit:contain;padding:2px}
 .pchip .plogo{display:grid;place-items:center;font:600 8px/1 var(--mono);font-style:normal;color:var(--tx50);background:var(--b400)}
 .pchip .pn{overflow:hidden;text-overflow:ellipsis}
 .pchip .pc{font-family:var(--mono);font-size:10.5px;color:var(--tx40)}
@@ -1259,3 +1276,30 @@ i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-sty
 .hb-ex{color:var(--tx40);opacity:.8}
 .pill.why{border-color:var(--line2);color:var(--tx40);text-transform:none;letter-spacing:0;font-weight:500}
 .pill.why .d{font-family:var(--mono);opacity:.75}
+
+/* ---------------------------------------------------------------- asset pages (#/t, #/t/<group>) — src/ui/TokenPage.tsx */
+.toklink{display:inline-flex;flex:none;border-radius:50%}
+.toklink:hover{box-shadow:0 0 0 2px var(--primary)}
+.tk-scroll{overflow-x:auto}
+.tk-scroll .tbl td{white-space:nowrap}
+.tk-markets td.tk-name{max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.tk-markets .nm a:hover,.tk-book .nm a:hover{color:var(--primary)}
+.tk-chain{display:inline-flex;align-items:center;gap:6px}
+.tk-more{margin:10px 16px 12px}
+.tk-notes{margin-top:12px;display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--tx40);line-height:1.45}
+.tk-chart{margin-top:16px}
+.tk-chart .ch{display:flex;align-items:baseline;gap:8px;font-size:12.5px;margin-bottom:6px}
+.tk-chart .ch .t{font-weight:600}
+.tk-chart .ch .m{font-family:var(--mono);color:var(--tx50);font-size:12px}
+.tk-chart svg{display:block;width:100%;height:160px;background:var(--b200);border-radius:var(--r)}
+.tk-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:11.5px;color:var(--tx70)}
+.tk-legend span{display:inline-flex;align-items:center;gap:5px}
+.tk-legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.tk-search{min-height:34px;padding:0 12px;border:1px solid var(--line2);border-radius:var(--r);background:var(--b200);min-width:220px;max-width:100%}
+.tk-search:focus{outline:none;border-color:var(--primary)}
+.tk-sort{cursor:pointer;user-select:none}
+.tk-sort:hover{color:var(--tx)}
+.alloc-row a.a-n:hover{color:var(--primary)}
+.tk-axis{display:flex;align-items:center;gap:8px;margin-top:4px;font:11px var(--mono);color:var(--tx40)}
+.mk-coll{display:inline-flex;align-items:center;gap:4px}
+.mk-totals{margin-top:8px}

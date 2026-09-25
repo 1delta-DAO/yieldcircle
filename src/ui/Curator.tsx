@@ -21,6 +21,7 @@ import { useCurator, useCuratorAllocation, useCuratorHolders, useCuratorTxs } fr
 import { useProfiles } from '../social/queries'
 import type { AllocationSlice } from '../index/api'
 import { indexChainLabel } from '../index/types'
+import { tokenHref } from '../state/AppState'
 import { chainLabel } from '../sdk/queries'
 import { curatorLabel } from './CuratorFilter'
 import { prettyProtocol } from './ProtocolFilter'
@@ -29,12 +30,14 @@ import { Thread } from './Thread'
 import { Ago, FollowButton, Money, Who, describeTx } from './social-bits'
 import { Sk, TxLink, pct, usd, usdShort } from './bits'
 
-function Slices({ title, note, rows, pretty }: {
+export function Slices({ title, note, rows, pretty, href }: {
   title: string
   note: string
   rows: AllocationSlice[]
   /** the index's own key vocabulary is not a display vocabulary */
   pretty?: (k: string) => string
+  /** where a slice leads, when its key names a page (an asset group → its asset page) */
+  href?: (k: string) => string | undefined
 }) {
   const total = rows.reduce((a, r) => a + r.usd, 0)
   return (
@@ -43,7 +46,9 @@ function Slices({ title, note, rows, pretty }: {
       {!rows.length && <div className="empty">Nothing read yet.</div>}
       {rows.slice(0, 8).map((r) => (
         <div key={r.key} className="alloc-row" title={`${r.name ?? r.key} — ${usd(r.usd)}`}>
-          <span className="a-n">{r.name ?? (pretty ? pretty(r.key) : r.key)}</span>
+          {href?.(r.key)
+            ? <a className="a-n" href={href(r.key)}>{r.name ?? (pretty ? pretty(r.key) : r.key)}</a>
+            : <span className="a-n">{r.name ?? (pretty ? pretty(r.key) : r.key)}</span>}
           <span className="a-bar"><i style={{ width: `${Math.max(2, total ? (r.usd / total) * 100 : 0)}%` }} /></span>
           <span className="a-p">{r.pct == null ? '—' : `${r.pct.toFixed(1)}%`}</span>
         </div>
@@ -183,7 +188,7 @@ export function Curator({ id }: { id: string }) {
         </div>
         <div className="card pad cgrid">
           <Slices title="Where" note="by protocol" rows={alloc.data?.byProtocol ?? []} pretty={prettyProtocol} />
-          <Slices title="What" note="by asset" rows={alloc.data?.byAssetGroup ?? []} />
+          <Slices title="What" note="by asset" rows={alloc.data?.byAssetGroup ?? []} href={(k) => (k === 'unknown' ? undefined : tokenHref(k))} />
           <Slices
             title="Whose credit"
             note={

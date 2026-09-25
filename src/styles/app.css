@@ -1303,3 +1303,12 @@ i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-sty
 .tk-axis{display:flex;align-items:center;gap:8px;margin-top:4px;font:11px var(--mono);color:var(--tx40)}
 .mk-coll{display:inline-flex;align-items:center;gap:4px}
 .mk-totals{margin-top:8px}
+/* group marks + group headers: quieter than asset rows so "US Dollar" never reads as a token */
+i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;box-sizing:border-box}
+.gh{min-height:28px;margin-bottom:6px;gap:8px}
+.gh .n{font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--tx70)}
+.gh .sub{font-size:11.5px}
+.gh .more{font-size:12px}
+.card .ch.gch{min-height:38px;padding:8px 16px;gap:8px;background:#0b0b0b}
+.card .ch.gch .t{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx70)}
+.card .ch.gch .m{font-size:11.5px}

@@ -37,7 +37,7 @@ function GroupCard({ gid, books, directional }: { gid: GroupId; books: AssetBook
   const total = books.reduce((a, b) => a + b.totalUsd, 0), idle = books.reduce((a, b) => a + b.idleUsd, 0), work = books.reduce((a, b) => a + b.atWorkUsd, 0), yearly = books.reduce((a, b) => a + b.yearlyUsd, 0)
   return (
     <div className="card">
-      <div className="ch"><GroupIcon id={g.id} color={g.color} size={24} /><span className="t">{g.name}</span><span className="m">{usd(total)}</span><span className="sp" />
+      <div className="ch gch"><GroupIcon id={g.id} color={g.color} size={18} /><span className="t">{g.name}</span><span className="m">{usd(total)}</span><span className="sp" />
         <span className="m hide-m">idle {usd(idle)} · at work {usd(work)}{work ? ` · ${pct(yearly / work * 100)}` : ''}</span></div>
       <div className="list">{books.map((b) => <AssetRows key={b.asset} b={b} />)}</div>
       {directional.length > 0 && <div className="empty" style={{ borderTop: '1px solid var(--line)' }}>{directional.length} directional loop{directional.length > 1 ? 's' : ''} ({directional.map((h) => h.label.replace(' loop', '')).join(', ')}) with {usd(directional.reduce((a, h) => a + h.valueUsd, 0))} equity not shown: the debt is in another denomination, so it is a price bet rather than a carry.</div>}
@@ -84,7 +84,7 @@ function GroupBlock({ gid, strategies, books, loading, hasAccount }: { gid: Grou
   const total = books.reduce((a, b) => a + b.totalUsd, 0), idle = books.reduce((a, b) => a + b.idleUsd, 0)
   return (
     <section className="sec grp" id={`g-${gid}`}>
-      <div className="gh"><GroupIcon id={g.id} color={g.color} /><span className="n">{g.name}</span><span className="sub">{total ? `${usd(total)}${idle ? ` · ${usd(idle)} idle` : ''}` : g.desc}</span><span className="sp" /><a className="more" href={`#/${gid}`}>{loading && !strategies.length ? '…' : `${strategies.length} strateg${strategies.length === 1 ? 'y' : 'ies'} ›`}</a></div>
+      <div className="gh"><GroupIcon id={g.id} color={g.color} size={16} /><span className="n">{g.name}</span><span className="sub">{total ? `${usd(total)}${idle ? ` · ${usd(idle)} idle` : ''}` : g.desc}</span><span className="sp" /><a className="more" href={`#/${gid}`}>{loading && !strategies.length ? '…' : `${strategies.length} strateg${strategies.length === 1 ? 'y' : 'ies'} ›`}</a></div>
       <div className="card"><table className="tbl slim"><tbody>
         {loading && !rows.length && [0, 1, 2].map((i) => <tr key={i}><td><Sk w={120} /></td><td className="what"><Sk w={220} /></td><td className="r"><Sk w={90} /></td><td /></tr>)}
         {rows.map(({ a, os, best, b, venues }) => (

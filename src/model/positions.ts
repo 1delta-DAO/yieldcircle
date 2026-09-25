@@ -135,11 +135,20 @@ export const GAS_TOKEN_ERC20: Record<string, { address: string; decimals: number
   '5042': { address: '0x3600000000000000000000000000000000000000', decimals: 6 }, // Arc USDC
   '988': { address: '0x779ded0c9e1022225f8e0630b35a9b54be713736', decimals: 6 }, // Stable USDT0
 }
+/**
+ * The other direction: a coin with an ERC-20 VIEW of its own balance beside a real wrapper
+ * (Polygon's `0x…1010` is POL itself; WPOL is the wrapper). The view is dropped when the native
+ * row is there. Both maps are token-lists' `native-currencies.json` (`erc20` / `coin+erc20`).
+ */
+export const NATIVE_ERC20_VIEW: Record<string, string> = { '137': '0x0000000000000000000000000000000000001010' }
 export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
   const out: Idle[] = []
   const gasToken = GAS_TOKEN_ERC20[chainId]
   const hasGasToken = !!gasToken && items.some((b) => b.address.toLowerCase() === gasToken.address)
+  const view = NATIVE_ERC20_VIEW[chainId]
+  const hasNative = !!view && items.some((b) => isNativeAddress(b.address))
   for (let b of items) {
+    if (hasNative && b.address.toLowerCase() === view) continue
     const native = isNativeAddress(b.address)
     // Arc / Stable: the native row is the token's balance again — count it once
     if (native && gasToken) {

@@ -242,11 +242,9 @@ export function AddrExplorers({ addr, chainIds }: { addr: string; chainIds: stri
   )
 }
 export function Sk({ w = 80, h = 12 }: { w?: number | string; h?: number }) { return <span className="sk" style={{ width: w, height: h }} aria-hidden /> }
-/** A group's mark: its base asset's logo (USDC for dollars, WBTC for bitcoin), a coloured disc with a letter when there is none or it fails. */
-const GROUP_SYM: Record<string, string> = { USD: 'USDC', ETH: 'ETH', BTC: 'WBTC' }
+/** A group's mark: a quiet outlined glyph ($ Ξ ₿ +) in the group's colour, deliberately unlike any token logo so a
+ *  group never reads as one of its assets (the old USDC logo made "US Dollar" look like the USDC row). */
+const GROUP_GLYPH: Record<string, string> = { USD: '$', ETH: 'Ξ', BTC: '₿', MORE: '+' }
 export function GroupIcon({ id, color, size = 20 }: { id: string; color: string; size?: number }) {
-  const [bad, setBad] = React.useState(false)
-  const logo = assetLogo(GROUP_SYM[id])
-  if (logo && !bad) return <img className="ic" src={logo} alt="" width={size} height={size} style={{ width: size, height: size, background: '#111' }} onError={() => setBad(true)} />
-  return <i className="ic" style={{ background: color, width: size, height: size, fontSize: size * 0.47 }}>{id === 'MORE' ? '+' : id[0]}</i>
+  return <i className="ic gic" style={{ width: size, height: size, fontSize: size * 0.56, color, borderColor: `${color}66`, background: `linear-gradient(${color}1a, ${color}1a), #0b0b0b` }} aria-hidden>{GROUP_GLYPH[id] ?? id[0]}</i>
 }

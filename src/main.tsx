@@ -7,7 +7,8 @@ import { AppProvider } from './state/AppState'
 import { SettingsProvider } from './state/Settings'
 import App from './App'
 import './styles/app.css'
-const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } })
+// a 429 has already waited out the backend's `retryAfter` and tried again inside `http.ts`; retrying it here too only spends the limit
+const qc = new QueryClient({ defaultOptions: { queries: { retry: (n, e) => n < 1 && (e as { status?: number })?.status !== 429, refetchOnWindowFocus: false } } })
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <WagmiProvider config={wagmiConfig}>

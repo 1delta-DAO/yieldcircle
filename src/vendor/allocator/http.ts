@@ -161,6 +161,31 @@ export interface ApiOptions {
   signal?: AbortSignal
 }
 
+// ---------------------------------------------------------------------------
+// Rate limit
+// ---------------------------------------------------------------------------
+
+/** When the backend last said to come back, as epoch ms; 0 = open. Shared by every request. */
+let gateUntil = 0
+function closeGate(seconds: number) {
+  gateUntil = Math.max(gateUntil, Date.now() + Math.min(Math.max(seconds, 1), 120) * 1000)
+}
+/** Resolves once the gate is open (at once, almost always). An abort while waiting rejects as a fetch would. */
+function rateGate(signal?: AbortSignal): Promise<void> {
+  const wait = gateUntil - Date.now()
+  if (wait <= 0) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, wait)
+    signal?.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')) }, { once: true })
+  })
+}
+/** `retryAfter` from the envelope, else the `Retry-After` header, else 30 s. Reads a clone so the body stays readable. */
+async function retryAfterSeconds(res: Response): Promise<number> {
+  const body = (await res.clone().json().catch(() => null)) as { retryAfter?: number } | null
+  const n = Number(body?.retryAfter ?? res.headers.get('retry-after'))
+  return Number.isFinite(n) && n > 0 ? n : 30
+}
+
 /** Normalise the two shapes the backend uses for `error`. */
 function envelopeError(error: ApiEnvelope<unknown>['error']): { message?: string; code?: string } {
   if (typeof error === 'string') return { message: error }
@@ -182,16 +207,27 @@ export async function apiFetchEnvelope<T, A = ApiActions>(
   const url = apiUrl(path, params)
 
   let res: Response
+  const send = () => fetch(url, {
+    method: method ?? (body === undefined ? 'GET' : 'POST'),
+    headers: {
+      ...apiHeaders(),
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    signal,
+  })
   try {
-    res = await fetch(url, {
-      method: method ?? (body === undefined ? 'GET' : 'POST'),
-      headers: {
-        ...apiHeaders(),
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal,
-    })
+    await rateGate(signal)
+    res = await send()
+    // One 429 closes the gate for everyone until the backend's `retryAfter`,
+    // then this request tries once more. Without it every query in flight
+    // keeps knocking (and React Query's retry doubles it), which is what kept
+    // the limit tripped instead of letting it reset.
+    if (res.status === 429) {
+      closeGate(await retryAfterSeconds(res))
+      await rateGate(signal)
+      res = await send()
+    }
   } catch (err) {
     // Network failure, DNS, CORS, or an aborted request. Re-throw aborts
     // untouched so React Query can tell a cancellation from a real failure.

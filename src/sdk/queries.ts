@@ -1,10 +1,10 @@
-import { useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { bridgeStatus, fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, fetchVaults, loopOpen, type OptimizerQuery } from './api'
 import { capPerAsset, classifyEarn, classifyPair, dedupe, rowKey, type Candidate, type LoopStrategy, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { softHide, type HideCode } from '../model/visibility'
 import { useSettings, type Settings } from '../state/Settings'
-import type { VaultListing } from './types'
+import type { OptimizerResponse, VaultListing } from './types'
 import { toRaw } from '../model/leverage'
 
 const HOUR = 3600_000
@@ -64,6 +64,42 @@ export function useChainMeta(): Record<string, { name: string; logo?: string }> 
 }
 const EMPTY_CHAIN_META: Record<string, { name: string; logo?: string }> = {}
 export const chainLabel = (id: string) => CHAINS.find((c) => c.id === id)?.label ?? id
+
+/**
+ * How the selected chains are grouped into requests. The big five go alone —
+ * they carry most of the rows and the slowest answers, and one of them must
+ * never hold up the rest — and every other chain rides in one bundle.
+ *
+ * This is what keeps a page load inside the 500-a-minute limit. Measured
+ * 2026-09-25 with every chain on, one load of Explore was 141 requests
+ * (15 earn, 15 vault registries, 60 optimizer, 49 balance reads, positions,
+ * the chain directory), so three reloads in a minute — a dev server's HMR does
+ * that on its own — ran into `RATE_LIMIT_EXCEEDED`. Bundled it is 6 earn and
+ * 24 optimizer requests instead of 15 and 60.
+ */
+const SOLO_CHAINS = new Set(['1', '8453', '42161', '56', '43114'])
+export function chainBuckets(chainIds: string[]): string[][] {
+  const solo = chainIds.filter((c) => SOLO_CHAINS.has(c)).map((c) => [c])
+  const rest = chainIds.filter((c) => !SOLO_CHAINS.has(c))
+  return rest.length ? [...solo, rest] : solo
+}
+
+/**
+ * The optimizer, paged. One chain keeps the old single page of 100 (sorted by
+ * APR, the tail is not shown anyway); a bundle may page up to 300, so ten small
+ * chains share a budget no smaller than one used to get — the stable archetype
+ * answers 87 rows across them.
+ */
+async function optimizerPages(q: OptimizerQuery): Promise<OptimizerResponse['items']> {
+  const pages = q.chainIds.length > 1 ? 3 : 1
+  const items: OptimizerResponse['items'] = []
+  for (let i = 0; i < pages; i++) {
+    const r = await fetchOptimizerPairs({ ...q, count: 100, start: items.length || undefined })
+    items.push(...r.items)
+    if (!r.hasMore || !r.items.length) break
+  }
+  return items
+}
 
 /**
  * Same-denomination carry archetypes: the collateral and the debt are the same
@@ -191,38 +227,43 @@ export type HiddenRow = Strategy & { hide: HideCode }
 export function useCatalog(chainIds: string[]) {
   const qc = useQueryClient()
   const { st } = useSettings()
+  const buckets = chainBuckets(chainIds)
   const earn = useQueries({
-    queries: chainIds.map((chainId) => ({
-      queryKey: ['earn', chainId, st.minTvlUsd],
+    queries: buckets.map((ids) => ({
+      queryKey: ['earn', ids.join(','), st.minTvlUsd],
       queryFn: async () => {
-        const [vaults, r] = await Promise.all([vaultIndex(chainId, qc), fetchEarn({ chainId, count: 800, maxRiskScore: 5, minTvlUsd: st.minTvlUsd })])
-        return sortOut(r.items.map((m) => classifyEarn(m, vaults[String(m.ref).toLowerCase()])), 'simple')
+        const [vaultsPer, r] = await Promise.all([Promise.all(ids.map((c) => vaultIndex(c, qc))), fetchEarn({ chainIds: ids, count: 800, maxRiskScore: 5, minTvlUsd: st.minTvlUsd })])
+        const vaults = Object.fromEntries(ids.map((c, i) => [c, vaultsPer[i]]))
+        return sortOut(r.items.map((m) => classifyEarn(m, vaults[m.chainId]?.[String(m.ref).toLowerCase()])), 'simple')
       },
       staleTime: 10 * 60_000,
     })),
   })
   const loops = useQueries({
-    queries: chainIds.flatMap((chainId) => [
+    queries: buckets.flatMap((ids) => [
       ...LOOP_ARCHETYPES.map((a, i) => ({
-        queryKey: ['loops', chainId, i],
-        queryFn: async () => {
-          const r = await fetchOptimizerPairs({ chainId, ...a, collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, count: 100 })
-          return sortOut(r.items.map(classifyPair), 'loop')
-        },
+        queryKey: ['loops', ids.join(','), i],
+        queryFn: async () => sortOut((await optimizerPages({ chainIds: ids, ...a, collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop'),
         staleTime: 10 * 60_000,
       })),
       ...(st.wideNet ? WIDE_DEBT_TAGS.map((t) => ({
-        queryKey: ['loops-wide', chainId, t],
-        queryFn: async () => {
-          const r = await fetchOptimizerPairs({ chainId, debtTags: [t], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, count: 100 })
-          return sortOut(r.items.map(classifyPair), 'loop')
-        },
+        queryKey: ['loops-wide', ids.join(','), t],
+        queryFn: async () => sortOut((await optimizerPages({ chainIds: ids, debtTags: [t], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop'),
         staleTime: 10 * 60_000,
       })) : []),
     ]),
   })
+  // A chain is SETTLED once every request covering it has answered (or failed):
+  // only then is its list of token addresses final, and only then is its
+  // balance read worth sending (see `useBalancesPerChain`).
+  const perBucket = loops.length / (buckets.length || 1)
+  const settled = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched && loops.slice(j * perBucket, (j + 1) * perBucket).every((q) => q.isFetched) ? ids : [])))
   const earnRows = earn.flatMap((q) => q.data?.rows ?? [])
   const loopRows = loops.flatMap((q) => q.data?.rows ?? [])
+  // every base-asset address the chain answered, shown or held back by a floor,
+  // so moving a floor never changes what the balance read asks for
+  const addresses: Record<string, string[]> = {}
+  for (const r of [...earnRows, ...loopRows]) (addresses[r.chainId] ??= []).push(...(r.kind === 'simple' ? [r.assetAddress] : [r.collateralAddress, r.debtAddress]))
   const { show: simpleShow, hide: simpleHide } = split(earnRows, st)
   const { show: loopShow, hide: loopHide } = split(loopRows, st)
   const simple = capPerAsset(dedupe(simpleShow))
@@ -237,7 +278,7 @@ export function useCatalog(chainIds: string[]) {
   ]
   const structural = mergeStructural([...earn, ...loops].flatMap((q) => (q.data ? [{ structural: q.data.structural, kind: q.data.kind }] : [])))
   return {
-    simple, loops: loopRowsOut, hidden, structural,
+    simple, loops: loopRowsOut, hidden, structural, settled, addresses,
     isLoading: earn.some((q) => q.isLoading) || loops.some((q) => q.isLoading),
     isFetching: earn.some((q) => q.isFetching) || loops.some((q) => q.isFetching),
     anyData: earn.some((q) => q.data) || loops.some((q) => q.data),
@@ -255,9 +296,11 @@ function split<T extends Strategy>(rows: T[], st: Settings): { show: T[]; hide: 
   return { show, hide }
 }
 
+/** The asset list a balance read sends: native always (the zero address), then the catalogue's, sorted so the key is stable. */
+const balanceAssets = (addresses: string[]) => [...new Set(['0x0000000000000000000000000000000000000000', ...addresses.filter(Boolean).map((a) => a.toLowerCase())])].sort().slice(0, 60)
 /** Idle balances: one request per chain for the addresses the catalogue knows (native always at the zero address). */
 export function useBalances(account: string | undefined, chainId: string, addresses: string[]) {
-  const assets = [...new Set(['0x0000000000000000000000000000000000000000', ...addresses.filter(Boolean).map((a) => a.toLowerCase())])].sort()
+  const assets = balanceAssets(addresses)
   return useQuery({
     enabled: !!account && assets.length > 0,
     queryKey: ['balances', account, chainId, assets.join(',')],
@@ -265,21 +308,48 @@ export function useBalances(account: string | undefined, chainId: string, addres
     staleTime: 30_000,
   })
 }
-export function useBalancesPerChain(account: string | undefined, chains: { chainId: string; addresses: string[] }[]) {
+/**
+ * One balance read per chain, sent once that chain's catalogue has SETTLED.
+ *
+ * The asset list is in the key, and it used to be sent while the catalogue was
+ * still landing: every earn or optimizer answer for a chain changed its list,
+ * so each chain was read three to six times on one load (49 reads for 15
+ * chains, measured 2026-09-25). Waiting for `ready` makes it one read per
+ * chain; `placeholderData` keeps the last answer on screen when a later
+ * refetch (a new floor, a new chain) changes the key.
+ */
+export function useBalancesPerChain(account: string | undefined, chains: { chainId: string; addresses: string[]; ready: boolean }[]) {
   return useQueries({
-    queries: chains.map(({ chainId, addresses }) => {
-      const assets = [...new Set(['0x0000000000000000000000000000000000000000', ...addresses.filter(Boolean).map((a) => a.toLowerCase())])].sort()
-      return { enabled: !!account, queryKey: ['balances', account, chainId, assets.join(',')], queryFn: () => fetchTokenBalances(account!, chainId, assets), staleTime: 30_000 }
+    queries: chains.map(({ chainId, addresses, ready }) => {
+      const assets = balanceAssets(addresses)
+      return { enabled: !!account && ready, queryKey: ['balances', account, chainId, assets.join(',')], queryFn: () => fetchTokenBalances(account!, chainId, assets), staleTime: 30_000, placeholderData: keepPreviousData }
     }),
   })
 }
+/**
+ * Positions, in the same buckets as the catalogue: the big chains alone, the
+ * rest in one request. One request for every chain was the slowest answer on
+ * the page (a single slow chain held up all of them); fifteen would spend the
+ * rate limit. Buckets land as they come, so the big chains show first.
+ */
 export function useEarnPositions(account: string | undefined, chainIds: string[]) {
-  return useQuery({
-    enabled: !!account,
-    queryKey: ['earn-positions', account, chainIds.join(',')],
-    queryFn: () => fetchEarnPositions(account!, chainIds),
-    staleTime: 60_000,
+  const qs = useQueries({
+    queries: chainBuckets(chainIds).map((ids) => ({
+      enabled: !!account,
+      queryKey: ['earn-positions', account, ids.join(',')],
+      queryFn: () => fetchEarnPositions(account!, ids),
+      staleTime: 60_000,
+    })),
   })
+  const data = qs.map((q) => q.data)
+  const items = useMemo(() => data.flatMap((d) => d?.items ?? []), data) // eslint-disable-line react-hooks/exhaustive-deps
+  return {
+    items,
+    anyData: qs.some((q) => q.data),
+    isLoading: qs.some((q) => q.isLoading),
+    // one bucket failing is a partial answer, not a failed page: only report an error when nothing came back
+    error: qs.every((q) => q.error || !q.data) ? (qs.find((q) => q.error)?.error ?? null) : null,
+  }
 }
 
 /**

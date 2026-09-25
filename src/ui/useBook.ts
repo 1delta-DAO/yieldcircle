@@ -11,10 +11,8 @@ export function useBook() {
   const { chainIds, account } = useApp()
   const cat = useCatalog(chainIds)
   const all: Strategy[] = [...cat.simple, ...cat.loops]
-  // every address the catalogue knows for a base asset, per chain — the balance read asks for exactly these
-  const addrs = (chainId: string) => [...new Set(all.filter((s) => s.chainId === chainId).flatMap((s) => (s.kind === 'simple' ? [s.assetAddress] : [s.collateralAddress, s.debtAddress])))].slice(0, 60)
-  // one balance read per selected chain (every chain, however many are selected)
-  const bals = useBalancesPerChain(account, chainIds.map((c) => ({ chainId: c, addresses: addrs(c) })))
+  // one balance read per selected chain, for every address the catalogue knows there, sent once that chain has settled
+  const bals = useBalancesPerChain(account, chainIds.map((c) => ({ chainId: c, addresses: cat.addresses[c] ?? [], ready: cat.settled.has(c) })))
   const idle: Idle[] = bals.flatMap((b, i) => (b.data ? idleFrom(b.data.items, chainIds[i]) : []))
   // the group view sums the same base asset across tokens and chains (native ETH + WETH, all chains)
   const idleMerged: Idle[] = []
@@ -22,11 +20,11 @@ export function useBook() {
   const pos = useEarnPositions(account, chainIds)
   // the same registry the catalogue loads, so a held vault is named too (one cached request per chain)
   const vaults = useVaultIndex(chainIds)
-  const holdings: Holding[] = pos.data ? holdingsFrom(pos.data.items, vaults) : []
+  const holdings: Holding[] = pos.anyData ? holdingsFrom(pos.items, vaults) : []
   const bk: AssetBook[] = books(holdings, idleMerged)
   return {
     ...cat, all, idle, idlePerChain: idle, books: bk, holdings,
-    positionsLoading: !!account && (pos.isLoading || bals.some((b) => b.isLoading)),
+    positionsLoading: !!account && (pos.isLoading || bals.some((b) => b.isLoading || (!b.data && b.fetchStatus === 'idle' && !b.isFetched))),
     positionsError: pos.error as Error | null,
     account,
   }

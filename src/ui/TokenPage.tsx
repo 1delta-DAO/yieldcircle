@@ -43,6 +43,9 @@ function Change({ x, suffix }: { x: number | null | undefined; suffix?: string }
   return <span className={x! >= 0 ? 'ok' : 'bad'}>{s}{suffix ?? ' · 24 h'}</span>
 }
 /** A token amount as a decimal string, compact — the supply of a stablecoin is ten digits before the point. */
+/** a chain's gas coin as a group member (the zero address or the 0xeeee alias) */
+const isNative = (a: string) => /^0x(0{40}|e{40})$/i.test(a)
+
 function compactAmount(a: string): string {
   const n = Number(a)
   if (!Number.isFinite(n)) return a
@@ -161,7 +164,7 @@ export function TokenPage({ group }: { group: string }) {
         <div className="cstat">
           <span className="k">Market cap · DefiLlama</span>
           <span className="v">{d?.marketCap ? usdShort(d.marketCap.usd) : '—'}</span>
-          <span className="n">{d?.marketCap ? `${chainName(d.marketCap.chainId)} token · as of ${d.marketCap.asOf.slice(0, 10)}` : 'not published for this token'}</span>
+          <span className="n">{d?.marketCap ? `${isNative(d.marketCap.address) ? `${sym}, the coin` : `${chainName(d.marketCap.chainId)} token`} · as of ${d.marketCap.asOf.slice(0, 10)}` : 'not published for this token'}</span>
         </div>
         <div className="cstat">
           <span className="k">Deposited in lending</span>
@@ -241,6 +244,7 @@ export function TokenPage({ group }: { group: string }) {
           <h2>Supply per chain</h2>
           <span className="sub">
             {!d ? 'the token’s own totalSupply(), read on chain' :
+              d.supply.coin ? `${compactAmount(String(d.supply.coin.amount))} ${sym} in circulation (${usdShort(d.supply.coin.usd)}, DefiLlama)${d.supply.coin.lentPct != null ? ` · ${pct(d.supply.coin.lentPct, 1)} lent` : ''} — rows below are its wrapped / bridged tokens, already inside that figure` :
               d.supply.totalUsd != null ? `${usdShort(d.supply.totalUsd)} in total` :
               d.supply.totalNote ?? 'no total'}
           </span>
@@ -255,7 +259,7 @@ export function TokenPage({ group }: { group: string }) {
                 {d.supply.perChain.map((c) => (
                   <tr key={c.chainId} style={{ cursor: 'default' }}>
                     <td><div className="nm"><ChainMark chainId={c.chainId} size={18} />{chainName(c.chainId)}</div></td>
-                    <td className="r">{compactAmount(c.amount)} <span className="t50">{sym}</span></td>
+                    <td className="r">{compactAmount(c.amount)} <span className="t50">{c.symbols?.join(' + ') || sym}</span></td>
                     <td className="r">{usdShort(c.usd)}</td>
                     <td className="r">{c.lentPct == null ? '—' : pct(c.lentPct, 1)}</td>
                   </tr>

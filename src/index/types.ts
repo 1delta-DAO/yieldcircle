@@ -381,10 +381,13 @@ export interface AssetDetail {
     asOf: string | null
   }
   supply: {
-    perChain: { chainId: string; amount: string; usd: number | null; lentPct: number | null }[]
+    /** `symbols`: the members this row's totalSupply() sums (WETH, not ETH); absent on an older index */
+    perChain: { chainId: string; symbols?: string[]; amount: string; usd: number | null; lentPct: number | null }[]
     /** null when a bridged member would double count */
     totalUsd: number | null
     totalNote: string | null
+    /** a gas-coin group (ETH, BNB …): the coin's circulating supply, cap ÷ price; absent on an older index */
+    coin?: { chainId: string; symbol: string | null; amount: number; usd: number; lentPct: number | null; source: 'defillama' } | null
   }
   members: AssetMember[]
   byProtocol: AssetSlice[]

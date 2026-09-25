@@ -121,10 +121,31 @@ const NATIVE: Record<string, string> = {
 }
 /** The coin the row reported, else what this chain is known to use, else ether. */
 export const nativeSymbol = (chainId: string, reported?: string): string => reported || NATIVE[chainId] || 'ETH'
+/**
+ * Chains whose gas coin IS an ERC-20: the native balance and the token's `balanceOf` are one
+ * ledger read two ways (18 decimals native, 6 through the token — measured 2026-09-25, equal to
+ * the token's last digit on every holder tried). The balances route answers BOTH rows, so a
+ * wallet with $158k of USDC on Arc read $317k. There the native row is dropped when the token's
+ * row is present, and otherwise stands in for the token (its address, its decimals), so a
+ * deposit built from it spends the ERC-20. Mirrors `GAS_TOKEN_ERC20` in pos-indexer's
+ * `assetBook.ts`. Tempo (4217) is the third shape — no gas coin at all, `eth_getBalance` is a
+ * sentinel the route zeroes — and needs nothing here: its zero row reads 0 and is skipped.
+ */
+export const GAS_TOKEN_ERC20: Record<string, { address: string; decimals: number }> = {
+  '5042': { address: '0x3600000000000000000000000000000000000000', decimals: 6 }, // Arc USDC
+  '988': { address: '0x779ded0c9e1022225f8e0630b35a9b54be713736', decimals: 6 }, // Stable USDT0
+}
 export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
   const out: Idle[] = []
-  for (const b of items) {
+  const gasToken = GAS_TOKEN_ERC20[chainId]
+  const hasGasToken = !!gasToken && items.some((b) => b.address.toLowerCase() === gasToken.address)
+  for (let b of items) {
     const native = isNativeAddress(b.address)
+    // Arc / Stable: the native row is the token's balance again — count it once
+    if (native && gasToken) {
+      if (hasGasToken) continue
+      b = { ...b, address: gasToken.address, decimals: gasToken.decimals }
+    }
     // `symbol` is the token as held: native reads as the chain coin (ETH on Base, BNB on BNB Chain), never "ETH" on BNB
     const symbol = native ? nativeSymbol(chainId, b.symbol) : b.symbol
     // The whitelist decides what an ERC-20 balance IS, and drops the ones this app does not
@@ -133,7 +154,7 @@ export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
     const asset = baseOfSymbol(symbol) ?? (native ? symbol : undefined); if (!asset) continue
     const amount = parseFloat(b.balance); if (!(amount > 0)) continue
     const usd = b.balanceUSD ?? amount * (b.priceUSD ?? 0)
-    out.push({ asset, symbol, amount, usd, address: native ? '0x0000000000000000000000000000000000000000' : b.address.toLowerCase(), decimals: b.decimals, price: b.priceUSD ?? (amount ? usd / amount : 0), chainId })
+    out.push({ asset, symbol, amount, usd, address: native && !gasToken ? '0x0000000000000000000000000000000000000000' : b.address.toLowerCase(), decimals: b.decimals, price: b.priceUSD ?? (amount ? usd / amount : 0), chainId })
   }
   return out
 }

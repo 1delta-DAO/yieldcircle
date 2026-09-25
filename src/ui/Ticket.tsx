@@ -1,10 +1,10 @@
 import React from 'react'
 import { unitOf } from '../model/assets'
-import { DEFAULT_TIER, TIERS, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
+import { DEFAULT_TIER, TIERS, borrowAtSize, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from '../model/strategies'
 import type { Holding, Idle } from '../model/positions'
 import { earnDeposit, earnWithdraw, loopClose, loopOpen, NATIVE_SENTINEL, ZERO } from '../sdk/api'
-import { chainLabel, useLoopPayAssets, useLoopQuote } from '../sdk/queries'
+import { chainLabel, useIrm, useLoopPayAssets, useLoopQuote } from '../sdk/queries'
 import { useApp, type Mode } from '../state/AppState'
 import { useSticky } from '../state/sticky'
 import { DecimalInput, Info, KindPill, RiskDot, Sk, StratMark, Tok, Toks, num, pct, usd, usdShort } from './bits'
@@ -44,7 +44,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: St
       )}
       {copy && <CopyBanner who={copy} s={s} />}
       {holding && mode !== 'add' ? (s.kind === 'loop' ? <ManageLoop s={s} h={holding} closeFirst={mode === 'close'} /> : <ManageTicket s={s} h={holding} mode={mode} />)
-        : s.kind === 'simple' ? <SimpleTicket s={s} idle={idle.find((i) => i.chainId === s.chainId && i.address === s.assetAddress.toLowerCase()) ?? idle.find((i) => i.chainId === s.chainId && i.asset === s.asset)} allIdle={idle} /> : <LoopTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} />}
+        : s.kind === 'simple' ? <SimpleTicket s={s} idle={idle.find((i) => i.chainId === s.chainId && i.address === s.assetAddress.toLowerCase()) ?? idle.find((i) => i.chainId === s.chainId && i.asset === s.asset)} allIdle={idle} /> : <LoopTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={holding} />}
       <TicketSocial uid={uid} s={s} />
     </div>
     </TicketCtx.Provider>
@@ -176,7 +176,19 @@ function SimpleTicket({ s, idle, allIdle }: { s: SimpleStrategy; idle?: Idle; al
   )
 }
 
-function LoopTicket({ s, idle, allIdle }: { s: LoopStrategy; idle: Idle[]; allIdle: Idle[] }) {
+/**
+ * The borrow rate at THIS ticket's size, off the debt market's own curve. The
+ * list quotes every loop at $10k, and on a thin market that one quote can be
+ * the whole free liquidity — shMON/WMON on Euler read 35 % against a 6 % spot.
+ * While the curve loads the spot rate stands in; a market with no curve keeps
+ * the $10k quote.
+ */
+function useBorrowAt(s: LoopStrategy | null) {
+  const irm = useIrm(s?.marketShortUid, !!s)
+  return (extraDebtUsd: number) => (!s ? 0 : irm.isPending ? s.borSpot : borrowAtSize(s.borSpot, s.bor, extraDebtUsd, irm.data))
+}
+
+function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle[]; allIdle: Idle[]; holding: Holding | null }) {
   const { account, isConnected } = useApp()
   const [getOpen, setGetOpen] = React.useState(false)
   const unit = unitOf(s.asset)
@@ -198,8 +210,16 @@ function LoopTicket({ s, idle, allIdle }: { s: LoopStrategy; idle: Idle[]; allId
   const [tier, setTier] = useSticky<TierId>(`t:${s.id}:tier`, DEFAULT_TIER)
   const L = s.tiers[tier]
   const E = amount * price, C = E * L, D = E * (L - 1)
-  const net = netAprAtLeverage(s.dep, s.bor, L), drop = liqBuffer(s.liqLtv, L), hf = healthAt(s.liqLtv, L)
-  const netWorst = netAprAtLeverage(s.dep, s.bor + 2, L)
+  const borAt = useBorrowAt(s)
+  const dep = s.depSpot, bor = borAt(D)
+  const net = netAprAtLeverage(dep, bor, L), drop = liqBuffer(s.liqLtv, L), hf = healthAt(s.liqLtv, L)
+  const netWorst = netAprAtLeverage(dep, bor + 2, L)
+  const overLiquidity = s.borrowLiquidityUsd > 0 && D > s.borrowLiquidityUsd
+  // adding to a loop the wallet already runs: the new debt lands in the same book, so the number that
+  // matters is the whole position after — the existing debt is already in the curve's utilisation
+  const Eh = holding && holding.valueUsd > 0 ? holding.valueUsd : 0, Lh = holding?.leverage && holding.leverage > 1 ? holding.leverage : 1
+  const Lc = Eh > 0 ? (Eh * Lh + E * L) / (Eh + E) : L
+  const netC = netAprAtLeverage(dep, bor, Lc), hfC = healthAt(s.liqLtv, Lc)
   const q = useLoopQuote(s, E, L, account)
   const econ = q.data?.data?.economics ?? q.data?.data?.quotes?.[0]?.economics ?? null
   const simHf = q.data?.data?.simulation?.post?.healthFactor
@@ -224,7 +244,7 @@ function LoopTicket({ s, idle, allIdle }: { s: LoopStrategy; idle: Idle[]; allId
         {chosen && <GetLine account={account} short={!bal || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />}
         {getOpen && chosen && <GetAsset target={{ chainId: s.chainId, address: chosen.address, symbol: chosen.symbol, decimals: chosen.decimals, price: price || 1, logo: chosen.logo }} need={Math.max(0, amount - (bal?.amount ?? 0))} sources={allIdle} onClose={() => setGetOpen(false)} />}
         <span className="lbl" style={{ marginTop: 14 }}>How hard to push it <Info label="Leverage tiers">{TIERS.map((t) => <p key={t.id} style={{ margin: '0 0 6px' }}><b>{t.name}</b> · {t.blurb}</p>)}<p style={{ margin: 0 }}>This venue allows up to {num(s.maxLev, 1)}×. At {num(L, 2)}× the collateral can fall <b>{pct(drop * 100, 1)}</b> against the debt before liquidation.</p></Info></span>
-        <div className="tiers" role="radiogroup" aria-label="Leverage tier">{TIERS.map((t) => { const l = s.tiers[t.id]; const n = netAprAtLeverage(s.dep, s.bor, l); const d = liqBuffer(s.liqLtv, l); return (
+        <div className="tiers" role="radiogroup" aria-label="Leverage tier">{TIERS.map((t) => { const l = s.tiers[t.id]; const n = netAprAtLeverage(dep, borAt(E * (l - 1)), l); const d = liqBuffer(s.liqLtv, l); return (
           <button key={t.id} className={`tier ${t.id}`} role="radio" aria-checked={tier === t.id} onClick={() => setTier(t.id)}>
             <span className="tn">{t.name}</span>
             <span className={`tr ${n >= 3 ? 'ok' : n < 0 ? 'bad' : ''}`}>{pct(n)}</span>
@@ -233,8 +253,9 @@ function LoopTicket({ s, idle, allIdle }: { s: LoopStrategy; idle: Idle[]; allId
 
       </div>
       <div className="tsec"><div className="cells">
-        <div className="c hero"><span className="k">Net yield</span><span className={`v ${net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{pct(net)}</span><span className="s">earn {pct(s.dep)} on {num(L, 1)}× · pay {pct(s.bor)} on {num(L - 1, 1)}×</span></div>
-        <div className="c"><span className="k">Per year</span><span className="v">{usd(yearly)}</span><span className="s">vs {usd(E * s.dep / 100)} unlevered</span></div>
+        <div className="c hero"><span className="k">Net yield</span><span className={`v ${net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{pct(net)}</span><span className="s">earn {pct(dep)} on {num(L, 1)}× · pay {pct(bor)} on {num(L - 1, 1)}×{Math.abs(bor - s.borSpot) >= 0.05 ? ` (${pct(s.borSpot)} now)` : ''}</span></div>
+        {Eh > 0 && <div className="c"><span className="k">Your loop after</span><span className={`v ${netC >= 3 ? 'ok' : netC < 0 ? 'bad' : ''}`}>{pct(netC)}</span><span className="s">{num(Lh, 2)}× → {num(Lc, 2)}× · health {hfC.toFixed(2)}</span></div>}
+        <div className="c"><span className="k">Per year</span><span className="v">{usd(yearly)}</span><span className="s">vs {usd(E * dep / 100)} unlevered</span></div>
         <div className="c"><span className="k">If borrow +2%</span><span className={`v ${netWorst < 0 ? 'bad' : netWorst < 1 ? 'warn' : ''}`}>{pct(netWorst)}</span><span className="s">rate sensitivity</span></div>
         {/* a loop is two markets, so it gets two curves: the one that pays you
             and the one that charges you. The borrow leg is the one that ends
@@ -251,6 +272,7 @@ function LoopTicket({ s, idle, allIdle }: { s: LoopStrategy; idle: Idle[]; allId
         <div className="liqcap"><span>0% buffer</span><span>{drop < 0.03 ? 'very tight' : drop < 0.06 ? 'tight' : drop < 0.12 ? 'comfortable' : 'wide'}</span><span>25%</span></div>
       </div>
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">
+        {overLiquidity && <li className="w"><i /><span>This borrows {usd(D)} of {s.debt}, more than the {usdShort(s.borrowLiquidityUsd)} the market has free: the rate is at the top of its curve and the transaction may not go through.</span></li>}
         <li className="w"><i /><span>Net yield goes negative if the {s.debt} borrow rate rises above the {s.holds} rate.</span></li>
         <li className="w"><i /><span>Liquidation if {s.holds} trades at a discount to {s.debt}.</span></li>
         {s.expiry && <li><i /><span>The collateral matures on {new Date(s.expiry * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}; the position must be closed or rolled.</span></li>}
@@ -321,7 +343,9 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const C2 = closing ? 0 : E * L, D2 = closing ? 0 : E * (L - 1)
   const sellUsd = down ? C - C2 : 0, borrowUsd = !down ? D2 - D : 0
   const sellTok = pC ? sellUsd / pC : 0, borrowTok = pD ? borrowUsd / pD : 0
-  const net = closing || !s ? null : netAprAtLeverage(s.dep, s.bor, L)
+  // the existing debt is already in the market's utilisation: spot is the rate now, and a step walks the curve by its own size
+  const borAt = useBorrowAt(s)
+  const net = closing || !s ? null : netAprAtLeverage(s.depSpot, borAt(D2 - D), L)
   const drop = closing ? 1 : liqLtv != null ? liqBuffer(liqLtv, L) : null
   const hf = closing ? Infinity : liqLtv != null ? healthAt(liqLtv, L) : null
   const key = [s?.id ?? h.key, 'manage', L, account ?? ''].join('|')
@@ -348,7 +372,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
         {h.valueUsd <= 0 && <div className="err" style={{ marginTop: 8 }}>This loop has no equity left: the collateral is worth less than the debt, so selling it cannot repay everything. Closing may fail; add {debt} on the venue to repay first.</div>}
       </div>
       <div className="tsec"><div className="cells">
-        {s && <div className="c hero"><span className="k">Net yield after</span><span className={`v ${net == null ? '' : net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{net == null ? '—' : pct(net)}</span><span className="s">{closing ? 'position closed' : `was ${pct(netAprAtLeverage(s.dep, s.bor, Lnow))} at ${num(Lnow, 2)}×`}</span></div>}
+        {s && <div className="c hero"><span className="k">Net yield after</span><span className={`v ${net == null ? '' : net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{net == null ? '—' : pct(net)}</span><span className="s">{closing ? 'position closed' : `was ${pct(netAprAtLeverage(s.depSpot, s.borSpot, Lnow))} at ${num(Lnow, 2)}×`}</span></div>}
         <div className="c"><span className="k">You hold</span><span className="v">{usd(C2)}</span><span className="s">{holds} · was {usd(C)}</span></div>
         <div className="c"><span className="k">You owe</span><span className="v">{usd(D2)}</span><span className="s">{debt} · was {usd(D)}</span></div>
         <div className="c"><span className="k">Health after</span><span className={`v ${closing || hf == null ? '' : hf < 1.1 ? 'bad' : hf < 1.25 ? 'warn' : 'ok'}`}>{closing || hf == null ? '—' : hf.toFixed(2)}</span><span className="s">{h.health != null ? `now ${h.health.toFixed(2)}` : ''}</span></div>

@@ -1,5 +1,30 @@
 /** Leverage math on equity. L = collateral / equity; debt = E·(L−1). */
 export const netAprAtLeverage = (dep: number, bor: number, L: number) => dep * L - bor * (L - 1)
+/**
+ * The borrow rate a loop actually pays once its own debt is in the market.
+ *
+ * `extraDebtUsd` is what THIS action adds to the market's debt (negative when
+ * it repays). The curve's shape moves the spot rate: spot + (curve(u′) −
+ * curve(u₀)), so whatever the headline carries on top of the model (rewards,
+ * fees) is kept. Without a curve the $10k quote is the honest fallback — it is
+ * what the list ranked on. `null` curve fields read as "no curve".
+ */
+export function borrowAtSize(
+  spot: number, atTenK: number, extraDebtUsd: number,
+  curve: { points: { utilization: number; borrowRate: number }[]; currentUtilization: number; totalDepositsUsd?: string; totalDebtUsd?: string } | null | undefined,
+): number {
+  const dep = curve ? parseFloat(curve.totalDepositsUsd ?? '') : NaN, debt = curve ? parseFloat(curve.totalDebtUsd ?? '') : NaN
+  if (!curve || !(curve.points.length >= 2) || !(dep > 0) || !Number.isFinite(debt)) return atTenK
+  const at = (u: number) => {
+    const ps = curve.points, x = Math.min(1, Math.max(0, u))
+    for (let i = 1; i < ps.length; i++) if (x <= ps[i].utilization) {
+      const a = ps[i - 1], b = ps[i], du = b.utilization - a.utilization
+      return du > 0 ? a.borrowRate + (b.borrowRate - a.borrowRate) * (x - a.utilization) / du : b.borrowRate
+    }
+    return ps[ps.length - 1].borrowRate
+  }
+  return spot + at((debt + extraDebtUsd) / dep) - at(curve.currentUtilization)
+}
 /** Collateral/debt price-ratio drop before liquidation: 1 − LTV_pos / liquidation factor. */
 export const liqBuffer = (liqLtv: number, L: number) => (L <= 1 ? 1 : 1 - ((L - 1) / L) / liqLtv)
 /** Health factor at open: collateral · liqFactor / debt. */

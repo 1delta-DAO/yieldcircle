@@ -109,8 +109,17 @@ export interface LoopStrategy extends Base {
   priceShort?: number
   logoLong?: string
   logoShort?: string
+  /** the legs quoted at $10k of collateral — what the LIST ranks and floors on */
   dep: number
   bor: number
+  /**
+   * The legs at the market's utilisation right now, before anyone adds to it.
+   * The ticket starts from these and walks the borrow curve by its own size
+   * (`borrowAtSize`): on a thin market the $10k quote alone can be the whole
+   * free liquidity, and a 1-token ticket quoted at it read −229 %.
+   */
+  depSpot: number
+  borSpot: number
   rewardsLong: number
   rewardsShort: number
   maxLev: number
@@ -325,7 +334,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     lender: r.lender, debt: S.symbol, marketLongUid: r.marketLongUid, marketShortUid: r.marketShortUid,
     collateralAddress: L.address, debtAddress: S.address, decimalsLong: L.decimals ?? 18, decimalsShort: S.decimals ?? 18,
     priceLong: r.underlyingInfoLong.prices?.priceUsd, priceShort: r.underlyingInfoShort.prices?.priceUsd, logoLong: L.logoURI, logoShort: S.logoURI,
-    dep, bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields,
+    dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields,
     expiry: L.props?.pendle?.expiry ?? L.props?.spectra?.expiry,
   }
   return { s, hide: null, label, chainId: r.chainId }

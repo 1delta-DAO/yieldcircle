@@ -5,7 +5,12 @@ import { chainInfo, txUrl } from './ChainMark'
 import type { Risk } from '../model/strategies'
 
 export const pct = (x: number | null | undefined, d = 2) => (x == null || !Number.isFinite(x) ? '—' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%')
-export const usd = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? '—' : '$' + Math.round(x).toLocaleString('en-US'))
+export const usd = (x: number | null | undefined) => {
+  if (x == null || !Number.isFinite(x)) return '—'
+  // under a dollar keeps its cents (1 MON is $0.03, not "$0"); the sign goes before the currency and a zero has none
+  const a = Math.abs(x), body = a > 0 && a < 1 ? `$${a.toFixed(2)}` : '$' + Math.round(a).toLocaleString('en-US')
+  return x < 0 && body !== '$0' && body !== '$0.00' ? `−${body}` : body.replace('$0.00', '$0')
+}
 export const usdShort = (x: number | null | undefined) => {
   if (x == null || !Number.isFinite(x)) return '—'
   const a = Math.abs(x)

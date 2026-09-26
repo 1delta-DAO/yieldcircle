@@ -16,6 +16,11 @@
  *    EIP-712 type would change its struct hash, and every profile signature
  *    already stored was made against the current shape.
  *
+ * A profile may instead carry a plain picture URL (`https://…` or `ipfs://…`)
+ * in the same field. It is fetched from wherever it lives — the one exception
+ * to "no requests" — and falls back to the derived character when it does not
+ * load, so a dead link never leaves a hole in the feed.
+ *
  * Some layers are EARNED — they render for anyone, but a profile claiming one
  * without the matching system tag is shown as unverified (`docs/social.md`
  * §3.5). Status you cannot buy is the whole point.
@@ -180,6 +185,26 @@ export function parseSpec(v: string | null | undefined): Spec | null {
   for (const k of Object.keys(SIZES) as (keyof Spec)[]) if (out[k] == null) out[k] = 0
   return out
 }
+/** Longest picture URL accepted; anything longer is not a link someone pasted. */
+export const MAX_PICTURE_URL = 512
+const IPFS_GATEWAY = 'https://ipfs.io/ipfs/'
+/**
+ * A picture URL someone may point `avatarUrl` at → the URL to load, or null.
+ * Only `https:` (no mixed content, no `data:` blobs in a signed message) and
+ * `ipfs:`, which is rewritten to a public gateway.
+ */
+export function pictureUrl(v: string | null | undefined): string | null {
+  if (!v || v.length > MAX_PICTURE_URL) return null
+  const t = v.trim()
+  if (t.startsWith('ipfs://')) {
+    const path = t.slice(7).replace(/^ipfs\//, '')
+    return path ? IPFS_GATEWAY + path : null
+  }
+  try {
+    const u = new URL(t)
+    return u.protocol === 'https:' && u.hostname ? u.href : null
+  } catch { return null }
+}
 /** The spec a wallet actually shows: its signed one when it has one, else its derived one. */
 export const specFor = (addr: string, avatarUrl?: string | null): Spec => parseSpec(avatarUrl) ?? specOf(addr)
 /** Which claimed layers this wallet has not earned. Empty = the character is honest. */
@@ -191,11 +216,20 @@ export function Character({ addr, avatarUrl, size = 32, spec, title, className =
   addr: string
   avatarUrl?: string | null
   size?: number
-  /** overrides both — the profile editor previews with this */
+  /** overrides both — the profile editor previews with this; a picture URL is ignored when set */
   spec?: Spec
   title?: string
   className?: string
 }) {
+  const pic = spec ? null : pictureUrl(avatarUrl)
+  const [broken, setBroken] = React.useState<string | null>(null)
+  if (pic && broken !== pic) {
+    return (
+      <img className={`chr pic ${className}`} src={pic} width={size} height={size} style={{ width: size, height: size }}
+        alt={title ?? 'avatar'} title={title ?? 'avatar'} loading="lazy" decoding="async" referrerPolicy="no-referrer"
+        onError={() => setBroken(pic)} />
+    )
+  }
   const s = spec ?? specFor(addr, avatarUrl)
   const p = PALETTES[s.p], c = CREATURES[s.c]
   return (

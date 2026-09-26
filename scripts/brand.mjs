@@ -13,6 +13,7 @@ const png = (svgName, width) => new Resvg(readFileSync(src(svgName), 'utf8'), { 
 const out = { 'favicon-16.png': png('mark.svg', 16), 'favicon-32.png': png('mark.svg', 32), 'favicon-48.png': png('mark.svg', 48), 'apple-touch-icon.png': png('mark.svg', 180), 'icon-192.png': png('mark.svg', 192), 'icon-512.png': png('mark.svg', 512), 'icon-maskable-512.png': png('mark-maskable.svg', 512), 'og.png': png('og.svg', 1200) }
 for (const [n, buf] of Object.entries(out)) writeFileSync(pub(n), buf)
 writeFileSync(doc('banner.png'), png('banner.svg', 1600))
+writeFileSync(doc('x-header.png'), png('x-header.svg', 1500))
 const entries = [out['favicon-16.png'], out['favicon-32.png'], out['favicon-48.png']], sizes = [16, 32, 48]
 const header = Buffer.alloc(6 + 16 * entries.length); header.writeUInt16LE(0, 0); header.writeUInt16LE(1, 2); header.writeUInt16LE(entries.length, 4)
 let offset = header.length
@@ -21,4 +22,4 @@ writeFileSync(pub('favicon.ico'), Buffer.concat([header, ...entries]))
 copyFileSync(src('mark.svg'), pub('favicon.svg')); copyFileSync(src('logo.svg'), pub('logo.svg')); copyFileSync(src('banner.svg'), doc('banner.svg'))
 for (const n of ['logo-dark-text.svg', 'logo-themable.svg', 'mark-plain.svg']) copyFileSync(src(n), pub(n))
 for (const n of ['logo-stacked.svg', 'logo-stacked-dark-text.svg', 'mark-mono.svg', 'mark-themable.svg']) if (existsSync(pub(n))) { /* desk-only assets no longer produced */ }
-console.log('public/ and docs/banner.* written')
+console.log('public/ and docs/banner.*, docs/x-header.png written')

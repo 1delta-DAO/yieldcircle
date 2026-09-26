@@ -554,6 +554,7 @@ img.tok{object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
 
 /* ---------- identity ---------- */
 .chr{display:block;border-radius:50%;flex:none;background:var(--b300)}
+.chr.pic{object-fit:cover}
 .who{display:inline-flex;align-items:center;gap:8px;min-width:0;max-width:100%}
 a.who:hover .wn b{color:var(--primary)}
 .who .wn{display:flex;flex-direction:column;min-width:0;line-height:1.2}
@@ -810,6 +811,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .pchar{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
 .pchar-a{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
 .pchar-a .btn{min-width:132px}
+.pmode{margin-bottom:14px}
 .players{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}
 .player{border:1px solid var(--line);border-radius:var(--r);padding:8px 10px;background:var(--bg);min-width:0}
 .pl-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:5px}

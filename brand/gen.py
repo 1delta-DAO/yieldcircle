@@ -196,6 +196,58 @@ def og(W=1200, H=630) -> str:
     p.append(f'<rect x="96" y="528" width="72" height="3" fill="{COLOR_A}"/>')
     return svg((0, 0, W, H), ''.join(p))
 
+X_HEAD = 'Social yield farming.'
+X_SUB = ('See what every wallet is farming, talk strategy on every pool,', 'and climb a leaderboard of yield the chain can prove.')
+
+def _characters() -> list[str]:
+    """Wallet characters from src/identity/character.tsx, via scripts/brand-characters.mjs."""
+    import json
+    with open(os.path.join(OUT, 'characters.json')) as f:
+        return json.load(f)
+
+def x_header(W=1500, H=500) -> str:
+    """X / Twitter profile header (3:1): a circle of wallets around the mark. The avatar covers roughly
+    x 40–380, y 330–500 and some clients crop ~60px top and bottom, so the copy sits right of it, mid-height."""
+    _, parts_d = lockup()
+    cast = _characters()
+    cx, cy, R, S = 1262.0, 250.0, 158.0, 62.0
+    p = [f'<rect width="{W}" height="{H}" fill="{BLACK}"/>',
+         f'<defs>{gradient("g")}{parts_d["gg"]}'
+         f'<radialGradient id="glow" cx="{cx / W:.3f}" cy="0.5" r="0.4"><stop offset="0" stop-color="{COLOR_B}" stop-opacity="0.32"/><stop offset="1" stop-color="{COLOR_B}" stop-opacity="0"/></radialGradient>'
+         f'<radialGradient id="glow2" cx="0.35" cy="0.4" r="0.45"><stop offset="0" stop-color="{COLOR_B}" stop-opacity="0.12"/><stop offset="1" stop-color="{COLOR_B}" stop-opacity="0"/></radialGradient>'
+         f'<linearGradient id="arc" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="{COLOR_B}"/><stop offset="1" stop-color="{COLOR_A}"/></linearGradient></defs>',
+         f'<rect width="{W}" height="{H}" fill="url(#glow2)"/><rect width="{W}" height="{H}" fill="url(#glow)"/>']
+    # the circle: a faint outer ring, the ring the wallets sit on with one bright turn, the mark at the centre
+    p.append(f'<circle cx="{cx}" cy="{cy}" r="{R + 62}" fill="none" stroke="{COLOR_A}" stroke-opacity="0.06" stroke-width="1.5"/>')
+    p.append(f'<circle cx="{cx}" cy="{cy}" r="{R}" fill="none" stroke="{COLOR_A}" stroke-opacity="0.18" stroke-width="2"/>')
+    a0, a1 = math.radians(-160), math.radians(-35)
+    p.append(f'<path d="M{cx + R * math.cos(a0):.1f} {cy + R * math.sin(a0):.1f} A{R} {R} 0 0 1 {cx + R * math.cos(a1):.1f} {cy + R * math.sin(a1):.1f}" '
+             f'fill="none" stroke="url(#arc)" stroke-width="3" stroke-linecap="round"/>')
+    p.append(mark('url(#g)', f'translate({cx - 50 * 1.25:.1f} {cy - 50 * 1.25:.1f}) scale(1.25)'))
+    n = 8
+    pills = {0: '+14.2%', 3: '+9.8%', 4: '+21.5%'}
+    for i in range(n):
+        ang = math.radians(-90 + i * 360 / n + 22.5)
+        x, y = cx + R * math.cos(ang), cy + R * math.sin(ang)
+        body = cast[i].replace('chr-clip', f'chr{i}')
+        p.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{S / 2 + 4}" fill="{BLACK}"/>')
+        p.append(f'<g transform="translate({x - S / 2:.1f} {y - S / 2:.1f}) scale({S / 64:g})">{body}</g>')
+        if i in pills:
+            d, w = text_path(pills[i], 'IBMPlexSans-400', 17, 0, 0)
+            px = x + S / 2 - 6 if math.cos(ang) >= 0 else x - S / 2 + 6 - (w + 20)
+            py = y + S / 2 - 12
+            p.append(f'<rect x="{px:.1f}" y="{py - 15:.1f}" width="{w + 20:.1f}" height="26" rx="13" fill="#0d1a14" stroke="{ACCENTS[0]}" stroke-opacity="0.5"/>')
+            p.append(f'<path transform="translate({px + 10:.1f} {py + 4:.1f})" d="{d}" fill="{ACCENTS[0]}"/>')
+    x0 = 440
+    p.append(f'<g transform="translate({x0 - 13} 92) scale(0.8)">{mark("url(#g)")}<path d="{parts_d["yield"]}" fill="{INK}"/><path d="{parts_d["circle"]}" fill="url(#gg)"/></g>')
+    d1, _ = text_path(X_HEAD, 'Montserrat-600', 54, x0, 232)
+    p.append(f'<path d="{d1}" fill="{INK}"/>')
+    for k, line in enumerate(X_SUB):
+        d2, _ = text_path(line, 'IBMPlexSans-400', 23, x0, 288 + k * 34)
+        p.append(f'<path d="{d2}" fill="{MUTE}"/>')
+    p.append(f'<rect x="{x0}" y="372" width="72" height="3" fill="{COLOR_A}"/>')
+    return svg((0, 0, W, H), ''.join(p))
+
 def main():
     ensure_fonts()
     os.makedirs(OUT, exist_ok=True); os.makedirs(DOCS, exist_ok=True)
@@ -210,6 +262,7 @@ def main():
         'logo-themable.svg': lockup('currentColor', themable=True)[0],
         'og.svg': og(),
         'banner.svg': banner(),
+        'x-header.svg': x_header(),
     }
     for name, body in files.items():
         with open(os.path.join(OUT, name), 'w') as f: f.write(body)

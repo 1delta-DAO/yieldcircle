@@ -189,6 +189,12 @@ cross-client determinism matters) and replace the **face**.
   spec; the server marks the profile `verified: false` when a gated layer is
   not earned, and the UI shows it hollow. Cheap, and it is the whole status
   game.
+- Or a **free picture**: the same field may hold an `https://` or `ipfs://`
+  image link instead of a spec (≤ 512 chars; `ipfs://` goes through a public
+  gateway). Still nothing is uploaded or hosted by us — the viewer's browser
+  fetches it, with no referrer, and a link that fails to load falls back to
+  the derived character. A picture claims no gated layer, so it is never
+  marked unverified; it just carries none of the status either.
 
 ---
 

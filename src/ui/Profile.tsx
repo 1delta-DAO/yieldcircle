@@ -4,6 +4,8 @@
  * Everything on this page becomes ONE signed `Profile` message. The character
  * rides in `avatarUrl` as a `yc1:` spec rather than a URL — nothing to upload,
  * nothing to host, nothing to moderate, and the EIP-712 type is untouched.
+ * Or, for someone who already has a face elsewhere, the field carries a plain
+ * picture URL instead — hosted by them, and never uploaded here.
  *
  * Earned layers are shown but marked: the client is not the gatekeeper, the
  * index is, and a character claiming something its wallet has not earned reads
@@ -11,7 +13,7 @@
  */
 import React from 'react'
 import { useAccount } from 'wagmi'
-import { ACCESSORIES, BACKDROPS, CREATURES, Character, EYES, GATED, LAYERS, MOUTHS, PALETTES, formatSpec, parseSpec, specOf, unearned, type Spec } from '../identity/character'
+import { ACCESSORIES, BACKDROPS, CREATURES, Character, EYES, GATED, LAYERS, MOUTHS, PALETTES, MAX_PICTURE_URL, formatSpec, parseSpec, pictureUrl, specOf, unearned, type Spec } from '../identity/character'
 import { autoName, shortAddr } from '../identity/name'
 import { useProfile, useSocialRefresh } from '../social/queries'
 import { useSocialWrite } from '../social/sign'
@@ -29,6 +31,8 @@ export function ProfilePage() {
   const refresh = useSocialRefresh()
 
   const [spec, setSpec] = React.useState<Spec | null>(null)
+  const [mode, setMode] = React.useState<'character' | 'picture'>('character')
+  const [pic, setPic] = React.useState('')
   const [handle, setHandle] = React.useState('')
   const [displayName, setDisplayName] = React.useState('')
   const [bio, setBio] = React.useState('')
@@ -44,6 +48,7 @@ export function ProfilePage() {
     if (loaded.current || !p.data || !addr) return
     loaded.current = true
     setSpec(parseSpec(saved?.avatarUrl) ?? specOf(addr))
+    if (pictureUrl(saved?.avatarUrl)) { setMode('picture'); setPic(saved!.avatarUrl!) }
     setHandle(saved?.handle ?? '')
     setDisplayName(saved?.displayName ?? '')
     setBio(saved?.bio ?? '')
@@ -55,15 +60,17 @@ export function ProfilePage() {
   const s = spec ?? specOf(addr)
   const earned = saved?.systemTags ?? []
   const claims = unearned(s, earned)
+  const picOk = pictureUrl(pic) != null
 
   const save = async () => {
+    if (mode === 'picture' && !picOk) { setErr('the picture needs an https:// or ipfs:// link'); return }
     setBusy(true); setErr(null); setOk(false)
     try {
       await write({
         handle: handle.trim().toLowerCase(),
         displayName: displayName.trim(),
         bio: bio.trim(),
-        avatarUrl: formatSpec(s),
+        avatarUrl: mode === 'picture' ? pic.trim() : formatSpec(s),
         tags: tags.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 5),
         visibility: unlisted ? 'unlisted' : 'public',
       })
@@ -79,23 +86,44 @@ export function ProfilePage() {
       <a className="crumb" href={`#/w/${addr}`}>‹ My page</a>
       <div className="pedit">
         <section className="card pad">
-          <div className="sec-h"><h2>Character</h2><span className="sub">drawn from six layers, free, and the same in every client</span></div>
-          <div className="pchar">
-            <Character addr={addr} spec={s} size={112} />
-            <div className="pchar-a">
-              <button className="btn sm" onClick={() => setSpec(roll(earned))}>Surprise me</button>
-              <button className="btn sm ghost" onClick={() => setSpec(specOf(addr))}>Back to default</button>
-              <span className="foot mono">{formatSpec(s)}</span>
-            </div>
+          <div className="sec-h"><h2>Face</h2><span className="sub">{mode === 'character' ? 'drawn from six layers, free, and the same in every client' : 'any image you host, loaded from its link'}</span></div>
+          <div className="seg pmode" role="group" aria-label="Face kind">
+            <button aria-pressed={mode === 'character'} onClick={() => setMode('character')}>Character</button>
+            <button aria-pressed={mode === 'picture'} onClick={() => setMode('picture')}>Picture</button>
           </div>
-          <div className="players">
-            {LAYERS.map((l) => (
-              <Picker key={l.key} label={l.label} names={l.names} value={s[l.key]} earned={earned} layer={l.key}
-                onPick={(i) => setSpec({ ...s, [l.key]: i })} />
-            ))}
-          </div>
-          {claims.length > 0 && (
-            <p className="foot warn">This character claims {claims.map((g) => g.why).join(' and ')}. Anyone can draw it, but until the index confirms it your profile is shown with a mark. {earned.length === 0 && 'No badges have been minted for this wallet yet.'}</p>
+          {mode === 'character' ? (
+            <>
+              <div className="pchar">
+                <Character addr={addr} spec={s} size={112} />
+                <div className="pchar-a">
+                  <button className="btn sm" onClick={() => setSpec(roll(earned))}>Surprise me</button>
+                  <button className="btn sm ghost" onClick={() => setSpec(specOf(addr))}>Back to default</button>
+                  <span className="foot mono">{formatSpec(s)}</span>
+                </div>
+              </div>
+              <div className="players">
+                {LAYERS.map((l) => (
+                  <Picker key={l.key} label={l.label} names={l.names} value={s[l.key]} earned={earned} layer={l.key}
+                    onPick={(i) => setSpec({ ...s, [l.key]: i })} />
+                ))}
+              </div>
+              {claims.length > 0 && (
+                <p className="foot warn">This character claims {claims.map((g) => g.why).join(' and ')}. Anyone can draw it, but until the index confirms it your profile is shown with a mark. {earned.length === 0 && 'No badges have been minted for this wallet yet.'}</p>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="pchar">
+                <Character addr={addr} avatarUrl={picOk ? pic : null} size={112} />
+                <div className="pchar-a">
+                  <span className="foot">{picOk ? 'If the link stops working, your character is shown instead.' : 'Until the link works, your character is shown.'}</span>
+                </div>
+              </div>
+              <label className="field"><span className="lbl">Picture link</span>
+                <div className="amt sm"><input value={pic} onChange={(e) => setPic(e.target.value)} maxLength={MAX_PICTURE_URL} placeholder="https://… or ipfs://…" spellCheck={false} /></div>
+                <span className="foot">Nothing is uploaded: the link is signed into your profile and every viewer loads the image from its host, which can see their IP. Square images look best.</span>
+              </label>
+            </>
           )}
           {earned.length > 0 && <div className="wc-tags"><span className="lbl">Earned</span> <Badges tags={earned} max={8} /></div>}
         </section>

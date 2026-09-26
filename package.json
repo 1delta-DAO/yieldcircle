@@ -13,7 +13,7 @@
     "deploy": "node scripts/check-env.mjs && pnpm build && wrangler pages deploy dist --project-name yieldcircle --branch main",
     "deploy:preview": "node scripts/check-env.mjs && pnpm build && wrangler pages deploy dist --project-name yieldcircle --branch preview",
     "logos": "node scripts/logos.mjs",
-    "brand": "python3 brand/gen.py && node scripts/brand.mjs"
+    "brand": "node scripts/brand-characters.mjs && python3 brand/gen.py && node scripts/brand.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "5.91.3",

@@ -29,7 +29,7 @@ import { prettyProtocol } from './ProtocolFilter'
 import { Rate } from './Rate'
 import { Thread } from './Thread'
 import { Flows, primaryLeg } from './Feed'
-import { Ago, Comments, Money, Who, describeTx } from './social-bits'
+import { Ago, Comments, Money, Who, describeBundle } from './social-bits'
 import { ProtocolLogo, Sk, Tok, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
 
 const chainName = (id: string) => indexChainLabel(id, chainLabel)
@@ -361,7 +361,7 @@ export function TokenPage({ group }: { group: string }) {
             {feed.isError && <div className="empty">The index did not answer for this asset’s activity.</div>}
             {!feed.isLoading && !feed.isError && !feed.data?.txs.length && <div className="empty">No move in this asset in the indexed window.</div>}
             <div className="tape">{(feed.data?.txs ?? []).map((tx) => {
-              const l = primaryLeg(tx), dd = describeTx(tx.kinds)
+              const l = primaryLeg(tx), dd = describeBundle(tx)
               const id = `${tx.chainId}:${tx.txHash}`
               const who = subjectOf(tx).account || l?.account || ''
               return (

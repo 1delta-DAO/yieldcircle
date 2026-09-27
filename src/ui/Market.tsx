@@ -16,7 +16,7 @@ import { prettyProtocol } from './ProtocolFilter'
 import { DeskChips } from './IssuerFilter'
 import { CuratorMark } from './CuratorFilter'
 import { Rate } from './Rate'
-import { Ago, FollowButton, Money, Who, describeTx } from './social-bits'
+import { Ago, FollowButton, Money, Who, describeBundle } from './social-bits'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
@@ -195,7 +195,7 @@ export function Market({ uid }: { uid: string }) {
                 : <div className="empty">Nothing yet.</div>
             )}
             <div className="tape">{(txs.data?.txs ?? []).filter((t) => passes(t, tf)).map((t) => {
-              const l = primaryLeg(t), d = describeTx(t.kinds)
+              const l = primaryLeg(t), d = describeBundle(t)
               const id = `${t.chainId}:${t.txHash}`
               return (
                 /* "folded per transaction" had no way to unfold: a four-leg

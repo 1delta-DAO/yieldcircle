@@ -10,7 +10,7 @@ import { AUTO_TITLE, labelFor, shortAddr } from '../identity/name'
 import { useMyFollows, useSocialRefresh } from '../social/queries'
 import { useSocialWrite } from '../social/sign'
 import type { Profile } from '../social/types'
-import type { AccountKind, UsdStatus } from '../index/types'
+import type { AccountKind, TxBundle, UsdStatus } from '../index/types'
 import { Tip, usd, usdShort } from './bits'
 
 // ---------------------------------------------------------------- time
@@ -194,6 +194,22 @@ export function describeTx(kinds: Record<string, number>, desk?: boolean): { ver
     return { ...d, verb: DESK[d.verb] ?? d.verb }
   }
   return plainVerb(kinds)
+}
+/**
+ * {@link describeTx} for a whole bundle: a swap the index found (a venue
+ * wrapping one lending receipt and unwrapping another, or a wallet's
+ * collateral swap) reads as one, and a token issuer's reserve reads as the
+ * token being minted or redeemed rather than as a wallet depositing.
+ */
+export function describeBundle(t: Pick<TxBundle, 'kinds' | 'subject' | 'swap'>): { verb: string; cls: string } {
+  const side = (x: { symbol: string | null; assetGroup: string | null }[]) => x.map((s) => s.symbol ?? s.assetGroup ?? '?').join(' + ')
+  if (t.swap) return { verb: `swapped ${side(t.swap.from)} → ${side(t.swap.to)}`, cls: 'k-move' }
+  if (t.subject?.reason === 'wrapper') {
+    const d = plainVerb(t.kinds)
+    const W: Record<string, string> = { deposited: 'backed a mint', withdrew: 'paid a redemption' }
+    return { ...d, verb: W[d.verb] ?? d.verb }
+  }
+  return describeTx(t.kinds, t.subject?.reason === 'desk')
 }
 function plainVerb(kinds: Record<string, number>): { verb: string; cls: string } {
   const bare = new Set<string>()

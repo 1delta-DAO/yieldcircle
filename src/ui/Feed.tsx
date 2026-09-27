@@ -31,7 +31,7 @@ import { DeskMark, IssuerChips, useIssuerFilter } from "./IssuerFilter";
 import { CuratorChips, CuratorMark, useCuratorFilter } from "./CuratorFilter";
 import { RateMark } from "./Rate";
 import { protocolKeyOf } from "../model/uid";
-import { Ago, Comments, Money, Who, describeTx } from "./social-bits";
+import { Ago, Comments, Money, Who, describeBundle } from "./social-bits";
 import { ChainCorner } from "./ChainMark";
 import { indexChainLabel, subjectOf } from "../index/types";
 import { Sk, Tip, Tok, TxLink, pct } from "./bits";
@@ -718,7 +718,7 @@ function Card({
    */
   const s = subjectOf(tx);
   const who = s.account || leg?.account || "";
-  const { verb, cls } = describeTx(tx.kinds, s.reason === "desk");
+  const { verb, cls } = describeBundle(tx);
   /** where a vault put the money in the same transaction */
   const into = tx.legs.find((l) => l.passthrough);
   const borrow = tx.legs.find((l) => l.side === "borrow");

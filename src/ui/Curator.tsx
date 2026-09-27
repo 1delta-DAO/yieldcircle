@@ -27,7 +27,7 @@ import { curatorLabel } from './CuratorFilter'
 import { prettyProtocol } from './ProtocolFilter'
 import { Rate } from './Rate'
 import { Thread } from './Thread'
-import { Ago, FollowButton, Money, Who, describeTx } from './social-bits'
+import { Ago, FollowButton, Money, Who, describeBundle } from './social-bits'
 import { Sk, TxLink, pct, usd, usdShort } from './bits'
 
 export function Slices({ title, note, rows, pretty, href }: {
@@ -253,7 +253,7 @@ export function Curator({ id }: { id: string }) {
             {(txs.data?.txs ?? []).map((t) => (
               <div key={`${t.chainId}:${t.txHash}`} className="tape-item">
                 <div className="tape-row">
-                  <span className={`tr-k ${describeTx(t.kinds).cls}`}>{describeTx(t.kinds).verb}</span>
+                  <span className={`tr-k ${describeBundle(t).cls}`}>{describeBundle(t).verb}</span>
                   <span className="sp" />
                   <span className="tr-v"><Money usd={t.volumeUsd} short /></span>
                   <span className="tr-t"><Ago ts={t.blockTs} /></span>

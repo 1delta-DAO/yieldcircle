@@ -13,7 +13,7 @@ import { useAccount } from 'wagmi'
 import { marketHref, useApp, walletHref } from '../state/AppState'
 import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
 import { useFollowers, useProfile, useProfiles } from '../social/queries'
-import { AutoTag, Badges, FollowButton, Money, Who, Ago, describeTx, tokens } from './social-bits'
+import { AutoTag, Badges, FollowButton, Money, Who, Ago, describeBundle, tokens } from './social-bits'
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
@@ -165,7 +165,7 @@ export function Wallet({ addr }: { addr: string }) {
           {txsQ.isLoading && <div className="empty"><Sk w={200} /></div>}
           {!txsQ.isLoading && !txList.length && <div className="empty">Nothing on {allChains ? 'the chains the index follows' : chainLabelFor()}.</div>}
           <div className="tape">{txList.map((t) => {
-            const l = primaryLeg(t), d = describeTx(t.kinds)
+            const l = primaryLeg(t), d = describeBundle(t)
             return (
               <div key={`${t.chainId}:${t.txHash}`} className="tape-item">
                 <a className="tape-row" href={l?.marketUid ? marketHref(l.marketUid) : undefined}>

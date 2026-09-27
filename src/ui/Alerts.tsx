@@ -15,7 +15,7 @@ import { useApp, marketHref } from '../state/AppState'
 import { useFeedPage } from '../index/queries'
 import { useFollowers, useMyFollows, useProfiles } from '../social/queries'
 import { useSocialWrite } from '../social/sign'
-import { Ago, Money, Who, describeTx } from './social-bits'
+import { Ago, Money, Who, describeBundle } from './social-bits'
 import { Sk } from './bits'
 import { primaryLeg } from './Feed'
 
@@ -82,7 +82,7 @@ function Group({ title, rows, profile, loading, empty }: {
         {loading && <div className="empty"><Sk w={200} /></div>}
         {!loading && !rows.length && empty && <div className="empty">{empty}</div>}
         <div className="tape">{rows.map((t) => {
-          const l = primaryLeg(t), d = describeTx(t.kinds)
+          const l = primaryLeg(t), d = describeBundle(t)
           return (
             <a key={`${t.chainId}:${t.txHash}`} className="tape-row alert" href={l?.marketUid ? marketHref(l.marketUid) : `#/w/${subjectOf(t).account}`}>
               <Who account={subjectOf(t).account} profile={profile(subjectOf(t).account)} idx={subjectOf(t)} size={22} plain />

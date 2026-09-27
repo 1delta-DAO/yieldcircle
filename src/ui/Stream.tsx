@@ -15,7 +15,7 @@ import { useFeedPage } from '../index/queries'
 import type { TxBundle } from '../index/types'
 import { useMyFollows, useProfiles } from '../social/queries'
 import { useSocialWrite } from '../social/sign'
-import { Ago, Money, Who, describeTx } from './social-bits'
+import { Ago, Money, Who, describeBundle } from './social-bits'
 import { Sk } from './bits'
 import { primaryLeg } from './Feed'
 import { useMenu } from './useMenu'
@@ -74,7 +74,7 @@ export function Stream({ rows = 12 }: { rows?: number }) {
         )}
         {list.map((t) => {
           const l = primaryLeg(t, pf.keys)
-          const d = describeTx(t.kinds)
+          const d = describeBundle(t)
           const who = subjectOf(t).account || l?.account || ''
           return (
             <a key={`${t.chainId}:${t.txHash}`} className="srow" href={l?.marketUid ? marketHref(l.marketUid) : walletHref(who)}>
@@ -111,7 +111,7 @@ export function Pulse() {
   }, [txs.length])
   const t = txs[Math.min(i, Math.max(0, txs.length - 1))]
   const l = t ? primaryLeg(t) : undefined
-  const d = t ? describeTx(t.kinds) : null
+  const d = t ? describeBundle(t) : null
   return (
     <div className="pulse" aria-live="off">
       <span className="dot" />

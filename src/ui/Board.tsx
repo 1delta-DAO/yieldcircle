@@ -42,7 +42,7 @@ export function Board({ window: w }: { window?: string }) {
       const r = await idx.recentEvents({ since, limit: 1000, chainIds: allChains ? undefined : chainIds.join(',') })
       const by = new Map<string, { account: string; netUsd: number; n: number }>()
       for (const e of r.events) {
-        if (e.accountKind === 'vault' || e.accountKind === 'protocol' || e.accountKind === 'router') continue
+        if (e.accountKind === 'vault' || e.accountKind === 'protocol' || e.accountKind === 'router' || e.accountKind === 'dex' || e.accountKind === 'wrapper') continue
         if (e.side === 'borrow') continue
         const v = e.amountUsd
         if (v == null) continue

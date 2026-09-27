@@ -7,8 +7,12 @@
  */
 
 export type UsdStatus = 'exact' | 'provisional' | 'pending' | 'no-asset' | 'no-index' | 'no-price'
-/** `vault` = the address IS a share token; `protocol` = a roster emitter moving its own shares. */
-export type AccountKind = 'vault' | 'protocol' | 'router' | 'eoa' | 'contract' | null
+/**
+ * `vault` = the address IS a share token; `protocol` = a roster emitter moving its own shares;
+ * `dex` = a liquidity venue (Balancer's Vault) wrapping / unwrapping lending receipts inside a swap;
+ * `wrapper` = holds a lending position as the 1:1 backing of a token it issues (Aquabank's reserves).
+ */
+export type AccountKind = 'vault' | 'protocol' | 'router' | 'dex' | 'wrapper' | 'eoa' | 'contract' | null
 
 export interface Named {
   lenderKey: string
@@ -107,8 +111,21 @@ export interface TxSubject {
   account: string
   accountKind?: AccountKind
   accountLabel?: string | null
-  reason: 'wallet' | 'desk' | 'multi'
+  reason: 'wallet' | 'desk' | 'multi' | 'dex' | 'wrapper'
   accounts: number
+}
+/** one side of a {@link TxSwap} */
+export interface TxSwapSide {
+  asset: string | null
+  symbol: string | null
+  assetGroup: string | null
+  amountUsd: number
+  marketUids: string[]
+}
+/** the subject withdrew one asset (`from`) and deposited another (`to`) for the same value: a swap, not two decisions */
+export interface TxSwap {
+  from: TxSwapSide[]
+  to: TxSwapSide[]
 }
 /** `?group=tx` — the feed's unit: a four-leg loop is ONE of these, not four rows. */
 export interface TxBundle {
@@ -118,6 +135,8 @@ export interface TxBundle {
   blockTs: string
   accounts: string[]
   subject?: TxSubject | null
+  /** absent on an index older than pos-indexer tickets/0031 */
+  swap?: TxSwap | null
   /** legs that are the same money one layer down (a vault putting a deposit to work) */
   nPassthrough?: number
   lenders: string[]

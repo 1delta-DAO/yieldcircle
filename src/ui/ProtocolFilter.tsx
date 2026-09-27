@@ -76,10 +76,10 @@ export const protocolName = (p: ProtocolFacet) => NAMES[p.protocol] ?? p.name ??
 
 const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n))
 
-export function useProtocolFilter(window: '1h' | '6h' | '24h' | '7d' = '7d', scope = 'page') {
+export function useProtocolFilter(window: '1h' | '6h' | '24h' | '7d' = '7d', scope = 'page', seed?: string[]) {
   const { chainIds, allChains } = useApp()
   const q = useProtocols(window, allChains ? undefined : chainIds.join(','))
-  const [picked, setPicked] = useSticky<string[]>(`${scope}:protocols`, [])
+  const [picked, setPicked] = useSticky<string[]>(`${scope}:protocols`, [], seed && { value: seed })
   // a protocol that leaves the window (or the chain scope) must not go on
   // filtering invisibly — drop it from the selection the moment it is gone
   const protocols = React.useMemo(() => fold(q.data?.protocols ?? []), [q.data])
@@ -87,7 +87,13 @@ export function useProtocolFilter(window: '1h' | '6h' | '24h' | '7d' = '7d', sco
   React.useEffect(() => {
     // a placeholder (last visit, or the previous window) is not the truth about what is available yet
     if (!q.data || q.isPlaceholderData) return
-    setPicked((cur) => (cur.every((p) => available.has(p)) ? cur : cur.filter((p) => available.has(p))))
+    // a key from a link may be in any case, or be an alias of the chip that stands for it
+    const canon = new Map(protocols.map((p) => [p.protocol.toLowerCase(), p.protocol]))
+    const resolve = (k: string) => canon.get((ALIAS[k] ?? k).toLowerCase()) ?? canon.get(k.toLowerCase())
+    setPicked((cur) => {
+      if (cur.every((p) => available.has(p))) return cur
+      return [...new Set(cur.map(resolve).filter((p): p is string => !!p))]
+    })
   }, [available, q.data])
   const keys = React.useMemo(() => picked.flatMap(expand), [picked])
   return {

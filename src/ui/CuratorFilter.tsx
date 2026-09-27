@@ -30,10 +30,11 @@ export function curatorLabel(c: { curatorId: string; name?: string | null }): st
 
 export const curatorHref = (id: string) => `#/c/${encodeURIComponent(id)}`
 
-export function useCuratorFilter(scope = 'page') {
+/** `seed` is a link's curator — `{ value: undefined }` is a link that says "none" */
+export function useCuratorFilter(scope = 'page', seed?: { value: string | undefined }) {
   const { chainIds, allChains } = useApp()
   const q = useCurators(allChains ? undefined : chainIds.join(','), 60)
-  const [picked, setPicked] = useSticky<string | undefined>(`${scope}:curator`, undefined)
+  const [picked, setPicked] = useSticky<string | undefined>(`${scope}:curator`, undefined, seed)
   const list = q.data?.curators ?? []
   React.useEffect(() => {
     if (!q.data || !picked) return

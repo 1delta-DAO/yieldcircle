@@ -79,7 +79,17 @@ export interface LedgerEvent extends Named, Valued, AccountIdentity {
   side: string
   kind: string
   caller?: string | null
+  /** the POOL's rate for this side at the row's hour, % */
   apr?: number | null
+  /**
+   * What the TOKEN itself earns, % (pos-indexer tickets/0017): an RWA or
+   * savings token posted where nobody borrows it reads `apr` 0 while the
+   * token accrues on its own. `null` = nobody publishes one, never zero.
+   */
+  intrinsicApr?: number | null
+  intrinsicSource?: 'market' | 'asset' | null
+  /** pool + intrinsic: what the leg earns, or on a borrow leg what it costs */
+  aprEffective?: number | null
 }
 /** One leg of a transaction: a ledger row, a Pool+token pair, or a folded transfer. */
 export interface TxLeg extends LedgerEvent { folded: 'row' | 'pair' | 'transfer'; rows: string[]; to?: string; /** the same money one layer down: a vault putting this deposit to work */ passthrough?: boolean }

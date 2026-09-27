@@ -5,9 +5,10 @@
  * position alike.
  */
 import React from 'react'
+import { useAccount } from 'wagmi'
 import { go, marketHref, tokenHref } from '../state/AppState'
 import { useCuratorsByAccount, useHolders, useMarket, useMarketFlow, useMarketTxs, useStress } from '../index/queries'
-import type { FlowBucket } from '../index/api'
+import type { FlowBucket, MarketTapeQuery } from '../index/api'
 import { useProfiles } from '../social/queries'
 import { useMenu } from './useMenu'
 import { parseUid, protocolKeyOf } from '../model/uid'
@@ -20,14 +21,17 @@ import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
 import { indexChainLabel, subjectOf } from '../index/types'
-import type { MarketExposure } from '../index/types'
+import type { MarketExposure, TxBundle } from '../index/types'
 import { Flows, primaryLeg } from './Feed'
 import { TokLink } from './TokenPage'
 
 export function Market({ uid }: { uid: string }) {
   const m = useMarket(uid)
   const holders = useHolders(uid, undefined, 15)
-  const txs = useMarketTxs(uid, 40)
+  const { address } = useAccount()
+  const [tf, setTf] = React.useState<TapeFilter>(NO_FILTER)
+  const txs = useMarketTxs(uid, 40, tapeQuery(tf, address))
+  const filtered = tf.size > 0 || tf.kind !== 'all' || (tf.following && !!address)
   /** which transaction in the tape is showing its legs */
   const [legsOpen, setLegsOpen] = React.useState<string | null>(null)
   const flow = useMarketFlow(uid, 24 * 30)
@@ -180,11 +184,17 @@ export function Market({ uid }: { uid: string }) {
         </section>
 
         <section className="sec" style={{ marginTop: 0 }}>
-          <div className="sec-h"><h2>Tape</h2><span className="sub">folded per transaction</span></div>
-          <div className="card">
+          <div className="sec-h"><h2>Tape</h2><span className="sub">{filtered ? 'filtered, last 30 days' : 'folded per transaction'}</span></div>
+          <TapeFilters f={tf} set={setTf} connected={!!address} />
+          <div className={`card${txs.isPlaceholderData ? ' stale' : ''}`}>
             {txs.isLoading && <div className="empty"><Sk w={180} /></div>}
-            {!txs.isLoading && !txs.data?.txs.length && <div className="empty">Nothing yet.</div>}
-            <div className="tape">{(txs.data?.txs ?? []).map((t) => {
+            {txs.isError && <div className="empty">The index did not answer for this tape.</div>}
+            {!txs.isLoading && !txs.isError && !txs.data?.txs.length && (
+              filtered
+                ? <div className="empty">{tf.following ? 'None of the wallets you follow' : 'Nothing'} matching in the last 30 days. <button className="lnk" onClick={() => setTf(NO_FILTER)}>Clear filters</button></div>
+                : <div className="empty">Nothing yet.</div>
+            )}
+            <div className="tape">{(txs.data?.txs ?? []).filter((t) => passes(t, tf)).map((t) => {
               const l = primaryLeg(t), d = describeTx(t.kinds)
               const id = `${t.chainId}:${t.txHash}`
               return (
@@ -220,6 +230,61 @@ export function Market({ uid }: { uid: string }) {
         <div className="card pad"><Thread kind="market" subjectKey={uid} placeholder="What do you make of this market?" /></div>
       </section>
     </>
+  )
+}
+
+/**
+ * The tape's filters. They run in the index, not over the 40 rows already
+ * loaded: on a busy market those 40 are twenty minutes, and "≥ $1m" over
+ * twenty minutes is an empty list that reads as "no big money moved".
+ */
+interface TapeFilter { size: number; kind: keyof typeof KINDS; following: boolean }
+const NO_FILTER: TapeFilter = { size: 0, kind: 'all', following: false }
+const SIZES: [number, string][] = [[0, 'Any size'], [10_000, '≥ $10k'], [100_000, '≥ $100k'], [1_000_000, '≥ $1m']]
+const KINDS = {
+  all: { label: 'Everything', kinds: '' },
+  deposit: { label: 'Deposits', kinds: 'deposit' },
+  withdraw: { label: 'Withdrawals', kinds: 'withdraw' },
+  borrow: { label: 'Borrows', kinds: 'borrow' },
+  repay: { label: 'Repays', kinds: 'repay' },
+  liquidated: { label: 'Liquidations', kinds: 'liquidated' },
+}
+function tapeQuery(f: TapeFilter, me: string | undefined): MarketTapeQuery {
+  return {
+    minUsd: f.size || undefined,
+    kinds: KINDS[f.kind].kinds || undefined,
+    follower: f.following && me ? me.toLowerCase() : undefined,
+  }
+}
+
+/**
+ * The same size and kind test, re-applied to what came back. The index does
+ * the real filtering; this only keeps an index that predates the filters
+ * (and ignores the params) from passing an unfiltered tape off as a filtered one.
+ */
+function passes(t: TxBundle, f: TapeFilter): boolean {
+  if (f.size && !t.legs.some((l) => (l.amountUsd ?? 0) >= f.size)) return false
+  const want = KINDS[f.kind].kinds
+  if (want && !Object.keys(t.kinds).some((k) => k.slice(k.indexOf('/') + 1) === want)) return false
+  return true
+}
+
+function TapeFilters({ f, set, connected }: { f: TapeFilter; set: (f: TapeFilter) => void; connected: boolean }) {
+  return (
+    <div className="tape-f">
+      {connected && (
+        <div className="seg sm" role="group" aria-label="Whose moves">
+          <button aria-pressed={!f.following} onClick={() => set({ ...f, following: false })}>Everyone</button>
+          <button aria-pressed={f.following} onClick={() => set({ ...f, following: true })}>Following</button>
+        </div>
+      )}
+      <div className="seg sm" role="group" aria-label="Size">
+        {SIZES.map(([v, l]) => <button key={v} aria-pressed={f.size === v} onClick={() => set({ ...f, size: v })}>{l}</button>)}
+      </div>
+      <select className="tape-k" aria-label="Kind of move" value={f.kind} onChange={(e) => set({ ...f, kind: e.target.value as TapeFilter['kind'] })}>
+        {Object.entries(KINDS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+      </select>
+    </div>
   )
 }
 

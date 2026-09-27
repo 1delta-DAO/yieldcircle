@@ -13,7 +13,8 @@
  */
 import React from "react";
 import { useApp } from "../state/AppState";
-import { go, marketHref } from "../state/AppState";
+import { go, marketHref, parseRoute } from "../state/AppState";
+import { feedHash, readFeedLink, sameFilters, type FeedFilters } from "../state/feedLink";
 import { useCuratorsByAccount, useFeedPage } from "../index/queries";
 import type { TxBundle, TxLeg, TxSubject } from "../index/types";
 import {
@@ -33,7 +34,7 @@ import { protocolKeyOf } from "../model/uid";
 import { Ago, Comments, Money, Who, describeTx } from "./social-bits";
 import { ChainCorner } from "./ChainMark";
 import { indexChainLabel, subjectOf } from "../index/types";
-import { Sk, Tok, TxLink, pct } from "./bits";
+import { Sk, Tip, Tok, TxLink, pct } from "./bits";
 import { Thread } from "./Thread";
 import { chainLabel } from "../sdk/queries";
 import type { Strategy } from "../model/strategies";
@@ -79,17 +80,75 @@ function useStableRows(rows: TxBundle[], scope: string, on: boolean, cap = 240) 
 }
 
 
+const tabOf = (t: string | undefined): Tab =>
+  t === "following" || t === "everyone" ? t : "menu";
+
 export function Feed({ tab: tabIn }: { tab?: string }) {
-  const { chainIds, allChains, chainLabelFor } = useApp();
+  const { chains, chainIds, allChains, chainLabelFor } = useApp();
   const { account } = useSocialWrite();
   const follows = useMyFollows(account);
   const menu = useMenu();
-  const tab: Tab =
-    tabIn === "following" || tabIn === "everyone" ? tabIn : "menu";
+  const tab = tabOf(tabIn);
   const chainsParam = allChains ? undefined : chainIds.join(",");
-  const pf = useProtocolFilter("7d", "feed");
-  const inf = useIssuerFilter("7d", "feed");
-  const cf = useCuratorFilter("feed");
+  /**
+   * A link's filters are read BEFORE the first render and seed the chips, so
+   * the first request is already the filtered one — never the whole tape
+   * fetched and thrown away a render later. (Its chains were taken the same
+   * way, in `AppProvider`.)
+   */
+  const [seed] = React.useState(readFeedLink);
+  const pf = useProtocolFilter("7d", "feed", seed?.protocols);
+  const inf = useIssuerFilter("7d", "feed", seed ?? undefined);
+  const cf = useCuratorFilter("feed", seed ? { value: seed.curator } : undefined);
+  const filters: FeedFilters = {
+    chains,
+    protocols: pf.picked,
+    issuers: inf.picked,
+    match: inf.match,
+    curator: cf.picked,
+  };
+  const hashFor = (t: Tab) => feedHash(t, filters);
+  const here = hashFor(tab);
+  /**
+   * The address bar IS the view. Replaced, never pushed: a chip click is not a
+   * page, so it adds no Back entry and fires no `hashchange` (which would
+   * re-render the app from the route down). `history.state` is passed through
+   * because it carries the depth stamp `useBack` reads.
+   */
+  React.useEffect(() => {
+    if (location.hash !== here)
+      history.replaceState(history.state, "", location.pathname + location.search + here);
+  }, [here]);
+  /**
+   * A link followed while already here (pasted, or Back onto another view)
+   * takes over; a bare `#/feed` (the nav) keeps this view and gets its filters
+   * written back into the address.
+   */
+  const live = React.useRef({ filters, pf, inf, cf });
+  React.useEffect(() => {
+    live.current = { filters, pf, inf, cf };
+  });
+  React.useEffect(() => {
+    const h = () => {
+      const { filters: cur, pf, inf, cf } = live.current;
+      const link = readFeedLink();
+      if (!link) {
+        if (parseRoute().view !== "feed") return;
+        const want = feedHash(tabOf(parseRoute().t), cur);
+        if (location.hash !== want)
+          history.replaceState(history.state, "", location.pathname + location.search + want);
+        return;
+      }
+      // the chains are taken by `useRoute`, which hears every link
+      if (sameFilters({ ...link, chains: [] }, { ...cur, chains: [] })) return;
+      pf.setPicked(link.protocols);
+      inf.setPicked(link.issuers);
+      inf.setMatch(link.match);
+      cf.setPicked(link.curator);
+    };
+    addEventListener("hashchange", h);
+    return () => removeEventListener("hashchange", h);
+  }, []);
   const [limit, setLimit] = React.useState(40);
   React.useEffect(
     () => setLimit(40),
@@ -213,7 +272,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
         <div className="seg">
           <button
             aria-pressed={tab === "following"}
-            onClick={() => go("feed", { t: "following" })}
+            onClick={() => { location.hash = hashFor("following"); }}
           >
             Following
             {follows.wallets.length + follows.markets.length > 0 && (
@@ -224,20 +283,22 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           </button>
           <button
             aria-pressed={tab === "menu"}
-            onClick={() => go("feed", { t: "menu" })}
+            onClick={() => { location.hash = hashFor("menu"); }}
           >
             In the menu
           </button>
           <button
             aria-pressed={tab === "everyone"}
-            onClick={() => go("feed", { t: "everyone" })}
+            onClick={() => { location.hash = hashFor("everyone"); }}
           >
             Everyone
           </button>
         </div>
         <span className="sp" />
         <span className="sub t50">{chainLabelFor()} · live</span>
+        <ShareView hash={here} />
       </div>
+      <LinkChainsToast />
 
       <ProtocolChips f={pf} />
       <IssuerChips f={inf} />
@@ -312,7 +373,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
                 market this app can open.{" "}
                 <button
                   className="lnk"
-                  onClick={() => go("feed", { t: "everyone" })}
+                  onClick={() => { location.hash = hashFor("everyone"); }}
                 >
                   Show everyone ›
                 </button>
@@ -354,7 +415,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
               no row for —{" "}
               <button
                 className="lnk"
-                onClick={() => go("feed", { t: "everyone" })}
+                onClick={() => { location.hash = hashFor("everyone"); }}
               >
                 show everyone
               </button>
@@ -362,6 +423,73 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Copy this view as a link. Built on the click, from the hash the address bar
+ * already holds, so it costs nothing to render. `?as=` (view-as) is left out:
+ * the sender's lens is not the reader's.
+ */
+function ShareView({ hash }: { hash: string }) {
+  const [done, setDone] = React.useState(false);
+  React.useEffect(() => {
+    if (!done) return;
+    const t = setTimeout(() => setDone(false), 1400);
+    return () => clearTimeout(t);
+  }, [done]);
+  const copy = () => {
+    const url = location.origin + location.pathname + hash;
+    // no clipboard outside a secure context: hand the link over to copy by hand
+    const byHand = () => void window.prompt("Copy this link", url);
+    if (!navigator.clipboard) return byHand();
+    navigator.clipboard.writeText(url).then(() => setDone(true), byHand);
+  };
+  return (
+    <button
+      type="button"
+      className={"btn sm share" + (done ? " ok" : "")}
+      onClick={copy}
+      title="Copy a link to this feed — the tab, chains and every filter picked"
+    >
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        {done ? (
+          <path d="M5 12.5 10 17.5 19 7" />
+        ) : (
+          <>
+            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+            <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+          </>
+        )}
+      </svg>
+      {done ? "Link copied" : "Share view"}
+    </button>
+  );
+}
+
+/**
+ * A link just changed the chains — which are global, so this is said out loud
+ * with a way back, rather than done silently to the reader's own selection.
+ */
+function LinkChainsToast() {
+  const { chainsFromLink, chains, dismissLinkChains } = useApp();
+  React.useEffect(() => {
+    if (!chainsFromLink) return;
+    const t = setTimeout(() => dismissLinkChains(), 10000);
+    return () => clearTimeout(t);
+  }, [chainsFromLink, chains]);
+  if (!chainsFromLink) return null;
+  const names = chains.length ? chains.map(chainLabel).join(", ") : "every chain";
+  return (
+    <div className="toast on act" role="status">
+      Showing <b>{names}</b> from this link.{" "}
+      <button className="lnk" onClick={() => dismissLinkChains(true)}>
+        Undo
+      </button>
+      <button className="lnk t50" aria-label="Dismiss" onClick={() => dismissLinkChains()}>
+        ✕
+      </button>
     </div>
   );
 }
@@ -466,6 +594,41 @@ function legVerb(l: TxLeg): { verb: string; cls: string } {
  * those are a large number and roughly zero. A passthrough leg is the same
  * money one layer down, so it is shown and marked, never added.
  */
+/**
+ * A leg's rate as what it earns (or, on a borrow, costs): the pool's rate
+ * PLUS what the token accrues by itself (pos-indexer tickets/0017). An RWA or
+ * savings token posted where nobody borrows it reads 0.00 % from the pool —
+ * Nest's nOPAL on Plume earns 10.28 % inside its own price — so the pool rate
+ * alone said those deposits earned nothing. The split is in the hover, and a
+ * dotted underline marks a figure that includes the token's own part.
+ */
+function LegRate({ l, className }: { l: TxLeg; className: string }) {
+  const v = l.aprEffective ?? l.apr;
+  if (v == null) return <span className={className} />;
+  const own = l.intrinsicApr;
+  const title =
+    own == null
+      ? "the pool's rate; nobody publishes a yield for this token"
+      : `${pct(own)} the token itself${l.intrinsicSource === "asset" ? " (from the asset, not this market)" : ""} + ${pct(l.apr ?? 0)} the pool`;
+  return (
+    <span
+      className={className}
+      title={title}
+      style={own != null ? { textDecoration: "underline dotted", textUnderlineOffset: 3 } : undefined}
+    >
+      {pct(v)}
+    </span>
+  );
+}
+
+/** a debt: the receipt a borrow leaves behind */
+const OweGlyph = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="owes">
+    <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z" />
+    <path d="M8 8h8M8 12h8M8 16h5" />
+  </svg>
+);
+
 export function Flows({ tx }: { tx: TxBundle }) {
   const via = tx.legs.filter((l) => l.passthrough).length;
   return (
@@ -494,7 +657,7 @@ export function Flows({ tx }: { tx: TxBundle }) {
               <span className="t50"> · {l.lenderName ?? l.lenderKey}</span>
             </span>
             <span className="sp" />
-            {l.apr != null && <span className="flr ok">{pct(l.apr)}</span>}
+            <LegRate l={l} className="flr ok" />
             <span className="flu">
               <Money usd={l.amountUsd} status={l.usdStatus} amount={l.amount} symbol={l.symbol} short />
             </span>
@@ -592,21 +755,31 @@ function Card({
               symbol={leg?.symbol}
             />
           </span>
-          {borrow && borrow !== leg && (
-            <span className="t50">
-              owes{" "}
-              <Money
-                usd={borrow.amountUsd}
-                status={borrow.usdStatus}
-                amount={borrow.amount}
-                symbol={borrow.symbol}
-                short
-              />
-            </span>
-          )}
-          <span className="fc-apr ok">
-            {leg?.apr != null ? pct(leg.apr) : ""}
+          {/* the extras sit behind a fixed-width glyph slot: spelling them out ("owes $3k")
+              widened this card's money column alone and shoved its chain and buttons out of
+              line with every other card */}
+          <span className="fc-x">
+            {borrow && borrow !== leg && (
+              <Tip
+                className="fc-owe"
+                tip={
+                  <>
+                    <b>Owes <Money usd={borrow.amountUsd} status={borrow.usdStatus} amount={borrow.amount} symbol={borrow.symbol} /></b>{" "}
+                    {borrow.symbol ?? ""} borrowed in the same transaction
+                    {borrow.lenderName || borrow.lenderKey ? <> on {borrow.lenderName ?? borrow.lenderKey}</> : null}
+                    {(borrow.aprEffective ?? borrow.apr) != null && <>, at {pct((borrow.aprEffective ?? borrow.apr)!)}</>}.
+                  </>
+                }
+              >
+                <OweGlyph />
+              </Tip>
+            )}
           </span>
+          {leg ? (
+            <LegRate l={leg} className="fc-apr ok" />
+          ) : (
+            <span className="fc-apr ok" />
+          )}
           {/* the count was the only trace of the rest of the bundle and there was
               no way to open it — it is the handle now */}
           {tx.legs.length > 1 ? (

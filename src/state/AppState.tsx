@@ -1,6 +1,7 @@
 import React from 'react'
 import { useAccount } from 'wagmi'
 import { CHAINS } from '../sdk/queries'
+import { readFeedLink } from './feedLink'
 
 /**
  * Route = the hash. The catalogue's routes are unchanged; the social ones are
@@ -10,7 +11,7 @@ import { CHAINS } from '../sdk/queries'
  *   #/                       the home: pulse · hot · stream
  *   #/explore                the catalogue, by asset
  *   #/USD?u=USDC&s=<id>&k=loop   asset page + ticket
- *   #/feed                   the feed          (?t=following|everyone|menu)
+ *   #/feed                   the feed          (?t=following|everyone|menu, filters: see feedLink.ts)
  *   #/w/0x…                  a wallet
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
  *   #/board                  the leaderboard   (?w=24h|7d|30d|all)
@@ -89,9 +90,25 @@ export const walletHref = (a: string) => `#/w/${a.toLowerCase()}`
 /** An asset page. The group key is case-significant and may carry spaces and colons. */
 export const tokenHref = (group: string) => `#/t/${encodeURIComponent(group)}`
 
+/**
+ * A feed link followed in a tab that is already open — pasted, or Back onto a
+ * feed view — sets the chains in the SAME listener that moves the route, so
+ * both land in one render and the feed mounts already scoped. A listener of
+ * its own would run after this one, when the feed has already rendered, and
+ * mirrored the old chains into the address.
+ */
+let followLinkChains: ((c: string[]) => void) | null = null
 export function useRoute(): Route {
   const [r, setR] = React.useState(parseRoute)
-  React.useEffect(() => { const h = () => setR(parseRoute()); addEventListener('hashchange', h); return () => removeEventListener('hashchange', h) }, [])
+  React.useEffect(() => {
+    const h = () => {
+      const link = readFeedLink()
+      if (link) followLinkChains?.(link.chains)
+      setR(parseRoute())
+    }
+    addEventListener('hashchange', h)
+    return () => removeEventListener('hashchange', h)
+  }, [])
   return r
 }
 
@@ -110,6 +127,13 @@ interface AppCtx {
   allChains: boolean
   /** what to call the current scope in a sentence */
   chainLabelFor: () => string
+  /**
+   * A link just set the chains. The selection is global — one world, every
+   * page agreeing — so a sent view changes it rather than hiding a second
+   * chain filter on the feed; `prev` is what the reader had, for Undo.
+   */
+  chainsFromLink: { prev: string[] } | null
+  dismissLinkChains: (undo?: boolean) => void
   /** connected address, or the "view as" address */
   account: string | undefined
   /** the CONNECTED wallet only — the one that can sign, and the one whose positions never come from the index */
@@ -132,13 +156,40 @@ function readChains(): string[] {
     return one && one !== 'all' && ALL().includes(one) ? [one] : []
   } catch { return [] }
 }
+const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x))
+/** the page load: a feed link's chains, when it carries any filter, over the stored ones */
+function initChains(): { chains: string[]; fromLink: { prev: string[] } | null } {
+  const stored = readChains()
+  const link = readFeedLink()
+  if (!link || sameSet(link.chains, stored)) return { chains: stored, fromLink: null }
+  return { chains: link.chains, fromLink: { prev: stored } }
+}
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [chains, setChainsRaw] = React.useState<string[]>(readChains)
-  const setChains = (c: string[]) => {
+  const [init] = React.useState(initChains)
+  const [chains, setChainsRaw] = React.useState<string[]>(init.chains)
+  const [chainsFromLink, setChainsFromLink] = React.useState(init.fromLink)
+  const store = (next: string[]) => { try { localStorage.setItem(LS, JSON.stringify(next)) } catch { /* private mode */ } }
+  // a link's chains are kept like a pick in the header would be
+  React.useEffect(() => { if (init.fromLink) store(init.chains) }, [init])
+  const apply = (c: string[]) => {
     const next = c.length === CHAINS.length ? [] : c
     setChainsRaw(next)
-    try { localStorage.setItem(LS, JSON.stringify(next)) } catch { /* private mode */ }
+    store(next)
   }
+  /** a pick of the reader's own: whatever a link set is theirs now, nothing left to undo */
+  const setChains = (c: string[]) => { apply(c); setChainsFromLink(null) }
+  const adoptLinkChains = (c: string[]) => {
+    if (sameSet(c, chains)) return
+    // a second link before Undo keeps the FIRST prev — Undo goes back to what the reader chose
+    setChainsFromLink((cur) => cur ?? { prev: chains })
+    apply(c)
+  }
+  const dismissLinkChains = (undo = false) => {
+    if (undo && chainsFromLink) apply(chainsFromLink.prev)
+    setChainsFromLink(null)
+  }
+  // read by `useRoute`'s listener; kept current so it compares against the chains on screen
+  followLinkChains = adoptLinkChains
   const toggleChain = (c: string) =>
     setChains(chains.includes(c) ? chains.filter((x) => x !== c) : [...(chains.length ? chains : []), c])
   const [viewAs, setViewAs] = React.useState<string | undefined>(() => new URLSearchParams(location.search).get('as') ?? undefined)
@@ -152,6 +203,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ? (CHAINS.find((c) => c.id === chains[0])?.label ?? chains[0])
         : `${chains.length} chains`
   const account = viewAs && ADDR.test(viewAs) ? viewAs : address
-  return <Ctx.Provider value={{ chains, setChains, toggleChain, chainIds, allChains, chainLabelFor, account, signer: address?.toLowerCase(), viewAs, setViewAs, isConnected }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ chains, setChains, toggleChain, chainIds, allChains, chainLabelFor, chainsFromLink, dismissLinkChains, account, signer: address?.toLowerCase(), viewAs, setViewAs, isConnected }}>{children}</Ctx.Provider>
 }
 export const useApp = () => { const c = React.useContext(Ctx); if (!c) throw new Error('AppProvider missing'); return c }

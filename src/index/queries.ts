@@ -64,8 +64,15 @@ export function useVaultsAt(address: string | undefined) {
 export function useMarket(uid: string | undefined) {
   return useQuery({ enabled: !!uid, queryKey: ['market', uid], queryFn: () => api.market(uid!), staleTime: 10 * MIN, retry: false })
 }
-export function useMarketTxs(uid: string | undefined, limit = 50) {
-  return useQuery({ enabled: !!uid, queryKey: ['market-txs', uid, limit], queryFn: () => api.marketTxs(uid!, limit), staleTime: 30_000 })
+export function useMarketTxs(uid: string | undefined, limit = 50, f: api.MarketTapeQuery = {}) {
+  return useQuery({
+    enabled: !!uid,
+    queryKey: ['market-txs', uid, limit, f],
+    queryFn: ({ signal }) => api.marketTxs(uid!, limit, f, signal),
+    staleTime: 30_000,
+    // changing a filter keeps the old rows up (dimmed) instead of flashing a skeleton
+    placeholderData: (prev, q) => (q?.queryKey[1] === uid ? prev : undefined),
+  })
 }
 export function useHolders(uid: string | undefined, side?: string, limit = 12) {
   return useQuery({ enabled: !!uid, queryKey: ['holders', uid, side, limit], queryFn: () => api.marketHolders(uid!, { side, limit }), staleTime: 5 * MIN, retry: false })

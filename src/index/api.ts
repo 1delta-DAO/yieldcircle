@@ -61,8 +61,20 @@ export const accountPositions = (account: string, p: { chainId?: string } = {}) 
   get<PositionsResponse>(`/positions/${account}`, p)
 
 export const market = (uid: string) => get<MarketRow>(`/markets/${encodeURIComponent(uid)}`)
-export const marketTxs = (uid: string, limit = 50) =>
-  get<{ marketUid: string; txs: TxBundle[] }>(`/markets/${encodeURIComponent(uid)}/events`, { limit, group: 'tx' })
+/**
+ * A market's tape. Any filter makes it a 30-day window where `limit` counts
+ * transactions; each one still comes back whole (every leg in this market).
+ */
+export interface MarketTapeQuery extends Params {
+  /** a row of the transaction worth at least this; unpriced rows never pass */
+  minUsd?: number
+  /** ledger kinds, comma-joined: deposit, withdraw, borrow, repay, liquidated */
+  kinds?: string
+  /** only the wallets this address follows — resolved by the index; following nobody is an empty tape */
+  follower?: string
+}
+export const marketTxs = (uid: string, limit = 50, f: MarketTapeQuery = {}, signal?: AbortSignal) =>
+  get<{ marketUid: string; txs: TxBundle[] }>(`/markets/${encodeURIComponent(uid)}/events`, { ...f, limit, group: 'tx' }, signal)
 export const marketHolders = (uid: string, p: { side?: string; limit?: number } = {}) =>
   get<{ marketUid: string; holders: Holder[] }>(`/markets/${encodeURIComponent(uid)}/holders`, p)
 /** Rows are per (side, bucket) and carry the rollup's own snake_case field names. */

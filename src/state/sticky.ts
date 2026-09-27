@@ -7,8 +7,10 @@ import React from 'react'
  * closed — it is a scratchpad, never a preference.
  */
 const PREFIX = 'yieldcircle.sticky.'
-export function useSticky<T>(key: string, init: T | (() => T)): [T, React.Dispatch<React.SetStateAction<T>>] {
+/** `seed`, when given, wins over what was kept — a link that says what to show. */
+export function useSticky<T>(key: string, init: T | (() => T), seed?: { value: T }): [T, React.Dispatch<React.SetStateAction<T>>] {
   const [v, setV] = React.useState<T>(() => {
+    if (seed) return seed.value
     try {
       const raw = sessionStorage.getItem(PREFIX + key)
       if (raw != null) return JSON.parse(raw) as T

@@ -111,18 +111,23 @@ async function optimizerPages(q: OptimizerQuery): Promise<OptimizerResponse['ite
  * `collateralTags=rwa&debtTags=stablecoin` answers 34 pairs on Ethereum, 34 on
  * BNB, 4 on Monad and 3 on Plasma, none of which any archetype here matched.
  *
- * It does NOT fix Plume, whose two RWA markets are borrowed in `pUSD` — an
- * asset the upstream feed leaves with `tags: []` where the same chain's USDC
- * carries `['stablecoin','usdc']` and its own collateral carries `['rwa']`.
- * With no debt tag they appear (nOPAL/pUSD at +28 %, nALPHA/pUSD at −35 %),
- * and so does every genuine price bet, so the fix is the tag, upstream.
+ * Plume's RWA markets are borrowed in `pUSD`, which upstream still leaves
+ * untagged (re-measured 2026-09-27: `tags: null, props: null`), so the tagged
+ * request answers nothing there. The small-chain bundle therefore asks for
+ * `rwa` collateral against ANY debt (`anyDebtInBundle`): 15 rows against 9,
+ * the extra ones nOPAL/pUSD, nALPHA/pUSD and a few gold price bets that
+ * `cross-denom` rejects anyway. The big chains keep the tag — BNB answers 159
+ * rows untagged against 69, and the price bets would fill its one page.
  */
-const LOOP_ARCHETYPES: Pick<OptimizerQuery, 'collateralTags' | 'debtTags' | 'includeExpired'>[] = [
+type Archetype = Pick<OptimizerQuery, 'collateralTags' | 'debtTags' | 'includeExpired'> & { anyDebtInBundle?: boolean }
+const LOOP_ARCHETYPES: Archetype[] = [
   { collateralTags: ['lst', 'lrt'], debtTags: ['wnative'] },
   { collateralTags: ['stablecoin', 'savings', 'pendle'], debtTags: ['stablecoin'], includeExpired: false },
   { collateralTags: ['btc'], debtTags: ['btc'] },
-  { collateralTags: ['rwa'], debtTags: ['stablecoin'] },
+  { collateralTags: ['rwa'], debtTags: ['stablecoin'], anyDebtInBundle: true },
 ]
+const archetypeQuery = ({ anyDebtInBundle, ...a }: Archetype, ids: string[]) =>
+  anyDebtInBundle && !ids.some((c) => SOLO_CHAINS.has(c)) ? { ...a, debtTags: undefined } : a
 
 /**
  * The wide net (`Settings.wideNet`): the same archetypes with the COLLATERAL
@@ -243,7 +248,7 @@ export function useCatalog(chainIds: string[]) {
     queries: buckets.flatMap((ids) => [
       ...LOOP_ARCHETYPES.map((a, i) => ({
         queryKey: ['loops', ids.join(','), i],
-        queryFn: async () => sortOut((await optimizerPages({ chainIds: ids, ...a, collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop'),
+        queryFn: async () => sortOut((await optimizerPages({ chainIds: ids, ...archetypeQuery(a, ids), collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop'),
         staleTime: 10 * 60_000,
       })),
       ...(st.wideNet ? WIDE_DEBT_TAGS.map((t) => ({

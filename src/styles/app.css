@@ -330,6 +330,8 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--b300);border:1px solid var(--line2);border-radius:var(--r);padding:10px 14px;font-size:13px;z-index:60;box-shadow:0 8px 30px rgba(0,0,0,.6);opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
+.toast.act{pointer-events:auto;display:flex;align-items:center;gap:10px;white-space:nowrap;max-width:calc(100vw - 32px)}
+.toast.act b{font-weight:500;overflow:hidden;text-overflow:ellipsis}
 
 .note{border:1px dashed var(--line2);border-radius:var(--r);padding:10px 14px;font-size:12.5px;color:var(--tx50);line-height:1.5}
 .note b{color:var(--tx70);font-weight:500}
@@ -606,6 +608,8 @@ h1 .pill.auto{vertical-align:middle;margin-left:9px}
 .feedwrap{max-width:1120px;margin:0 auto}
 .feed-h{display:flex;align-items:center;gap:12px;margin:2px 0 16px;flex-wrap:wrap}
 .feed-h h1{font-size:20px}
+.feed-h .share{display:inline-flex;align-items:center;gap:6px}
+.feed-h .share.ok{color:var(--success);border-color:currentColor}
 .feed-h .seg button .c{margin-left:5px;font-family:var(--mono);font-size:11px;color:var(--tx40)}
 .feed{display:flex;flex-direction:column;gap:10px}
 .fcard{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);padding:10px 14px;display:flex;flex-direction:column;transition:border-color .15s}
@@ -620,7 +624,9 @@ h1 .pill.auto{vertical-align:middle;margin-left:9px}
 /* fixed so the verbs start on one line down the feed, not at the end of a name */
 .fc-who{grid-area:who;width:190px;min-width:0;overflow:hidden}
 .fc-who .who{max-width:100%}
-.fc-when{grid-area:when;display:flex;align-items:center;justify-content:flex-end;gap:9px;min-width:132px;font-size:12px;color:var(--tx50)}
+.fc-when{grid-area:when;display:flex;align-items:center;justify-content:flex-end;gap:9px;width:144px;font-size:12px;color:var(--tx50)}
+/* "4m" and "10m" must not move the chain chip beside them */
+.fc-when .ago{min-width:30px;text-align:right}
 .fc-h{display:flex;align-items:center;gap:10px}
 /* the out-link to the chain's explorer: quiet until the row is under the cursor, never hidden */
 .txlink{display:inline-flex;align-items:center;gap:5px;color:var(--tx50);flex:0 0 auto;font-size:12px}
@@ -636,15 +642,20 @@ h1 .pill.auto{vertical-align:middle;margin-left:9px}
    one is still a slot, so a card with no rate does not slide its amount out
    from under the one above it */
 .fc-n{grid-area:money;display:flex;align-items:baseline;justify-content:flex-end;gap:8px;
-  font-family:var(--mono);font-size:12px;color:var(--tx50);min-width:186px;white-space:nowrap}
+  font-family:var(--mono);font-size:12px;color:var(--tx50);width:256px;white-space:nowrap}
 .fc-n .big{flex:1 1 auto;text-align:right;font-size:19px;color:var(--tx);font-weight:500}
-.fc-n .fc-apr{width:44px;text-align:right;flex:none}
+.fc-n .big{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.fc-n .fc-apr{width:48px;text-align:right;flex:none}
+/* glyphs for what the card does not spell out (a debt, …): one fixed slot, details on hover */
+.fc-n .fc-x{width:16px;flex:none;display:inline-flex;align-self:center;justify-content:center}
+.fc-owe{color:var(--tx50);align-items:center}
+.fc-owe:hover,.fc-owe:focus-visible{color:var(--tx)}
 .fc-n .fc-legs{width:50px;text-align:right;flex:none}
 /* the handle into the bundle: a count that does nothing reads as a label */
 button.fc-legs{color:var(--tx50);border-bottom:1px dashed var(--line2);line-height:1.2}
 button.fc-legs:hover{color:var(--tx)}
 button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:var(--primary)}
-.fc-a{grid-area:act;display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:142px}
+.fc-a{grid-area:act;display:flex;align-items:center;justify-content:flex-end;gap:8px;width:142px}
 .fc-t{border-top:1px solid var(--line);margin:0 -14px;padding:0 14px;background:#0d0d0d}
 .fc-g + .fc-t{margin-top:10px}
 .fc-t:last-child{margin-bottom:-10px;border-radius:0 0 var(--r) var(--r)}
@@ -741,6 +752,12 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .wstat .v{font-family:var(--mono);font-size:21px;line-height:1.1}
 .wstat .s{font-size:11px;color:var(--tx40);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tape{display:flex;flex-direction:column}
+.tape-f{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+.tape-k{min-height:26px;padding:0 26px 0 9px;font:inherit;font-size:11.5px;color:var(--tx);background:transparent;border:1px solid var(--line2);border-radius:var(--r);
+  appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--tx50) 50%),linear-gradient(135deg,var(--tx50) 50%,transparent 50%);
+  background-position:calc(100% - 13px) 50%,calc(100% - 9px) 50%;background-size:4px 4px;background-repeat:no-repeat;cursor:pointer}
+.tape-k option{background:var(--b200);color:var(--tx)}
+.card.stale{opacity:.55;transition:opacity .15s}
 .tape-row{display:grid;grid-template-columns:minmax(96px,auto) minmax(0,1fr) 92px 46px;align-items:center;gap:12px;min-height:44px;padding:0 16px;border-bottom:1px solid var(--line-soft);font-size:13px}
 .tape-row.alert{grid-template-columns:minmax(120px,auto) minmax(90px,auto) minmax(0,1fr) 92px 46px}
 .tape-row:last-child{border-bottom:0}
@@ -848,7 +865,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
    it is the longest thing on the card — then the money and the buttons */
 @media (max-width:900px){
   .fc-g{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"who when" "what what" "money act";column-gap:12px;row-gap:9px}
-  .fc-when,.fc-n,.fc-a{min-width:0}
+  .fc-when,.fc-n,.fc-a{min-width:0;width:auto}
   .fc-n{justify-content:flex-start}
   .fc-n .big{flex:0 0 auto;text-align:left}
   .fc-b .verb{min-width:0}

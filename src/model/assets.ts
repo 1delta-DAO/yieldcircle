@@ -35,6 +35,9 @@ const BASE: Record<string, { sym: string; group: GroupId; what: string; color: s
   FRAX: { sym: 'FRAX', group: 'USD', what: 'Frax stablecoin', color: '#111' },
   USDTB: { sym: 'USDtb', group: 'USD', what: 'Ethena / BlackRock BUIDL-backed dollar', color: '#7d7d7d' },
   AVUSD: { sym: 'avUSD', group: 'USD', what: 'Avant synthetic dollar', color: '#5b8def' },
+  // Plume's dollar, and the money every Nest RWA market there lends and borrows in. Without it
+  // Plume answered 12 of its 17 earn rows and both of its RWA loops, and every one was `unmapped`.
+  PUSD: { sym: 'pUSD', group: 'USD', what: 'Plume USD · USDC-backed stablecoin', color: '#e8ff5a' },
   ETH: { sym: 'ETH', group: 'ETH', what: 'Ether', color: '#8fa6ff' },
   WETH: { sym: 'ETH', group: 'ETH', what: 'Ether', color: '#8fa6ff' },
   WBTC: { sym: 'WBTC', group: 'BTC', what: 'Wrapped bitcoin (BitGo)', color: '#f09242' },

@@ -32,11 +32,11 @@ import { ChipSkeleton } from './ProtocolFilter'
 
 const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n))
 
-export function useIssuerFilter(window: '1h' | '6h' | '24h' | '7d' = '7d', scope = 'page') {
+export function useIssuerFilter(window: '1h' | '6h' | '24h' | '7d' = '7d', scope = 'page', seed?: { issuers: string[]; match: IssuerMatch }) {
   const { chainIds, allChains } = useApp()
   const q = useIssuers(window, allChains ? undefined : chainIds.join(','))
-  const [picked, setPicked] = useSticky<string[]>(`${scope}:issuers`, [])
-  const [match, setMatch] = useSticky<IssuerMatch>(`${scope}:issuerMatch`, 'any')
+  const [picked, setPicked] = useSticky<string[]>(`${scope}:issuers`, [], seed && { value: seed.issuers })
+  const [match, setMatch] = useSticky<IssuerMatch>(`${scope}:issuerMatch`, 'any', seed && { value: seed.match })
   const available = React.useMemo(
     () => new Set((q.data?.issuers ?? []).map((i) => i.issuer)),
     [q.data],

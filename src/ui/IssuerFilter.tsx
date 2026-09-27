@@ -28,6 +28,7 @@ import { useApp } from '../state/AppState'
 import { useIssuers } from '../index/queries'
 import type { IssuerFacet, IssuerMatch } from '../index/api'
 import { useSticky } from '../state/sticky'
+import { Tip } from './bits'
 import { ChipSkeleton } from './ProtocolFilter'
 
 const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n))
@@ -112,6 +113,43 @@ export function IssuerChips({ f, max = 8 }: { f: IssuerFilterState; max?: number
  * risk. Renders nothing when the row names no desk, which is the common
  * case (nobody issues WETH) and where an "unknown" chip would be noise.
  */
+/**
+ * DeskChips as one glyph, for a row with no room to spell them out: the chips
+ * beside a market pill on a feed card ate the width the market's own name needed.
+ * The issuer and the credit behind it are in the popover.
+ */
+export function DeskMark({ x }: { x: Parameters<typeof DeskChips>[0]['x'] }) {
+  const via = (x.issuerExposures ?? []).filter((e) => e.id !== x.issuer?.id)
+  if (!x.issuer && !via.length) return null
+  return (
+    <Tip
+      className="xglyph"
+      tip={
+        <>
+          {x.issuer && <div>Issued by <b>{x.issuer.name}</b>.</div>}
+          {via.length > 0 && (
+            <div>
+              The credit behind it reaches{' '}
+              {via.map((e, i) => (
+                <React.Fragment key={e.id}>
+                  {i > 0 && ', '}
+                  <b>{e.name}</b>
+                  {e.hops > 1 && <> ({e.hops} hops — a weaker claim)</>}
+                </React.Fragment>
+              ))}
+              .
+            </div>
+          )}
+        </>
+      }
+    >
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label={x.issuer ? `issued by ${x.issuer.name}` : 'issuer exposure'}>
+        <path d="M3 22h18M6 18v-7M10 18v-7M14 18v-7M18 18v-7M12 2l8 5H4z" />
+      </svg>
+    </Tip>
+  )
+}
+
 export function DeskChips({ x, max = 2 }: { x: { issuer?: { id: string; name: string } | null; issuerExposures?: { id: string; name: string; hops: number }[] | null }; max?: number }) {
   const via = (x.issuerExposures ?? []).filter((e) => e.id !== x.issuer?.id)
   if (!x.issuer && !via.length) return null

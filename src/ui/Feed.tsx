@@ -27,7 +27,7 @@ import { positionKey } from "../social/api";
 import { useSocialWrite } from "../social/sign";
 import { useMenu } from "./useMenu";
 import { ProtocolChips, useProtocolFilter } from "./ProtocolFilter";
-import { DeskChips, IssuerChips, useIssuerFilter } from "./IssuerFilter";
+import { DeskMark, IssuerChips, useIssuerFilter } from "./IssuerFilter";
 import { CuratorChips, CuratorMark, useCuratorFilter } from "./CuratorFilter";
 import { RateMark } from "./Rate";
 import { protocolKeyOf } from "../model/uid";
@@ -503,22 +503,32 @@ function LinkChainsToast() {
 function Nested({ into, subject }: { into?: TxLeg; subject: TxSubject }) {
   if (into)
     return (
-      <span
-        className="t40 nested"
-        title="the vault put this deposit to work in the same transaction — the same money, counted once"
+      <Tip
+        className="xglyph"
+        tip={
+          <>
+            The vault put this deposit to work in the same transaction, in{" "}
+            <b>{into.marketName ?? into.lenderName ?? "a market"}</b> — the same money, counted once.
+          </>
+        }
       >
-        → {into.marketName ?? into.lenderName ?? "a market"}
-      </span>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="put to work in another market">
+          <path d="M15 10l5 5-5 5M4 4v7a4 4 0 0 0 4 4h12" />
+        </svg>
+      </Tip>
     );
   if (subject.reason === "multi")
     return (
-      <span
-        className="t40 nested"
-        title="one transaction, several unrelated wallets — this card headlines the largest"
+      <Tip
+        className="xglyph"
+        tip={
+          <>
+            One transaction, <b>{subject.accounts} unrelated wallets</b> — this card headlines the largest.
+          </>
+        }
       >
-        +{subject.accounts - 1} more{" "}
-        {subject.accounts === 2 ? "wallet" : "wallets"}
-      </span>
+        <span className="xcount">+{subject.accounts - 1}</span>
+      </Tip>
     );
   return null;
 }
@@ -741,9 +751,13 @@ function Card({
               <span className="t50">{leg.lenderName ?? leg.lenderKey}</span>
             </a>
           )}
-          {leg && <DeskChips x={leg} />}
-          <RateMark c={rating} />
-          <Nested into={into} subject={s} />
+          {/* the issuer, the vault's next hop and the extra wallets are glyphs with the
+              details on hover: spelled out, they squeezed the market's name down to "A…" */}
+          <span className="fc-xs">
+            {leg && <DeskMark x={leg} />}
+            <Nested into={into} subject={s} />
+            <RateMark c={rating} />
+          </span>
         </div>
         <div className="fc-n">
           <span className="big">

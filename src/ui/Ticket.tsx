@@ -2,8 +2,9 @@ import React from 'react'
 import { unitOf } from '../model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from '../model/strategies'
-import type { Holding, Idle } from '../model/positions'
-import { earnDeposit, earnWithdraw, loopClose, loopOpen, NATIVE_SENTINEL, ZERO } from '../sdk/api'
+import type { LoopActions } from '../sdk/types'
+import { nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
+import { earnDeposit, earnWithdraw, loopClose, loopOpen, ZERO } from '../sdk/api'
 import { chainLabel, useIrm, useLoopPayAssets, useLoopQuote } from '../sdk/queries'
 import { useApp, type Mode } from '../state/AppState'
 import { useSticky } from '../state/sticky'
@@ -44,7 +45,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: St
       )}
       {copy && <CopyBanner who={copy} s={s} />}
       {holding && mode !== 'add' ? (s.kind === 'loop' ? <ManageLoop s={s} h={holding} closeFirst={mode === 'close'} /> : <ManageTicket s={s} h={holding} mode={mode} />)
-        : s.kind === 'simple' ? <SimpleTicket s={s} idle={idle.find((i) => i.chainId === s.chainId && i.address === s.assetAddress.toLowerCase()) ?? idle.find((i) => i.chainId === s.chainId && i.asset === s.asset)} allIdle={idle} /> : <LoopTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={holding} />}
+        : s.kind === 'simple' ? <SimpleTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} /> : <LoopTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={holding} />}
       <TicketSocial uid={uid} s={s} />
     </div>
     </TicketCtx.Provider>
@@ -120,18 +121,56 @@ const SOURCE_WORDS: Record<string, string> = {
   fixed: 'You buy a principal token at a discount. At maturity it redeems for exactly one unit of the underlying, which locks the yield in today. Selling before maturity gets the market price.',
   vault: 'You deposit into a curated vault that allocates across lending markets. You hold vault shares that grow in value.',
 }
-function SimpleTicket({ s, idle, allIdle }: { s: SimpleStrategy; idle?: Idle; allIdle: Idle[] }) {
+/**
+ * What a plain deposit can be paid with: the market's own token, and — into a row whose token is
+ * the chain's wrapped gas coin — the gas coin itself, which the API wraps inside the deposit when
+ * asked with `payAsset` = {@link ZERO}. Leaving `payAsset` out asks for the ERC-20: an approve of
+ * WHYPE and a deposit that reverts for a wallet holding HYPE. Native first, so a wallet holding
+ * neither is offered the coin it is likelier to get.
+ */
+type PayRole = 'native' | 'token'
+interface PayOption { role: PayRole; address: string; symbol: string; decimals: number }
+function payOptions(s: SimpleStrategy): PayOption[] {
+  const token: PayOption = { role: 'token', address: s.assetAddress.toLowerCase(), symbol: s.assetSymbol, decimals: s.decimals }
+  const native = s.nativeIn ?? (wrapsNative(s.chainId, s.assetAddress) && !NO_NATIVE_DEPOSIT.some((v) => s.venueKey.startsWith(v)))
+  return native ? [{ role: 'native', address: ZERO, symbol: nativeSymbol(s.chainId), decimals: 18 }, token] : [token]
+}
+/**
+ * The API answers "can the coin go in here" itself (`acceptsNative`, read into `s.nativeIn`). This
+ * list is only for an API that predates the flag: the venues whose deposit could not take the gas
+ * coin in a sweep of every wrapped-native row (2026-09-28, 248 rows) — Lagoon answering the WETH
+ * approve as if nothing had been asked, the rest refusing. Mixed families are left to
+ * {@link paysNative} and the API's own refusal.
+ */
+const NO_NATIVE_DEPOSIT = ['vault.lagoon', 'CURVANCE', 'EXACTLY', 'LLAMALEND', 'FLYING_TULIP', 'LIQUITY', 'FELIX', 'NERITE']
+/**
+ * Asked to pay in the gas coin, a bundle that moves none of it is a bundle for the ERC-20 — the
+ * approve-then-revert this whole choice exists to avoid. Some leg must carry `value` (a gateway
+ * deposit, a bundler call, or Gearbox's wrap step).
+ */
+function paysNative(a: LoopActions | null | undefined): boolean {
+  return [...(a?.permissions ?? []), ...(a?.transactions ?? []), ...(a?.alternatives ?? []).slice(0, 1)].some((t) => { try { return BigInt(t.value || '0') > 0n } catch { return false } })
+}
+function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[] }) {
   const { account, isConnected } = useApp()
   const [getOpen, setGetOpen] = React.useState(false)
-  const unit = unitOf(s.asset)
-  const price = s.priceUsd ?? idle?.price ?? (unit === '$' ? 1 : 0)
+  const opts = React.useMemo(() => payOptions(s), [s.id])
+  // the balance of the EXACT token: a wstETH row is not paid with the wallet's ETH, and WHYPE is not HYPE until the API is told so
+  const balOf = (address: string) => chainIdle.find((i) => i.address === address)
+  const [role, setRole] = useSticky<PayRole | null>(`t:${s.id}:pay`, null)
+  const chosen = opts.find((o) => o.role === role) ?? [...opts].sort((a, b) => (balOf(b.address)?.amount ?? 0) - (balOf(a.address)?.amount ?? 0))[0]
+  const idle = balOf(chosen.address)
+  const unit = opts.length > 1 ? chosen.symbol : unitOf(s.asset)
+  // the row rarely carries a price: any pay option's balance has it (the coin and its wrapper trade 1:1), else a same-asset balance as the estimate
+  const price = s.priceUsd ?? opts.map((o) => balOf(o.address)?.price).find(Boolean) ?? allIdle.find((i) => i.asset === s.asset)?.price ?? (unit === '$' ? 1 : 0)
   const [amount, setAmount] = useSticky<number>(`t:${s.id}:amount`, () => (unit === '$' ? 1000 : Math.min(idle?.amount ?? 1, 1)))
   const amtUsd = amount * price
   const yearly = amtUsd * s.rate / 100
-  const key = [s.id, amount, account ?? ''].join('|')
+  const key = [s.id, amount, chosen.role, account ?? ''].join('|')
   const ladder = useLadder(key, s.chainId, async () => {
-    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, s.decimals), operator: account! })
-    return stepsFrom(env.actions, s.via)
+    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: account!, payAsset: chosen.role === 'native' ? ZERO : undefined })
+    if (chosen.role === 'native' && !paysNative(env.actions)) throw new Error(`${s.brand} does not take ${chosen.symbol} directly here. Pay with ${s.assetSymbol}.`)
+    return stepsFrom(env.actions, s.via, nativeSymbol(s.chainId))
   })
   const more = !!idle && amount > idle.amount
   // the exit line, said with this market's own numbers where it has them: a
@@ -148,11 +187,16 @@ function SimpleTicket({ s, idle, allIdle }: { s: SimpleStrategy; idle?: Idle; al
   ]
   return (
     <>
-      <div className="tsec"><span className="lbl">Amount of {s.asset}</span>
+      <div className="tsec">
+        {opts.length > 1 && <>
+          <span className="lbl">You pay with <Info label="Paying with the native coin">This market holds {s.assetSymbol}, the wrapped form of {opts[0].symbol}. Paid in {opts[0].symbol}, the deposit wraps it for you: there is no {s.assetSymbol} to hold or approve first.</Info></span>
+          <div className="seg" style={{ marginBottom: 10 }}>{opts.map((o) => <button key={o.role} aria-pressed={chosen.role === o.role} onClick={() => setRole(o.role)}><Tok sym={o.symbol} logo={o.role === 'token' ? s.logo : undefined} size={16} /> {o.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? num(balOf(o.address)?.amount ?? 0, 2) : ''}</span></button>)}</div>
+        </>}
+        <span className="lbl">Amount of {opts.length > 1 ? chosen.symbol : s.asset}</span>
         <AmountBox unit={unit} value={amount} onChange={setAmount} onMax={idle ? () => setAmount(idle.amount) : undefined} />
-        <div className="amt-sub"><span>{unit === '$' ? '' : `≈ ${usd(amtUsd)}`}</span><span>{account ? <>Idle: {idle ? `${num(idle.amount, 4)} ${idle.symbol}` : `0 ${s.asset}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
-        <GetLine account={account} short={!idle || more} symbol={s.asset} open={getOpen} onOpen={() => setGetOpen(true)} />
-        {getOpen && <GetAsset target={{ chainId: s.chainId, address: s.assetAddress, symbol: s.asset, decimals: s.decimals, price, logo: s.logo }} need={Math.max(0, amount - (idle?.amount ?? 0))} sources={allIdle} onClose={() => setGetOpen(false)} />}</div>
+        <div className="amt-sub"><span>{unit === '$' ? '' : `≈ ${usd(amtUsd)}`}</span><span>{account ? <>Idle: {idle ? `${num(idle.amount, 4)} ${idle.symbol}` : `0 ${chosen.symbol}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
+        <GetLine account={account} short={!idle || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
+        {getOpen && <GetAsset target={{ chainId: s.chainId, address: chosen.address, symbol: chosen.symbol, decimals: chosen.decimals, price, logo: chosen.role === 'token' ? s.logo : undefined }} need={Math.max(0, amount - (idle?.amount ?? 0))} sources={allIdle} onClose={() => setGetOpen(false)} />}</div>
       <div className="tsec"><div className="cells">
         <div className="c hero"><span className="k">You earn</span><span className={`v ${s.rate >= 3 ? 'ok' : ''}`}>{pct(s.rate)}</span><span className="s">{s.maturity ? `fixed to ${new Date(s.maturity * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'variable'}{s.rewards > 0.05 ? ` · incl. ${pct(s.rewards)} rewards` : ''}</span>
           {/* what MOVES the headline: absent on a vault and on the families that do not price off utilisation, which is exactly when there is nothing to open */}
@@ -171,7 +215,7 @@ function SimpleTicket({ s, idle, allIdle }: { s: SimpleStrategy; idle?: Idle; al
           <span className="s">{s.utilization != null ? `${Math.round(s.utilization * 100)}% lent out` : s.liquidityUsd != null ? 'can leave now' : 'not reported'}</span></div>
       </div></div>
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={i === 0 && s.risk >= 2 ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
-      <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${s.asset}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} />
+      <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${opts.length > 1 ? chosen.symbol : s.asset}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} />
     </>
   )
 }
@@ -229,9 +273,10 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
     const debtTokens = s.priceShort ? D / s.priceShort : 0
     const env = await loopOpen({
       collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: 50, leverage: L, account: account!,
-      payAsset: chosen ? (chosen.role === 'native' ? NATIVE_SENTINEL : chosen.address) : undefined, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined,
+      payAsset: chosen ? (chosen.role === 'native' ? ZERO : chosen.address) : undefined, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined,
     })
-    return stepsFrom(env.actions, `Open ${num(L, 2)}× loop`)
+    if (chosen?.role === 'native' && !paysNative(env.actions)) throw new Error(`This loop does not take ${chosen.symbol} directly. Pay with another asset.`)
+    return stepsFrom(env.actions, `Open ${num(L, 2)}× loop`, nativeSymbol(s.chainId))
   })
   const more = !!bal && amount > bal.amount
   return (
@@ -290,11 +335,19 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const [amount, setAmount] = useSticky<number>(`t:${h.key}:withdraw`, () => +(h.amount / 2).toFixed(6))
   const eff = all ? h.amount : Math.min(amount, h.amount)
   const share = h.amount > 0 ? eff / h.amount : 0
-  const key = [s?.id ?? h.key, mode, eff, account ?? ''].join('|')
+  // out of a wrapped-native row the gas coin is one tap away (`receiveAsset` = ZERO, unwrapped in the
+  // same bundle). Not the default: the unwrap goes through a gateway, the composer or Morpho's
+  // adapter, which costs an approve or an authorization the plain withdraw does not
+  const canNative = s?.nativeOut ?? wrapsNative(h.chainId, h.assetAddress ?? s?.assetAddress)
+  const coin = nativeSymbol(h.chainId)
+  const [asNative, setAsNative] = useSticky<boolean>(`t:${h.key}:receive-native`, false)
+  const native = canNative && asNative
+  const outSym = native ? coin : h.symbol
+  const key = [s?.id ?? h.key, mode, eff, native ? 'native' : 'token', account ?? ''].join('|')
   const rate = s?.rate ?? h.apr
   const ladder = useLadder(key, h.chainId, async () => {
-    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: toRaw(eff, h.decimals), operator: account!, isAll: all || share > 0.999 })
-    return stepsFrom(env.actions, 'Withdraw')
+    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: toRaw(eff, h.decimals), operator: account!, isAll: all || share > 0.999, receiveAsset: native ? ZERO : undefined })
+    return stepsFrom(env.actions, 'Withdraw', coin)
   })
   const price = h.amount > 0 ? h.valueUsd / h.amount : 0
   return (
@@ -303,9 +356,13 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
         <span className="lbl">Amount to withdraw (of {num(h.amount, 4)} {h.symbol})</span>
         <div className="amt"><DecimalInput value={amount} onChange={setAmount} ariaLabel="Amount" /><span className="u">{h.symbol}</span><button className="max" onClick={() => setAmount(h.amount)}>Max</button></div>
         <div className="amt-sub"><span>≈ {usd(eff * price)}{amount > h.amount + 1e-9 && <span className="warn"> · more than you hold</span>}</span><span>{[25, 50, 75, 100].map((p) => <button key={p} className="pctb" onClick={() => setAmount(+(h.amount * p / 100).toFixed(6))}>{p}%</button>)}</span></div>
+        {canNative && <>
+          <span className="lbl" style={{ marginTop: 14 }}>Paid out as <Info label="Getting the native coin back">Paid out as {coin}, the {h.symbol} is unwrapped for you. That costs one more signature on most venues: an approval for their gateway the first time, or an unwrap step of its own.</Info></span>
+          <div className="seg">{[false, true].map((n) => <button key={String(n)} aria-pressed={native === n} onClick={() => setAsNative(n)}><Tok sym={n ? coin : h.symbol} logo={n ? undefined : h.logo} size={16} /> {n ? coin : h.symbol}</button>)}</div>
+        </>}
       </div>
       <div className="tsec"><div className="cells">
-        <div className="c hero"><span className="k">You get back</span><span className="v">{usd(eff * price)}</span><span className="s">{num(eff, 4)} {h.symbol} to your wallet</span></div>
+        <div className="c hero"><span className="k">You get back</span><span className="v">{usd(eff * price)}</span><span className="s">{num(eff, 4)} {outSym} to your wallet</span></div>
         <div className="c"><span className="k">Left in</span><span className="v">{num(Math.max(0, h.amount - eff), 4)}</span><span className="s">{h.symbol}{rate != null ? ` · still earning ${pct(rate)}` : ''}</span></div>
         {s && <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{s.exitWord}</span><span className="s">{s.exitWord === 'Any time' ? 'same block' : 'may take time'}</span></div>}
       </div></div>
@@ -352,11 +409,11 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const ladder = useLadder(key, h.chainId, async () => {
     if (down || !s) {
       const env = await loopClose({ collateralMarketUid: h.collateralUid ?? s!.marketLongUid, debtMarketUid: h.debtUid ?? s!.marketShortUid, amountRaw: toRaw(closing ? h.amount : sellTok, h.decimals), slippageBp: 50, isAll: closing, account: account!, accountId: h.accountId })
-      return stepsFrom(env.actions, closing ? 'Close the loop' : `Deleverage to ${num(L, 2)}×`)
+      return stepsFrom(env.actions, closing ? 'Close the loop' : `Deleverage to ${num(L, 2)}×`, nativeSymbol(h.chainId))
     }
     // a pure leverage step: borrow more against what is there, no new margin
     const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: 50, leverage: L, account: account! })
-    return stepsFrom(env.actions, `Increase to ${num(L, 2)}×`)
+    return stepsFrom(env.actions, `Increase to ${num(L, 2)}×`, nativeSymbol(h.chainId))
   })
   const snaps: { l: number; t: string }[] = [{ l: 1, t: 'Close' }, ...(s ? TIERS.map((t) => ({ l: Math.min(maxL, s.tiers[t.id]), t: t.name })) : []), { l: +Lnow.toFixed(2), t: 'Now' }]
   return (

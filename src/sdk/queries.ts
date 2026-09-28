@@ -4,7 +4,10 @@ import { bridgeStatus, fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fet
 import { capPerAsset, classifyEarn, classifyPair, dedupe, rowKey, type Candidate, type LoopStrategy, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { softHide, type HideCode } from '../model/visibility'
 import { useSettings, type Settings } from '../state/Settings'
-import type { OptimizerResponse, VaultListing } from './types'
+import type { OptimizerResponse, TokenBalance, VaultListing } from './types'
+import { indexBalances } from '../index/api'
+import type { IndexBalanceItem } from '../index/types'
+import { useLiveChains } from './liveBalances'
 import { toRaw } from '../model/leverage'
 
 const HOUR = 3600_000
@@ -313,22 +316,77 @@ export function useBalances(account: string | undefined, chainId: string, addres
     staleTime: 30_000,
   })
 }
+/** An index row as the balance route's item: the rest of the app reads one shape. */
+function fromIndex(i: IndexBalanceItem): TokenBalance | null {
+  if (i.decimals == null || i.balance == null) return null
+  return { address: i.address, symbol: i.symbol ?? '', decimals: i.decimals, balanceRaw: i.balanceRaw, balance: i.balance, priceUSD: i.priceUsd ?? undefined, balanceUSD: i.balanceUSD ?? undefined }
+}
+
 /**
- * One balance read per chain, sent once that chain's catalogue has SETTLED.
+ * Idle balances per chain: the INDEX first (pos-indexer tickets/0044), the live route only where
+ * the index cannot vouch.
  *
- * The asset list is in the key, and it used to be sent while the catalogue was
- * still landing: every earn or optimizer answer for a chain changed its list,
- * so each chain was read three to six times on one load (49 reads for 15
- * chains, measured 2026-09-25). Waiting for `ready` makes it one read per
- * chain; `placeholderData` keeps the last answer on screen when a later
- * refetch (a new floor, a new chain) changes the key.
+ * One POST answers every settled chain from the index's snapshots. A chain is taken from it when
+ * its `state` is `complete` — every asked asset of the lending set that is not listed is zero —
+ * and nothing marks it live (`liveBalances.ts`: an open ticket, or our own transaction in the last
+ * three minutes). Such a chain reads live ONLY the assets the index does not read
+ * (`unknownAssets`, and a held token it has no decimals for); a chain the index cannot answer
+ * (`seeding` / `stale` / `unknown` — a wallet it has never seen is enrolled by this very request
+ * and complete seconds later — or the index failing) is read live whole, as before. A reload
+ * that used to be fifteen live requests is now one.
+ *
+ * Still one live read per chain, sent once that chain's catalogue has SETTLED (its list is final);
+ * `placeholderData` keeps the last answer on screen while a key changes.
  */
 export function useBalancesPerChain(account: string | undefined, chains: { chainId: string; addresses: string[]; ready: boolean }[]) {
-  return useQueries({
-    queries: chains.map(({ chainId, addresses, ready }) => {
-      const assets = balanceAssets(addresses)
-      return { enabled: !!account && ready, queryKey: ['balances', account, chainId, assets.join(',')], queryFn: () => fetchTokenBalances(account!, chainId, assets), staleTime: 30_000, placeholderData: keepPreviousData }
-    }),
+  const live = useLiveChains()
+  const settled = chains.filter((c) => c.ready)
+  const asked = Object.fromEntries(settled.map((c) => [c.chainId, balanceAssets(c.addresses)]))
+  const idx = useQuery({
+    enabled: !!account && settled.length > 0,
+    queryKey: ['balances-index', account, JSON.stringify(asked)],
+    queryFn: ({ signal }) => indexBalances(account!, asked, signal),
+    staleTime: 15_000,
+    refetchInterval: 60_000,
+    retry: 1,
+    placeholderData: keepPreviousData,
+  })
+  const plans = chains.map(({ chainId, addresses, ready }) => {
+    const all = balanceAssets(addresses)
+    const c = idx.data?.chains.find((x) => x.chainId === chainId)
+    const fromIdx = !!c && c.state === 'complete' && !live.has(chainId) && !idx.isError
+    const indexItems: TokenBalance[] = []
+    const liveAssets = new Set<string>(fromIdx ? c!.unknownAssets ?? [] : all)
+    if (fromIdx) for (const i of c!.items) { const b = fromIndex(i); if (b) indexItems.push(b); else liveAssets.add(i.address.toLowerCase()) }
+    // wait for the index's answer before reading live (one request instead of fifteen); while a
+    // new key is in flight, the previous answer decides for the chains it already carries
+    const decided = ready && (!account || idx.isError || (!!idx.data && (!idx.isPlaceholderData || !!c)))
+    return { chainId, ready, fromIdx, indexItems, liveAssets: [...liveAssets].sort(), decided }
+  })
+  const liveQs = useQueries({
+    queries: plans.map((p) => ({
+      enabled: !!account && p.decided && p.liveAssets.length > 0,
+      queryKey: ['balances', account, p.chainId, p.liveAssets.join(',')],
+      queryFn: () => fetchTokenBalances(account!, p.chainId, p.liveAssets),
+      staleTime: 30_000,
+      placeholderData: keepPreviousData,
+    })),
+  })
+  return plans.map((p, i) => {
+    const q = liveQs[i]
+    const needLive = p.liveAssets.length > 0
+    // the index's rows first; a live row fills what the index did not answer (the live route
+    // always adds the native coin, which the index already carries on a complete chain)
+    const have = new Set(p.indexItems.map((b) => b.address.toLowerCase()))
+    const items = [...p.indexItems, ...(q.data?.items ?? []).filter((b) => !have.has(b.address.toLowerCase()))]
+    const done = p.decided && (!needLive || !!q.data || q.isError)
+    return {
+      data: done || p.indexItems.length ? { items } : undefined,
+      isLoading: !!account && p.ready && !done,
+      isFetched: done,
+      fetchStatus: (idx.fetchStatus === 'fetching' || q.fetchStatus === 'fetching' ? 'fetching' : 'idle') as 'fetching' | 'idle',
+      source: p.fromIdx ? (needLive ? 'index+live' : 'index') : 'live',
+    }
   })
 }
 /**

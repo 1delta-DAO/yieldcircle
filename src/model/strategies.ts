@@ -51,6 +51,11 @@ export interface SimpleStrategy extends Base {
   /** lending · savings · staking · fixed · vault */
   source: string
   assetAddress: string
+  /** the market's own token as the chain spells it (`WHYPE`, `WETH`) — `asset` is its base (`HYPE`, `ETH`) */
+  assetSymbol: string
+  /** the API says the chain's coin can be paid in / paid out for this row (`acceptsNative`); undefined on an API without the flag */
+  nativeIn?: boolean
+  nativeOut?: boolean
   decimals: number
   priceUsd?: number
   exitMode: string
@@ -259,9 +264,11 @@ export function classifyEarn(m: EarnMarket, vault?: VaultListing): Candidate<Sim
   const s: SimpleStrategy = {
     id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
     rate, risk, riskLabel, riskScore, tvlUsd: tvl,
-    earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
+    earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, assetSymbol: m.asset.symbol, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
     exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, ref: m.ref, vaultName: vault?.name ?? undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0,
+    // an API that knows the flag sets it on the deposit; then a missing withdraw leg (an async exit) is a no
+    nativeIn: dep.acceptsNative, nativeOut: dep.acceptsNative === undefined ? undefined : m.capabilities.find((c) => c.action === 'withdraw')?.acceptsNative ?? false,
     headline: m.termSheet?.supply?.headline || undefined, description: m.termSheet?.supply?.description || undefined,
   }
   return { s, hide: null, label, chainId: m.chainId }

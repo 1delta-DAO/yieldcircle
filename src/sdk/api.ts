@@ -103,15 +103,15 @@ export function fetchEarnPositions(account: string, chainIds: string[]) {
 }
 
 // ---------------------------------------------------------------- actions
-/** Plain deposit into a lending market or a vault. `amountRaw` is in the row's asset units; no `payAsset` = pay with that asset. */
+/** Plain deposit into a lending market or a vault. `amountRaw` is in the row's asset units; no `payAsset` = pay with that asset, {@link ZERO} = the native coin into a wrapped-native row. */
 export function earnDeposit(p: { earnUid: string; amountRaw: string; operator: string; payAsset?: string; slippageBp?: number }) {
   return apiFetchEnvelope<{ quotes?: unknown[] } | null, LoopActions>('/v1/actions/earn/deposit', {
     params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, payAsset: p.payAsset, slippage: p.payAsset ? p.slippageBp ?? 50 : undefined },
   })
 }
-/** Withdraw from a lending market or a synchronous vault. `amountRaw` in the row's asset units (required: `isAll` is not honoured everywhere). */
-export function earnWithdraw(p: { earnUid: string; amountRaw: string; operator: string; isAll?: boolean }) {
-  return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/earn/withdraw', { params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, isAll: p.isAll ? 'true' : undefined } })
+/** Withdraw from a lending market or a synchronous vault. `amountRaw` in the row's asset units (required: `isAll` is not honoured everywhere). `receiveAsset` = {@link ZERO} unwraps to the native coin. */
+export function earnWithdraw(p: { earnUid: string; amountRaw: string; operator: string; isAll?: boolean; receiveAsset?: string }) {
+  return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/earn/withdraw', { params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, isAll: p.isAll ? 'true' : undefined, receiveAsset: p.receiveAsset } })
 }
 export interface LoopCloseParams { collateralMarketUid: string; debtMarketUid: string; amountRaw: string; slippageBp: number; isAll?: boolean; account: string; accountId?: string }
 /** Close or reduce a loop: withdraw `amountRaw` of collateral, swap, repay. `isAll` repays the whole debt. */
@@ -143,7 +143,7 @@ export function loopOpen(p: LoopOpenParams) {
 export function fetchLoopPayAssets(p: { collateralMarketUid: string; debtMarketUid: string }) {
   return apiFetch<LoopPayAssetsData>('/v1/actions/loop/leverage/pay-assets', { params: { marketUidIn: p.debtMarketUid, marketUidOut: p.collateralMarketUid } })
 }
-export const NATIVE_SENTINEL = '0xEeeeeEeeeEeEeeEeEeEeEEEeeeeEeeeeeeeEEeE'
+/** The native coin, as the API and the balances route both spell it (`payAsset` / `receiveAsset` / `tokenIn`). */
 export const ZERO = '0x0000000000000000000000000000000000000000'
 
 // ---------------------------------------------------------------- swap / bridge

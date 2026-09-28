@@ -1,10 +1,10 @@
 import React from 'react'
 import { useAccount, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
-import { useQueryClient } from '@tanstack/react-query'
 import type { Idle } from '../model/positions'
 import { toRaw } from '../model/leverage'
 import { spotSwapQuote, xchainSwapQuote, ZERO, type SwapQuoteActions, type SwapQuoteData } from '../sdk/api'
 import { chainLabel, useBridgeStatus } from '../sdk/queries'
+import { useBalancesChanged } from '../sdk/liveBalances'
 import type { ApiEnvelope } from '../vendor/allocator/http'
 import { useApp } from '../state/AppState'
 import { DecimalInput, Info, Popover, Tok, num, usd } from './bits'
@@ -19,7 +19,6 @@ export interface Target { chainId: string; address: string; symbol: string; deci
  */
 export function GetAsset({ target, need, sources, onClose }: { target: Target; need: number; sources: Idle[]; onClose: () => void }) {
   const { account } = useApp()
-  const qc = useQueryClient()
   // what you can pay with: every idle base-asset balance on any chain except the target token itself, biggest first
   const opts = React.useMemo(() => sources.filter((i) => i.usd >= 1 && !(i.chainId === target.chainId && i.address.toLowerCase() === target.address.toLowerCase())).sort((a, b) => b.usd - a.usd), [sources, target.chainId, target.address])
   const [pick, setPick] = React.useState<Idle | null>(null)
@@ -70,7 +69,9 @@ export function GetAsset({ target, need, sources, onClose }: { target: Target; n
   const status = useBridgeStatus({ bridge: sent?.bridge, fromChainId: src?.chainId, toChainId: target.chainId, txHash: sent?.hash, tokenIn: src?.address, tokenOut: target.address })
   const sentRcpt = useWaitForTransactionReceipt({ hash: !cross && sent ? sent.hash : undefined })
   const arrived = !!sent && (cross ? status.data?.status === 'DONE' : sentRcpt.isSuccess)
-  React.useEffect(() => { if (arrived) qc.invalidateQueries({ queryKey: ['balances'] }) }, [arrived])
+  // landed: both chains read live for a while, every cached balance (the index's too) refetched
+  const balancesChanged = useBalancesChanged()
+  React.useEffect(() => { if (arrived) balancesChanged(src?.chainId, target.chainId) }, [arrived])
   const [busy, setBusy] = React.useState(false)
   const go = async () => {
     if (!src || !tx) return

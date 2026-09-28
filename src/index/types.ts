@@ -469,3 +469,25 @@ export interface AssetHolder {
 /** positions a holders list leaves out because their market cannot pay them (tickets/0037) */
 export interface ImpairedCount { positions: number; wallets: number; faceUsd: number }
 export interface AssetHolders { holders: AssetHolder[]; note: string; impaired?: ImpairedCount }
+
+// ---------------------------------------------------------------- wallet balances (pos-indexer tickets/0044)
+/** One held token. `rebasing` = it moves with no transfer (an aToken): the value is as of `asOfBlock`. */
+export interface IndexBalanceItem {
+  address: string; symbol: string | null; decimals: number | null; assetGroup: string | null
+  balanceRaw: string; balance: string | null; balanceUSD: number | null; priceUsd: number | null
+  asOfBlock: number | null; rebasing?: boolean
+}
+/**
+ * One chain of a wallet. `complete` = every asked asset of the lending set not listed is ZERO up to
+ * `cursorBlock`, and `unknownAssets` are the asked ones the index does not read (read those live).
+ * Anything else — `seeding` (enrolled seconds ago), `stale` (the listener is behind), `unknown`
+ * (never seen: this request enrolled it) — means read the chain live.
+ */
+export interface IndexChainBalances {
+  chainId: string
+  state: 'complete' | 'seeding' | 'stale' | 'unknown'
+  cursorBlock: number | null; nativeBlock: number | null; seededBlock: number | null
+  items: IndexBalanceItem[]
+  unknownAssets?: string[]
+}
+export interface IndexBalances { account: string; chains: IndexChainBalances[]; enrolled: string[]; notCovered: string[] }

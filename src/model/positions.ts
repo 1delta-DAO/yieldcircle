@@ -35,6 +35,8 @@ export interface Holding {
   debtAmount?: number
   accountId?: string
   lender?: string
+  /** the held token's address — what a withdraw pays out unless it is asked for the native coin */
+  assetAddress?: string
 }
 /**
  * `vaults` is the registry the catalogue already loads (`VaultListing`): the
@@ -50,7 +52,7 @@ export function holdingsFrom(items: EarnPosition[], vaults: Record<string, Vault
       const v = vaults[`${p.chainId}:${String(p.vault ?? '').toLowerCase()}`]
       const brand = p.brand ?? v?.curatorName ?? p.venue
       out.push({ key: p.positionUid, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${v?.name ?? p.name ?? asset} · ${brand}`, venue: brand, valueUsd: p.suppliedUsd, apr: p.apr ?? p.rate?.total, earnUid: p.earnUid, logo: p.logoURI,
-        amount: parseFloat(p.assets) || 0, symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18 })
+        amount: parseFloat(p.assets) || 0, symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18, assetAddress: p.asset.address?.toLowerCase() })
       continue
     }
     // `Morpho sUSDS-USDT 97`: the positions route names the MARKET where the catalogue names the
@@ -82,7 +84,7 @@ export function holdingsFrom(items: EarnPosition[], vaults: Record<string, Vault
           // the label is the FAMILY, `venue` the market inside it: the two are printed together
           // (the asset page) and one under the other (the explorer), so neither may repeat the other
           out.push({ key: `${p.positionUid}:${a.accountId}:${l.marketUid}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${l.asset.symbol} · Lend on ${protocol}`, venue: venueOf(l.asset.symbol), valueUsd: l.depositsUsd, apr: p.depositApr, earnUid: l.earnUid, logo: l.asset.logoURI,
-            amount: parseFloat(l.deposits) || 0, symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, accountId: p.crossMargin ? undefined : a.accountId, lender: p.lender })
+            amount: parseFloat(l.deposits) || 0, symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, assetAddress: l.asset.address?.toLowerCase(), accountId: p.crossMargin ? undefined : a.accountId, lender: p.lender })
         }
       }
     }
@@ -141,6 +143,24 @@ export const GAS_TOKEN_ERC20: Record<string, { address: string; decimals: number
  * row is there. Both maps are token-lists' `native-currencies.json` (`erc20` / `coin+erc20`).
  */
 export const NATIVE_ERC20_VIEW: Record<string, string> = { '137': '0x0000000000000000000000000000000000001010' }
+/**
+ * Each chain's wrapper of its gas coin (`wrapped` in token-lists' `native-currencies.json`,
+ * read 2026-09-28). A market in WHYPE is a market the wallet's HYPE can go into as-is: the API
+ * wraps it in the same transaction when asked with `payAsset` = the zero address, and unwraps on
+ * the way out with `receiveAsset`. Without it the API is asked for the ERC-20 — an approve of a
+ * token the wallet may not hold, then a deposit that reverts. Arc, Stable and Tempo have no
+ * wrapper (their coin IS an ERC-20, or there is none) and are absent on purpose.
+ */
+export const WRAPPED_NATIVE: Record<string, string> = {
+  '1': '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', '8453': '0x4200000000000000000000000000000000000006',
+  '42161': '0x82af49447d8a07e3bd95bd0d56f35241523fbab1', '10': '0x4200000000000000000000000000000000000006',
+  '56': '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c', '43114': '0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7',
+  '999': '0x5555555555555555555555555555555555555555', '143': '0x3bd359c1119da7da1d913d1c4d2b7c461115433a',
+  '9745': '0x6100e367285b01f48d07953803a2d8dca5d19873', '137': '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270',
+  '4663': '0x0bd7d308f8e1639fab988df18a8011f41eacad73', '98866': '0xea237441c92cae6fc17caaf9a7acb3f953be4bd1',
+}
+/** Is this token the chain's wrapped gas coin — i.e. can the native coin stand in for it on a deposit or withdraw? */
+export const wrapsNative = (chainId: string, address?: string) => !!address && WRAPPED_NATIVE[chainId] === address.toLowerCase()
 export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
   const out: Idle[] = []
   const gasToken = GAS_TOKEN_ERC20[chainId]

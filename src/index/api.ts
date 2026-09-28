@@ -5,7 +5,7 @@
  * and nowhere else.
  */
 import { INDEX_BASE_URL } from '../config/backend'
-import type { AccountKind, AssetBookRow, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, ImpairedCount, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
+import type { AccountKind, AssetBookRow, IndexBalances, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, ImpairedCount, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
 
 /** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
 export type IssuerMatch = 'any' | 'direct' | 'exposure'
@@ -365,3 +365,18 @@ export const assetHolders = (group: string, limit = 20, chainIds?: string) =>
   get<AssetHolders>(`${g(group)}/holders`, { limit, chainIds })
 
 export const health = () => get<{ ok: boolean; chains?: string[] }>('/health')
+
+/**
+ * A wallet's idle balances from the index (pos-indexer tickets/0044): every chain in ONE request, the
+ * asset list per chain in the body (60 addresses × 15 chains does not fit a URL). A wallet the index
+ * has never seen is enrolled by asking and seeded within seconds; until then its chains answer
+ * `unknown` / `seeding` and the caller reads them live.
+ */
+export async function indexBalances(account: string, assets: Record<string, string[]>, signal?: AbortSignal): Promise<IndexBalances> {
+  const r = await fetch(`${INDEX_BASE_URL}/balances/${account}/query`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ assets }), signal,
+  })
+  const j = (await r.json().catch(() => ({}))) as IndexBalances & { error?: string }
+  if (!r.ok) throw new Error(j.error || `/balances → ${r.status}`)
+  return j
+}

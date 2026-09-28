@@ -1,6 +1,7 @@
 import React from 'react'
 import { useAccount, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
 import type { ApiTx, LoopActions } from '../sdk/types'
+import { useBalancesChanged, useLiveBalances } from '../sdk/liveBalances'
 
 /**
  * The execution ladder, generic over the action that built it: permissions (each mined) →
@@ -14,14 +15,28 @@ const SS = 'yieldcircle.bundle'
 const load = (key: string): Saved | null => { try { const v = JSON.parse(sessionStorage.getItem(SS) ?? 'null') as Saved | null; return v && v.key === key ? v : null } catch { return null } }
 const save = (v: Saved | null) => { try { v ? sessionStorage.setItem(SS, JSON.stringify(v)) : sessionStorage.removeItem(SS) } catch { /* private mode */ } }
 
-export function stepsFrom(a: LoopActions | null | undefined, routeLabel: string): Step[] {
+/**
+ * A venue with no native entry takes the gas coin as its own wallet steps — `WETH.deposit()` before
+ * the action, `WETH.withdraw(amount)` after it — and the API labels them with the wrapper's address.
+ * Said in the coin's name instead, which is the only thing the user needs to recognise.
+ */
+const WRAP = '0xd0e30db0', UNWRAP = '0x2e1a7d4d'
+function wrapWord(tx: ApiTx, coin?: string): string | undefined {
+  const sel = tx.data.slice(0, 10).toLowerCase()
+  if (sel === WRAP && BigInt(tx.value || '0') > 0n) return `Wrap ${coin ?? 'the native coin'}`
+  if (sel === UNWRAP && tx.data.length === 74) return `Unwrap to ${coin ?? 'the native coin'}`
+  return undefined
+}
+
+export function stepsFrom(a: LoopActions | null | undefined, routeLabel: string, coin?: string): Step[] {
   if (!a) return []
   const steps: Step[] = [
     ...(a.permissions ?? []).map((tx) => ({ kind: 'permission' as const, tx, label: tx.description ?? 'Approve' })),
-    ...(a.transactions ?? []).map((tx) => ({ kind: 'setup' as const, tx, label: tx.description ?? routeLabel })),
+    ...(a.transactions ?? []).map((tx) => ({ kind: 'setup' as const, tx, label: wrapWord(tx, coin) ?? tx.description ?? routeLabel })),
   ]
   const alts = a.alternatives ?? []
   if (alts.length && !(a.transactions ?? []).length) steps.push({ kind: 'route', tx: alts[0], label: `${routeLabel}${alts[0].description ? ` · ${alts[0].description}` : ''}` })
+  steps.push(...(a.postTransactions ?? []).map((tx) => ({ kind: 'setup' as const, tx, label: wrapWord(tx, coin) ?? tx.description ?? routeLabel })))
   return steps
 }
 
@@ -35,6 +50,9 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   const [busy, setBusy] = React.useState(false)
   const send = useSendTransaction()
   const receipt = useWaitForTransactionReceipt({ hash: pending })
+  // an open ticket reads its chain's balances live, and a landed step re-reads them (pos-indexer tickets/0044)
+  useLiveBalances(chainId)
+  const balancesChanged = useBalancesChanged()
   const first = React.useRef(true)
   React.useEffect(() => {
     if (first.current) { first.current = false; return }
@@ -49,6 +67,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   }
   const next = bundle?.steps.find((s) => !s.done)
   React.useEffect(() => {
+    if (receipt.isSuccess && pending) balancesChanged(chainId)
     if (receipt.isSuccess && bundle && pending) { setBundle({ steps: bundle.steps.map((s) => (s.hash === pending ? { ...s, done: true } : s)) }); setPending(undefined) }
     if (receipt.isError && pending) { setErr('the transaction reverted'); setPending(undefined) }
   }, [receipt.isSuccess, receipt.isError])

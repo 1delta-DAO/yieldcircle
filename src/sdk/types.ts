@@ -12,7 +12,8 @@ export interface EarnExit { mode: string; settlement?: 'sync' | 'async'; cooldow
 export interface EarnAvailability { canDeposit: boolean; canWithdraw: boolean; gating?: string; reason?: string }
 export interface EarnRisk { yieldProfile?: string; denomination?: string; score?: number; label?: string; illiquid?: boolean; vault?: { level?: string; score?: number } }
 export interface EarnActionInput { asset: string; symbol?: string; mode?: string; needs?: string[] }
-export interface EarnCapability { action: string; via?: string; requires?: string[]; acceptsPayAsset?: boolean; async?: boolean; inputs?: EarnActionInput[] }
+/** `acceptsNative`: the chain's coin can stand in for the row's (wrapped) token as `payAsset` / `receiveAsset` = the zero address. Absent on an API that predates the flag. */
+export interface EarnCapability { action: string; via?: string; requires?: string[]; acceptsPayAsset?: boolean; acceptsReceiveAsset?: boolean; acceptsNative?: boolean; async?: boolean; inputs?: EarnActionInput[] }
 /**
  * The `?terms=digest` sheet, narrowed to what this app reads.
  *
@@ -130,7 +131,8 @@ export interface OptimizerResponse { start: number; count: number; total: number
 
 // ---------------------------------------------------------------- actions
 export interface ApiTx { to: string; data: string; value: string; description?: string }
-export interface LoopActions { transactions: ApiTx[]; permissions: ApiTx[]; alternatives?: ApiTx[] }
+/** `transactions` run in order (pre-steps when there are `alternatives`); `postTransactions` run after the chosen route (e.g. unwrap to native). */
+export interface LoopActions { transactions: ApiTx[]; permissions: ApiTx[]; alternatives?: ApiTx[]; postTransactions?: ApiTx[] }
 export interface TradeEconomics {
   notionalUsd: { equity: number; collateral: number; debt: number }
   entryCostUsd: { slippage: number; fees: number; gas: number | null; total: number }

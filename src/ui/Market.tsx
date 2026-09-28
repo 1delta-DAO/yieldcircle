@@ -16,7 +16,7 @@ import { prettyProtocol } from './ProtocolFilter'
 import { DeskChips } from './IssuerFilter'
 import { CuratorMark } from './CuratorFilter'
 import { Rate } from './Rate'
-import { Ago, FollowButton, Money, Who, describeBundle } from './social-bits'
+import { Ago, FollowButton, Impaired, Money, Who, describeBundle } from './social-bits'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
@@ -176,7 +176,7 @@ export function Market({ uid }: { uid: string }) {
                 <span className="rank">{i + 1}</span>
                 <Who account={h.account} profile={profile(h.account)} idx={h} sub={h.side === 'borrow' ? 'debt' : undefined} plain />
                 <span className="sp" />
-                <span className="v"><Money usd={h.amountUsd} amount={h.amount} symbol={h.symbol} short /><DeskChips x={h} max={1} /><CuratorMark c={desks.curatorOf(h.account)} /></span>
+                <span className="v">{h.valueStatus === 'impaired' ? <Impaired x={h} short /> : <Money usd={h.amountUsd} amount={h.amount} symbol={h.symbol} short />}<DeskChips x={h} max={1} /><CuratorMark c={desks.curatorOf(h.account)} /></span>
               </a>
             ))}</div>
           </div>

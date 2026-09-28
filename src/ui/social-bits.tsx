@@ -65,6 +65,43 @@ export function Money({ usd: v, status, fromIndex, short, amount, symbol }: {
   return <span title={why}>{mark}{(short ? usdShort : usd)(v)}</span>
 }
 
+const IMPAIRED_WHY: Record<string, string> = {
+  range: 'the market reports deposits no market has (over $100 bn)',
+  insolvent: 'the market owes more than it holds and has no cash left',
+  'full-at-size': 'the market is fully borrowed at size with no cash, so its rate model compounds the claim at its cap',
+  'exceeds-supply': 'this one position is more than twice the token’s whole supply on the chain',
+}
+
+/**
+ * A position its market cannot pay (pos-indexer tickets/0037). The claim is
+ * real on paper and worth nothing like its face: the balance keeps growing at
+ * the rate model's cap in a market with no cash. The face value is struck
+ * through and counted in no total on the page.
+ */
+export function Impaired({ x, short }: { x: { faceUsd?: number | null; impairedReason?: string | null }; short?: boolean }) {
+  const why = (x.impairedReason && IMPAIRED_WHY[x.impairedReason]) || x.impairedReason || 'the market cannot pay it'
+  const face = x.faceUsd != null ? (short ? usdShort : usd)(x.faceUsd) : null
+  return (
+    <span title={`Impaired: ${why}.${face ? ` Face value ${face}, left out of net value and every ranking.` : ''}`}>
+      <span className="pill bad">impaired</span>
+      {face && <> <s className="t40">{face}</s></>}
+    </span>
+  )
+}
+
+/**
+ * What a holders list left out because its market cannot pay it. Unranked is
+ * right (a phantom has no value to rank by); unsaid is not.
+ */
+export function ImpairedNote({ n }: { n?: { positions: number; faceUsd: number } | null }) {
+  if (!n?.positions) return null
+  return (
+    <span className="sub bad" title="positions in dead markets (fully borrowed, no cash) whose balance keeps compounding at the rate model's cap: left out of this list and of every total">
+      · {n.positions} impaired ({usdShort(n.faceUsd)} face) left out
+    </span>
+  )
+}
+
 /** A scaled amount string as a reader wants it: grouped, and never 18 decimals long. */
 export function tokens(a: string): string {
   const n = Number(a)

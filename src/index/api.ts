@@ -5,7 +5,7 @@
  * and nowhere else.
  */
 import { INDEX_BASE_URL } from '../config/backend'
-import type { AccountKind, AssetBookRow, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
+import type { AccountKind, AssetBookRow, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, ImpairedCount, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
 
 /** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
 export type IssuerMatch = 'any' | 'direct' | 'exposure'
@@ -317,7 +317,7 @@ export const curatorAllocation = (id: string) =>
 export const curatorTxs = (id: string, limit = 50) =>
   get<{ curatorId: string; vaults: number; txs: TxBundle[] }>(`/curators/${encodeURIComponent(id)}/events`, { limit })
 export const curatorHolders = (id: string, limit = 20) =>
-  get<{ curatorId: string; holders: { account: string; amountUsd: number; vaults: number; since: string | null; accountKind?: AccountKind; accountLabel?: string | null }[] }>(
+  get<{ curatorId: string; holders: { account: string; amountUsd: number; vaults: number; since: string | null; accountKind?: AccountKind; accountLabel?: string | null }[]; impaired?: ImpairedCount }>(
     `/curators/${encodeURIComponent(id)}/holders`, { limit },
   )
 /** Batch: which of these addresses are desks. What lets a row know it is looking at a manager, not a whale. */

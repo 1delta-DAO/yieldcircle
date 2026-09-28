@@ -13,7 +13,7 @@ import { useAccount } from 'wagmi'
 import { marketHref, useApp, walletHref } from '../state/AppState'
 import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
 import { useFollowers, useProfile, useProfiles } from '../social/queries'
-import { AutoTag, Badges, FollowButton, Money, Who, Ago, describeBundle, tokens } from './social-bits'
+import { AutoTag, Badges, FollowButton, Impaired, Money, Who, Ago, describeBundle, tokens } from './social-bits'
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
@@ -64,6 +64,8 @@ export function Wallet({ addr }: { addr: string }) {
     : groups
       ? groups.reduce((t, g) => t + g.supplyUsd - g.debtUsd, 0)
       : rows.reduce((t, r) => t + (r.amountUsd ?? 0) * (r.side === 'borrow' ? -1 : 1), 0)
+  // positions in markets that cannot pay them (tickets/0037): out of `nav`, named here
+  const nImpaired = rows.filter((r) => r.valueStatus === 'impaired').length
   const txList = React.useMemo(() => (txsQ.data?.txs ?? []).filter((t) => inScope(t.chainId)).slice(0, 40), [txsQ.data, inScope])
   /**
    * What the index calls this address, read off the rows the page already
@@ -138,7 +140,7 @@ export function Wallet({ addr }: { addr: string }) {
       {vaults.map((v) => <VaultCard key={v.marketUid} v={v} />)}
 
       <div className="wstats">
-        <Stat k="Net value" v={isMe ? '—' : usd(nav)} s={isMe ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}`} loading={!isMe && pos.isLoading} />
+        <Stat k="Net value" v={isMe ? '—' : usd(nav)} s={isMe ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={!isMe && pos.isLoading} />
         <Stat k="Deposited · 30d" v={usdShort(f?.depositedUsd)} s={f ? `net ${usdShort(f.depositedUsd - f.withdrawnUsd)} in` : ''} loading={flows.isLoading} />
         <Stat k="Withdrawn · 30d" v={usdShort(f?.withdrawnUsd)} s="supply taken out" loading={flows.isLoading} />
         <Stat k="Borrowed · 30d" v={usdShort(f?.borrowedUsd)} s={f ? `net ${usdShort(f.borrowedUsd - f.repaidUsd)} drawn` : ''} loading={flows.isLoading} />
@@ -358,7 +360,7 @@ function LegRow({ r, sub }: { r: IndexPosition; sub?: boolean }) {
         </div>
         <small className="hide-m">{indexChainLabel(r.chainId, chainLabel)}{r.accrual?.exact ? ' · accrual exact' : r.accrual ? ' · accrual ≈' : ''}</small>
       </td>
-      <td className="r"><Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} /><small>{r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}</small></td>
+      <td className="r">{r.valueStatus === 'impaired' ? <Impaired x={r} /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}<small>{r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}</small></td>
       <td className="r hide-m">{rate != null ? <span className={r.side === 'borrow' ? 'warn' : 'ok'} title={why}>{pct(rate)}</span> : <span className="t40">—</span>}</td>
       <td className="r t40">›</td>
     </tr>

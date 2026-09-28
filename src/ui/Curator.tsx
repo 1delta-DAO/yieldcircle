@@ -27,7 +27,7 @@ import { curatorLabel } from './CuratorFilter'
 import { prettyProtocol } from './ProtocolFilter'
 import { Rate } from './Rate'
 import { Thread } from './Thread'
-import { Ago, FollowButton, Money, Who, describeBundle } from './social-bits'
+import { Ago, FollowButton, ImpairedNote, Money, Who, describeBundle } from './social-bits'
 import { Sk, TxLink, pct, usd, usdShort } from './bits'
 
 export function Slices({ title, note, rows, pretty, href }: {
@@ -222,7 +222,7 @@ export function Curator({ id }: { id: string }) {
         </section>
 
         <section className="sec" style={{ marginTop: 0 }}>
-          <div className="sec-h"><h2>Who is in it</h2><span className="sub">biggest depositors the index has read</span></div>
+          <div className="sec-h"><h2>Who is in it</h2><span className="sub">biggest depositors the index has read</span><ImpairedNote n={holders.data?.impaired} /></div>
           <div className="card">
             {holders.isLoading && <div className="empty"><Sk w={160} /></div>}
             {!holders.isLoading && !holders.data?.holders.length && <div className="empty">No depositor the index can name yet.</div>}

@@ -58,6 +58,15 @@ export interface Valued extends Desked {
   amountRaw: string
   amountUsd: number | null
   usdStatus?: UsdStatus
+  /**
+   * `impaired` = a claim its market cannot pay (pos-indexer tickets/0037: a
+   * dead market compounds its holders at the rate model's cap). `amountUsd`
+   * is null and `faceUsd` states what the phantom balance claims — for
+   * display, never for a sum.
+   */
+  valueStatus?: 'face' | 'impaired'
+  impairedReason?: string | null
+  faceUsd?: number | null
   unitsRaw?: string | null
   amountFromIndex?: boolean | null
   asset?: string | null
@@ -203,13 +212,16 @@ export interface PositionGroup {
   /** every leg carried a price and a rate; false means the figure is a floor */
   exact: boolean
   unpriced: number
+  /** legs left out of every figure above because their market cannot pay them */
+  impaired?: number
+  impairedFaceUsd?: number
   legs: { marketUid: string; side: string; posId: string }[]
 }
 export interface PositionsResponse {
   account: string
   positions: IndexPosition[]
   groups?: PositionGroup[]
-  totals: { depositsUsd: number; debtUsd: number; navUsd: number }
+  totals: { depositsUsd: number; debtUsd: number; navUsd: number; impaired?: number; impairedFaceUsd?: number }
   asOf: { oldest: string } | null
 }
 
@@ -249,6 +261,9 @@ export interface Holder extends AccountIdentity, Desked {
   symbol?: string | null
   posId?: string | null
   asOfTs?: string
+  valueStatus?: 'face' | 'impaired'
+  impairedReason?: string | null
+  faceUsd?: number | null
 }
 /**
  * A vault as the index's `/vaults` book has it — the SHARE TOKEN's own row.
@@ -451,4 +466,6 @@ export interface AssetHolder {
   accountLabel: string | null
   since: string | null
 }
-export interface AssetHolders { holders: AssetHolder[]; note: string }
+/** positions a holders list leaves out because their market cannot pay them (tickets/0037) */
+export interface ImpairedCount { positions: number; wallets: number; faceUsd: number }
+export interface AssetHolders { holders: AssetHolder[]; note: string; impaired?: ImpairedCount }

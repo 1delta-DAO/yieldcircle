@@ -29,7 +29,7 @@ import { prettyProtocol } from './ProtocolFilter'
 import { Rate } from './Rate'
 import { Thread } from './Thread'
 import { Flows, primaryLeg } from './Feed'
-import { Ago, Comments, Money, Who, describeBundle } from './social-bits'
+import { Ago, Comments, ImpairedNote, Money, Who, describeBundle } from './social-bits'
 import { ProtocolLogo, Sk, Tok, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
 
 const chainName = (id: string) => indexChainLabel(id, chainLabel)
@@ -392,6 +392,7 @@ export function TokenPage({ group }: { group: string }) {
           <div className="sec-h">
             <h2>Wallets we index</h2>
             <span className="sub">{holders.data?.note ?? 'wallets this index has read — not every holder of the token'}</span>
+            <ImpairedNote n={holders.data?.impaired} />
           </div>
           <div className="card">
             {holders.isLoading && <div className="empty"><Sk w={160} /></div>}

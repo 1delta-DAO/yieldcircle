@@ -1,5 +1,5 @@
 import React from 'react'
-import { useAccount, useChainId, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
 import type { ApiTx, LoopActions } from '../sdk/types'
 
 /**
@@ -26,9 +26,9 @@ export function stepsFrom(a: LoopActions | null | undefined, routeLabel: string)
 }
 
 export function useLadder(key: string, chainId: string, build: () => Promise<Step[]>) {
-  const { isConnected } = useAccount()
-  const walletChain = useChainId()
-  const { switchChain, isPending: switching } = useSwitchChain()
+  // the wallet's own chain: `useChainId` is the config's, and never follows a wallet onto a chain it lacks
+  const { isConnected, chainId: walletChain } = useAccount()
+  const { switchChainAsync, isPending: switching } = useSwitchChain()
   const [bundle, setBundle] = React.useState<Bundle | null>(() => load(key)?.bundle ?? null)
   const [pending, setPending] = React.useState<`0x${string}` | undefined>(() => load(key)?.pending)
   const [err, setErr] = React.useState<string | null>(null)
@@ -55,8 +55,8 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   const wrongChain = walletChain !== Number(chainId)
   const sendNext = async () => {
     if (!next) return
-    if (wrongChain) { switchChain({ chainId: Number(chainId) }); return }
     setErr(null)
+    if (wrongChain) { try { await switchChainAsync({ chainId: Number(chainId) }) } catch (e) { setErr(shortErr((e as Error).message)) } return }
     try {
       const hash = await send.sendTransactionAsync({ to: next.tx.to as `0x${string}`, data: next.tx.data as `0x${string}`, value: BigInt(next.tx.value || '0') })
       setPending(hash); setBundle((b) => b && { steps: b.steps.map((s) => (s === next ? { ...s, hash } : s)) })

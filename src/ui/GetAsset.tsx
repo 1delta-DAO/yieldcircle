@@ -1,5 +1,5 @@
 import React from 'react'
-import { useChainId, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Idle } from '../model/positions'
 import { toRaw } from '../model/leverage'
@@ -63,7 +63,7 @@ export function GetAsset({ target, need, sources, onClose }: { target: Target; n
   const approveRcpt = useWaitForTransactionReceipt({ hash: pendingApprove })
   // a spot quote lists the approval without flagging `approvalRequired`; trust the permission the API returned (never for native)
   const needsApprove = perms.length > 0 && src?.address !== ZERO && !approveRcpt.isSuccess
-  const walletChain = useChainId(); const { switchChain, isPending: switching } = useSwitchChain()
+  const { chainId: walletChain } = useAccount(); const { switchChainAsync, isPending: switching } = useSwitchChain()
   const send = useSendTransaction()
   const wrongChain = !!src && walletChain !== Number(src.chainId)
   const sendTx = async (t: { to: string; data: string; value: string }) => send.sendTransactionAsync({ to: t.to as `0x${string}`, data: t.data as `0x${string}`, value: BigInt(t.value || '0') })
@@ -74,8 +74,9 @@ export function GetAsset({ target, need, sources, onClose }: { target: Target; n
   const [busy, setBusy] = React.useState(false)
   const go = async () => {
     if (!src || !tx) return
-    if (wrongChain) { switchChain({ chainId: Number(src.chainId) }); return }
-    setBusy(true); setErr(null)
+    setErr(null)
+    if (wrongChain) { try { await switchChainAsync({ chainId: Number(src.chainId) }) } catch (e) { setErr(shortErr((e as Error).message)) } return }
+    setBusy(true)
     try {
       if (needsApprove) { const h = await sendTx(perms[0]); setPendingApprove(h); return }
       const h = await sendTx(tx); setSent({ hash: h, bridge: best?.bridge })
@@ -130,7 +131,7 @@ export function GetAsset({ target, need, sources, onClose }: { target: Target; n
                   <button className="btn" onClick={onClose}>Cancel</button>
                 </div>
               )}
-              {err && sent && <div className="err">{err}</div>}
+              {err && (sent || best) && <div className="err">{err}</div>}
             </>
           )}
         </>

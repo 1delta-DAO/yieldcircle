@@ -10,6 +10,10 @@
  *   menu       everyone, but only in markets this app can open in one tap.
  *              The default: a move you cannot act on is a log line.
  *   everyone   the whole tape.
+ *
+ * It is the home page's main column, under the pulse and beside Hot — the
+ * social side is what this app is for, so what people are doing is the first
+ * thing it shows rather than a tab beside it.
  */
 import React from "react";
 import { useApp } from "../state/AppState";
@@ -36,6 +40,7 @@ import { ChainCorner } from "./ChainMark";
 import { indexChainLabel, subjectOf } from "../index/types";
 import { Sk, Tip, Tok, TxLink, pct } from "./bits";
 import { Thread } from "./Thread";
+import { ChainChip } from "./ChainPicker";
 import { chainLabel } from "../sdk/queries";
 import type { Strategy } from "../model/strategies";
 
@@ -84,7 +89,7 @@ const tabOf = (t: string | undefined): Tab =>
   t === "following" || t === "everyone" ? t : "menu";
 
 export function Feed({ tab: tabIn }: { tab?: string }) {
-  const { chains, chainIds, allChains, chainLabelFor } = useApp();
+  const { chains, chainIds, allChains } = useApp();
   const { account } = useSocialWrite();
   const follows = useMyFollows(account);
   const menu = useMenu();
@@ -121,7 +126,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   }, [here]);
   /**
    * A link followed while already here (pasted, or Back onto another view)
-   * takes over; a bare `#/feed` (the nav) keeps this view and gets its filters
+   * takes over; a bare `#/` (the Home tab) keeps this view and gets its filters
    * written back into the address.
    */
   const live = React.useRef({ filters, pf, inf, cf });
@@ -133,7 +138,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
       const { filters: cur, pf, inf, cf } = live.current;
       const link = readFeedLink();
       if (!link) {
-        if (parseRoute().view !== "feed") return;
+        if (parseRoute().view !== "home") return;
         const want = feedHash(tabOf(parseRoute().t), cur);
         if (location.hash !== want)
           history.replaceState(history.state, "", location.pathname + location.search + want);
@@ -295,7 +300,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           </button>
         </div>
         <span className="sp" />
-        <span className="sub t50">{chainLabelFor()} · live</span>
+        <ChainChip />
         <ShareView hash={here} />
       </div>
       <LinkChainsToast />

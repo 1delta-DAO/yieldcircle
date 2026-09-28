@@ -78,12 +78,17 @@ is a plain deposit per leg).
 ## Screens
 
 ```
- HOME  #/                          what people are doing
-   pulse (one live line) · Yours (a strip, expandable) ·
-   HOT RIGHT NOW (markets ranked on how OFTEN and how MUCH) · the stream
+ SHELL  on every page
+   top: your face → the profile sheet (your page, alerts, wallet, chains, filters)
+        · one search (assets, tokens, desks, wallets) · your rank · your balance
+          → your positions sheet
+   tabs: Home · Earn · Board — in the top bar from 768px, along the bottom below
+
+ HOME  #/?t=following|menu|everyone   what people are doing
+   pulse (one live line) · the feed, one card per TRANSACTION ·
+   HOT RIGHT NOW (markets ranked on how OFTEN and how MUCH) beside it
         │
- EXPLORER  #/explore                a balance overview
-   Your positions: group → asset → idle / strategies (when an address is set)
+ EARN  #/earn                        the catalogue
    One slim block per group: asset rows with balance and "up to x%"
         │ tap an asset
  ASSET PAGE  #/USD?u=USDe&k=loop
@@ -96,13 +101,14 @@ is a plain deposit per leg).
    what can go wrong · one button → the API's calls, signed one by one
    Say why · who else is in it · the market's thread
 
- FEED  #/feed?t=following|menu|everyone      one card per TRANSACTION
  WALLET  #/w/0x…      character, badges, NAV, flows, positions, tape, wall
  MARKET  #/m/<uid>    who is in it, the tape, deposits over 30 days, the thread
  BOARD   #/board?t=7d realized yield, ranked
  ME      #/me         the character picker, name, tags, X link
  ALERTS  #/alerts     what the people and markets you follow did
 ```
+
+`#/feed` and `#/explore` still resolve (to Home and Earn), so old links land.
 
 Every state is a URL, so back and deep links work. The list stays visible
 while the ticket is open. Screenshots against the live API are in
@@ -112,9 +118,9 @@ while the ticket is open. Screenshots against the live API are in
 
 The **home is the activity**, not the catalogue. A table sorted by the biggest
 number answers "what pays most" once, and then there is no reason to come
-back — so `#/` leads with a live pulse, the markets that are actually busy,
-and the stream of moves as they land. The catalogue is one tap away at
-`#/explore` and every hot row opens the same ticket it always did.
+back — so `#/` leads with a live pulse, the feed of moves as they land, and
+the markets that are actually busy. The catalogue is the Earn tab (`#/earn`)
+and every hot row opens the same ticket it always did.
 
 **"Hot" is two numbers, not one.** Volume alone crowns whichever market one
 whale passed through this morning; frequency alone crowns a spray of dust. The

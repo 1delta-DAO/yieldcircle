@@ -1,103 +1,43 @@
 /**
- * The home.
+ * The home: **what are people doing?**
  *
- * It used to be the catalogue: every asset, sorted by the biggest number it
- * could earn. That answers "what pays most", which is a question a table
- * answers once and then never again — there is no reason to come back
- * tomorrow, because the table will say the same thing.
+ * It used to be the catalogue — every asset, sorted by the biggest number it
+ * could earn — which answers "what pays most" once and then never again. The
+ * social side is what this app is for, so the home is where people are:
  *
- * So the home now answers a different question: **what are people doing?**
- * A live pulse, the markets that are actually busy (ranked on how often AND
- * how much, not on a headline rate), and the stream of moves as they land.
- * The catalogue has not gone anywhere — it is one tap away at `#/explore`,
- * and every hot row opens the same ticket it always did.
+ *   the pulse   one live line that changes
+ *   the feed    every move, one card per transaction, scoped to who you follow,
+ *               what the menu can open, or everyone (see `Feed`)
+ *   hot         the markets that are actually busy, ranked on how often AND
+ *               how much — beside the feed on a desk, above it on a phone
+ *
+ * The feed was a tab of its own beside this page, and the page carried a
+ * condensed copy of it (the stream). Two pages answering one question is a
+ * nav that has to hold both, so they are one page now.
+ *
+ * Your own money is not here: it is the balance chip in the header, on every
+ * page. The catalogue is the Earn tab.
  */
 import React from 'react'
-import { useApp } from '../state/AppState'
-import { useBook } from './useBook'
 import { Hot } from './Hot'
-import { Pulse, Stream } from './Stream'
-import { AssetRows } from './Explorer'
-import { GROUPS, type GroupId } from '../model/assets'
-import { GroupIcon, Sk, pct, usd } from './bits'
+import { Pulse } from './Pulse'
+import { Feed } from './Feed'
+import { useViewport } from './useViewport'
 
-export function Home() {
-  const { account } = useApp()
+export function Home({ tab }: { tab?: string }) {
+  const vp = useViewport()
+  // below a desk Hot sits above the feed as one sideways row, so the feed
+  // still starts on the first screen
   return (
     <>
       <Pulse />
-      {account && <Yours />}
       <div className="home">
-        <div className="home-main"><Hot limit={8} /></div>
-        <div className="home-side"><Stream rows={14} /></div>
-      </div>
-      <section className="sec">
-        <a className="explore-cta" href="#/explore">
-          <span className="ec-t"><b>Explore everything</b><small>every asset, every strategy, what each one pays</small></span>
-          <span className="sp" />
-          <span className="ec-g">{GROUPS.map((g) => <GroupIcon key={g.id} id={g.id} color={g.color} size={22} />)}</span>
-          <span className="t50">›</span>
-        </a>
-      </section>
-    </>
-  )
-}
-
-/**
- * Your own money, in one strip. It is the reason a returning user opens the
- * app at all, so it sits above the fold — but small, because the page is now
- * about what everyone is doing and not about a portfolio screen.
- *
- * These numbers come from the LIVE path, never from the index: the connected
- * user's own positions are the one thing the index must not serve.
- */
-function Yours() {
-  const b = useBook()
-  const [open, setOpen] = React.useState(false)
-  const tot = b.books.reduce((a, x) => a + x.totalUsd, 0)
-  const idle = b.books.reduce((a, x) => a + x.idleUsd, 0)
-  const work = b.books.reduce((a, x) => a + x.atWorkUsd, 0)
-  const yearly = b.books.reduce((a, x) => a + x.yearlyUsd, 0)
-  if (b.positionsLoading && !b.books.length)
-    return <div className="yours"><Sk w={280} h={16} /></div>
-  if (!b.books.length) return null
-  const byGroup = (g: GroupId) => b.books.filter((x) => x.group === g)
-  return (
-    <>
-      <button className="yours" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <span className="y-t">Yours</span>
-        <b className="y-v">{usd(tot)}</b>
-        <span className="y-s">{usd(work)} at work{work ? ` at ${pct((yearly / work) * 100)}` : ''}</span>
-        {idle >= 1 && <span className="y-idle">{usd(idle)} idle</span>}
-        <span className="sp" />
-        <span className="y-yr">≈ {usd(yearly)} / year</span>
-        <span className="y-chev">{open ? '▴' : '▾'}</span>
-      </button>
-      {open && (
-        /**
-         * One block, not one card per group. The groups are a filing system,
-         * not the content: a full-width header per group gave four headings
-         * as much weight as the balances under them, and the eye had to skip
-         * past a heading to reach every number it came for. They are a
-         * caption now — enough to say where a run of rows belongs, quiet
-         * enough that the balance stays the loudest thing on its line.
-         */
-        <div className="yours-open">
-          <div className="card">
-            {GROUPS.filter((g) => byGroup(g.id).length).map((g) => (
-              <React.Fragment key={g.id}>
-                <div className="gcap">
-                  <i className="dot" style={{ background: g.color }} />
-                  <span className="n">{g.name}</span>
-                  <span className="sp" />
-                  <span className="m">{usd(byGroup(g.id).reduce((a, x) => a + x.totalUsd, 0))}</span>
-                </div>
-                {byGroup(g.id).map((x) => <AssetRows key={x.asset} b={x} />)}
-              </React.Fragment>
-            ))}
-          </div>
+        <div className="home-main">
+          {vp !== 'desk' && <Hot limit={8} strip />}
+          <Feed tab={tab} />
         </div>
-      )}
+        {vp === 'desk' && <div className="home-side"><Hot limit={6} /></div>}
+      </div>
     </>
   )
 }

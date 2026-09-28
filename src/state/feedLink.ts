@@ -4,7 +4,10 @@ import type { IssuerMatch } from '../index/api'
 /**
  * The feed's filters as a link, so a view can be sent to someone:
  *
- *   #/feed?t=everyone&c=avalanche,ethereum&p=AAVE_V3,BENQI
+ *   #/?t=everyone&c=avalanche,ethereum&p=AAVE_V3,BENQI
+ *
+ * The feed is the home page, so its link is the home's. `#/feed?…` — where it
+ * lived before — is still read, so the links already sent keep working.
  *
  *   c    chains, by lowercase label (`43114` is read too)
  *   p    protocol keys, as the index names them
@@ -13,7 +16,7 @@ import type { IssuerMatch } from '../index/api'
  *
  * A link that carries ANY of these carries all of them: what it leaves out is
  * cleared, not kept from the reader's last visit — otherwise a sent view would
- * arrive mixed with whatever the reader had picked. A bare `#/feed` (the nav,
+ * arrive mixed with whatever the reader had picked. A bare `#/` (the tab,
  * a crumb) carries none and leaves the reader's own filters alone.
  *
  * Defaults are dropped and lists sorted, so one view is one URL.
@@ -39,7 +42,8 @@ export function readFeedLink(hash = location.hash): FeedFilters | null {
   const h = hash.replace(/^#\/?/, '')
   const at = h.indexOf('?')
   const path = at < 0 ? h : h.slice(0, at)
-  if (path.replace(/\/$/, '') !== 'feed' || at < 0) return null
+  const head = path.replace(/\/$/, '')
+  if ((head !== '' && head !== 'feed') || at < 0) return null
   const p = new URLSearchParams(h.slice(at + 1))
   if (!KEYS.some((k) => p.has(k))) return null
   const chains = [...new Set(list(p.get('c')).map(chainOf).filter((c): c is string => !!c))]
@@ -67,7 +71,7 @@ export function feedHash(tab: string, f: FeedFilters): string {
   if (f.curator) q.set('cur', f.curator)
   // commas are safe in a hash and a link that reads `avalanche,ethereum` is one a person can edit
   const s = q.toString().replace(/%2C/g, ',')
-  return '#/feed' + (s ? '?' + s : '')
+  return '#/' + (s ? '?' + s : '')
 }
 
 /** Same filters, whatever order they were picked in. */

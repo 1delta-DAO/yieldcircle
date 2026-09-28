@@ -96,14 +96,14 @@ export function Curator({ id }: { id: string }) {
   if (c.isError)
     return (
       <>
-        <a className="crumb" href="#/explore">‹ Explore</a>
+        <a className="crumb" href="#/earn">‹ Earn</a>
         <div className="note">The index has no desk with this id. It may have been renamed, or its vaults may have moved to another controller.</div>
       </>
     )
 
   return (
     <>
-      <a className="crumb" href="#/feed">‹ Feed</a>
+      <a className="crumb" href="#/">‹ Home</a>
       <header className="mhdr">
         <CuratorLogo src={d?.logoUri} />
         <div>

@@ -42,7 +42,12 @@ import { useSticky } from '../state/sticky'
 type Win = '1h' | '6h' | '24h' | '7d'
 const WINDOWS: Win[] = ['1h', '6h', '24h', '7d']
 
-export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean }) {
+/**
+ * `strip`: one row of cards that scrolls sideways and no filter chips — Hot
+ * above the feed on a phone or a tablet, where the full section would push
+ * the feed off the first screen.
+ */
+export function Hot({ limit = 8, showAll, strip }: { limit?: number; showAll?: boolean; strip?: boolean }) {
   const { chainIds, allChains, chainLabelFor } = useApp()
   const [win, setWin] = useSticky<Win>('hot:win', '24h')
   const menu = useMenu()
@@ -87,7 +92,7 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
     <section className="sec hot-sec">
       <div className="sec-h">
         <h2>Hot right now</h2>
-        <span className="sub">where people are moving money — how often, and how much</span>
+        {!strip && <span className="sub">where people are moving money — how often, and how much</span>}
         <span className="sp" />
         <div className="seg sm">
           {WINDOWS.map((w) => (
@@ -95,11 +100,11 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
           ))}
         </div>
       </div>
-      <ProtocolChips f={pf} max={7} />
-      <IssuerChips f={inf} max={6} />
+      {!strip && <ProtocolChips f={pf} max={7} />}
+      {!strip && <IssuerChips f={inf} max={6} />}
       {showAll && <CuratorChips f={cf} max={6} />}
       {q.isLoading && !rows.length && (
-        <div className="hot-grid">{[0, 1, 2, 3].map((i) => <div key={i} className="hotcard"><Sk w="70%" /><Sk w="40%" /></div>)}</div>
+        <div className={strip ? 'hot-grid strip' : 'hot-grid'}>{[0, 1, 2, 3].map((i) => <div key={i} className="hotcard"><Sk w="70%" /><Sk w="40%" /></div>)}</div>
       )}
       {!q.isLoading && !shown.length && (
         <div className="note hot-empty">
@@ -108,7 +113,7 @@ export function Hot({ limit = 8, showAll }: { limit?: number; showAll?: boolean 
           {next && <button className="lnk" onClick={() => setWin(next)}> Try the last {next} ›</button>}
         </div>
       )}
-      <div className="hot-grid">
+      <div className={strip ? 'hot-grid strip' : 'hot-grid'}>
         {shown.map(({ m, s }) => (
           <HotCard key={m.marketUid} m={m} s={s} peak={peak} comments={counts.count('market', m.marketUid)}
             rating={rated.ratingOf('market', m.marketUid)} />

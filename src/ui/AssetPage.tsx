@@ -52,7 +52,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const close = () => go(group.id, { u, k: kind })
   return (
     <>
-      <a className="crumb" href="#/explore">‹ Explore</a>
+      <a className="crumb" href="#/earn">‹ Earn</a>
       <div className={`asset${ticketOpen ? '' : ' noticket'}`}>
         <div className="main">
           <div className="hdr">

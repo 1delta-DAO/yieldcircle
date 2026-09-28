@@ -31,11 +31,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,[tabindex]:focus-visibl
 .brand{display:flex;align-items:center;gap:8px;font-weight:600;letter-spacing:.02em;font-size:15px}
 .brand svg{display:block;height:32px;width:auto}
 .brand .logo{margin-right:2px}
-.brand .brandmark{display:none;place-items:center}
 .brand .mode{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--primary);border:1px solid var(--primary);border-radius:999px;padding:1px 7px;margin-left:2px}
-.top nav{display:flex;gap:2px;margin-left:8px}
-.top nav a{padding:6px 12px;border-radius:var(--r);color:var(--tx50);font-size:13.5px}
-.top nav a[aria-current="page"]{color:var(--tx);background:var(--b300)}
 .seg{display:inline-flex;border:1px solid var(--line2);border-radius:var(--r);overflow:hidden}
 .seg button{padding:5px 10px;color:var(--tx50);border-right:1px solid var(--line2);font-size:12.5px;white-space:nowrap;min-height:30px}
 .seg button:last-child{border-right:0}.seg button[aria-pressed="true"]{background:var(--b300);color:var(--tx)}
@@ -375,9 +371,6 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
   .top{height:48px}
   .top .inner{gap:6px}
   .top .btn.sm{padding:0 9px;font-size:12.5px}
-  .top .btn.ghost{display:none}
-    .brand .logo svg{height:26px}
-  .top nav{display:none}
   .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   .tile{min-height:120px;padding:12px}
   .tile .kv .v{font-size:15px}
@@ -411,7 +404,6 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 
 /* ---------- app additions (real app on top of the mockup's sheet) ---------- */
 .logo{display:inline-flex;align-items:center;gap:8px;color:var(--tx)}
-.top nav a{min-height:36px;display:inline-flex;align-items:center}
 .sk{display:inline-block;vertical-align:middle;border-radius:3px;background:#151515;background-image:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.05) 35%,rgba(255,255,255,.11) 50%,rgba(255,255,255,.05) 65%,transparent 100%);background-size:200% 100%;animation:sk 1.7s ease-in-out infinite}
 @keyframes sk{from{background-position:200% 0}to{background-position:-200% 0}}
 .err{border:1px solid #4a2222;background:#120a0a;color:var(--error);border-radius:var(--r);padding:8px 12px;font-size:12.5px;line-height:1.4;word-break:break-word;margin:8px 0}
@@ -605,7 +597,7 @@ h1 .pill.auto{vertical-align:middle;margin-left:9px}
 .lnk:hover{text-decoration:underline}
 
 /* ---------- feed ---------- */
-.feedwrap{max-width:1120px;margin:0 auto}
+.feedwrap{max-width:1120px;margin:0 auto;container:feed/inline-size}
 .feed-h{display:flex;align-items:center;gap:12px;margin:2px 0 16px;flex-wrap:wrap}
 .feed-h h1{font-size:20px}
 .feed-h .share{display:inline-flex;align-items:center;gap:6px}
@@ -857,18 +849,125 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .check input{margin-top:2px;accent-color:var(--primary)}
 .xrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px}
 
-/* ---------- shell additions ---------- */
-.meface{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;flex:none;border:1px solid transparent}
-.meface:hover,.meface.on{border-color:var(--primary)}
-.back{display:grid;place-items:center;width:34px;height:34px;margin-right:-8px;border-radius:var(--r);color:var(--tx50);background:none;border:0;cursor:pointer;flex:none}
+/* ---------- the shell: top bar, tabs, sheets (ui/Shell.tsx) ----------
+   profile · search · standing · balance across the top; Home · Earn · Board
+   in the bar from 768px, along the bottom below it. */
+.meface{position:relative;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;flex:none;border:1px solid var(--line2);color:var(--tx50);background:var(--b200)}
+.meface:hover,.meface[aria-expanded="true"]{border-color:var(--primary);color:var(--tx)}
+.meface .ndot{top:-3px;right:-4px}
+.back{display:grid;place-items:center;width:34px;height:34px;margin-right:-6px;border-radius:var(--r);color:var(--tx50);background:none;border:0;cursor:pointer;flex:none}
 .back:hover{color:var(--tx);background:var(--b300)}
 .bell{position:relative;display:grid;place-items:center;width:34px;height:34px;border-radius:var(--r);color:var(--tx50);flex:none}
 .bell:hover,.bell.on{color:var(--primary);background:var(--b300)}
 .ndot{position:absolute;top:2px;right:0;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--primary);color:var(--primary-ink);font:700 9.5px/15px var(--mono);font-style:normal;text-align:center}
+.ndot.inline{position:static;display:inline-block;margin-left:8px;vertical-align:1px}
+
+.tabs-top{display:flex;gap:2px;flex:none}
+.tabs-top a{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 12px;border-radius:var(--r);color:var(--tx50);font-size:13.5px}
+.tabs-top a:hover{color:var(--tx)}
+.tabs-top a[aria-current="page"]{color:var(--tx);background:var(--b300)}
+.tabs-top a[aria-current="page"] svg{color:var(--primary)}
+.tabs-top svg{width:17px;height:17px}
+
+.search{position:relative;flex:1 1 auto;min-width:0;max-width:440px;margin-left:auto;display:flex;align-items:center}
+.search .s-glass{position:absolute;left:11px;color:var(--tx40);pointer-events:none}
+.search input{width:100%;min-width:0;height:36px;padding:0 12px 0 33px;border:1px solid var(--line2);border-radius:999px;background:var(--b200);font-size:13px;outline:none;-webkit-appearance:none;appearance:none}
+.search input::placeholder{color:var(--tx40)}
+.search input:focus{border-color:var(--primary);background:var(--bg)}
+.search input::-webkit-search-cancel-button{display:none}
+.sresults{padding:5px;display:flex;flex-direction:column;gap:1px;max-height:min(70vh,520px);overflow-y:auto}
+.sr{display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 9px;border-radius:var(--r)}
+.sr[aria-selected="true"]{background:var(--b200)}
+.sr-t{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.sr-t b{font-weight:500;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-t small{font-size:11.5px;color:var(--tx50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-ic{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--b400);color:var(--tx70);font-size:12px}
+.sr-none{padding:12px 10px;font-size:12.5px;color:var(--tx50);line-height:1.5}
+
+.statchip,.moneychip{display:flex;flex-direction:column;justify-content:center;align-items:flex-end;flex:none;min-height:36px;padding:0 10px;border-radius:var(--r);line-height:1.15;white-space:nowrap}
+.statchip b,.moneychip b{font-family:var(--mono);font-size:13.5px;font-weight:500;color:var(--tx)}
+.statchip small,.moneychip small{font-family:var(--mono);font-size:10.5px;color:var(--tx50)}
+.statchip:hover{background:var(--b300)}
+.moneychip{border:1px solid var(--line2);background:var(--b200)}
+.moneychip:hover,.moneychip[aria-expanded="true"]{border-color:var(--primary)}
+
+/* the bottom bar: phones only, above the page and below every sheet */
+.tabbar{display:none}
+@media (max-width:767.98px){
+  .tabs-top,.brand,.statchip,.top .bell{display:none}
+  .search{max-width:none}
+  /* every control in the bar is a full 44px target: it is the one row every page has */
+  .top{height:60px}
+  .top .inner{gap:8px}
+  .meface{width:44px;height:44px}
+  .back{width:44px;height:44px;margin-right:-10px}
+  .search input{height:44px}
+  .moneychip{min-height:44px}
+  .top > .inner > .btn.sm{min-height:44px}
+  .tabbar{display:grid;grid-template-columns:repeat(3,1fr);position:fixed;left:0;right:0;bottom:0;z-index:25;
+    padding:0 8px env(safe-area-inset-bottom);background:rgba(0,0,0,.92);backdrop-filter:blur(8px);border-top:1px solid var(--line)}
+  .tabbar a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;color:var(--tx50);font-size:11px;font-weight:500}
+  .tabbar a[aria-current="page"]{color:var(--primary)}
+  .wrap{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+  .toast{bottom:calc(72px + env(safe-area-inset-bottom))}
+  .moneychip small{display:none}
+}
+@media (min-width:768px){ .hide-d{display:none!important} }
+@media (max-width:1079.98px){ .brand{display:none} }
+@media (max-width:420px){ .search input{padding-right:8px;font-size:16px} .search input::placeholder{font-size:13px} }
+
+/* ---------- sheets ---------- */
+.drawer-scrim{z-index:50}
+.drawer{position:fixed;top:0;bottom:0;z-index:51;width:min(400px,100vw);display:flex;flex-direction:column;background:var(--b200);
+  box-shadow:0 0 40px rgba(0,0,0,.7);outline:none;animation:drawer-in .18s ease-out}
+.drawer.left{left:0;border-right:1px solid var(--line)}
+.drawer.right{right:0;border-left:1px solid var(--line);width:min(480px,100vw)}
+.drawer.right{animation-name:drawer-in-r}
+@keyframes drawer-in{from{transform:translateX(-24px);opacity:0}to{transform:none;opacity:1}}
+@keyframes drawer-in-r{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+.drawer-h{display:flex;align-items:center;gap:10px;min-height:56px;padding:0 10px 0 18px;border-bottom:1px solid var(--line);flex:none}
+.drawer-h b{font-size:15px;font-weight:600}
+.drawer-h .x{margin-left:auto;width:44px;height:44px;display:grid;place-items:center;border-radius:var(--r);color:var(--tx50)}
+.drawer-h .x:hover{background:var(--b300);color:var(--tx)}
+.drawer-b{flex:1;overflow-y:auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom));overscroll-behavior:contain}
+@media (prefers-reduced-motion:reduce){ .drawer{animation:none} }
+
+.ps{display:flex;flex-direction:column;gap:18px}
+.ps-head{display:flex;flex-direction:column;gap:12px}
+.ps-head .who .wn b{font-size:16px}
+.ps-p{margin:0;font-size:13px;line-height:1.5;color:var(--tx70)}
+.ps-wallet .btn{width:100%;min-height:44px}
+.ps-links{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.ps-links a{display:flex;align-items:center;min-height:48px;padding:0 14px;font-size:14px;color:var(--tx70);border-top:1px solid var(--line)}
+.ps-links a:first-child{border-top:0}
+.ps-links a:hover{background:var(--b300);color:var(--tx)}
+.ps-sec{display:flex;flex-direction:column;gap:6px}
+.ps-fold{display:flex;align-items:center;gap:10px;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:var(--r);color:var(--tx50);text-align:left}
+.ps-fold:hover{border-color:var(--line2);color:var(--tx)}
+.ps-fold .ps-state{font-size:13px;color:var(--tx70);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ps-fold .ps-state.on{color:var(--primary)}
+.ps-fold svg{flex:none;transition:transform .15s}
+.ps-fold[aria-expanded="true"] svg{transform:rotate(180deg)}
+.ps-sec .chainmenu,.ps-sec .setmenu{border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
+.ps-sec .chainmenu .cm-row{min-height:40px}
+.mystats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mystats a{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
+.mystats a:hover{border-color:var(--line2)}
+.mystats b{font-family:var(--mono);font-size:17px;font-weight:500}
+.mystats small{font-size:11.5px;color:var(--tx50)}
+.drawer .hide-d .mystats{margin-bottom:16px}
+
+.pos-head{display:flex;flex-direction:column;gap:3px;margin-bottom:16px}
+.pos-v{font-family:var(--mono);font-size:28px;font-weight:500;letter-spacing:-.01em}
+.pos-s{font-size:12px;color:var(--tx50)}
+.drawer .gcards{gap:12px}
+
+.earn-h{margin-bottom:12px}
 
 /* no room for five columns: who and when on one line, the market on its own —
-   it is the longest thing on the card — then the money and the buttons */
-@media (max-width:900px){
+   it is the longest thing on the card — then the money and the buttons.
+   Measured on the feed, not the window: on a desk it shares the row with Hot. */
+@container feed (max-width:900px){
   .fc-g{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"who when" "what what" "money act";column-gap:12px;row-gap:9px}
   .fc-when,.fc-n,.fc-a{min-width:0;width:auto}
   .fc-n{justify-content:flex-start}
@@ -879,7 +978,6 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
   .mgrid{grid-template-columns:minmax(0,1fr)}
   .wstats{grid-template-columns:repeat(3,minmax(0,1fr))}
   .vaultc-n{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .top nav a.hide-t{display:none}
 }
 @media (max-width:640px){
   .players{grid-template-columns:minmax(0,1fr)}
@@ -897,13 +995,6 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
   .wcard{gap:14px;padding:14px}
   .wstats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .wstat .v{font-size:18px}
-  /* the nav scrolls rather than pushing the wallet button off the edge; the fade says so */
-  .top nav{display:flex;gap:0;flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;
-    mask-image:linear-gradient(90deg,#000 calc(100% - 18px),transparent)}
-  .top nav::-webkit-scrollbar{display:none}
-  .top nav a{padding:6px 8px;font-size:12.5px;flex:none}
-  .brand .logo{display:none}
-  .brand .brandmark{display:grid}
   .feed-h h1{font-size:18px}
 }
 
@@ -914,9 +1005,9 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .xpost code{flex:1;min-width:0;font-family:var(--mono);font-size:12.5px;color:var(--tx70);line-height:1.5;word-break:break-all}
 
 /* ============================================================================
-   THE SOCIAL HOME — pulse, hot, stream
+   THE SOCIAL HOME — pulse, feed, hot
    The catalogue was a table you read once. This is a page with a heartbeat:
-   one live line at the top, the busy markets as cards, the tape beside them.
+   one live line at the top, the feed under it, the busy markets beside it.
    ========================================================================= */
 
 /* ---------- pulse: one line that changes ---------- */
@@ -930,39 +1021,24 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 @keyframes pulse-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 .pulse .p-body .who .wn small{display:none}
 .pulse .p-body > span{flex:none}
-.pulse .p-all{font-size:12px;color:var(--tx40);white-space:nowrap;flex:none}
-.pulse .p-all:hover{color:var(--primary)}
-@media (max-width:640px){ .pulse .p-all{display:none} .pulse{padding:0 10px} }
+@media (max-width:640px){ .pulse{padding:0 10px} }
 
-/* ---------- yours: the strip, and the drawer under it ---------- */
-.yours{display:flex;align-items:center;gap:12px;width:100%;min-height:46px;padding:0 16px;text-align:left;
-  border:1px solid var(--line);border-radius:var(--r);background:var(--b200);font-size:13px;color:var(--tx70);margin-bottom:18px}
-.yours:hover{border-color:var(--line2)}
-.yours[aria-expanded="true"]{border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:0}
-.yours .y-t{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--tx50);flex:none}
-.yours .y-v{font-family:var(--mono);font-size:17px;color:var(--tx);font-weight:500;flex:none}
-.yours .y-s,.yours .y-yr{font-family:var(--mono);font-size:12px;color:var(--tx50);white-space:nowrap}
-.yours .y-idle{font-family:var(--mono);font-size:11.5px;color:var(--warning);border:1px solid #4a3a1a;border-radius:999px;padding:1px 8px;white-space:nowrap}
-.yours .y-chev{color:var(--tx40);flex:none}
-.yours-open{margin-bottom:18px}
-.yours-open .card{border-top-left-radius:0;border-top-right-radius:0;border-top:0}
-/* the group, said as a caption rather than a header bar: the rule above it is
-   the separator, the words only name what the run of rows below belongs to */
-.gcap{display:flex;align-items:center;gap:7px;padding:10px 16px 6px;border-top:1px solid var(--line);
-  font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx40)}
-.gcap:first-child{border-top:0}
-.gcap .dot{width:5px;height:5px;border-radius:50%;flex:none;opacity:.85}
-.gcap .m{letter-spacing:.02em;color:var(--tx50)}
-/* the caption already carries the separator; a second rule 20px under it just
-   boxes the heading back in */
-.gcap + .row.arow{border-top:0}
-@media (max-width:760px){ .yours .y-s,.yours .y-yr{display:none} }
 
-/* ---------- the two-column home ---------- */
-.home{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,0.9fr);gap:22px;align-items:start}
+/* ---------- the two-column home ----------
+   The feed is the page; Hot is a rail beside it on a desk (useViewport's
+   `desk`, hence 1080) and a short run above it below that. */
+.home{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:start}
 .home .sec{margin-top:0}
+.home-main .hot-sec{margin-bottom:22px}
 .home-side{position:sticky;top:78px}
-@media (max-width:1000px){ .home{grid-template-columns:minmax(0,1fr)} .home-side{position:static} }
+.home-side .hot-grid{grid-template-columns:minmax(0,1fr)}
+/* the strip: one sideways row of cards above the feed.
+   No scroll-snap: the cards re-rank while the catalogue loads, and a snapped
+   row follows its card to wherever it moved, opening the strip half-scrolled. */
+.hot-grid.strip{display:flex;overflow-x:auto;scrollbar-width:none;margin:0 calc(-1 * var(--gutter));padding:0 var(--gutter)}
+.hot-grid.strip::-webkit-scrollbar{display:none}
+.hot-grid.strip > .hotcard{flex:0 0 min(280px,78vw)}
+@media (max-width:1079.98px){ .home{grid-template-columns:minmax(0,1fr)} }
 
 .seg.sm button{min-height:26px;padding:0 9px;font-size:11.5px}
 
@@ -999,42 +1075,9 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 /* the count in figures: the bar is a comparison, this is the fact behind it */
 .heat .p{font-family:var(--mono);font-size:11px;color:var(--tx70);flex:none;min-width:44px;text-align:right;line-height:1.1;white-space:nowrap}
 
-/* ---------- stream ---------- */
-.stream{display:flex;flex-direction:column}
-.srow{display:grid;grid-template-columns:minmax(74px,auto) minmax(58px,auto) minmax(0,1fr) auto auto;
-  align-items:center;gap:9px;min-height:42px;padding:0 12px;border-bottom:1px solid var(--line-soft);font-size:12.5px}
-.srow:last-child{border-bottom:0}
-.srow:hover{background:#131313}
-.srow .who{min-width:0}
-.srow .who .wn small{display:none}
-.srow .who .wn b{font-size:12.5px}
-.srow .verb{font-size:12px}
-.srow .s-m{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx50);font-size:11.5px}
-.srow .s-v{font-family:var(--mono);font-size:12px;color:var(--tx);text-align:right;white-space:nowrap}
-.srow .s-t{text-align:right}
-.stream-more{width:100%;text-align:center;min-height:36px;margin-top:8px;font-size:12.5px;color:var(--primary);
-  border:1px dashed var(--line2);border-radius:var(--r)}
-.stream-more:hover{background:#062830;border-color:var(--primary)}
-/* On a phone the verb is the one word that must survive: "who" and "how much"
-   are guessable from a face and a figure, "deposited or withdrew" is not. The
-   market name is what goes. */
-@media (max-width:520px){
-  .srow{grid-template-columns:minmax(0,auto) auto minmax(0,1fr) auto;gap:8px;padding:0 10px}
-  .srow .s-m{display:none}
-  .srow .who .wn b{font-size:12px}
-}
 
-/* ---------- the way back to the catalogue ---------- */
-.explore-cta{display:flex;align-items:center;gap:14px;min-height:64px;padding:0 18px;border:1px solid var(--line);
-  border-radius:var(--r);background:var(--b200);transition:border-color .15s}
-.explore-cta:hover{border-color:var(--primary)}
-.ec-t{display:flex;flex-direction:column;gap:2px}
-.ec-t b{font-size:15px;font-weight:600;color:var(--tx)}
-.ec-t small{font-size:12px;color:var(--tx50)}
-.ec-g{display:flex}
+
 i.ic{font-style:normal}
-.ec-g .ic{border-radius:50%;display:grid;place-items:center;font-weight:600;font-style:normal;font-family:var(--mono);color:#000;flex:none;object-fit:cover}
-.ec-g .ic+.ic{margin-left:-7px;box-shadow:0 0 0 2px var(--b200)}
 
 /* ---------- chain marks ---------- */
 .chainmark{display:block;border-radius:50%;flex:none}
@@ -1042,26 +1085,16 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
   font:600 8px/1 var(--mono);font-style:normal;text-transform:uppercase}
 .chaintag{display:inline-flex;align-items:center;gap:6px}
 
-/* the selector: a mark and a name, the name folding away first */
-.chainseg button{display:inline-flex;align-items:center;gap:6px}
-.chainseg button[aria-pressed="true"] .chainmark{box-shadow:0 0 0 1.5px rgba(255,255,255,.25)}
-/* ---------- the chain scope in the header ----------
-   One control, two renderings (ui/ChainPicker.tsx): the segmented row while it
-   fits, a menu button once it does not. The button is never hidden — the scope
-   is global, so a phone has to be able to change it. */
-/* the row never shrinks: `.seg` clips its overflow, so a compressed row loses its
-   last chain silently — Avalanche was half a button wide at 1440px */
-.chainseg{flex:none}
-.chainseg button{padding:5px 8px}
-.chainbtn{flex:none;display:none;align-items:center;gap:7px;min-height:30px;padding:0 9px;border:1px solid var(--line2);border-radius:var(--r);color:var(--tx70);font-size:12.5px;white-space:nowrap}
+/* ---------- the chain scope, as a chip ----------
+   The list lives in the profile sheet (ui/ChainPicker.tsx); the pages whose
+   lists it narrows carry this chip beside their other filters. */
+.chainbtn{flex:none;display:inline-flex;align-items:center;gap:7px;min-height:30px;padding:0 10px;border:1px solid var(--line2);border-radius:999px;color:var(--tx70);font-size:12.5px;white-space:nowrap}
 .chainbtn:hover,.chainbtn[aria-expanded="true"]{border-color:var(--tx50);color:var(--tx)}
+.chainbtn.on{border-color:var(--primary);background:#062830;color:var(--tx)}
 /* the marks overlap like a stack of coins, so three of them cost the width of two */
 .chainbtn .marks{display:inline-flex;align-items:center;padding-right:5px}
 .chainbtn .marks .chainmark{margin-right:-5px;box-shadow:0 0 0 1.5px var(--bg);border-radius:50%}
-/* 1000 → 1080 on 2026-09-23: the row gained the button that opens the other ten chains,
-   and at 1010px that was 20px more than the header had (measured), so the page scrolled sideways */
-@media (max-width:1080px){ .top .chainseg{display:none} .top .chainbtn{display:inline-flex} }
-@media (max-width:520px){ .chainbtn .cl{display:none} }
+.chainbtn .cl{max-width:160px;overflow:hidden;text-overflow:ellipsis}
 .chainmenu{padding:5px;display:flex;flex-direction:column;gap:1px}
 .chainmenu .cm-line{display:flex;align-items:center;gap:2px}
 .chainmenu .cm-row{flex:1;display:flex;align-items:center;gap:8px;min-height:34px;padding:0 8px;border-radius:var(--r);color:var(--tx70);font-size:13px;text-align:left}
@@ -1081,10 +1114,6 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
 @media (max-width:520px){ .chain-corner b{display:none} .chain-corner{padding:2px;border-color:transparent;background:none} }
 
 /* ---------- filters ---------- */
-/* the chain selector is multi-select now: a pressed chain is IN scope, and
-   "All" is the absence of a selection rather than one of the options */
-.chainseg button[aria-pressed="true"]{background:#062830;color:var(--tx);box-shadow:inset 0 -2px 0 var(--primary)}
-.chainseg button:first-child[aria-pressed="true"]{box-shadow:inset 0 -2px 0 var(--tx50);background:var(--b300)}
 
 /* protocol chips: local to the list they filter, and never offering an empty choice */
 .pchips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
@@ -1263,11 +1292,9 @@ i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-sty
 .stress .s-f{color:var(--tx70)}
 
 /* ---------------------------------------------------------------- the floors
-   The gear in the header (`SettingsMenu`) and the "not shown" bar under a list
+   The Filters section of the profile sheet (`SettingsPanel`) and the "not shown" bar under a list
    (`Hidden`). Both say the same thing from different ends: the menu is curated,
    here is what that costs you, here is the switch. */
-.iconbtn{position:relative;display:grid;place-items:center;width:34px;height:34px;border-radius:var(--r);color:var(--tx50);flex:none}
-.iconbtn:hover,.iconbtn.on,.iconbtn[aria-expanded="true"]{color:var(--primary);background:var(--b300)}
 .setmenu{padding:12px 13px 10px}
 .sm-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .sm-h b{font-size:13px;font-weight:600}

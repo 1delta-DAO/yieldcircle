@@ -4,9 +4,9 @@
  *
  * The index is the source here — and only here. **The connected wallet's own
  * positions are never read from it** (the index's own hard rule): they stay on
- * the live allocator path, which is what the explorer already shows. On your
+ * the live allocator path, which is what the balance chip in the header shows. On your
  * own page this shows your history, which is exactly what the index is for,
- * and points at Explore for the live numbers.
+ * and points at that chip for the live numbers.
  */
 import React from 'react'
 import { useAccount } from 'wagmi'
@@ -99,7 +99,7 @@ export function Wallet({ addr }: { addr: string }) {
 
   return (
     <>
-      <a className="crumb" href="#/feed">‹ Feed</a>
+      <a className="crumb" href="#/">‹ Home</a>
       <header className="wcard">
         <Character addr={addr} avatarUrl={profile?.avatarUrl} size={72} />
         <div className="wc-t">
@@ -151,7 +151,7 @@ export function Wallet({ addr }: { addr: string }) {
       <section className="sec">
         <div className="sec-h"><h2>Positions</h2><span className="sub">{isMe ? 'Your own positions come from the live path, not the index.' : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago</> : 'from the index'}</span></div>
         {isMe ? (
-          <div className="note">The index is for <b>other</b> wallets and for history — never for the connected user’s own positions. Yours are on <a className="pri" href="#/">Explore</a>, read live.</div>
+          <div className="note">The index is for <b>other</b> wallets and for history — never for the connected user’s own positions. Yours are behind the balance in the top right, read live.</div>
         ) : (
           <div className="card">
             {pos.isLoading && <div className="empty"><Sk w={220} /></div>}

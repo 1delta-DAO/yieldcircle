@@ -531,7 +531,7 @@ export function TokenBook() {
   )
   return (
     <>
-      <a className="crumb" href="#/explore">‹ Explore</a>
+      <a className="crumb" href="#/earn">‹ Earn</a>
       <header className="mhdr">
         <div>
           <h1>Assets</h1>

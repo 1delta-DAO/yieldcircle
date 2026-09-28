@@ -1,8 +1,7 @@
 import { Shell } from './ui/Shell'
-import { Explorer } from './ui/Explorer'
+import { Earn } from './ui/Earn'
 import { Home } from './ui/Home'
 import { AssetPage } from './ui/AssetPage'
-import { Feed } from './ui/Feed'
 import { Wallet } from './ui/Wallet'
 import { Market } from './ui/Market'
 import { Curator } from './ui/Curator'
@@ -18,8 +17,7 @@ export default function App() {
   const group = GROUPS.find((g) => g.id === r.group)
   return (
     <Shell>
-      {r.view === 'feed' ? <Feed tab={r.t} />
-        : r.view === 'wallet' && r.addr ? <Wallet key={r.addr} addr={r.addr} />
+      {r.view === 'wallet' && r.addr ? <Wallet key={r.addr} addr={r.addr} />
         : r.view === 'market' && r.uid ? <Market key={r.uid} uid={r.uid} />
         : r.view === 'curator' && r.curatorId ? <Curator key={r.curatorId} id={r.curatorId} />
         : r.view === 'token' ? (r.token ? <TokenPage key={r.token} group={r.token} /> : <TokenBook />)
@@ -27,8 +25,8 @@ export default function App() {
         : r.view === 'me' ? <ProfilePage />
         : r.view === 'alerts' ? <Alerts />
         : group ? <AssetPage key={group.id} group={group} route={r} />
-        : r.view === 'explore' ? <Explorer />
-        : <Home />}
+        : r.view === 'earn' ? <Earn />
+        : <Home tab={r.t} />}
     </Shell>
   )
 }

@@ -53,11 +53,15 @@ const REMOTE = /^https:\/\//
  */
 const ROUTES = [
   { id: 'home', hash: '#/' },
-  { id: 'explore', hash: '#/explore' },
+  { id: 'earn', hash: '#/earn' },
   { id: 'asset', hash: '#/USD?u=USDC' },
   { id: 'ticket', hash: '#/USD?u=USDC', open: async (p) => p.locator('table.strat-t tbody tr, .slist .lr').first().click() },
-  { id: 'feed', hash: '#/feed' },
   { id: 'board', hash: '#/board' },
+  // the two sheets and the search: reachable only by a click, like the ticket. Each on its
+  // own hash — a goto to the URL already open is a same-document jump that keeps the last sheet up
+  { id: 'you', hash: '#/earn', open: async (p) => p.locator('button.meface').click() },
+  { id: 'money', hash: '#/board', open: async (p) => p.locator('button.moneychip').click() },
+  { id: 'search', hash: '#/', open: async (p) => p.locator('.search input').fill('usd') },
   { id: 'wallet', hash: `#/w/${AS.toLowerCase()}` },
 ]
 

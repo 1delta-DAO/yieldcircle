@@ -15,6 +15,7 @@ import { useProfiles } from '../social/queries'
 import { FollowButton, Money, Who } from './social-bits'
 import { Sk, pct, usdShort } from './bits'
 import { go } from '../state/AppState'
+import { ChainChip } from './ChainPicker'
 
 // the three the rollup keeps; an "all time" board would need a rollup of its
 // own, not a wider window, because the index cache does not go back far enough
@@ -69,6 +70,7 @@ export function Board({ window: w }: { window?: string }) {
       <div className="feed-h">
         <h1>Leaderboard</h1>
         <span className="sp" />
+        <ChainChip />
         <div className="seg">{WINDOWS.map((x) => <button key={x} aria-pressed={win === x} onClick={() => go('board', { t: x })}>{x}</button>)}</div>
       </div>
 

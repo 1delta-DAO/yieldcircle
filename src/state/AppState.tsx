@@ -8,10 +8,9 @@ import { readFeedLink } from './feedLink'
  * new segments beside them, so every social object is a URL and back, forward
  * and a pasted link all work without a router.
  *
- *   #/                       the home: pulse · hot · stream
- *   #/explore                the catalogue, by asset
+ *   #/                       the home: pulse · hot · the feed  (?t=following|everyone|menu, filters: see feedLink.ts)
+ *   #/earn                   the catalogue, by asset
  *   #/USD?u=USDC&s=<id>&k=loop   asset page + ticket
- *   #/feed                   the feed          (?t=following|everyone|menu, filters: see feedLink.ts)
  *   #/w/0x…                  a wallet
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
  *   #/board                  the leaderboard   (?w=24h|7d|30d|all)
@@ -19,9 +18,12 @@ import { readFeedLink } from './feedLink'
  *   #/alerts                 what happened while you were away
  *   #/t                      the asset book (every token the index lends)
  *   #/t/<group>              one asset (group percent-encoded: `Lista Staked BNB::slisBNB`)
+ *
+ * Two old heads are still read, so links already out in the world land:
+ * `#/feed` is the home (the feed moved onto it) and `#/explore` is `#/earn`.
  */
 export type Mode = 'add' | 'reduce' | 'close' | 'manage'
-export type View = 'home' | 'explore' | 'group' | 'feed' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token'
+export type View = 'home' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token'
 export interface Route {
   view: View
   group?: string
@@ -63,8 +65,7 @@ export function parseRoute(hash = location.hash): Route {
     copy: p.get('copy') ?? undefined,
   }
   const head = seg[0]
-  if (head === 'feed') return { view: 'feed', ...base }
-  if (head === 'explore') return { view: 'explore', ...base }
+  if (head === 'earn' || head === 'explore') return { view: 'earn', ...base }
   if (head === 'board') return { view: 'board', ...base }
   if (head === 'me') return { view: 'me', ...base }
   if (head === 'alerts') return { view: 'alerts', ...base }
@@ -169,7 +170,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [chains, setChainsRaw] = React.useState<string[]>(init.chains)
   const [chainsFromLink, setChainsFromLink] = React.useState(init.fromLink)
   const store = (next: string[]) => { try { localStorage.setItem(LS, JSON.stringify(next)) } catch { /* private mode */ } }
-  // a link's chains are kept like a pick in the header would be
+  // a link's chains are kept like a pick in the profile sheet would be
   React.useEffect(() => { if (init.fromLink) store(init.chains) }, [init])
   const apply = (c: string[]) => {
     const next = c.length === CHAINS.length ? [] : c

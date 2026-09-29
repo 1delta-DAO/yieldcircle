@@ -5,10 +5,10 @@ import type { LoopStrategy, LoopTerm, SimpleStrategy, Strategy } from '../model/
 import type { LoopActions } from '../sdk/types'
 import { nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
 import { earnDeposit, earnWithdraw, loopClose, loopOpen, ZERO } from '../sdk/api'
-import { chainLabel, useIrm, useLoopPayAssets, useLoopQuote } from '../sdk/queries'
+import { chainLabel, useCloseQuote, useIrm, useLoopPayAssets, useLoopQuote } from '../sdk/queries'
 import { useApp, type Mode } from '../state/AppState'
 import { useSticky } from '../state/sticky'
-import { DecimalInput, Info, KindPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
+import { DecimalInput, Info, KindPill, LegsPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
 import { Who } from './social-bits'
 import { useProfiles } from '../social/queries'
 import { stepsFrom, useLadder, type Ladder, type Step } from './useLadder'
@@ -37,7 +37,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: St
       <div className="grab" />
       <div className="th">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />}
         <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part{s.terms ? <>, fixed for the term you pick</> : ''}.</> : <SimpleWords s={s} />}</Info></div><div className="s">{s.asset} strategy · {s.kind === 'loop' ? `${s.venue}${s.terms ? ' · fixed rate' : ''}` : s.via} · {chainLabel(s.chainId)}</div></div>
-        <KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
+        <KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} />{holding && <LegsPill others={holding.others} />}<button className="x" onClick={onClose} aria-label="Close">✕</button></div>
       {holding && (
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
           <button role="tab" aria-selected={mode === 'add'} onClick={() => setMode('add')}>Add</button>
@@ -69,7 +69,7 @@ export function HoldingTicket({ h, onClose }: { h: Holding; onClose: () => void 
       <div className="grab" />
       <div className="th"><Tok sym={h.symbol} logo={h.logo} size={26} />
         <div style={{ flex: 1, minWidth: 0 }}><div className="n">{h.label.split(' · ')[0]}</div><div className="s">{h.asset} position · {h.venue} · {chainLabel(h.chainId)}</div></div>
-        <KindPill kind={h.kind} /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
+        <KindPill kind={h.kind} /><LegsPill others={h.others} /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
       <div className="tsec"><div className="modes"><span className="t50" style={{ fontSize: 12 }}>Not in the menu — you can {h.kind === 'loop' ? 'deleverage or close' : 'withdraw from'} it here.</span>
         <span className="sp" /><span className="sum">{usd(h.valueUsd)}{h.kind === 'loop' && h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}{h.health != null ? ` · health ${h.health.toFixed(2)}` : ''}</span></div></div>
       {h.kind === 'loop' ? <ManageLoop s={null} h={h} /> : <ManageTicket s={null} h={h} mode="reduce" />}
@@ -326,6 +326,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
         <div className="seg" style={{ marginBottom: 10 }}>{opts.map((o) => <button key={o.role} aria-pressed={chosen?.role === o.role} onClick={() => setRole(o.role)}><Tok sym={o.symbol} logo={o.logo} size={16} /> {o.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? (balOf(o.address, o.symbol) ? num(balOf(o.address, o.symbol)!.amount, 2) : '0') : ''}</span></button>)}</div>
         <AmountBox unit={chosen?.symbol ?? unit} value={amount} onChange={setAmount} onMax={bal ? () => setAmount(bal.amount) : undefined} />
         <div className="amt-sub"><span>≈ {usd(E)} equity</span><span>{account ? <>Idle: {bal ? `${num(bal.amount, 4)} ${chosen?.symbol}` : `0 ${chosen?.symbol ?? ''}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
+        {holding && <LegsNote h={holding} holds={s.holds} debt={s.debt} adding />}
         {chosen && <GetLine account={account} short={!bal || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />}
         {getOpen && chosen && <GetAsset target={{ chainId: s.chainId, address: chosen.address, symbol: chosen.symbol, decimals: chosen.decimals, price: price || 1, logo: chosen.logo }} need={Math.max(0, amount - (bal?.amount ?? 0))} sources={allIdle} onClose={() => setGetOpen(false)} />}
         {s.terms && term && <>
@@ -450,7 +451,9 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const E = Math.max(h.valueUsd, 0.01)
   const Lnow = Math.max(1, h.leverage && h.leverage > 1 ? h.leverage : s?.priceLong ? (h.amount * s.priceLong) / E : 1)
   const C = E * Lnow, D = C - E
-  const pC = s?.priceLong ?? (h.amount > 0 ? C / h.amount : 0)
+  // off the menu the price is read back from the position — from the loop's OWN collateral leg: the
+  // account's total counts every collateral, and a second one would inflate it
+  const pC = s?.priceLong ?? (h.amount > 0 ? (h.collateralUsd ?? C) / h.amount : 0)
   const pD = s?.priceShort ?? 0
   // off the menu, the threshold is read back from the health the position reports: HF = L · lt / (L − 1)
   const liqLtv = s?.liqLtv ?? (h.health != null && Lnow > 1 ? (h.health * (Lnow - 1)) / Lnow : null)
@@ -477,11 +480,37 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const net = closing || !s ? null : netAprAtLeverage(s.depSpot, borAt(D2 - D), L)
   const drop = closing ? 1 : liqLtv != null ? liqBuffer(liqLtv, L) : null
   const hf = closing ? Infinity : liqLtv != null ? healthAt(liqLtv, L) : null
-  const key = [s?.id ?? h.key, 'manage', L, account ?? ''].join('|')
+  // A full close pays out in the debt token (sell everything, repay, the rest comes back) or in the
+  // collateral (sell only what repays the debt, keep the rest). Both are the same call: `isAll`
+  // withdraws ALL the collateral, the swap takes the `amount` it is given, and what the swap and the
+  // repay leave over is swept to the wallet — so keeping the collateral is only a smaller `amount`.
+  // Both are sized off what the sale fetches on the MARKET, never off the position's own value: that
+  // is the lender's oracle, and an LST priced at its redemption rate sells for less than it says.
+  const collUid = h.collateralUid ?? s?.marketLongUid ?? '', debtUid = h.debtUid ?? s?.marketShortUid ?? ''
+  const otherColl = (h.others ?? []).filter((o) => o.side === 'collateral'), otherUsd = otherColl.reduce((t, o) => t + o.usd, 0)
+  const sameToken = holds === debt
+  const [recv, setRecv] = useSticky<'debt' | 'collateral'>(`t:${h.key}:recv`, 'debt')
+  const keep = closing && !sameToken && recv === 'collateral'
+  const owed = loan ? loan.debt : h.debtAmount ?? (pD ? D / pD : 0)
+  const pDebt = pD || (owed > 0 ? D / owed : 0)
+  const cq = useCloseQuote(closing && collUid && debtUid ? { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: toRaw(h.amount, h.decimals), accountId: h.accountId, loanId: loan?.id } : null)
+  const sale = cq.data ?? null
+  const rate = sale ? sale.output / sale.input : null
+  const covers = sale ? sale.output >= owed * (1 + CLOSE_INTEREST_PAD) : null
+  const tight = !!sale && covers && sale.output * (1 - 0.005) < owed
+  const backDebt = sale ? sale.output - owed : null
+  const sellKeep = rate ? (owed * (1 + CLOSE_KEEP_PAD)) / rate : null
+  const keepOk = sellKeep != null && sellKeep < h.amount
+  const backColl = keepOk ? h.amount - sellKeep! : null
+  const leftover = owed * CLOSE_KEEP_PAD
+  const backUsd = !sale ? null : keep ? (keepOk ? (backColl! * rate! + leftover) * pDebt : null) : backDebt! * pDebt
+  const closeBlock = !closing ? null : cq.isPending ? 'pricing' : !sale ? 'no-route' : !covers ? 'short' : keep && !keepOk ? 'keep-short' : null
+  const key = [s?.id ?? h.key, 'manage', L, keep ? 'keep' : 'sell', account ?? ''].join('|')
   const ladder = useLadder(key, h.chainId, async () => {
     if (down || !s) {
-      const env = await loopClose({ collateralMarketUid: h.collateralUid ?? s!.marketLongUid, debtMarketUid: h.debtUid ?? s!.marketShortUid, amountRaw: toRaw(closing ? h.amount : sellTok, h.decimals), slippageBp: 50, isAll: closing, account: account!, accountId: h.accountId, loanId: loan?.id })
-      return stepsFrom(env.actions, closing ? 'Close the loop' : `Deleverage to ${num(L, 2)}×`, h.chainId)
+      const amountRaw = toRaw(closing ? (keep ? sellKeep! : h.amount) : sellTok, h.decimals)
+      const env = await loopClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: 50, isAll: closing, account: account!, accountId: h.accountId, loanId: loan?.id })
+      return stepsFrom(env.actions, closing ? `Close the loop · receive ${keep ? holds : debt}` : `Deleverage to ${num(L, 2)}×`, h.chainId)
     }
     // a pure leverage step: borrow more against what is there, no new margin
     const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: 50, leverage: L, account: account! })
@@ -492,25 +521,72 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
     <>
       <div className="tsec">
         <span className="lbl">Leverage <Info label="Managing a loop">Drag left to deleverage: collateral is sold into {debt} to repay debt, and at 1× everything is sold and the loop is closed.{s && !loan ? <> Drag right to borrow more {debt} and buy more {holds}.</> : ''} Either way it is one transaction.</Info></span>
+        <LegsNote h={h} holds={holds} debt={debt} />
         {loans.length > 1 && <div className="seg" role="radiogroup" aria-label="Which loan" style={{ marginBottom: 10 }}>{loans.map((x) => <button key={x.id} role="radio" aria-checked={x.id === loan?.id} aria-pressed={x.id === loan?.id} onClick={() => { setLoanId(x.id); setL(Lnow) }}>Loan {x.id}<span className="c" style={{ marginLeft: 6 }}>{usdShort(x.debtUsd)}</span></button>)}</div>}
         {maxL > minL && <div className="levr"><span className="t50 mono" style={{ fontSize: 11 }}>{minL <= 1 ? 'close' : 'repaid'}</span><input type="range" min={minL} max={maxL} step={0.01} value={L} onChange={(e) => setL(parseFloat(e.target.value))} aria-label="Target leverage" style={{ ['--now' as string]: `${((Lnow - minL) / (maxL - minL)) * 100}%` }} className="lev-now" /><span className="v">{closing ? 'closed' : `${num(L, 2)}×`}</span></div>}
         <div className="snaps">{snaps.map((x) => <button key={x.t} className={`pctb ${Math.abs(L - x.l) < 0.02 ? 'on' : ''}`} onClick={() => setL(x.l)}>{x.t}{x.t !== 'Close' ? ` ${num(x.l, x.t === 'Now' ? 2 : 1)}×` : ''}</button>)}</div>
+        {closing && !sameToken && <>
+          <span className="lbl" style={{ marginTop: 12 }}>Receive <Info label="How a close pays out">In <b>{debt}</b>: all your {holds} is sold, the debt is repaid, and what is left of the sale comes to your wallet.<br />In <b>{holds}</b>: only enough {holds} is sold to repay the debt (with a 1% margin for the fill), and the rest of your {holds} is withdrawn to your wallet, with the small {debt} surplus of that margin.</Info></span>
+          <div className="seg" role="radiogroup" aria-label="Receive">{([['debt', debt, backDebt], ['collateral', holds, backColl]] as const).map(([k, sym, amt]) => <button key={k} role="radio" aria-checked={recv === k} aria-pressed={recv === k} onClick={() => setRecv(k)}>{sym}{amt != null && amt > 0 && <span className="c" style={{ marginLeft: 6 }}>≈ {num(amt, 4)}</span>}</button>)}</div>
+        </>}
         <div className="plain" style={{ marginTop: 8 }}>{same ? <span className="t50">You are at {num(Lnow, 2)}×. Move the slider to {s && !loan ? 'change' : 'reduce'} it.</span>
-          : closing ? <>Sell all <b>{num(h.amount, 4)} {holds}</b> into {debt}, repay the <b>{usd(D)}</b> debt, and the rest (<b>{usd(h.valueUsd)}</b>) goes to your wallet as {debt}.</>
+          : closing ? (closeBlock === 'pricing' ? <span className="t50">Pricing the sale of {num(h.amount, 4)} {holds}…</span>
+            : closeBlock === 'no-route' ? <span className="t50">No swap route for {num(h.amount, 4)} {holds} into {debt} right now.</span>
+            : closeBlock === 'short' ? <>Selling all <b>{num(h.amount, 4)} {holds}</b> fetches <b>{num(sale!.output, 4)} {debt}</b> on the market, less than the <b>{num(owed, 4)} {debt}</b> you owe.</>
+            : keep ? <>Sell ≈ <b>{num(sellKeep!, 4)} {holds}</b> into {debt}, repay the <b>{num(owed, 4)} {debt}</b> debt, and withdraw the other{keepOk ? <> <b>≈ {num(backColl!, 4)} {holds}</b></> : ''} to your wallet, with ≈ {num(leftover, 4)} {debt} left over from the sale.</>
+            : <>Sell all <b>{num(h.amount, 4)} {holds}</b> into ≈ {num(sale!.output, 4)} {debt}, repay the <b>{num(owed, 4)} {debt}</b> debt, and <b>≈ {num(backDebt!, 4)} {debt}</b> comes back to your wallet.</>)
           : down ? <>Sell <b>{num(sellTok, 4)} {holds}</b> (≈ {usd(sellUsd)}) into {debt} and repay that much debt.</>
           : <>Borrow <b>{num(borrowTok, 4)} {debt}</b> (≈ {usd(borrowUsd)}) more and buy {holds} with it.</>}</div>
         {loan && !same && <div className="plain t50" style={{ marginTop: 6 }}>This repays {loans.length > 1 ? `loan ${loan.id}` : 'your fixed-rate loan'}{minL > 1 ? `, which is ${usd(loan.debtUsd)} of the ${usd(D)} you owe` : ''}. Before its term ends the broker adds a penalty of about half the interest the repaid part would still pay.</div>}
-        {h.valueUsd <= 0 && <div className="err" style={{ marginTop: 8 }}>This loop has no equity left: the collateral is worth less than the debt, so selling it cannot repay everything. Closing may fail; add {debt} on the venue to repay first.</div>}
+        {closeBlock === 'short' && otherColl.length > 0 && <div className="err" style={{ marginTop: 8 }}>A close would revert: selling your {holds} cannot repay the whole debt on its own{sale && owed > 0 ? <> (about <b>{num(owed * (1 + CLOSE_INTEREST_PAD) - sale.output, 4)} {debt}</b> short)</> : ''}. Part of what backs the debt is {legList(otherColl)}, which this close does not sell. Repay that much {debt} on {h.venue} first, or sell some of the {otherColl.map((o) => o.symbol).join(' and ')} into {debt} there.</div>}
+        {closeBlock === 'short' && !otherColl.length && <div className="err" style={{ marginTop: 8 }}>A close would revert: the sale cannot repay the debt. {h.venue} values your {holds} at its own oracle ({usd(h.valueUsd)} of equity), above what it sells for right now{sale && owed > 0 ? <>, which leaves you about <b>{num(owed * (1 + CLOSE_INTEREST_PAD) - sale.output, 4)} {debt}</b> short</> : ''}. Repay that much {debt} on the venue first, or wait for {holds} to trade closer to its oracle.</div>}
+        {closeBlock === 'keep-short' && <div className="err" style={{ marginTop: 8 }}>Repaying {num(owed, 4)} {debt} with a 1% margin for the fill takes ≈ {num(sellKeep!, 4)} {holds}, more than the {num(h.amount, 4)} you hold. Take the payout in {debt} instead.</div>}
+        {tight && !closeBlock && <div className="plain warn" style={{ marginTop: 6 }}>Tight: a fill at the worst the 0.5% slippage allows would not cover the debt, and the close would revert (only gas is lost).</div>}
+        {h.valueUsd <= 0 && closeBlock !== 'short' && <div className="err" style={{ marginTop: 8 }}>This loop has no equity left: the collateral is worth less than the debt, so selling it cannot repay everything. Closing may fail; add {debt} on the venue to repay first.</div>}
       </div>
       <div className="tsec"><div className="cells">
         {s && !loan && <div className="c hero"><span className="k">Net yield after</span><span className={`v ${net == null ? '' : net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{net == null ? '—' : pct(net)}</span><span className="s">{closing ? 'position closed' : `was ${pct(netAprAtLeverage(s.depSpot, s.borSpot, Lnow))} at ${num(Lnow, 2)}×`}</span></div>}
-        <div className="c"><span className="k">You hold</span><span className="v">{usd(C2)}</span><span className="s">{holds} · was {usd(C)}</span></div>
+        <div className="c"><span className="k">You hold</span><span className="v">{usd(Math.max(0, C2 - otherUsd))}</span><span className="s">{holds} · was {usd(C - otherUsd)}{otherUsd > 0.5 ? ` · + ${usd(otherUsd)} ${otherColl.map((o) => o.symbol).join(' + ')} stays` : ''}</span></div>
         <div className="c"><span className="k">You owe</span><span className="v">{usd(D2)}</span><span className="s">{debt} · was {usd(D)}</span></div>
-        <div className="c"><span className="k">Health after</span><span className={`v ${closing || hf == null ? '' : hf < 1.1 ? 'bad' : hf < 1.25 ? 'warn' : 'ok'}`}>{closing || hf == null ? '—' : hf.toFixed(2)}</span><span className="s">{h.health != null ? `now ${h.health.toFixed(2)}` : ''}</span></div>
-        <div className="c"><span className="k">Buffer after</span><span className={`v ${closing || drop == null ? '' : drop < 0.05 ? 'bad' : drop < 0.1 ? 'warn' : ''}`}>{closing || drop == null ? '—' : `−${pct(drop * 100, 1)}`}</span><span className="s">{closing || drop == null ? '' : `${holds} fall that liquidates`}</span></div>
+        {closing ? <>
+          <div className="c"><span className="k">You get back</span><span className={`v ${closeBlock === 'short' ? 'bad' : ''}`}>{cq.isPending ? <Sk w={60} h={14} /> : backUsd != null && backUsd > 0 ? usd(backUsd) : '—'}</span><span className="s">{closeBlock ? (closeBlock === 'short' ? 'the sale does not cover the debt' : closeBlock === 'keep-short' ? 'not enough to keep any' : '') : keep ? `≈ ${num(backColl!, 4)} ${holds} + ${num(leftover, 4)} ${debt}` : `≈ ${num(backDebt!, 4)} ${debt} · at market, not ${usd(h.valueUsd)}`}</span></div>
+          <div className="c"><span className="k">Exit cost</span><span className="v">{sale?.exitCostUsd != null ? usd(sale.exitCostUsd * (keep && keepOk ? sellKeep! / h.amount : 1)) : '—'}</span><span className="s">{sale?.via ? `slippage and fees · via ${sale.via}` : 'slippage and fees'}</span></div>
+        </> : <>
+          <div className="c"><span className="k">Health after</span><span className={`v ${hf == null ? '' : hf < 1.1 ? 'bad' : hf < 1.25 ? 'warn' : 'ok'}`}>{hf == null ? '—' : hf.toFixed(2)}</span><span className="s">{h.health != null ? `now ${h.health.toFixed(2)}` : ''}</span></div>
+          <div className="c"><span className="k">Buffer after</span><span className={`v ${drop == null ? '' : drop < 0.05 ? 'bad' : drop < 0.1 ? 'warn' : ''}`}>{drop == null ? '—' : `−${pct(drop * 100, 1)}`}</span><span className="s">{drop == null ? '' : `${holds} fall that liquidates`}</span></div>
+        </>}
       </div></div>
-      <Action ladder={ladder} label={same ? 'Nothing to change' : closing ? `Close · sell all ${holds}` : down ? `Deleverage to ${num(L, 2)}× · sell ${num(sellTok, 4)} ${holds}` : `Increase to ${num(L, 2)}× · borrow ${num(borrowTok, 4)} ${debt}`} account={account} isConnected={isConnected} disabled={same} chainId={h.chainId} />
+      <Action ladder={ladder} label={same ? 'Nothing to change' : closing ? (keep ? `Close · sell ≈ ${num(sellKeep ?? 0, 4)} ${holds}, keep the rest` : `Close · sell all ${holds} for ${debt}`) : down ? `Deleverage to ${num(L, 2)}× · sell ${num(sellTok, 4)} ${holds}` : `Increase to ${num(L, 2)}× · borrow ${num(borrowTok, 4)} ${debt}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock} chainId={h.chainId} />
     </>
+  )
+}
+/**
+ * A full close is sized off a market quote taken seconds before the block. INTEREST: the debt grows
+ * and the price moves in between, so a sale that only just covers it is refused. KEEP: keeping the
+ * collateral sells what repays the debt plus this margin, twice the 0.5 % slippage, and the surplus
+ * comes back in the debt token.
+ */
+const CLOSE_INTEREST_PAD = 0.002, CLOSE_KEEP_PAD = 0.01
+
+type Leg = NonNullable<Holding['others']>[number]
+const legList = (ls: Leg[]) => ls.map((o) => `${num(o.amount, 4)} ${o.symbol} (${usd(o.usd)})`).join(' and ')
+/**
+ * A loop account with legs beyond the one pair the ticket builds on. Nothing here can manage them:
+ * a close sells the loop's own collateral and repays its own debt, and every other leg stays where it
+ * is — which also means a close can come up short when the other collateral carried part of the
+ * debt. Said before anything is signed, with the account-wide numbers above flagged as such.
+ */
+function LegsNote({ h, holds, debt, adding }: { h: Holding; holds: string; debt: string; adding?: boolean }) {
+  const coll = (h.others ?? []).filter((o) => o.side === 'collateral'), debts = (h.others ?? []).filter((o) => o.side === 'debt')
+  if (!coll.length && !debts.length) return null
+  return (
+    <div className="caution">
+      <b>This position has more than one {coll.length && debts.length ? 'collateral and debt' : coll.length ? 'collateral' : 'debt'}.</b>{' '}
+      Besides {holds} against {debt}, the account holds {[coll.length ? `${legList(coll)} as collateral` : '', debts.length ? `${legList(debts)} of debt` : ''].filter(Boolean).join(', and ')}.{' '}
+      {adding
+        ? <>Adding builds on {holds} and {debt} only; the leverage and health shown count the whole account.</>
+        : <>YieldCircle manages {holds} against {debt} only: deleveraging and closing sell {holds} and repay {debt}{coll.length ? <>, and the {coll.map((o) => o.symbol).join(' and ')} stays deposited — withdraw it on {h.venue}</> : ''}{debts.length ? <>. The {debts.map((o) => o.symbol).join(' and ')} debt stays open, so a full close can revert while it is backed by what you withdraw</> : ''}. Equity, leverage and health here are the whole account's.</>}
+    </div>
   )
 }
 

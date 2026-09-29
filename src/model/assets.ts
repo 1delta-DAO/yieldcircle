@@ -18,8 +18,12 @@ export const group = (id: GroupId) => GROUPS.find((g) => g.id === id)!
 /** Base assets we present, keyed by upper-cased symbol → { canonical symbol, group, what, colour }. */
 const BASE: Record<string, { sym: string; group: GroupId; what: string; color: string }> = {
   USDC: { sym: 'USDC', group: 'USD', what: 'Circle stablecoin', color: '#2775ca' },
-  USDT: { sym: 'USDT', group: 'USD', what: 'Tether stablecoin', color: '#26a17b' },
-  USDT0: { sym: 'USDT0', group: 'USD', what: 'Tether omnichain dollar (LayerZero OFT) · the gas coin of Stable', color: '#26a17b' },
+  // USDT0 — the LayerZero omnichain deployment, and the gas coin of Stable — is deliberately
+  // NOT a base asset: it IS USDT (one lock-box of USDT on Ethereum backs every USDT0), and
+  // token-lists already unifies the group (assetGroupUnifier `USDT0 → USDT`). It folds in
+  // through WRAPPER below, so a wallet's USDT0 and its USDT are one row of the USD group,
+  // exactly as USDT.e is. Same for Tether Gold's XAUt0.
+  USDT: { sym: 'USDT', group: 'USD', what: 'Tether stablecoin · USDT0 on newer chains', color: '#26a17b' },
   USDS: { sym: 'USDS', group: 'USD', what: 'Sky (Maker) stablecoin', color: '#f5ac37' },
   DAI: { sym: 'DAI', group: 'USD', what: 'Maker stablecoin', color: '#f5ac37' },
   USDE: { sym: 'USDe', group: 'USD', what: 'Ethena synthetic dollar · hedged ETH/BTC basis', color: '#bdbdbd' },
@@ -53,8 +57,9 @@ const BASE: Record<string, { sym: string; group: GroupId; what: string; color: s
   // The gas coins of the other chains the app offers. They are here for the same reason BNB and
   // AVAX are: a wallet's gas balance is money it holds, and without an entry it draws a hashed
   // colour and describes itself with its own ticker. `nativeSymbol` in positions.ts says which
-  // chain each one belongs to. Arc's and Stable's gas coins are USDC and USDT0, which are already
-  // above — a dollar does not become another asset by being the thing you pay fees with.
+  // chain each one belongs to. Arc's and Stable's gas coins are USDC and USDT0, which resolve
+  // above (USDT0 through WRAPPER) — a dollar does not become another asset by being the thing
+  // you pay fees with.
   HYPE: { sym: 'HYPE', group: 'MORE', what: 'Hyperliquid native coin', color: '#1a9e8f' },
   MON: { sym: 'MON', group: 'MORE', what: 'Monad native coin', color: '#836ef9' },
   POL: { sym: 'POL', group: 'MORE', what: 'Polygon native coin (formerly MATIC)', color: '#8247e5' },
@@ -62,7 +67,7 @@ const BASE: Record<string, { sym: string; group: GroupId; what: string; color: s
   PLUME: { sym: 'PLUME', group: 'MORE', what: 'Plume native coin', color: '#64748b' },
   // Tempo's gas coin. It is dollar-priced but it sits in `MORE`, not `USD`: the USD group is what
   // `sameMoney` reads to call a loop carry rather than a price bet, and that claim needs more than
-  // a ticker ending in USD. Arc's USDC and Stable's USDT0 are in `USD` because they are USDC and USDT0.
+  // a ticker ending in USD. Arc's USDC and Stable's USDT0 are in `USD` because they are USDC and USDT.
   PATHUSD: { sym: 'pathUSD', group: 'MORE', what: 'Tempo native coin · dollar-priced', color: '#64748b' },
   EURC: { sym: 'EURC', group: 'MORE', what: 'Circle euro stablecoin', color: '#2775ca' },
   EURCV: { sym: 'EURCV', group: 'MORE', what: 'Société Générale euro stablecoin', color: '#e9041e' },
@@ -80,6 +85,9 @@ const WRAPPER: Record<string, string> = {
   // these, shMON resolved to MON only by falling back to the DEBT leg's symbol.
   SHMON: 'MON', SMON: 'MON', GMON: 'MON', APRMON: 'MON',
   KHYPE: 'HYPE', STHYPE: 'HYPE', WSTHYPE: 'HYPE', BEHYPE: 'HYPE', LSTHYPE: 'HYPE', SHYPE: 'HYPE', HYPED: 'HYPE', VHYPE: 'HYPE',
+  // Tether's omnichain (LayerZero OFT) deployments: the same money under a 0-suffixed ticker
+  // (see the USDT note in BASE). Balances keep their own symbol and address — only the ASSET merges.
+  USDT0: 'USDT', XAUT0: 'XAUt',
   // Avalanche's bridged ERC-20s keep a '.e' suffix; the same money either way
   'USDC.E': 'USDC', 'USDT.E': 'USDT', 'DAI.E': 'DAI', 'WETH.E': 'ETH', 'WBTC.E': 'WBTC',
   WSTETH: 'ETH', STETH: 'ETH', WEETH: 'ETH', EETH: 'ETH', CBETH: 'ETH', RETH: 'ETH', EZETH: 'ETH', RSETH: 'ETH', OSETH: 'ETH', METH: 'ETH', FRXETH: 'ETH', SFRXETH: 'ETH', ETHX: 'ETH', SWETH: 'ETH',

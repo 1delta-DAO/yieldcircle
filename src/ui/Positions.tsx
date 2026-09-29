@@ -13,7 +13,7 @@ import React from 'react'
 import { GROUPS, whatIs, type GroupId } from '../model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
-import { GroupIcon, KindPill, Sk, Tok, amt, pct, usd } from './bits'
+import { GroupIcon, KindPill, LegsPill, Sk, Tok, amt, pct, usd } from './bits'
 import type { AssetBook, Holding } from '../model/positions'
 import { chainLabel } from '../sdk/queries'
 
@@ -81,12 +81,14 @@ function GroupCard({ gid, books, directional }: { gid: GroupId; books: AssetBook
           title={`${directional.map((h) => h.label.replace(' loop', '')).join(', ')} — the debt is in another denomination, so it is a price bet rather than a carry. Not counted in the group total.`}>
           {directional.length} price bet{directional.length > 1 ? 's' : ''} <span className="m">{usd(dirUsd)}</span></button>}
       </div>
-      {open && (
-        <div className="list">
-          {books.map((b) => <AssetRows key={b.asset} b={b} />)}
-          {directional.length > 0 && <div className="empty" style={{ borderTop: '1px solid var(--line)' }}>{directional.length} directional loop{directional.length > 1 ? 's' : ''} ({directional.map((h) => h.label.replace(' loop', '')).join(', ')}) with {usd(dirUsd)} equity not shown: the debt is in another denomination, so it is a price bet rather than a carry.</div>}
+      <div className={`gsum-x${open ? ' open' : ''}`} inert={!open}>
+        <div className="gsum-xi">
+          <div className="gsum-xw">
+            {books.map((b) => <AssetDetail key={b.asset} b={b} />)}
+            {directional.length > 0 && <div className="empty" style={{ borderTop: '1px solid var(--line-soft)' }}>{directional.length} directional loop{directional.length > 1 ? 's' : ''} ({directional.map((h) => h.label.replace(' loop', '')).join(', ')}) with {usd(dirUsd)} equity not shown: the debt is in another denomination, so it is a price bet rather than a carry.</div>}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -105,29 +107,37 @@ function AssetPill({ b }: { b: AssetBook }) {
     </button>
   )
 }
-export function AssetRows({ b, sel }: { b: AssetBook; sel?: string }) {
+/**
+ * One asset inside the expanded card: a slim caption naming the asset, then a
+ * flat two-line row per place its money sits. Nothing here repeats the pill —
+ * the caption carries the token amount, the rows carry the where and the what.
+ */
+function AssetDetail({ b }: { b: AssetBook }) {
   const g = GROUPS.find((x) => x.id === b.group)!
   return (
-    <>
-      <div className="row arow"><div className="nm"><Tok sym={b.asset} /><span>{b.asset}</span><span className="t50 hide-m" style={{ fontWeight: 400, fontSize: 12 }}>{whatIs(b.asset)}</span></div>
-        <div className="v">{g.unit === '$' || !b.idle?.price ? usd(b.totalUsd) : amt(b.asset, b.idle.amount + b.atWorkUsd / b.idle.price)}<small>{b.holdings.length ? `${pct(b.blended)} on the part at work` : 'nothing at work'}</small></div></div>
+    <div className="xasset">
+      <div className="xh"><Tok sym={b.asset} size={15} /><span className="t">{b.asset}</span><span className="d">{whatIs(b.asset)}</span><span className="sp" />
+        <span className="m">{g.unit === '$' || !b.idle?.price ? usd(b.totalUsd) : amt(b.asset, b.idle.amount + b.atWorkUsd / b.idle.price)}</span></div>
       {b.idle && b.idle.usd >= 1 && (
-        <button className={`row prow idle${b.holdings.length ? '' : ' last'}`} onClick={() => go(b.group, { u: b.asset })}>
-          <div className="nm"><span className="tok" style={{ background: '#1f1f1f', color: 'var(--tx50)' }}>—</span><span>Idle <span className="t50">· in wallet, earning nothing</span></span></div>
-          <div className="sub hide-m">{b.idle.chainId ? chainLabel(b.idle.chainId) : ''}</div>
-          <div className="v">{amt(b.asset, b.idle.amount, b.idle.usd)}<small>{g.unit === '$' ? '0%' : usd(b.idle.usd)}</small></div>
-          <div className="v t50" style={{ fontSize: 12.5 }}>Put to work ›</div>
+        <button type="button" className="xrow idle" onClick={() => go(b.group, { u: b.asset })}>
+          <span className="tok xdash" aria-hidden>—</span>
+          <span className="xt"><span className="n">Idle in wallet</span>
+            <small>{b.idle.chainId ? `${chainLabel(b.idle.chainId)} · ` : ''}earning nothing</small></span>
+          <span className="sp" />
+          <span className="xv"><b>{amt(b.asset, b.idle.amount, b.idle.usd)}</b><small className="pri">Put to work ›</small></span>
         </button>
       )}
-      {b.holdings.map((h, i) => (
-        <button key={h.key} className={`row prow${i === b.holdings.length - 1 ? ' last' : ''}`} aria-selected={sel === h.earnUid} onClick={() => go(h.group, { u: h.asset, k: h.kind })}>
-          <div className="nm"><Tok sym={h.label.split(' ')[0]} logo={h.logo} /><span>{h.label}</span><KindPill kind={h.kind} /></div>
-          <div className="sub hide-m">{h.venue} · {chainLabel(h.chainId)}{h.health != null ? <> · health <span className={h.health < 1.15 ? 'warn' : ''}>{h.health.toFixed(2)}</span></> : ''}</div>
-          <div className="v">{usd(h.valueUsd)}<small>{h.kind === 'loop' ? 'equity' : 'deposit'}</small></div>
-          <div className="v ok">{h.apr != null ? pct(h.apr) : <span className="t40">—</span>}<small>{h.leverage && h.leverage > 1.05 ? `${h.leverage.toFixed(1)}× · ` : ''}≈ {usd(h.valueUsd * (h.apr ?? 0) / 100)}/yr</small></div>
+      {b.holdings.map((h) => (
+        <button key={h.key} type="button" className="xrow" onClick={() => go(h.group, { u: h.asset, k: h.kind })}>
+          <Tok sym={h.label.split(' ')[0]} logo={h.logo} size={20} />
+          <span className="xt"><span className="n"><span>{h.label}</span><KindPill kind={h.kind} /><LegsPill others={h.others} /></span>
+            <small>{h.venue} · {chainLabel(h.chainId)}{h.health != null ? <> · health <span className={h.health < 1.15 ? 'warn' : ''}>{h.health.toFixed(2)}</span></> : ''}</small></span>
+          <span className="sp" />
+          <span className="xv"><b>{usd(h.valueUsd)}</b>
+            <small>{h.apr != null ? <span className="ok">{pct(h.apr)}</span> : '—'}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''} · ≈ {usd(h.valueUsd * (h.apr ?? 0) / 100)}/yr</small></span>
         </button>
       ))}
-    </>
+    </div>
   )
 }
 

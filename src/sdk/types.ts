@@ -162,6 +162,8 @@ export interface LoopQuoteData {
   economics?: TradeEconomics | null
   simulation?: { pre?: { healthFactor?: number }; post?: { healthFactor?: number } }
 }
+/** `/loop/close`: the same quotes, with an exit's economics instead of an entry's */
+export interface LoopCloseData extends Omit<LoopQuoteData, 'economics'> { economics?: { exitCostUsd?: { total?: number } } | null }
 export interface LoopPayAsset { address: string; symbol: string; decimals?: number; logoURI?: string; role: 'collateral' | 'debt' | 'native'; wrapsTo?: string; wrapsRole?: 'collateral' | 'debt' }
 export interface LoopPayAssetsData { payAssets: LoopPayAsset[]; strict: boolean; notes: string[] }
 

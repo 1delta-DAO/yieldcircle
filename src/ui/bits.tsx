@@ -182,6 +182,16 @@ export function Toks({ a, b, logoA, logoB }: { a: string; b?: string; logoA?: st
 export function RiskDot({ r, label, dotOnly }: { r: Risk; label?: string; dotOnly?: boolean }) {
   return <span className={`risk r${r}`} title={label ? `${label} risk` : undefined}><i />{!dotOnly && (label ?? ['', 'Low', 'Medium', 'High'][r])}</span>
 }
+/**
+ * A loop account with more legs than the one pair the tickets build on: `+1 collateral`, `+1 debt`.
+ * The title names each leg, so the list says it before a close does.
+ */
+export function LegsPill({ others }: { others?: { side: 'collateral' | 'debt'; symbol: string; usd: number }[] }) {
+  if (!others?.length) return null
+  const n = (side: 'collateral' | 'debt') => others.filter((o) => o.side === side).length
+  const words = (['collateral', 'debt'] as const).filter((k) => n(k)).map((k) => `+${n(k)} ${k}${n(k) > 1 ? 's' : ''}`).join(' ')
+  return <span className="pill legs" title={`Also in this account: ${others.map((o) => `${o.symbol} ${usd(o.usd)} (${o.side})`).join(', ')}. The ticket manages one collateral against one debt; the rest is left as it is.`}>{words}</span>
+}
 export function KindPill({ kind, source }: { kind: 'simple' | 'loop'; source?: string }) {
   if (kind === 'loop') return <span className="pill loop">Loop</span>
   if (source === 'fixed') return <span className="pill pt">Fixed</span>

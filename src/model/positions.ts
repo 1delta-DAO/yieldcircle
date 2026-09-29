@@ -41,6 +41,15 @@ export interface Holding {
    * repay the others.
    */
   loans?: { id: string; debt: number; debtUsd: number }[]
+  /** the loop's own collateral leg, in dollars — `valueUsd` is the whole account's equity */
+  collateralUsd?: number
+  /**
+   * Every OTHER leg of the account, largest first. A loop here is one collateral against one debt, so
+   * a second collateral (or a second debt) is carried by the account but not by anything the ticket
+   * builds: a close sells `symbol` only and repays `debtSymbol` only. Shown so nobody finds out from
+   * a reverted close.
+   */
+  others?: { side: 'collateral' | 'debt'; symbol: string; amount: number; usd: number }[]
   /** the held token's address — what a withdraw pays out unless it is asked for the native coin */
   assetAddress?: string
 }
@@ -85,10 +94,12 @@ export function holdingsFrom(items: EarnPosition[], vaults: Record<string, Vault
         // same test as the catalogue's: same money, not the same display tab
         const directional = !debtBase || !sameMoney(debtBase, asset)
         const lev = a.suppliedUsd > 0 && a.netUsd > 0 ? a.suppliedUsd / a.netUsd : p.leverage
+        const others = [...supply.slice(1).map((l) => ({ side: 'collateral' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.deposits) || 0, usd: l.depositsUsd })),
+          ...debt.slice(1).map((l) => ({ side: 'debt' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.debt) || 0, usd: l.debtUsd }))]
         const loans = a.legs.filter((l) => l.loanId && l.marketUid === d.marketUid && l.debtUsd > 0.005)
           .map((l) => ({ id: l.loanId!, debt: parseFloat(l.debt) || 0, debtUsd: l.debtUsd })).sort((x, y) => y.debtUsd - x.debtUsd)
         out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'loop', label: `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
-          amount: parseFloat(coll.deposits) || 0, symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtAmount: parseFloat(d.debt) || 0, accountId: p.crossMargin ? undefined : a.accountId, lender: p.lender, ...(loans.length ? { loans } : {}) })
+          amount: parseFloat(coll.deposits) || 0, symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtAmount: parseFloat(d.debt) || 0, accountId: p.crossMargin ? undefined : a.accountId, lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
       } else {
         for (const l of supply) {
           const asset = baseOfSymbol(l.asset.symbol); if (!asset) continue

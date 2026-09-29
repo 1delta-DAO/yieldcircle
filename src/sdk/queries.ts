@@ -1,6 +1,6 @@
 import { keepPreviousData, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, fetchVaults, loopOpen, type OptimizerQuery } from './api'
+import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, fetchVaults, loopClose, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
 import { capPerAsset, classifyEarn, classifyPair, dedupe, rowKey, type Candidate, type LoopStrategy, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { softHide, type HideCode } from '../model/visibility'
 import { useSettings, type Settings } from '../state/Settings'
@@ -452,6 +452,28 @@ export function useLoopQuote(l: LoopStrategy | null, equityUsd: number, leverage
     retry: false,
     // some lenders (LlamaLend) only quote with an account; passing it costs nothing — nothing is signed here
     queryFn: () => loopOpen({ collateralMarketUid: l!.marketLongUid, debtMarketUid: l!.marketShortUid, debtAmountRaw: toRaw(debtTokens, l!.decimalsShort), slippageBp, leverage, account, termId }),
+  })
+}
+/**
+ * What selling ALL of a loop's collateral fetches on the market right now: the best route's
+ * `tradeOutput` (debt tokens) for `tradeInput` (collateral tokens). A full close is only as good as
+ * that sale — the position feed values collateral at the lender's oracle, and an LST the oracle
+ * prices at its redemption rate can sell for less than it owes (sMON/WMON on Euler, 2026-09-29:
+ * $31 of equity on the feed, 9,207 WMON for 8,281 sMON against 9,250 owed). `null` = no route.
+ */
+export function useCloseQuote(p: Omit<LoopCloseParams, 'account' | 'slippageBp' | 'isAll'> | null) {
+  return useQuery({
+    enabled: !!p && p.amountRaw !== '0',
+    queryKey: ['closeq', p?.collateralMarketUid, p?.debtMarketUid, p?.amountRaw, p?.accountId ?? '', p?.loanId ?? ''],
+    staleTime: 20_000,
+    retry: false,
+    // quote-only: without `account` the API sizes the sale and builds nothing
+    queryFn: async () => {
+      const env = await loopClose({ ...p!, account: undefined, slippageBp: 50, isAll: true })
+      const best = (env.data?.quotes ?? []).map((q) => q.deltas).filter((d) => d && (d.tradeOutput ?? 0) > 0 && (d.tradeInput ?? 0) > 0)
+        .sort((a, b) => b!.tradeOutput! - a!.tradeOutput!)[0]
+      return best ? { input: best.tradeInput!, output: best.tradeOutput!, via: best.aggregator, exitCostUsd: env.data?.economics?.exitCostUsd?.total } : null
+    },
   })
 }
 export function useLoopPayAssets(l: LoopStrategy | null) {

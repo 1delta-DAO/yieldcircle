@@ -179,6 +179,7 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .pill.loop{border-color:#14454f;color:var(--primary)}
 .pill.dep{border-color:#1f4a35;color:var(--success)}
 .pill.pt{border-color:#3b2a52;color:var(--violet)}
+.pill.legs{border-color:#4a3a1a;color:var(--warning);text-transform:none;letter-spacing:.02em}
 .risk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--tx70);white-space:nowrap}
 .risk i{width:8px;height:8px;border-radius:50%;display:inline-block}
 .risk.r1 i{background:var(--success)}.risk.r2 i{background:var(--warning)}.risk.r3 i{background:var(--error)}
@@ -255,7 +256,7 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .gsum-t small{font-size:11.5px;color:var(--tx50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gsum-v{font-family:var(--mono);font-size:15px;text-align:right;line-height:1.3;flex:none}
 .gsum-v small{display:block;font-size:11px}
-.gsum-h .chev{flex:none;transition:transform .15s ease}
+.gsum-h .chev{flex:none;transition:transform .25s cubic-bezier(.4,0,.2,1)}
 .gsum-h[aria-expanded="true"] .chev{transform:rotate(180deg)}
 .apills{display:flex;flex-wrap:wrap;gap:6px;padding:2px 14px 12px}
 .apill{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 10px;border:1px solid var(--line2);border-radius:999px;background:#111;font-size:12.5px;color:var(--tx);white-space:nowrap;transition:border-color .12s ease}
@@ -265,29 +266,34 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .apill .m{color:var(--tx70)}
 .apill .idlemark{color:var(--warning);flex:none}
 .apill.dir{border-style:dashed;color:var(--tx50)}
-.gsum .list{border-top:1px solid var(--line)}
 .card .ch .ic{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:11px;font-family:var(--mono);color:#000;flex:none}
-.row.arow{grid-template-columns:minmax(0,1fr) auto;min-height:50px;background:#0e0e0e;border-top:1px solid var(--line);border-bottom:1px solid var(--line-soft);cursor:default}
-.row.arow:hover{background:#0e0e0e}
-.row.arow .tok{width:26px;height:26px}
-.row.arow .nm > span:first-of-type{font-size:14px}
-.row.arow:first-child{border-top:0}
-.row.arow .nm{font-weight:600}
-.row.arow .v{font-size:14px}
-.row.prow{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 120px 110px;padding-left:52px;min-height:48px;font-size:13px}
-.row.prow::before{content:"";position:absolute;left:28px;top:0;bottom:0;border-left:1px solid #262626}
-.row.prow::after{content:"";position:absolute;left:28px;top:50%;width:14px;border-top:1px solid #262626}
-.row.prow.last::before{bottom:50%}
-.row.prow .tok{width:18px;height:18px;font-size:7px}
-.row.prow .nm{font-weight:500;font-size:13px}
-.row.prow .pill{font-size:9.5px;padding:0 5px}
-.row.prow .v{font-size:13px}
-.row.prow .v small{font-size:10.5px}
-.row.prow.idle .nm > span:first-child{background:#161616;color:var(--tx40)}
-.row.prow.idle .nm span:last-child{color:var(--tx70)}
-.row.prow.idle:disabled{cursor:default}
-.row.prow.idle .v small{color:var(--tx40)}
-@media (max-width:640px){ .row.prow{grid-template-columns:minmax(0,1fr) 96px;padding-left:36px} .row.prow::before{left:16px} .row.prow::after{left:16px;width:10px} .row.prow > .v:last-child{display:none} .row.prow.idle > .v:last-child{display:none} }
+/* the breakdown expands as a 0fr→1fr grid track: height animates without measuring */
+.gsum-x{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s cubic-bezier(.4,0,.2,1)}
+.gsum-x.open{grid-template-rows:1fr}
+.gsum-xi{overflow:hidden;min-height:0;opacity:0;transform:translateY(-6px);transition:opacity .2s ease,transform .3s cubic-bezier(.4,0,.2,1)}
+.gsum-x.open .gsum-xi{opacity:1;transform:none;transition-delay:.06s}
+.gsum-xw{border-top:1px solid var(--line);padding:2px 0 8px}
+.xasset + .xasset{border-top:1px solid var(--line-soft);margin-top:6px}
+.xh{display:flex;align-items:center;gap:7px;padding:12px 16px 5px;min-width:0}
+.xh .t{font-weight:600;font-size:12.5px;flex:none}
+.xh .d{color:var(--tx40);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xh .m{font-family:var(--mono);font-size:11.5px;color:var(--tx50);flex:none}
+.xrow{display:flex;align-items:center;gap:10px;width:100%;padding:7px 16px;min-height:44px;text-align:left;transition:background .12s ease}
+.xrow:hover{background:#131313}
+.xrow .tok{width:20px;height:20px;font-size:8px;flex:none}
+.xrow .tok.xdash{display:inline-grid;place-items:center;background:#1c1c1c;color:var(--tx40);border-radius:50%;font-size:10px}
+.xt{display:flex;flex-direction:column;gap:1px;min-width:0}
+.xt .n{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;min-width:0}
+.xt .n > span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xt .n .pill{font-size:9px;padding:0 5px;flex:none}
+.xt small{font-size:11px;color:var(--tx50);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xv{font-family:var(--mono);text-align:right;line-height:1.35;flex:none}
+.xv b{display:block;font-size:13px;font-weight:500}
+.xv small{display:block;font-size:10.5px;color:var(--tx50)}
+.xv small.pri{color:var(--primary)}
+.xrow.idle .n{color:var(--tx70);font-weight:400}
+.xrow.idle .xv b{color:var(--tx70)}
+@media (prefers-reduced-motion:reduce){ .gsum-x,.gsum-xi,.gsum-h .chev{transition:none} }
 
 /* ---------- ticket ---------- */
 .ticket{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);display:flex;flex-direction:column;max-height:calc(100dvh - 88px);overflow:auto}
@@ -426,6 +432,9 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .sk{display:inline-block;vertical-align:middle;border-radius:3px;background:#151515;background-image:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.05) 35%,rgba(255,255,255,.11) 50%,rgba(255,255,255,.05) 65%,transparent 100%);background-size:200% 100%;animation:sk 1.7s ease-in-out infinite}
 @keyframes sk{from{background-position:200% 0}to{background-position:-200% 0}}
 .err{border:1px solid #4a2222;background:#120a0a;color:var(--error);border-radius:var(--r);padding:8px 12px;font-size:12.5px;line-height:1.4;word-break:break-word;margin:8px 0}
+/* something the ticket cannot do for this position, said before it is signed — amber, not an error */
+.caution{border:1px solid #4a3a1a;background:#120e06;color:var(--tx70);border-radius:var(--r);padding:8px 12px;font-size:12.5px;line-height:1.5;margin:0 0 12px}
+.caution b{color:var(--warning);font-weight:600}
 .modal{position:relative;z-index:61;width:min(420px,calc(100vw - 32px));margin:18vh auto 0;background:var(--b200);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 24px 60px rgba(0,0,0,.7)}
 .modal .th{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
 .modal .th .n{font-weight:600;font-size:15px}
@@ -434,7 +443,6 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:30}
 .seg .tok{width:16px;height:16px;font-size:7px;vertical-align:-3px}
 .seg button .c{font-family:var(--mono);font-size:11px;color:var(--tx40)}
-.row.prow[aria-selected="true"]{background:#062830;box-shadow:inset 3px 0 0 var(--primary)}
 .steps li{position:relative}
 .ic{border-radius:50%;display:inline-grid;place-items:center;font-weight:600;font-family:var(--mono);color:#000;flex:none}
 img.tok{object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.06)}

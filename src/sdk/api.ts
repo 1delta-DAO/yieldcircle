@@ -4,7 +4,7 @@
  * (collateral / debt); the API's in/out naming is translated here and nowhere else.
  */
 import { apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } from '../vendor/allocator/http'
-import type { ApiTx, EarnPositionsResponse, EarnResponse, IrmResponse, LoopActions, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance, VaultsResponse } from './types'
+import type { ApiTx, EarnPositionsResponse, EarnResponse, IrmResponse, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance, VaultsResponse } from './types'
 
 // ---------------------------------------------------------------- deposits (supply side)
 // `terms: 'digest'` — NOT 'none'. The digest is where the row's own prose lives:
@@ -124,10 +124,10 @@ export function earnWithdraw(p: { earnUid: string; amountRaw: string; operator: 
   return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/earn/withdraw', { params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, isAll: p.isAll ? 'true' : undefined, receiveAsset: p.receiveAsset } })
 }
 /** `loanId`: which fixed-term loan the repay pays down — required on a Lista broker debt, ignored elsewhere */
-export interface LoopCloseParams { collateralMarketUid: string; debtMarketUid: string; amountRaw: string; slippageBp: number; isAll?: boolean; account: string; accountId?: string; loanId?: string }
+export interface LoopCloseParams { collateralMarketUid: string; debtMarketUid: string; amountRaw: string; slippageBp: number; isAll?: boolean; account?: string; accountId?: string; loanId?: string }
 /** Close or reduce a loop: withdraw `amountRaw` of collateral, swap, repay. `isAll` repays the whole debt. */
 export function loopClose(p: LoopCloseParams) {
-  return apiFetchEnvelope<LoopQuoteData, LoopActions>('/v1/actions/loop/close', {
+  return apiFetchEnvelope<LoopCloseData, LoopActions>('/v1/actions/loop/close', {
     params: { marketUidIn: p.collateralMarketUid /* in = COLLATERAL on CLOSE */, marketUidOut: p.debtMarketUid, amount: p.amountRaw, slippage: p.slippageBp, tradeType: 0, isAll: p.isAll, account: p.account, accountId: p.accountId, loanId: p.loanId },
   })
 }

@@ -5,7 +5,7 @@ import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
 import { useBook } from './useBook'
 import { HoldingTicket, Ticket } from './Ticket'
-import { GroupIcon, Info, KindPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort } from './bits'
+import { GroupIcon, Info, KindPill, LegsPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort } from './bits'
 import { chainLabel } from '../sdk/queries'
 import { uidOf } from '../model/uid'
 import { useCounts } from '../social/queries'
@@ -72,7 +72,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                 <thead><tr><th>Position</th><th className="r">Value</th><th className="r">Earning</th><th className="r hide-m hide-t">Health</th><th className="r hide-m hide-t">Manage</th><th /></tr></thead>
                 <tbody>{running.map(({ h, s }) => { const open = (m: 'add' | 'reduce' | 'manage') => s && go(group.id, { u, s: s.id, k: s.kind, m }); const can = !s && canManage(h); const openOff = () => go(group.id, { u, h: h.key, k: h.kind, m: h.kind === 'loop' ? 'manage' : 'reduce' }); return (
                   <tr key={h.key} aria-selected={s ? sel?.id === s.id : offMenu?.key === h.key} onClick={() => (s ? open('add') : can ? openOff() : undefined)} style={s || can ? undefined : { cursor: 'default' }}>
-                    <td><div className="nm">{s ? (s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />) : <Tok sym={h.symbol} logo={h.logo} />}<span><b>{h.label.split(' · ')[0]}</b> <span className="t50">· {h.venue}</span></span><KindPill kind={h.kind} /></div>
+                    <td><div className="nm">{s ? (s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />) : <Tok sym={h.symbol} logo={h.logo} />}<span><b>{h.label.split(' · ')[0]}</b> <span className="t50">· {h.venue}</span></span><KindPill kind={h.kind} /><LegsPill others={h.others} /></div>
                       <small className="hide-m">{chainLabel(h.chainId)}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}{h.kind === 'loop' && h.debtSymbol ? ` · owes ${amt(h.debtSymbol, h.debtAmount ?? 0)}` : ''}</small></td>
                     <td className="r"><span>{usd(h.valueUsd)}</span><small>{h.kind === 'loop' ? 'equity' : num(h.amount, h.amount >= 100 ? 0 : 3)}</small></td>
                     <td className="r"><span className={h.apr != null && h.apr >= 0 ? 'ok' : h.apr != null ? 'bad' : ''}>{h.apr != null ? pct(h.apr) : '—'}</span><small>{usd(h.valueUsd * (h.apr ?? 0) / 100)}/yr</small></td>

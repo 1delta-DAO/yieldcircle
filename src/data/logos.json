@@ -1,7 +1,6 @@
 {
  "USDC": "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png",
  "USDT": "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png",
- "USDT0": "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png",
  "USDS": "https://assets.coingecko.com/coins/images/39926/large/usds.webp?1726666683",
  "DAI": "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0x6B175474E89094C44Da98b954EedeAC495271d0F/logo.png",
  "USDE": "https://token-list.mantle.xyz/data/USDE/logo.svg",
@@ -75,6 +74,8 @@
  "SHYPE": "https://assets.coingecko.com/coins/images/69398/thumb/sHYPE_Token_Large.png?1758444105",
  "HYPED": "https://tokens.debridge.finance/Logo/137/0xe1f0402104089e3663f86dfecd9eee057e462236/small/token-logo.png",
  "VHYPE": "https://assets.coingecko.com/coins/images/70200/thumb/vhype.png?1761010927",
+ "USDT0": "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png",
+ "XAUT0": "https://tokens.debridge.finance/Logo/137/0xf1815bd50389c46847f0bda824ec8da914045d14/small/token-logo.png",
  "USDC.E": "https://raw.githubusercontent.com/sushiswap/list/master/logos/token-logos/network/bttc/0xAE17940943BA9440540940DB0F1877f101D39e8b.jpg",
  "USDT.E": "https://raw.githubusercontent.com/sushiswap/list/master/logos/token-logos/network/bttc/0xE887512ab8BC60BcC9224e1c3b5Be68E26048B8B.jpg",
  "DAI.E": "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0x6B175474E89094C44Da98b954EedeAC495271d0F/logo.png",

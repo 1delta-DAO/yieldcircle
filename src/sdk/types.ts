@@ -104,7 +104,8 @@ export interface VaultsResponse { start: number; count: number; total: number; i
 
 // ---------------------------------------------------------------- earn positions
 export interface EarnPositionAsset { address: string; symbol?: string; decimals?: number; priceUsd?: number; logoURI?: string }
-export interface EarnPositionLeg { earnUid?: string; marketUid: string; asset: EarnPositionAsset; side: 'supply' | 'borrow' | 'both' | 'none'; deposits: string; depositsUsd: number; debt: string; debtUsd: number }
+/** `loanId`: the leg is ONE fixed-term loan (Lista's broker), also counted in the market's unbound leg — never add the two */
+export interface EarnPositionLeg { earnUid?: string; marketUid: string; loanId?: string; asset: EarnPositionAsset; side: 'supply' | 'borrow' | 'both' | 'none'; deposits: string; depositsUsd: number; debt: string; debtUsd: number }
 export interface EarnPositionBase { positionUid: string; chainId: string; venue: string; venueKind: string; brand?: string; name?: string; logoURI?: string; suppliedUsd: number; borrowedUsd: number; netUsd: number; apr?: number }
 export interface EarnLendingPosition extends EarnPositionBase { venueKind: 'lending'; lender: string; account: string; health: number | null; leverage: number; depositApr: number; borrowApr: number; crossMargin: boolean; legs: EarnPositionLeg[]; subAccounts: { accountId: string; health: number | null; suppliedUsd: number; borrowedUsd: number; netUsd: number; legs: EarnPositionLeg[] }[] }
 export interface EarnVaultPosition extends EarnPositionBase { venueKind: 'vault'; earnUid: string; provider: string; vault: string; asset: EarnPositionAsset; shares: string; assets: string; rate?: EarnRate; exit?: EarnExit }
@@ -123,7 +124,20 @@ export interface OptimizerRowRaw {
   depositAprLong: string | number; borrowAprShort: string | number; rewardAprLong?: string | number; rewardAprShort?: string | number
   aprBase: string | number; aprTotal: string | number; netAprAtAmount?: string | number | null; borrowAprAtAmount?: string | number | null; depositAprAtAmount?: string | number | null
   borrowLiquidityUsdShort: string | number; totalDepositsUsdLong?: string | number
-  fixedTerm?: { model: string; maturity?: number } | null; variableBorrowDisabledShort?: boolean | null; isBasketLong?: boolean
+  /**
+   * The lender's fixed-term descriptor. NOT a fixed-rate signal on its own: Lista's float markets and
+   * Exactly's floating pools carry one too. `model` names the mechanism (`lista`, `midnight`, `term`, …).
+   */
+  fixedTerm?: { model: string; maturity?: number; [k: string]: unknown } | null; variableBorrowDisabledShort?: boolean | null; isBasketLong?: boolean
+  /**
+   * The rate card of a brokered debt: one entry per term, each its own loop option. `apr` is RAW —
+   * no intrinsic or reward — so add `intrinsicYieldShort` and subtract `rewardAprShort` to put it on
+   * `borrowAprShort`'s footing. Null on a variable-rate debt.
+   */
+  termsShort?: { termId: string; durationDays?: number; apr: number | string }[] | null
+  intrinsicYieldShort?: string | number
+  /** `maturityKind: 'fixed-date'` is a debt that falls due on one date (Midnight, Term, TermMax) */
+  debtTerms?: { maturityKind?: string; canOpen?: boolean } | null
   underlyingInfoLong: UnderlyingInfo; underlyingInfoShort: UnderlyingInfo
   risk: { maxTokenScore?: number; breakdown: { category: string; score: number | null; label?: string }[] }
 }

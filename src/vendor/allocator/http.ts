@@ -159,6 +159,11 @@ export interface ApiOptions {
   /** Force a method; only needed for a POST with no body. */
   method?: 'GET' | 'POST'
   signal?: AbortSignal
+  /**
+   * The browser's HTTP cache mode. User routes answer `max-age=15`, so a re-read seconds after
+   * a transaction would be served the answer from before it: `'no-store'` there.
+   */
+  cache?: RequestCache
 }
 
 // ---------------------------------------------------------------------------
@@ -203,7 +208,7 @@ export async function apiFetchEnvelope<T, A = ApiActions>(
   path: string,
   options: ApiOptions = {}
 ): Promise<ApiEnvelope<T, A>> {
-  const { params, body, method, signal } = options
+  const { params, body, method, signal, cache } = options
   const url = apiUrl(path, params)
 
   let res: Response
@@ -215,6 +220,7 @@ export async function apiFetchEnvelope<T, A = ApiActions>(
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     signal,
+    ...(cache ? { cache } : {}),
   })
   try {
     await rateGate(signal)

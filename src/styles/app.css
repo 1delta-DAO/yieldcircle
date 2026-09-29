@@ -512,6 +512,8 @@ img.tok{object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
 .irm-key.b::before{background:var(--warning)}
 .info{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--line2);font:600 9.5px/1 var(--mono);color:var(--tx40);vertical-align:1px;margin-left:4px;text-transform:none;letter-spacing:0;cursor:help}
 .info:hover,.info[aria-expanded="true"]{color:var(--primary);border-color:var(--primary)}
+.levtoggle{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;border:1px solid var(--line2);background:transparent;color:var(--tx40);vertical-align:-5px;margin-left:6px;padding:0;cursor:pointer}
+.levtoggle:hover,.levtoggle[aria-pressed="true"]{color:var(--primary);border-color:var(--primary)}
 .th .n .info{vertical-align:2px}
 /* thin, quiet scrollbars */
 *{scrollbar-width:thin;scrollbar-color:#2a2a2a transparent}
@@ -1365,3 +1367,56 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .card .ch.gch{min-height:38px;padding:8px 16px;gap:8px;background:#0b0b0b}
 .card .ch.gch .t{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx70)}
 .card .ch.gch .m{font-size:11.5px}
+
+/* ---------- transactions in flight (TxTray.tsx, sdk/txTrace.ts) ---------- */
+.txspin{display:inline-block;width:16px;height:16px;flex:none;border-radius:50%;border:2px solid rgba(47,211,232,.22);border-top-color:var(--primary);animation:txspin .8s linear infinite;vertical-align:-3px}
+.txspin.sm{width:12px;height:12px;border-width:1.5px;vertical-align:-1px}
+@keyframes txspin{to{transform:rotate(360deg)}}
+.txmark{width:18px;height:18px;flex:none;border-radius:50%;display:grid;place-items:center;font:700 11px/1 var(--mono);color:#000;background:var(--success)}
+.txmark.warn{background:var(--warning)}.txmark.bad{background:var(--error)}
+.txtray{position:fixed;left:20px;bottom:20px;z-index:35;display:flex;flex-direction:column;align-items:flex-start;gap:8px;max-width:calc(100vw - 32px)}
+.txpill{display:flex;align-items:center;gap:10px;min-height:40px;max-width:min(420px,calc(100vw - 32px));padding:0 14px 0 11px;border:1px solid var(--line2);border-radius:999px;background:var(--b300);box-shadow:0 8px 30px rgba(0,0,0,.6);font-size:13px;animation:pop-in .15s ease-out}
+.txpill:hover,.txpill[aria-expanded="true"]{border-color:var(--primary)}
+.txpill.ok{border-color:rgba(63,191,127,.55)}.txpill.bad{border-color:var(--error)}.txpill.warn{border-color:rgba(226,163,58,.6)}
+.txpill b{font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.txpill .ph{color:var(--tx50);white-space:nowrap}
+.txpill.ok .ph{color:var(--success)}.txpill.bad .ph{color:var(--error)}
+.txmore{font:600 11px/18px var(--mono);color:var(--tx70);background:var(--b400);border-radius:999px;padding:0 6px}
+.txpanel{width:min(380px,calc(100vw - 32px));max-height:min(60vh,520px);overflow:auto;background:var(--b200);border:1px solid var(--line2);border-radius:var(--r);box-shadow:0 16px 48px rgba(0,0,0,.7);animation:pop-in .12s ease-out}
+.txph{display:flex;align-items:center;min-height:44px;padding:0 6px 0 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--b200)}
+.txtray .x{width:32px;height:32px;display:grid;place-items:center;border-radius:var(--r);color:var(--tx50);flex:none}
+.txtray .x:hover{background:var(--b300);color:var(--tx)}
+.txlist{list-style:none;margin:0;padding:0}
+.txrow{padding:12px 14px;border-bottom:1px solid var(--line)}
+.txrow:last-child{border-bottom:0}
+.txh{display:flex;align-items:center;gap:8px;min-height:24px}
+.txh b{font-weight:500;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.txh .x{width:26px;height:26px;margin-right:-6px}
+.txs{font-size:11.5px;color:var(--tx50);margin:2px 0 0 26px}
+.txd{font-size:12px;color:var(--tx70);margin-top:6px;line-height:1.4}
+.txrow .txtrack{margin-left:0}
+.txlist.inline{border:1px solid var(--line);border-radius:var(--r);background:var(--bg);margin-bottom:16px}
+.txtrack{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;margin-top:8px}
+.txtrack span{display:flex;flex-direction:column;gap:5px;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--tx40);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.txtrack span::before{content:"";height:3px;border-radius:2px;background:var(--line2)}
+.txtrack span.done{color:var(--tx70)}.txtrack span.done::before{background:var(--primary)}
+.txtrack span.on{color:var(--tx)}
+.txtrack span.on::before{background:linear-gradient(90deg,var(--line2) 0,var(--primary) 50%,var(--line2) 100%);background-size:200% 100%;animation:sk 1.4s linear infinite}
+.txtrack span.bad{color:var(--error)}.txtrack span.bad::before{background:var(--error)}
+.txtrack.ok span::before{background:var(--success)}
+.get .txtrack{margin-top:10px}
+/* a ladder step: the label, and under it where its transaction is */
+.steps li .sl{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.steps li .sl small{font-size:11.5px;color:var(--tx50);line-height:1.35}
+.steps li .sl small.bad{color:var(--error)}.steps li .sl small.warn{color:var(--warning)}
+.steps li i .txspin.sm{width:11px;height:11px}
+.steps li.done i:has(.txspin){background:none;border-color:var(--primary)}
+.steps li .txlink{margin-left:auto;color:var(--tx40);font-size:11px}
+@media (max-width:767.98px){
+  /* under the header on a phone: the bottom belongs to the tab bar and the ticket sheet */
+  .txtray{left:50%;right:auto;bottom:auto;top:68px;transform:translateX(-50%);flex-direction:column-reverse;align-items:center}
+}
+@media (prefers-reduced-motion:reduce){
+  .txspin{animation-duration:2.4s}
+  .txtrack span.on::before{animation:none;background:var(--primary);opacity:.55}
+}

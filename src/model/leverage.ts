@@ -9,22 +9,26 @@ export const netAprAtLeverage = (dep: number, bor: number, L: number) => dep * L
  * fees) is kept. Without a curve the $10k quote is the honest fallback — it is
  * what the list ranked on. `null` curve fields read as "no curve".
  */
-export function borrowAtSize(
-  spot: number, atTenK: number, extraDebtUsd: number,
-  curve: { points: { utilization: number; borrowRate: number }[]; currentUtilization: number; totalDepositsUsd?: string; totalDebtUsd?: string } | null | undefined,
-): number {
+type Curve = { points: { utilization: number; borrowRate: number }[]; currentUtilization: number; totalDepositsUsd?: string; totalDebtUsd?: string }
+export function borrowAtSize(spot: number, atTenK: number, extraDebtUsd: number, curve: Curve | null | undefined): number {
   const dep = curve ? parseFloat(curve.totalDepositsUsd ?? '') : NaN, debt = curve ? parseFloat(curve.totalDebtUsd ?? '') : NaN
   if (!curve || !(curve.points.length >= 2) || !(dep > 0) || !Number.isFinite(debt)) return atTenK
-  const at = (u: number) => {
-    const ps = curve.points, x = Math.min(1, Math.max(0, u))
-    for (let i = 1; i < ps.length; i++) if (x <= ps[i].utilization) {
-      const a = ps[i - 1], b = ps[i], du = b.utilization - a.utilization
-      return du > 0 ? a.borrowRate + (b.borrowRate - a.borrowRate) * (x - a.utilization) / du : b.borrowRate
-    }
-    return ps[ps.length - 1].borrowRate
-  }
-  return spot + at((debt + extraDebtUsd) / dep) - at(curve.currentUtilization)
+  return spot + curveAt(curve, (debt + extraDebtUsd) / dep) - curveAt(curve, curve.currentUtilization)
 }
+const curveAt = (curve: Curve, u: number) => {
+  const ps = curve.points, x = Math.min(1, Math.max(0, u))
+  for (let i = 1; i < ps.length; i++) if (x <= ps[i].utilization) {
+    const a = ps[i - 1], b = ps[i], du = b.utilization - a.utilization
+    return du > 0 ? a.borrowRate + (b.borrowRate - a.borrowRate) * (x - a.utilization) / du : b.borrowRate
+  }
+  return ps[ps.length - 1].borrowRate
+}
+/**
+ * The variable rate the market charges right now, read off its curve at today's utilisation. On a
+ * fixed-term debt this is where the loan goes when its term ends: Lista's broker quotes
+ * `variableBorrowRate: 0` for the market, and the curve is the only honest figure for it.
+ */
+export const curveRateNow = (curve: Curve | null | undefined): number | null => (curve && curve.points.length >= 2 ? curveAt(curve, curve.currentUtilization) : null)
 /** Collateral/debt price-ratio drop before liquidation: 1 − LTV_pos / liquidation factor. */
 export const liqBuffer = (liqLtv: number, L: number) => (L <= 1 ? 1 : 1 - ((L - 1) / L) / liqLtv)
 /** Health factor at open: collateral · liqFactor / debt. */
@@ -48,6 +52,12 @@ export const TIERS: Tier[] = [
 export const DEFAULT_TIER: TierId = 'balanced'
 /** Leverage at a fraction of the venue's range [1, maxLeverage]. */
 export const tierLeverage = (maxLev: number, frac: number) => Math.round(Math.max(1.1, 1 + frac * (Math.max(1, maxLev) - 1)) * 100) / 100
+/**
+ * The range a hand-picked leverage may take: from the tiers' own floor to 98 % of the way up the
+ * venue's range. The venue's own maximum leaves nothing for price moves or the swap's slippage
+ * between quote and execution, so the very top is not offered.
+ */
+export const customRange = (maxLev: number): [number, number] => [1.1, Math.floor((1 + 0.98 * (Math.max(1, maxLev) - 1)) * 100) / 100]
 export type TierLeverages = Record<TierId, number>
 export const tierLeverages = (maxLev: number): TierLeverages => ({ defensive: tierLeverage(maxLev, 0.5), balanced: tierLeverage(maxLev, 0.75), aggressive: tierLeverage(maxLev, 0.9) })
 /** Decimal amount → raw integer string (never floats in a query). */

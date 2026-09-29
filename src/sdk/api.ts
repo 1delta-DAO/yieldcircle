@@ -98,8 +98,18 @@ export function fetchOptimizerPairs(q: OptimizerQuery): Promise<OptimizerRespons
 export function fetchTokenBalances(account: string, chainId: string, assets: string[]) {
   return apiFetch<{ items: TokenBalance[] }>('/v1/data/token/balances', { params: { chainId, account, assets: assets.join(',') } })
 }
-export function fetchEarnPositions(account: string, chainIds: string[]) {
-  return apiFetchLoose<EarnPositionsResponse>('/v1/data/earn/positions', { params: { chainIds: chainIds.join(','), account } })
+/**
+ * `only` narrows the read to what one transaction touched: `lenders` are exact meta keys (the
+ * `<LENDER>` of a market uid, `MORPHO_BLUE_<id>` for a Morpho market), `vaults` share-token
+ * addresses (skipping vault discovery). Measured 2026-09-29 on Ethereum: ~1 s narrowed against
+ * ~3.7 s for the whole chain. `fresh` bypasses the browser's copy of the `max-age=15` answer.
+ */
+export interface PositionsScope { venueKind?: 'lending' | 'vault'; lenders?: string[]; vaults?: string[] }
+export function fetchEarnPositions(account: string, chainIds: string[], only: PositionsScope = {}, fresh = false) {
+  return apiFetchLoose<EarnPositionsResponse>('/v1/data/earn/positions', {
+    params: { chainIds: chainIds.join(','), account, venueKind: only.venueKind, lenders: only.lenders?.join(','), vaults: only.vaults?.join(',') },
+    ...(fresh ? { cache: 'no-store' as const } : {}),
+  })
 }
 
 // ---------------------------------------------------------------- actions
@@ -113,11 +123,12 @@ export function earnDeposit(p: { earnUid: string; amountRaw: string; operator: s
 export function earnWithdraw(p: { earnUid: string; amountRaw: string; operator: string; isAll?: boolean; receiveAsset?: string }) {
   return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/earn/withdraw', { params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, isAll: p.isAll ? 'true' : undefined, receiveAsset: p.receiveAsset } })
 }
-export interface LoopCloseParams { collateralMarketUid: string; debtMarketUid: string; amountRaw: string; slippageBp: number; isAll?: boolean; account: string; accountId?: string }
+/** `loanId`: which fixed-term loan the repay pays down — required on a Lista broker debt, ignored elsewhere */
+export interface LoopCloseParams { collateralMarketUid: string; debtMarketUid: string; amountRaw: string; slippageBp: number; isAll?: boolean; account: string; accountId?: string; loanId?: string }
 /** Close or reduce a loop: withdraw `amountRaw` of collateral, swap, repay. `isAll` repays the whole debt. */
 export function loopClose(p: LoopCloseParams) {
   return apiFetchEnvelope<LoopQuoteData, LoopActions>('/v1/actions/loop/close', {
-    params: { marketUidIn: p.collateralMarketUid /* in = COLLATERAL on CLOSE */, marketUidOut: p.debtMarketUid, amount: p.amountRaw, slippage: p.slippageBp, tradeType: 0, isAll: p.isAll, account: p.account, accountId: p.accountId },
+    params: { marketUidIn: p.collateralMarketUid /* in = COLLATERAL on CLOSE */, marketUidOut: p.debtMarketUid, amount: p.amountRaw, slippage: p.slippageBp, tradeType: 0, isAll: p.isAll, account: p.account, accountId: p.accountId, loanId: p.loanId },
   })
 }
 export interface LoopOpenParams {
@@ -130,13 +141,15 @@ export interface LoopOpenParams {
   account?: string
   payAsset?: string
   payAmountRaw?: string
+  /** the fixed term to borrow for — required on a Lista broker debt (`LoopStrategy.terms`), ignored elsewhere */
+  termId?: string
 }
 export function loopOpen(p: LoopOpenParams) {
   return apiFetchEnvelope<LoopQuoteData, LoopActions>('/v1/actions/loop/leverage', {
     params: {
       marketUidIn: p.debtMarketUid,      // API: in = debt on OPEN
       marketUidOut: p.collateralMarketUid,
-      debtAmount: p.debtAmountRaw, slippage: p.slippageBp, leverage: p.leverage, account: p.account, payAsset: p.payAsset, payAmount: p.payAmountRaw,
+      debtAmount: p.debtAmountRaw, slippage: p.slippageBp, leverage: p.leverage, account: p.account, payAsset: p.payAsset, payAmount: p.payAmountRaw, termId: p.termId,
     },
   })
 }

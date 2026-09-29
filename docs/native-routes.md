@@ -114,18 +114,77 @@ the coin. That found three bugs, all live in production before this change:
 
 What still fails, and is not ours:
 
-- **XLend (Base) and HypurrFi (HyperEVM), native partial withdraw, sometimes.**
-  These are Aave v3.0 forks. Their gateway transfers `amount` aTokens to itself,
-  then withdraws `amount`. At some liquidity indexes the transfer rounds 1 wei
-  short, so `POOL.withdraw` reverts with Aave error `32`, or `WETH.withdraw` runs
-  short. It depends on the block, not on the request. XLend failed three times
-  in a row at one block, and HypurrFi passed and failed on different runs. The
-  Aave main markets passed every run. The fix would be to route those forks
-  through the composer with a withdraw-the-balance-received step. That is not
-  built.
+- **Aave-fork gateways that round, on 16 markets.** These are forks of Aave
+  v2 or v3.0. Their gateway moves `amount` aTokens to itself, then withdraws
+  `amount`. At some liquidity indexes the aToken transfer rounds 1 wei short,
+  so the withdraw reverts with Aave error `32` (v3) or `5` (v2), or
+  `WETH.withdraw` runs short. On the v2-era gateways a full exit (`max`) fails
+  every time, with an underflow. XLend failed three times in a row at one block,
+  and HypurrFi passed and failed on different runs. The Aave main markets passed
+  every run. The fix would be to route these forks through the composer with a
+  withdraw-the-balance-received step. That is not built. See "The gateway
+  addresses, backchecked" below for the list.
 - **Euler V2 WETH on Ethereum** (`0x2117…`) is at its supply cap
   (`E_SupplyCapExceeded`), and one of **Euler Earn's** strategy vaults has
   "vault operations are paused". The listing still offers deposits into both.
+
+## The gateway addresses, backchecked (2026-09-28)
+
+Aave and its forks take the native coin through a gateway contract per market.
+1delta lists them by hand in lender-metadata's `config/aave-weth-gateway.json`,
+so that file was checked in two ways:
+
+- **On chain, for every entry.** The gateway's wrapped native must be the
+  chain's, and it must hold an unlimited approval to *this* market's pool.
+- **On a fork, where one could be run.** A fresh account deposits 1 coin, then
+  withdraws 0.123456789, 0.37, 0.0101 and 0.2333333333333, then `max`.
+
+What was wrong in the metadata, now fixed:
+
+| Market | Problem | Effect | Fix |
+|---|---|---|---|
+| Aave V3, Sonic | Address with a broken checksum | Rejected before sending: viem and wallets refuse the `to` | Checksum corrected |
+| YLDR (Ethereum, Polygon, Arbitrum, Base) and Agave (Gnosis) | The gateway takes a different call: `depositETH(onBehalfOf, referral)`, `withdrawETH(amount, to)`, with no pool argument | Every native call hit the gateway's fallback and reverted `Fallback not allowed` | Entries removed. Native now goes through the composer, which already handles YLDR's pool |
+| ZeroLend, Abstract | The market's `pool` was the pool's *implementation* contract, not the proxy | The whole market read as empty: no reserves, no rates, and the gateway looked unapproved | Pool corrected to `0x7C4b…0b02`; reserves, tokens and oracles regenerated |
+| Granary, Avalanche | No gateway listed | Native was offered through the composer only | Gateway added; every fork leg passed |
+| Avalon uniIOTX, IoTeX | No gateway listed | Same | Gateway added. The wiring checks pass, but the WIOTX reserve is paused, so it could not be run |
+| ZeroLend and Ploutos, Ethereum | Gateways for markets that are not listed | None | Removed |
+
+The Aave markets checked against Aave's own address book (V2 on Ethereum and
+Polygon, V3 on eight chains, the Lido market) all match it. Ploutos on Arbitrum
+also has a gateway, but it rounds (see below), so it was not added.
+
+**Gateways that are correct but fail on some withdraws.** These are the
+right contracts, and no other deployed gateway for these markets behaves
+better. The fault is the rounding described above:
+
+| Market | Partial withdraw | Full exit (`max`) |
+|---|---|---|
+| XLend (Optimism, Base) | fails on some amounts | fails |
+| Granary (Ethereum), Valas (BNB), Prime Fi (XDC), Ploutos (Hemi) | fails on some amounts | fails |
+| Radiant V2 (Ethereum), RMM (Gnosis), ZeroLend (Manta), Molend (Mode), Meridian (Taiko) | passed | fails |
+| Fathom (XDC), Avalon (Kaia), Polter (Base), Radiant V2 (Base), PAC (Blast) | fails on some amounts | passed |
+
+"Fails on some amounts" depends on the block, so a market that passed one run
+can fail the next. Until the composer route above exists, **do not offer a
+native full exit on the markets whose `max` fails.** The ERC-20 exit, or a
+native exit through the composer (not yet fork-checked on these markets), is
+the way out there.
+
+Not a gateway fault, but seen in the same run: **ZeroLend's WETH market on
+Base has a liquidity index of 1000** (a healthy one is at least 1e27). Every
+supply there reverts `SafeCast`, in any asset form. Many other markets
+reverted the test deposit with the pool's own frozen, paused or cap errors
+(Aave V3 on Sonic, Soneium and Scroll, Aave V2, Spark on Gnosis, Kinza, several
+Avalon and ZeroLend markets, Granary on Base, Ironclad). That is the market's
+state, not the gateway, and it applies to the ERC-20 as well.
+
+Not run on a fork: chains with no public RPC that forks (Telos, Meter, Fuse,
+PulseChain, Taraxa, GOAT, Merlin, ZetaChain, Artela, Zircuit, Corn, Neon,
+Harmony; Hemi's Lendos timed out) and zkSync-family chains (zkSync Era,
+Abstract), where anvil cannot run the bytecode. Their entries passed the
+on-chain checks, except Taraxa, Artela, Corn and Neon, where no RPC answered
+at all.
 
 ## `acceptsNative` on the listing
 
@@ -139,36 +198,40 @@ rows say false. On vaults, withdraw is true only for the ERC-4626 rows.
 `Ticket.tsx` already reads the flag (`s.nativeIn` / `s.nativeOut`) and falls
 back to the `NO_NATIVE_DEPOSIT` list only when it is absent.
 
-## What this app should change
+## What this app changed (2026-09-29)
 
 1. **Deploy order decides when the flag appears.** The routes go live with the
    worker-api deploy. The flag is stamped by `margin-fetcher`, and
    `/v1/data/earn` is served from the yields origin (`yield-tracer`). So it
    appears only after a `margin-fetcher` publish **and** a `yield-tracer`
-   redeploy. In between, the fallback lists are the ones in force.
-2. **Update the fallback lists for that window.**
-   - `NO_NATIVE_DEPOSIT`: drop `vault.lagoon`, `CURVANCE`, `EXACTLY`,
-     `LLAMALEND` and `FLYING_TULIP`, which now take the coin. Keep the Liquity
-     family and complete it: `LIQUITY`, `FELIX`, `NERITE`, `QUILL`, `EBISU`,
-     `SONETA`, `ENOSYS_LOANS`. Add `FLUID`.
-   - The withdraw fallback (`canNative = s?.nativeOut ?? wrapsNative(…)`) is
-     true for every wrapped-native row. Exclude `TERMMAX`, `TERM_FINANCE`,
-     `FLUID`, the Liquity family, and the non-4626 vaults (`vault.savings`
-     Vesper / wNLP / Hyperbeat, and `vault.lagoon`, whose exit is async
-     anyway).
-3. **`wrapWord` in `useLadder.ts` mislabels Vesper withdraws.** It detects an
-   unwrap by selector (`0x2e1a7d4d`, `withdraw(uint256)`). Vesper's pool
-   `withdraw(shares)` has the same selector, so a plain Vesper exit renders as
-   "Unwrap to ETH". Check `tx.to` against `WRAPPED_NATIVE[chainId]` as well.
-4. **Say what a native withdraw is on the two-step venues.** It is two
-   signatures: the withdraw, then the unwrap. If the unwrap fails, the user
-   holds WETH. The step label from the API (`Unwrap WETH → ETH`) is enough to
-   show it; the error text for a failed unwrap should say the funds are in
-   WETH.
-5. **Full exits** (`isAll`, which the ticket sends above 99.9 %) now work in
-   the coin on Curvance, Exactly, LlamaLend, Gearbox pools and the gateway-less
-   Aave V4 spoke. A few wei of WETH may stay behind. Treat that balance as dust
-   in the idle strip.
+   redeploy. In between, the fallback lists in `Ticket.tsx` are the ones in
+   force. Nothing to do in this app; just deploy in that order.
+2. **Fallback lists updated** (`Ticket.tsx`):
+   - `NO_NATIVE_DEPOSIT` is now the complete Liquity family (`LIQUITY`,
+     `FELIX`, `NERITE`, `QUILL`, `EBISU`, `SONETA`, `ENOSYS_LOANS`) plus
+     `FLUID`. Lagoon, Curvance, Exactly, LlamaLend and Flying Tulip were
+     dropped: they take the coin now.
+   - The withdraw fallback excludes `NO_NATIVE_DEPOSIT` plus `TERMMAX`,
+     `TERM_FINANCE`, `vault.savings` and `vault.lagoon` (`NO_NATIVE_WITHDRAW`).
+     It matches on the holding's venue (the strategy's `venueKey`, else the
+     position's `earnUid` / `lender`).
+   - Also added: `NATIVE_MAX_ROUNDS`, the Aave forks whose gateway fails a
+     native `max` (see the gateway table). On those, a **full** exit greys out
+     the coin and says to take the wrapped token, or to leave a little in.
+     Partial exits still offer it.
+3. **Wrap / unwrap labels match on the wrapper's address** (`useLadder.ts`
+   `wrapStep`). A step is only called a wrap or unwrap when `tx.to` is
+   `WRAPPED_NATIVE[chainId]`, so a Vesper `withdraw(shares)` keeps its own
+   label. `stepsFrom` now takes the chain id, not the coin symbol. The labels
+   are `Wrap ETH → WETH` and `Unwrap WETH → ETH`, the same as the API's.
+4. **A failed unwrap says where the money is.** An unwrap step carries its own
+   `onFail` text: "The unwrap reverted. The withdrawal itself went through:
+   the funds are in your wallet as WETH." It is shown whether the revert comes
+   from the receipt or from the wallet's pre-send estimate. The payout picker's
+   info popover says the same.
+5. **Dust is not idle.** `idleFrom` drops a priced balance under $0.01, so the
+   wei of WETH a floor unwrap leaves behind never shows as idle money (the
+   ticket reads it as 0). Unpriced balances are kept.
 
 ## Still not served, and why (none of these are native-specific)
 

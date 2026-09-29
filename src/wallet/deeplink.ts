@@ -46,12 +46,31 @@ export function walletOpenUrl(): string | undefined {
  * in front) or a phone across the room, and navigating away would only lose the
  * page.
  */
-export function openWallet(connectorId?: string): void {
-  if (connectorId !== 'walletConnect') return
-  if (!readTouch()) return
+export function openWallet(connectorId?: string): boolean {
+  if (!isRemote(connectorId)) return false
   const url = walletOpenUrl()
-  if (!url) return
-  try { window.location.href = url } catch { /* blocked: the user switches apps by hand */ }
+  if (!url) return false
+  try { window.location.href = url; return true } catch { return false /* blocked: the user switches apps by hand */ }
+}
+
+/** A wallet in another app on this phone: a request to it waits until the user goes there. */
+export const isRemote = (connectorId?: string) => connectorId === 'walletConnect' && readTouch()
+
+/**
+ * Resolves once a WalletConnect answer has had its chance to arrive: a few seconds after the page
+ * is back in front (the relay socket was suspended with it and has to reconnect first), or after
+ * `max` if the page never left — the wallet is on another device and the user may simply be slow.
+ */
+export function answerWindow(grace = 3_000, max = 20_000): Promise<void> {
+  return new Promise((resolve) => {
+    let t = window.setTimeout(done, max)
+    function on() {
+      window.clearTimeout(t)
+      t = document.visibilityState === 'visible' ? window.setTimeout(done, grace) : window.setTimeout(done, 10 * 60_000)
+    }
+    function done() { window.clearTimeout(t); document.removeEventListener('visibilitychange', on); resolve() }
+    document.addEventListener('visibilitychange', on)
+  })
 }
 
 /** The first hand-off, which DOES carry a pairing uri. */

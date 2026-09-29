@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { useEffect, useSyncExternalStore } from 'react'
 
 /**
@@ -9,7 +9,7 @@ import { useEffect, useSyncExternalStore } from 'react'
  *
  *   - while a ticket is open on it (`useLiveBalances`): the idle amount next to an amount you are
  *     about to sign is the chain's, not the snapshot's;
- *   - for LIVE_AFTER_TX_MS after one of our transactions on it lands (`balancesChanged`): the
+ *   - for LIVE_AFTER_TX_MS after one of our transactions on it lands (`balancesChanged`, once `txTrace.ts` calls it final): the
  *     index catches up in seconds, but a read that lands a block early would show the old balance.
  *
  * Everything else — the book, the header chip, other chains — stays on the index.
@@ -45,17 +45,15 @@ export function useLiveBalances(chainId: string | undefined) {
 }
 
 /**
- * One of our transactions landed on these chains: read them live for a while, and drop every
- * cached balance so the next read is fresh (the index's too — it is a few seconds behind).
+ * One of our transactions is FINAL on these chains (`txTrace.ts` calls this, never a component):
+ * read them live for a while, and drop every cached balance so the next read is fresh (the
+ * index's too — it is a few seconds behind).
  */
-export function useBalancesChanged() {
-  const qc = useQueryClient()
-  return (...chainIds: (string | undefined)[]) => {
-    const t = Date.now() + LIVE_AFTER_TX_MS
-    for (const c of chainIds) if (c) until.set(c, t)
-    recompute()
-    setTimeout(recompute, LIVE_AFTER_TX_MS + 50)
-    qc.invalidateQueries({ queryKey: ['balances'] })
-    qc.invalidateQueries({ queryKey: ['balances-index'] })
-  }
+export function balancesChanged(qc: QueryClient, ...chainIds: (string | undefined)[]) {
+  const t = Date.now() + LIVE_AFTER_TX_MS
+  for (const c of chainIds) if (c) until.set(c, t)
+  recompute()
+  setTimeout(recompute, LIVE_AFTER_TX_MS + 50)
+  void qc.invalidateQueries({ queryKey: ['balances'] })
+  void qc.invalidateQueries({ queryKey: ['balances-index'] })
 }

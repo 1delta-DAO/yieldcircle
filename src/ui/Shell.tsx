@@ -32,6 +32,7 @@ import { ProfileSheet } from './ProfileSheet'
 import { Positions, totalsOf } from './Positions'
 import { MyStats, StatsChip } from './Stats'
 import { useBook } from './useBook'
+import { TxInFlight, TxTray } from './TxTray'
 import { Sk, usd, usdShort } from './bits'
 
 const ic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
@@ -67,6 +68,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </div></header>
       <main className="wrap">{children}</main>
       {tabs('tabbar')}
+      <TxTray />
     </>
   )
 }
@@ -117,6 +119,8 @@ function Yours() {
       </button>
       <Drawer open={open} onClose={() => setOpen(false)} side="right" label="Your money">
         <div className="hide-d"><MyStats account={account} /></div>
+        {/* the book on screen is the signer's own: what is on its way into it */}
+        <TxInFlight account={account.toLowerCase() === signer ? signer : undefined} />
         <Positions b={b} />
       </Drawer>
     </>

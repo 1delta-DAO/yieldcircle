@@ -35,6 +35,12 @@ export interface Holding {
   debtAmount?: number
   accountId?: string
   lender?: string
+  /**
+   * A fixed-rate loop's loans (Lista's broker): one per term opened, on shared collateral, largest
+   * first. A close repays ONE of them, named by `id` — the API needs it, and repaying one loan cannot
+   * repay the others.
+   */
+  loans?: { id: string; debt: number; debtUsd: number }[]
   /** the held token's address — what a withdraw pays out unless it is asked for the native coin */
   assetAddress?: string
 }
@@ -66,8 +72,11 @@ export function holdingsFrom(items: EarnPosition[], vaults: Record<string, Vault
     const venueOf = (symbol: string | undefined) => { const t = marketTag(instance, symbol ?? ''); return t ? `${protocol} · ${t}` : protocol }
     const accounts = p.crossMargin ? [{ accountId: '0', health: p.health, legs: p.legs, netUsd: p.netUsd, borrowedUsd: p.borrowedUsd, suppliedUsd: p.suppliedUsd }] : p.subAccounts
     for (const a of accounts) {
-      const supply = a.legs.filter((l) => l.depositsUsd > 0.5).sort((x, y) => y.depositsUsd - x.depositsUsd)
-      const debt = a.legs.filter((l) => l.debtUsd > 0.5).sort((x, y) => y.debtUsd - x.debtUsd)
+      // a leg with a `loanId` is one broker loan the market's unbound leg already counts: kept aside, never summed
+      const own = a.legs.filter((l) => !l.loanId)
+      const supply = own.filter((l) => l.depositsUsd > 0.5).sort((x, y) => y.depositsUsd - x.depositsUsd)
+      const debtOf = (ls: typeof own) => ls.filter((l) => l.debtUsd > 0.5).sort((x, y) => y.debtUsd - x.debtUsd)
+      const debt = debtOf(own).length ? debtOf(own) : debtOf(a.legs)
       if (!supply.length) continue
       if (debt.length) {
         const coll = supply[0], d = debt[0]
@@ -76,8 +85,10 @@ export function holdingsFrom(items: EarnPosition[], vaults: Record<string, Vault
         // same test as the catalogue's: same money, not the same display tab
         const directional = !debtBase || !sameMoney(debtBase, asset)
         const lev = a.suppliedUsd > 0 && a.netUsd > 0 ? a.suppliedUsd / a.netUsd : p.leverage
+        const loans = a.legs.filter((l) => l.loanId && l.marketUid === d.marketUid && l.debtUsd > 0.005)
+          .map((l) => ({ id: l.loanId!, debt: parseFloat(l.debt) || 0, debtUsd: l.debtUsd })).sort((x, y) => y.debtUsd - x.debtUsd)
         out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'loop', label: `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
-          amount: parseFloat(coll.deposits) || 0, symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtAmount: parseFloat(d.debt) || 0, accountId: p.crossMargin ? undefined : a.accountId, lender: p.lender })
+          amount: parseFloat(coll.deposits) || 0, symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtAmount: parseFloat(d.debt) || 0, accountId: p.crossMargin ? undefined : a.accountId, lender: p.lender, ...(loans.length ? { loans } : {}) })
       } else {
         for (const l of supply) {
           const asset = baseOfSymbol(l.asset.symbol); if (!asset) continue
@@ -161,6 +172,7 @@ export const WRAPPED_NATIVE: Record<string, string> = {
 }
 /** Is this token the chain's wrapped gas coin — i.e. can the native coin stand in for it on a deposit or withdraw? */
 export const wrapsNative = (chainId: string, address?: string) => !!address && WRAPPED_NATIVE[chainId] === address.toLowerCase()
+const DUST_USD = 0.01
 export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
   const out: Idle[] = []
   const gasToken = GAS_TOKEN_ERC20[chainId]
@@ -183,6 +195,9 @@ export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
     const asset = baseOfSymbol(symbol) ?? (native ? symbol : undefined); if (!asset) continue
     const amount = parseFloat(b.balance); if (!(amount > 0)) continue
     const usd = b.balanceUSD ?? amount * (b.priceUSD ?? 0)
+    // dust is not idle money: a native full exit through a wrap-less venue unwraps a floor and leaves
+    // wei of WETH behind (docs/native-routes.md). Only a PRICED balance is judged — unpriced stays
+    if (b.priceUSD && usd < DUST_USD) continue
     out.push({ asset, symbol, amount, usd, address: native && !gasToken ? '0x0000000000000000000000000000000000000000' : b.address.toLowerCase(), decimals: b.decimals, price: b.priceUSD ?? (amount ? usd / amount : 0), chainId })
   }
   return out

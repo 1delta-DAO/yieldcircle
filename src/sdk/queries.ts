@@ -1,6 +1,6 @@
 import { keepPreviousData, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { bridgeStatus, fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, fetchVaults, loopOpen, type OptimizerQuery } from './api'
+import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, fetchVaults, loopOpen, type OptimizerQuery } from './api'
 import { capPerAsset, classifyEarn, classifyPair, dedupe, rowKey, type Candidate, type LoopStrategy, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { softHide, type HideCode } from '../model/visibility'
 import { useSettings, type Settings } from '../state/Settings'
@@ -440,18 +440,18 @@ export function useIrm(marketUid: string | null | undefined, enabled = true) {
 
 function useDebounced<T>(v: T, ms: number): T { const [d, setD] = useState(v); useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t) }, [v, ms]); return d }
 /** Quote-only loop (no account): the API's projected economics and simulated health for the ticket. */
-export function useLoopQuote(l: LoopStrategy | null, equityUsd: number, leverageLive: number, account?: string, slippageBp = 50) {
+export function useLoopQuote(l: LoopStrategy | null, equityUsd: number, leverageLive: number, account?: string, slippageBp = 50, termId?: string) {
   const leverage = useDebounced(leverageLive, 500)
   const equity = useDebounced(equityUsd, 500)
   const debtUsd = equity * (leverage - 1)
   const debtTokens = l?.priceShort ? debtUsd / l.priceShort : 0
   return useQuery({
     enabled: !!l && debtTokens > 0,
-    queryKey: ['loopq', l?.id, Math.round(debtTokens * 1e6), leverage, slippageBp, account ?? ''],
+    queryKey: ['loopq', l?.id, Math.round(debtTokens * 1e6), leverage, slippageBp, account ?? '', termId ?? ''],
     staleTime: 20_000,
     retry: false,
     // some lenders (LlamaLend) only quote with an account; passing it costs nothing — nothing is signed here
-    queryFn: () => loopOpen({ collateralMarketUid: l!.marketLongUid, debtMarketUid: l!.marketShortUid, debtAmountRaw: toRaw(debtTokens, l!.decimalsShort), slippageBp, leverage, account }),
+    queryFn: () => loopOpen({ collateralMarketUid: l!.marketLongUid, debtMarketUid: l!.marketShortUid, debtAmountRaw: toRaw(debtTokens, l!.decimalsShort), slippageBp, leverage, account, termId }),
   })
 }
 export function useLoopPayAssets(l: LoopStrategy | null) {
@@ -461,16 +461,5 @@ export function useLoopPayAssets(l: LoopStrategy | null) {
     staleTime: HOUR,
     retry: false,
     queryFn: () => fetchLoopPayAssets({ collateralMarketUid: l!.marketLongUid, debtMarketUid: l!.marketShortUid }),
-  })
-}
-
-const TERMINAL = new Set(['DONE', 'FAILED', 'TRANSFER_REFUNDED', 'INVALID'])
-/** Polls the bridge every 10 s until terminal; NOT_FOUND right after submission is indexing lag, keep polling. */
-export function useBridgeStatus(p: { bridge?: string; fromChainId?: string; toChainId?: string; txHash?: string; tokenIn?: string; tokenOut?: string }) {
-  return useQuery({
-    enabled: !!p.bridge && !!p.fromChainId && !!p.toChainId && !!p.txHash,
-    queryKey: ['bridge', p.bridge, p.fromChainId, p.txHash],
-    refetchInterval: (q) => (TERMINAL.has(q.state.data?.status ?? '') ? false : 10_000),
-    queryFn: () => bridgeStatus({ bridge: p.bridge!, fromChainId: p.fromChainId!, toChainId: p.toChainId!, txHash: p.txHash!, tokenIn: p.tokenIn, tokenOut: p.tokenOut }),
   })
 }

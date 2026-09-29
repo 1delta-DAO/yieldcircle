@@ -1,12 +1,15 @@
 import React from 'react'
-import { useAccount, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useSendTransaction } from 'wagmi'
 import type { Idle } from '../model/positions'
 import { toRaw } from '../model/leverage'
 import { spotSwapQuote, xchainSwapQuote, ZERO, type SwapQuoteActions, type SwapQuoteData } from '../sdk/api'
-import { chainLabel, useBridgeStatus } from '../sdk/queries'
-import { useBalancesChanged } from '../sdk/liveBalances'
+import { chainLabel } from '../sdk/queries'
+import { hasLanded, isDone, isOk, traceTx, useTrace } from '../sdk/txTrace'
+import { Spin, TxTrack, phaseWords } from './TxTray'
 import type { ApiEnvelope } from '../vendor/allocator/http'
 import { useApp } from '../state/AppState'
+import { isRemote, openWallet } from '../wallet/deeplink'
+import { useSwitchTo } from '../wallet/useSwitchTo'
 import { DecimalInput, Info, Popover, Tok, num, usd } from './bits'
 
 export interface Target { chainId: string; address: string; symbol: string; decimals: number; price: number; logo?: string }
@@ -59,28 +62,44 @@ export function GetAsset({ target, need, sources, onClose }: { target: Target; n
   const best = quotes[sel]
   const tx = quote?.actions?.alternatives?.[sel]
   const perms = (quote?.actions?.permissions ?? []).filter((p) => !best?.approvalTarget || !p.spender || p.spender.toLowerCase() === best.approvalTarget.toLowerCase())
-  const approveRcpt = useWaitForTransactionReceipt({ hash: pendingApprove })
+  // the approval and the swap/bridge are followed by `txTrace.ts`, like every ladder step: the tray shows them too
+  const approveTr = useTrace(pendingApprove)
+  const approved = hasLanded(approveTr)
   // a spot quote lists the approval without flagging `approvalRequired`; trust the permission the API returned (never for native)
-  const needsApprove = perms.length > 0 && src?.address !== ZERO && !approveRcpt.isSuccess
-  const { chainId: walletChain } = useAccount(); const { switchChainAsync, isPending: switching } = useSwitchChain()
+  const needsApprove = perms.length > 0 && src?.address !== ZERO && !approved
+  const { chainId: walletChain, address, connector } = useAccount(); const { switchTo, switching } = useSwitchTo()
   const send = useSendTransaction()
   const wrongChain = !!src && walletChain !== Number(src.chainId)
   const sendTx = async (t: { to: string; data: string; value: string }) => send.sendTransactionAsync({ to: t.to as `0x${string}`, data: t.data as `0x${string}`, value: BigInt(t.value || '0') })
-  const status = useBridgeStatus({ bridge: sent?.bridge, fromChainId: src?.chainId, toChainId: target.chainId, txHash: sent?.hash, tokenIn: src?.address, tokenOut: target.address })
-  const sentRcpt = useWaitForTransactionReceipt({ hash: !cross && sent ? sent.hash : undefined })
-  const arrived = !!sent && (cross ? status.data?.status === 'DONE' : sentRcpt.isSuccess)
-  // landed: both chains read live for a while, every cached balance (the index's too) refetched
-  const balancesChanged = useBalancesChanged()
-  React.useEffect(() => { if (arrived) balancesChanged(src?.chainId, target.chainId) }, [arrived])
+  // settled = final on the source chain (and, across chains, the bridge says DONE); the tracer has
+  // already re-read both chains' balances by then
+  const sentTr = useTrace(sent?.hash)
+  const arrived = sentTr?.phase === 'settled'
+  const lost = !!sentTr && isDone(sentTr) && !isOk(sentTr)
+  React.useEffect(() => { if (approveTr && isDone(approveTr) && !isOk(approveTr)) { setErr(approveTr.err ?? 'The approval did not go through.'); setPendingApprove(undefined) } }, [approveTr?.phase])
   const [busy, setBusy] = React.useState(false)
+  const remote = isRemote(connector?.id)
   const go = async () => {
     if (!src || !tx) return
     setErr(null)
-    if (wrongChain) { try { await switchChainAsync({ chainId: Number(src.chainId) }) } catch (e) { setErr(shortErr((e as Error).message)) } return }
+    if (wrongChain) { try { await switchTo(Number(src.chainId)) } catch (e) { setErr(shortErr((e as Error).message)) } return }
+    // before the first await: iOS only follows the hand-off while the tap is live (wallet/deeplink.ts)
+    openWallet(connector?.id)
     setBusy(true)
     try {
-      if (needsApprove) { const h = await sendTx(perms[0]); setPendingApprove(h); return }
-      const h = await sendTx(tx); setSent({ hash: h, bridge: best?.bridge })
+      if (needsApprove) {
+        const h = await sendTx(perms[0])
+        if (address) traceTx({ hash: h, chainId: src.chainId, account: address, title: `Approve ${src.symbol}`, moves: 'none' })
+        setPendingApprove(h); return
+      }
+      const h = await sendTx(tx)
+      const what = `${num(amount, 4)} ${src.symbol} → ${target.symbol}`
+      if (address) traceTx({
+        hash: h, chainId: src.chainId, account: address, moves: 'balances',
+        title: cross ? `Bridge ${what}` : `Swap ${what}`, label: cross ? `${chainLabel(src.chainId)} → ${chainLabel(target.chainId)}` : `on ${chainLabel(src.chainId)}`,
+        bridge: cross && best?.bridge ? { name: best.bridge, toChainId: target.chainId, tokenIn: src.address, tokenOut: target.address } : undefined,
+      })
+      setSent({ hash: h, bridge: best?.bridge })
     } catch (e) { setErr(shortErr((e as Error).message)) } finally { setBusy(false) }
   }
   const out = best?.tradeOutput ?? 0
@@ -121,13 +140,14 @@ export function GetAsset({ target, need, sources, onClose }: { target: Target; n
               {sent ? (
                 <div className="qline">
                   {arrived ? <span className="ok">Received. Your {target.symbol} balance is refreshed; go ahead with the strategy.</span>
-                    : cross ? <span className="t70">Bridging… <span className="t50 mono">{status.data?.status === 'NOT_FOUND' || !status.data ? 'waiting for the bridge to pick it up' : status.data.status.toLowerCase()}</span></span>
-                    : <span className="t70">Swapping… waiting for the block.</span>}
+                    : lost ? <span className="bad">{phaseWords(sentTr!).head}: {sentTr!.err ?? 'it did not go through'}</span>
+                    : <span className="t70">{sentTr ? <><Spin sm /> {phaseWords(sentTr).head}{phaseWords(sentTr).detail ? <span className="t50"> · {phaseWords(sentTr).detail}</span> : null}</> : cross ? 'Bridging…' : 'Swapping…'}</span>}
+                  {sentTr && !lost && <TxTrack t={sentTr} />}
                 </div>
               ) : (
                 <div className="actions" style={{ marginTop: 10 }}>
-                  <button className="btn pri" disabled={!tx || busy || switching || (!!pendingApprove && !approveRcpt.isSuccess) || amount > src.amount + 1e-9} onClick={go}>
-                    {wrongChain ? `Switch wallet to ${chainLabel(src.chainId)}` : pendingApprove && !approveRcpt.isSuccess ? 'Approving…' : needsApprove ? `Approve ${src.symbol}` : busy ? 'Sending…' : `${cross ? 'Bridge' : 'Swap'} · ${num(amount, 4)} ${src.symbol}`}
+                  <button className="btn pri" disabled={!tx || (busy && !remote) || switching || (!!pendingApprove && !approved) || amount > src.amount + 1e-9} onClick={busy ? () => openWallet(connector?.id) : go}>
+                    {switching ? 'Switching…' : busy && remote ? 'Open your wallet to confirm' : wrongChain ? `Switch wallet to ${chainLabel(src.chainId)}` : pendingApprove && !approved ? 'Approving…' : needsApprove ? `Approve ${src.symbol}` : busy ? 'Sending…' : `${cross ? 'Bridge' : 'Swap'} · ${num(amount, 4)} ${src.symbol}`}
                   </button>
                   <button className="btn" onClick={onClose}>Cancel</button>
                 </div>

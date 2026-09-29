@@ -1,17 +1,19 @@
 import React from 'react'
 import { unitOf } from '../model/assets'
-import { DEFAULT_TIER, TIERS, borrowAtSize, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
-import type { LoopStrategy, SimpleStrategy, Strategy } from '../model/strategies'
+import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
+import type { LoopStrategy, LoopTerm, SimpleStrategy, Strategy } from '../model/strategies'
 import type { LoopActions } from '../sdk/types'
 import { nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
 import { earnDeposit, earnWithdraw, loopClose, loopOpen, ZERO } from '../sdk/api'
 import { chainLabel, useIrm, useLoopPayAssets, useLoopQuote } from '../sdk/queries'
 import { useApp, type Mode } from '../state/AppState'
 import { useSticky } from '../state/sticky'
-import { DecimalInput, Info, KindPill, RiskDot, Sk, StratMark, Tok, Toks, num, pct, usd, usdShort } from './bits'
+import { DecimalInput, Info, KindPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
 import { Who } from './social-bits'
 import { useProfiles } from '../social/queries'
-import { stepsFrom, useLadder, type Ladder } from './useLadder'
+import { stepsFrom, useLadder, type Ladder, type Step } from './useLadder'
+import { isDone, useTrace } from '../sdk/txTrace'
+import { Spin, TxNote } from './TxTray'
 import { GetAsset, type Target } from './GetAsset'
 import { IrmLink } from './Irm'
 import { uidOf } from '../model/uid'
@@ -34,7 +36,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: St
     <div className="ticket">
       <div className="grab" />
       <div className="th">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />}
-        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part.</> : <SimpleWords s={s} />}</Info></div><div className="s">{s.asset} strategy · {s.kind === 'loop' ? s.venue : s.via} · {chainLabel(s.chainId)}</div></div>
+        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part{s.terms ? <>, fixed for the term you pick</> : ''}.</> : <SimpleWords s={s} />}</Info></div><div className="s">{s.asset} strategy · {s.kind === 'loop' ? `${s.venue}${s.terms ? ' · fixed rate' : ''}` : s.via} · {chainLabel(s.chainId)}</div></div>
         <KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
       {holding && (
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
@@ -132,17 +134,32 @@ type PayRole = 'native' | 'token'
 interface PayOption { role: PayRole; address: string; symbol: string; decimals: number }
 function payOptions(s: SimpleStrategy): PayOption[] {
   const token: PayOption = { role: 'token', address: s.assetAddress.toLowerCase(), symbol: s.assetSymbol, decimals: s.decimals }
-  const native = s.nativeIn ?? (wrapsNative(s.chainId, s.assetAddress) && !NO_NATIVE_DEPOSIT.some((v) => s.venueKey.startsWith(v)))
+  const native = s.nativeIn ?? (wrapsNative(s.chainId, s.assetAddress) && !startsAny(s.venueKey, NO_NATIVE_DEPOSIT))
   return native ? [{ role: 'native', address: ZERO, symbol: nativeSymbol(s.chainId), decimals: 18 }, token] : [token]
 }
 /**
- * The API answers "can the coin go in here" itself (`acceptsNative`, read into `s.nativeIn`). This
- * list is only for an API that predates the flag: the venues whose deposit could not take the gas
- * coin in a sweep of every wrapped-native row (2026-09-28, 248 rows) — Lagoon answering the WETH
- * approve as if nothing had been asked, the rest refusing. Mixed families are left to
- * {@link paysNative} and the API's own refusal.
+ * The API answers "can the coin go in / come out here" itself (`acceptsNative`, read into
+ * `s.nativeIn` / `s.nativeOut`). These lists are only for the window before the flag reaches the
+ * listing (docs/native-routes.md): what the worker serves without it. Every venue with no payable
+ * entry now takes the coin as a wrap step, so what is left is structural — the Liquity family needs
+ * a `troveId` an earn request never carries, and Fluid lists the coin as its own token, never the
+ * wrapper. The exits refuse more: TermMax and Term price theirs at execution, and the single-token
+ * vaults (the savings registry, Lagoon) pay their token only.
  */
-const NO_NATIVE_DEPOSIT = ['vault.lagoon', 'CURVANCE', 'EXACTLY', 'LLAMALEND', 'FLYING_TULIP', 'LIQUITY', 'FELIX', 'NERITE']
+const LIQUITY_FAMILY = ['LIQUITY', 'FELIX', 'NERITE', 'QUILL', 'EBISU', 'SONETA', 'ENOSYS_LOANS']
+const NO_NATIVE_DEPOSIT = [...LIQUITY_FAMILY, 'FLUID']
+const NO_NATIVE_WITHDRAW = [...NO_NATIVE_DEPOSIT, 'TERMMAX', 'TERM_FINANCE', 'vault.savings', 'vault.lagoon']
+/**
+ * Aave forks whose native gateway withdraws `max` from an aToken transfer that rounds 1 wei short,
+ * so a native FULL exit reverts every time (fork-checked 2026-09-28, docs/native-routes.md).
+ * `lender prefix → chains`. The ERC-20 exit works there; the coin is withheld for a full exit only.
+ */
+const NATIVE_MAX_ROUNDS: Record<string, string[]> = {
+  XLEND: ['10', '8453'], GRANARY: ['1'], VALAS: ['56'], RADIANT_V2: ['1'], PRIME_FI: ['50'], PLOUTOS: ['43111'],
+  RMM: ['100'], ZEROLEND: ['169'], MOLEND: ['34443'], MERIDIAN: ['167000'],
+}
+const startsAny = (key: string, prefixes: string[]) => prefixes.some((v) => key.startsWith(v))
+const nativeMaxRounds = (key: string, chainId: string) => Object.entries(NATIVE_MAX_ROUNDS).some(([v, cs]) => key.startsWith(v) && cs.includes(chainId))
 /**
  * Asked to pay in the gas coin, a bundle that moves none of it is a bundle for the ERC-20 — the
  * approve-then-revert this whole choice exists to avoid. Some leg must carry `value` (a gateway
@@ -170,8 +187,8 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
   const ladder = useLadder(key, s.chainId, async () => {
     const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: account!, payAsset: chosen.role === 'native' ? ZERO : undefined })
     if (chosen.role === 'native' && !paysNative(env.actions)) throw new Error(`${s.brand} does not take ${chosen.symbol} directly here. Pay with ${s.assetSymbol}.`)
-    return stepsFrom(env.actions, s.via, nativeSymbol(s.chainId))
-  })
+    return stepsFrom(env.actions, s.via, s.chainId)
+  }, [s.earnUid, s.marketUid])
   const more = !!idle && amount > idle.amount
   // the exit line, said with this market's own numbers where it has them: a
   // pool that is 94 % lent out is not the "rare, short" case the generic
@@ -227,10 +244,18 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
  * While the curve loads the spot rate stands in; a market with no curve keeps
  * the $10k quote.
  */
-function useBorrowAt(s: LoopStrategy | null) {
+function useBorrowAt(s: LoopStrategy | null, term?: LoopTerm) {
   const irm = useIrm(s?.marketShortUid, !!s)
-  return (extraDebtUsd: number) => (!s ? 0 : irm.isPending ? s.borSpot : borrowAtSize(s.borSpot, s.bor, extraDebtUsd, irm.data))
+  // a fixed term costs its card rate at any size: the curve is where the debt goes AFTER the term
+  return (extraDebtUsd: number) => (!s ? 0 : term ? term.apr : s.terms ? s.borSpot : irm.isPending ? s.borSpot : borrowAtSize(s.borSpot, s.bor, extraDebtUsd, irm.data))
 }
+/**
+ * The term a fixed-rate loop opens with before anyone picks: the cheapest, and the longest of equals —
+ * slisBNB/WBNB charges 0.5 % for 7, 14 and 30 days alike, and a shorter lock of the same rate only
+ * moves the day the debt drops to the variable rate closer.
+ */
+const defaultTerm = (ts: LoopTerm[]) => [...ts].sort((a, b) => a.apr - b.apr || b.days - a.days)[0]
+const dayOf = (days: number) => new Date(Date.now() + days * 86400_000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
 function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle[]; allIdle: Idle[]; holding: Holding | null }) {
   const { account, isConnected } = useApp()
@@ -252,32 +277,47 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
   const price = chosen?.price || bal?.price || (unit === '$' ? 1 : 0)
   const [amount, setAmount] = useSticky<number>(`t:${s.id}:amount`, () => (unit === '$' ? 1000 : 1))
   const [tier, setTier] = useSticky<TierId>(`t:${s.id}:tier`, DEFAULT_TIER)
-  const L = s.tiers[tier]
+  // a number of your own is behind the slider icon, never the default: the tiers are the advice,
+  // the slider is for someone who already knows the number they want. `null` = on the tiers
+  const [custom, setCustom] = useSticky<number | null>(`t:${s.id}:lev`, null)
+  const [lo, hi] = customRange(s.maxLev), canCustom = hi > lo + 0.05
+  const L = custom != null && canCustom ? Math.min(hi, Math.max(lo, custom)) : s.tiers[tier]
   const E = amount * price, C = E * L, D = E * (L - 1)
-  const borAt = useBorrowAt(s)
+  // a fixed-rate loop borrows for one term off the broker's card; `undefined` on a float loop
+  const [termId, setTermId] = useSticky<string | null>(`t:${s.id}:term`, null)
+  const term = s.terms ? s.terms.find((t) => t.id === termId) ?? defaultTerm(s.terms) : undefined
+  const borAt = useBorrowAt(s, term)
   const dep = s.depSpot, bor = borAt(D)
   const net = netAprAtLeverage(dep, bor, L), drop = liqBuffer(s.liqLtv, L), hf = healthAt(s.liqLtv, L)
   const netWorst = netAprAtLeverage(dep, bor + 2, L)
+  // when the term ends the debt is not due: it moves to the market's variable rate until it is fixed again
+  const irm = useIrm(s.marketShortUid, !!term)
+  const after = term ? curveRateNow(irm.data) : null
+  const netAfter = after != null ? netAprAtLeverage(dep, after, L) : null
+  const ends = term ? dayOf(term.days) : ''
   const overLiquidity = s.borrowLiquidityUsd > 0 && D > s.borrowLiquidityUsd
   // adding to a loop the wallet already runs: the new debt lands in the same book, so the number that
   // matters is the whole position after — the existing debt is already in the curve's utilisation
   const Eh = holding && holding.valueUsd > 0 ? holding.valueUsd : 0, Lh = holding?.leverage && holding.leverage > 1 ? holding.leverage : 1
   const Lc = Eh > 0 ? (Eh * Lh + E * L) / (Eh + E) : L
   const netC = netAprAtLeverage(dep, bor, Lc), hfC = healthAt(s.liqLtv, Lc)
-  const q = useLoopQuote(s, E, L, account)
+  const q = useLoopQuote(s, E, L, account, 50, term?.id)
   const econ = q.data?.data?.economics ?? q.data?.data?.quotes?.[0]?.economics ?? null
+  // the quote's carry prices a broker debt at the market's variable rate, not the term's (API gap,
+  // 2026-09-29): on a fixed loop only its entry cost is kept, and the payback is this ticket's own
+  const payback = !econ ? null : term ? (net > 0 && E > 0 && econ.entryCostUsd.total > 0 ? econ.entryCostUsd.total / (E * net / 100 / 365) : null) : econ.breakEvenDays.total
   const simHf = q.data?.data?.simulation?.post?.healthFactor
   const yearly = E * net / 100
-  const key = [s.id, amount, tier, chosen?.role ?? '', account ?? ''].join('|')
+  const key = [s.id, amount, L, term?.id ?? '', chosen?.role ?? '', account ?? ''].join('|')
   const ladder = useLadder(key, s.chainId, async () => {
     const debtTokens = s.priceShort ? D / s.priceShort : 0
     const env = await loopOpen({
       collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: 50, leverage: L, account: account!,
-      payAsset: chosen ? (chosen.role === 'native' ? ZERO : chosen.address) : undefined, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined,
+      payAsset: chosen ? (chosen.role === 'native' ? ZERO : chosen.address) : undefined, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined, termId: term?.id,
     })
     if (chosen?.role === 'native' && !paysNative(env.actions)) throw new Error(`This loop does not take ${chosen.symbol} directly. Pay with another asset.`)
-    return stepsFrom(env.actions, `Open ${num(L, 2)}× loop`, nativeSymbol(s.chainId))
-  })
+    return stepsFrom(env.actions, `Open ${num(L, 2)}× loop${term ? ` · ${term.days}-day fixed` : ''}`, s.chainId)
+  }, [s.marketLongUid, s.marketShortUid])
   const more = !!bal && amount > bal.amount
   return (
     <>
@@ -288,27 +328,41 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
         <div className="amt-sub"><span>≈ {usd(E)} equity</span><span>{account ? <>Idle: {bal ? `${num(bal.amount, 4)} ${chosen?.symbol}` : `0 ${chosen?.symbol ?? ''}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
         {chosen && <GetLine account={account} short={!bal || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />}
         {getOpen && chosen && <GetAsset target={{ chainId: s.chainId, address: chosen.address, symbol: chosen.symbol, decimals: chosen.decimals, price: price || 1, logo: chosen.logo }} need={Math.max(0, amount - (bal?.amount ?? 0))} sources={allIdle} onClose={() => setGetOpen(false)} />}
-        <span className="lbl" style={{ marginTop: 14 }}>How hard to push it <Info label="Leverage tiers">{TIERS.map((t) => <p key={t.id} style={{ margin: '0 0 6px' }}><b>{t.name}</b> · {t.blurb}</p>)}<p style={{ margin: 0 }}>This venue allows up to {num(s.maxLev, 1)}×. At {num(L, 2)}× the collateral can fall <b>{pct(drop * 100, 1)}</b> against the debt before liquidation.</p></Info></span>
-        <div className="tiers" role="radiogroup" aria-label="Leverage tier">{TIERS.map((t) => { const l = s.tiers[t.id]; const n = netAprAtLeverage(dep, borAt(E * (l - 1)), l); const d = liqBuffer(s.liqLtv, l); return (
+        {s.terms && term && <>
+          <span className="lbl" style={{ marginTop: 14 }}>Fix the {s.debt} rate for <Info label="Fixed-rate borrowing">
+            <p style={{ margin: '0 0 6px' }}>{s.venue} lends {s.debt} here at a rate it sets for each term, the same at any size. The rate you pick is locked from today until the term ends.</p>
+            <p style={{ margin: '0 0 6px' }}>When it ends the debt is not due and nothing is liquidated for it: the loan moves to the market's variable rate{after != null ? <> ({pct(after)} now)</> : ''} until you fix it again.</p>
+            <p style={{ margin: 0 }}>Repaying before the end (closing or deleveraging) costs a penalty of about half the interest the repaid part would still pay.</p></Info></span>
+          <div className="seg" role="radiogroup" aria-label="Fixed term">{s.terms.map((t) => <button key={t.id} role="radio" aria-checked={t.id === term.id} aria-pressed={t.id === term.id} onClick={() => setTermId(t.id)}>{t.days} days<span className="c" style={{ marginLeft: 6 }}>{pct(t.apr)}</span></button>)}</div>
+        </>}
+        <span className="lbl" style={{ marginTop: 14 }}>How hard to push it <Info label="Leverage tiers">{TIERS.map((t) => <p key={t.id} style={{ margin: '0 0 6px' }}><b>{t.name}</b> · {t.blurb}</p>)}<p style={{ margin: '0 0 6px' }}>This venue allows up to {num(s.maxLev, 1)}×. At {num(L, 2)}× the collateral can fall <b>{pct(drop * 100, 1)}</b> against the debt before liquidation.</p>{canCustom && <p style={{ margin: 0 }}>The slider icon swaps the tiers for a leverage of your own, up to {num(hi, 2)}×.</p>}</Info>
+          {canCustom && <button type="button" className="levtoggle" aria-pressed={custom != null} aria-label={custom != null ? 'Back to the tiers' : 'Set my own leverage'} title={custom != null ? 'Back to the tiers' : 'Set my own leverage'} onClick={() => setCustom(custom != null ? null : L)}>
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" /><circle cx="15" cy="6" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="17" cy="18" r="2" /></svg>
+          </button>}</span>
+        {custom != null && canCustom ? <>
+          <div className="levr"><input type="range" min={lo} max={hi} step={0.01} value={L} onChange={(e) => setCustom(parseFloat(e.target.value))} aria-label="Leverage" /><span className={`v ${drop < 0.05 ? 'bad' : drop < 0.1 ? 'warn' : ''}`}>{num(L, 2)}×</span></div>
+          <div className="snaps">{TIERS.map((t) => <button key={t.id} className={`pctb ${Math.abs(L - s.tiers[t.id]) < 0.02 ? 'on' : ''}`} onClick={() => setCustom(s.tiers[t.id])}>{t.name} {num(s.tiers[t.id], 1)}×</button>)}</div>
+        </> : <div className="tiers" role="radiogroup" aria-label="Leverage tier">{TIERS.map((t) => { const l = s.tiers[t.id]; const n = netAprAtLeverage(dep, borAt(E * (l - 1)), l); const d = liqBuffer(s.liqLtv, l); return (
           <button key={t.id} className={`tier ${t.id}`} role="radio" aria-checked={tier === t.id} onClick={() => setTier(t.id)}>
             <span className="tn">{t.name}</span>
             <span className={`tr ${n >= 3 ? 'ok' : n < 0 ? 'bad' : ''}`}>{pct(n)}</span>
             <span className={`tl ${d < 0.05 ? 'bad' : d < 0.1 ? 'warn' : ''}`} title={`${num(l, 2)}× leverage · liquidated if the collateral falls ${pct(d * 100, 1)} against the debt`}>{num(l, 2)}× · −{pct(d * 100, d < 0.1 ? 1 : 0)}</span>
-          </button>) })}</div>
+          </button>) })}</div>}
 
       </div>
       <div className="tsec"><div className="cells">
-        <div className="c hero"><span className="k">Net yield</span><span className={`v ${net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{pct(net)}</span><span className="s">earn {pct(dep)} on {num(L, 1)}× · pay {pct(bor)} on {num(L - 1, 1)}×{Math.abs(bor - s.borSpot) >= 0.05 ? ` (${pct(s.borSpot)} now)` : ''}</span></div>
+        <div className="c hero"><span className="k">Net yield</span><span className={`v ${net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{pct(net)}</span><span className="s">earn {pct(dep)} on {num(L, 1)}× · pay {pct(bor)} on {num(L - 1, 1)}×{term ? ` fixed to ${ends}` : Math.abs(bor - s.borSpot) >= 0.05 ? ` (${pct(s.borSpot)} now)` : ''}</span></div>
         {Eh > 0 && <div className="c"><span className="k">Your loop after</span><span className={`v ${netC >= 3 ? 'ok' : netC < 0 ? 'bad' : ''}`}>{pct(netC)}</span><span className="s">{num(Lh, 2)}× → {num(Lc, 2)}× · health {hfC.toFixed(2)}</span></div>}
         <div className="c"><span className="k">Per year</span><span className="v">{usd(yearly)}</span><span className="s">vs {usd(E * dep / 100)} unlevered</span></div>
-        <div className="c"><span className="k">If borrow +2%</span><span className={`v ${netWorst < 0 ? 'bad' : netWorst < 1 ? 'warn' : ''}`}>{pct(netWorst)}</span><span className="s">rate sensitivity</span></div>
+        {term ? <div className="c"><span className="k">After {ends}</span><span className={`v ${netAfter == null ? '' : netAfter < 0 ? 'bad' : netAfter < 1 ? 'warn' : ''}`}>{pct(netAfter)}</span><span className="s">{after != null ? `if not re-fixed · variable ${pct(after)} now` : 'if not re-fixed · variable rate'}</span></div>
+          : <div className="c"><span className="k">If borrow +2%</span><span className={`v ${netWorst < 0 ? 'bad' : netWorst < 1 ? 'warn' : ''}`}>{pct(netWorst)}</span><span className="s">rate sensitivity</span></div>}
         {/* a loop is two markets, so it gets two curves: the one that pays you
             and the one that charges you. The borrow leg is the one that ends
             loops — the "If borrow +2%" cell above says how much it would hurt,
             the curve says how close the market is to doing it. */}
         <div className="c"><span className="k">You hold</span><span className="v">{usd(C)}</span><span className="s">{s.holds} on {s.venue}</span><IrmLink uid={s.marketLongUid} side="supply" label="supply curve" rewards={s.rewardsLong} /></div>
-        <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · floating · {usdShort(s.borrowLiquidityUsd)} to borrow</span><IrmLink uid={s.marketShortUid} side="borrow" label="borrow curve" rewards={s.rewardsShort} /></div>
-        <div className="c"><span className="k">Entry cost</span><span className="v">{q.isFetching && !econ ? <Sk w={60} h={14} /> : econ ? usd(econ.entryCostUsd.total) : '—'}</span><span className="s">{econ ? `${econ.breakEvenDays.total != null ? `earned back in ${Math.ceil(econ.breakEvenDays.total)} days` : 'slippage, fees, gas'}` : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
+        <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · {term ? `fixed ${pct(term.apr)} for ${term.days} days` : 'floating'} · {usdShort(s.borrowLiquidityUsd)} to borrow</span><IrmLink uid={s.marketShortUid} side="borrow" label={term ? 'rate after the term' : 'borrow curve'} rewards={s.rewardsShort} /></div>
+        <div className="c"><span className="k">Entry cost</span><span className="v">{q.isFetching && !econ ? <Sk w={60} h={14} /> : econ ? usd(econ.entryCostUsd.total) : '—'}</span><span className="s">{econ ? `${payback != null ? `earned back in ${Math.ceil(payback)} days` : 'slippage, fees, gas'}` : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
         <div className="c"><span className="k">Health</span><span className={`v ${(simHf ?? hf) < 1.1 ? 'bad' : (simHf ?? hf) < 1.25 ? 'warn' : 'ok'}`}>{(simHf ?? hf).toFixed(2)}</span><span className="s">{simHf ? 'simulated by the API' : 'from the liquidation threshold'}</span></div>
       </div>
         <span className="lbl" style={{ marginTop: 14 }}>Liquidation</span>
@@ -318,12 +372,16 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
       </div>
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">
         {overLiquidity && <li className="w"><i /><span>This borrows {usd(D)} of {s.debt}, more than the {usdShort(s.borrowLiquidityUsd)} the market has free: the rate is at the top of its curve and the transaction may not go through.</span></li>}
-        <li className="w"><i /><span>Net yield goes negative if the {s.debt} borrow rate rises above the {s.holds} rate.</span></li>
+        {term ? <>
+          <li className="w"><i /><span>The {pct(term.apr)} is fixed until {ends}. After that the debt pays the variable rate{after != null ? ` (${pct(after)} now, which would make the loop ${pct(netAfter)})` : ''} until you fix it again.</span></li>
+          <li className="w"><i /><span>Closing or deleveraging before {ends} costs a penalty: about half the interest the repaid part would still pay.</span></li>
+          {!!holding && <li><i /><span>This opens a second loan beside the one you hold, on the same collateral. Each has its own term and is repaid on its own.</span></li>}
+        </> : <li className="w"><i /><span>Net yield goes negative if the {s.debt} borrow rate rises above the {s.holds} rate.</span></li>}
         <li className="w"><i /><span>Liquidation if {s.holds} trades at a discount to {s.debt}.</span></li>
         {s.expiry && <li><i /><span>The collateral matures on {new Date(s.expiry * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}; the position must be closed or rolled.</span></li>}
         {s.rewardsLong + s.rewardsShort > 0.05 && <li><i /><span>Part of the rate is incentives that can stop without notice.</span></li>}
       </ul></div>
-      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}× · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen} chainId={s.chainId} />
+      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen} chainId={s.chainId} />
     </>
   )
 }
@@ -338,17 +396,21 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   // out of a wrapped-native row the gas coin is one tap away (`receiveAsset` = ZERO, unwrapped in the
   // same bundle). Not the default: the unwrap goes through a gateway, the composer or Morpho's
   // adapter, which costs an approve or an authorization the plain withdraw does not
-  const canNative = s?.nativeOut ?? wrapsNative(h.chainId, h.assetAddress ?? s?.assetAddress)
+  const venueKey = s?.venueKey ?? h.earnUid ?? h.lender ?? ''
+  const canNative = s?.nativeOut ?? (wrapsNative(h.chainId, h.assetAddress ?? s?.assetAddress) && !startsAny(venueKey, NO_NATIVE_WITHDRAW))
+  const fullExit = all || share > 0.999
+  // a native full exit through a rounding gateway reverts every time — the coin stays offered for a partial exit
+  const maxRounds = canNative && fullExit && nativeMaxRounds(venueKey, h.chainId)
   const coin = nativeSymbol(h.chainId)
   const [asNative, setAsNative] = useSticky<boolean>(`t:${h.key}:receive-native`, false)
-  const native = canNative && asNative
+  const native = canNative && asNative && !maxRounds
   const outSym = native ? coin : h.symbol
   const key = [s?.id ?? h.key, mode, eff, native ? 'native' : 'token', account ?? ''].join('|')
   const rate = s?.rate ?? h.apr
   const ladder = useLadder(key, h.chainId, async () => {
-    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: toRaw(eff, h.decimals), operator: account!, isAll: all || share > 0.999, receiveAsset: native ? ZERO : undefined })
-    return stepsFrom(env.actions, 'Withdraw', coin)
-  })
+    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: toRaw(eff, h.decimals), operator: account!, isAll: fullExit, receiveAsset: native ? ZERO : undefined })
+    return stepsFrom(env.actions, 'Withdraw', h.chainId)
+  }, [s?.earnUid, h.earnUid])
   const price = h.amount > 0 ? h.valueUsd / h.amount : 0
   return (
     <>
@@ -357,8 +419,9 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
         <div className="amt"><DecimalInput value={amount} onChange={setAmount} ariaLabel="Amount" /><span className="u">{h.symbol}</span><button className="max" onClick={() => setAmount(h.amount)}>Max</button></div>
         <div className="amt-sub"><span>≈ {usd(eff * price)}{amount > h.amount + 1e-9 && <span className="warn"> · more than you hold</span>}</span><span>{[25, 50, 75, 100].map((p) => <button key={p} className="pctb" onClick={() => setAmount(+(h.amount * p / 100).toFixed(6))}>{p}%</button>)}</span></div>
         {canNative && <>
-          <span className="lbl" style={{ marginTop: 14 }}>Paid out as <Info label="Getting the native coin back">Paid out as {coin}, the {h.symbol} is unwrapped for you. That costs one more signature on most venues: an approval for their gateway the first time, or an unwrap step of its own.</Info></span>
-          <div className="seg">{[false, true].map((n) => <button key={String(n)} aria-pressed={native === n} onClick={() => setAsNative(n)}><Tok sym={n ? coin : h.symbol} logo={n ? undefined : h.logo} size={16} /> {n ? coin : h.symbol}</button>)}</div>
+          <span className="lbl" style={{ marginTop: 14 }}>Paid out as <Info label="Getting the native coin back">Paid out as {coin}, the {h.symbol} is unwrapped for you. That costs one more signature on most venues: an approval for their gateway the first time, or an unwrap step of its own. If that unwrap step fails, the withdrawal has still gone through and the funds sit in your wallet as {h.symbol}.</Info></span>
+          <div className="seg">{[false, true].map((n) => <button key={String(n)} aria-pressed={native === n} disabled={n && maxRounds} onClick={() => setAsNative(n)}><Tok sym={n ? coin : h.symbol} logo={n ? undefined : h.logo} size={16} /> {n ? coin : h.symbol}</button>)}</div>
+          {maxRounds && <div className="foot" style={{ marginTop: 6 }}>This venue's {coin} exit fails on a full withdrawal. Take {h.symbol}, or leave a little in to take {coin}.</div>}
         </>}
       </div>
       <div className="tsec"><div className="cells">
@@ -391,8 +454,17 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const pD = s?.priceShort ?? 0
   // off the menu, the threshold is read back from the health the position reports: HF = L · lt / (L − 1)
   const liqLtv = s?.liqLtv ?? (h.health != null && Lnow > 1 ? (h.health * (Lnow - 1)) / Lnow : null)
-  const maxL = s ? Math.max(Lnow, Math.floor(s.maxLev * 100) / 100) : Lnow
-  const [L, setL] = React.useState<number>(() => (closeFirst ? 1 : +Lnow.toFixed(2)))
+  // a fixed-rate loop is a set of broker loans, and one close repays ONE of them (`loanId`): the slider
+  // stops where that loan is paid off, and "Close" is there only when it is the whole debt. Adding
+  // borrows a new term, which is the Add tab's job — here the slider only goes down.
+  const loans = h.loans ?? []
+  const [loanId, setLoanId] = React.useState<string | undefined>(loans[0]?.id)
+  const loan = loans.find((x) => x.id === loanId) ?? loans[0]
+  const rest = loan ? Math.max(0, D - loan.debtUsd) : 0
+  const minL = loan && rest > D * 0.01 ? Math.ceil((1 + rest / E) * 100) / 100 : 1
+  const maxL = loan ? Lnow : s ? Math.max(Lnow, Math.floor(s.maxLev * 100) / 100) : Lnow
+  const [L0, setL] = React.useState<number>(() => (closeFirst ? 1 : +Lnow.toFixed(2)))
+  const L = Math.max(minL, L0)
   const same = Math.abs(L - Lnow) < 0.02
   const closing = L <= 1.001
   const down = L < Lnow
@@ -408,28 +480,30 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const key = [s?.id ?? h.key, 'manage', L, account ?? ''].join('|')
   const ladder = useLadder(key, h.chainId, async () => {
     if (down || !s) {
-      const env = await loopClose({ collateralMarketUid: h.collateralUid ?? s!.marketLongUid, debtMarketUid: h.debtUid ?? s!.marketShortUid, amountRaw: toRaw(closing ? h.amount : sellTok, h.decimals), slippageBp: 50, isAll: closing, account: account!, accountId: h.accountId })
-      return stepsFrom(env.actions, closing ? 'Close the loop' : `Deleverage to ${num(L, 2)}×`, nativeSymbol(h.chainId))
+      const env = await loopClose({ collateralMarketUid: h.collateralUid ?? s!.marketLongUid, debtMarketUid: h.debtUid ?? s!.marketShortUid, amountRaw: toRaw(closing ? h.amount : sellTok, h.decimals), slippageBp: 50, isAll: closing, account: account!, accountId: h.accountId, loanId: loan?.id })
+      return stepsFrom(env.actions, closing ? 'Close the loop' : `Deleverage to ${num(L, 2)}×`, h.chainId)
     }
     // a pure leverage step: borrow more against what is there, no new margin
     const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: 50, leverage: L, account: account! })
-    return stepsFrom(env.actions, `Increase to ${num(L, 2)}×`, nativeSymbol(h.chainId))
-  })
-  const snaps: { l: number; t: string }[] = [{ l: 1, t: 'Close' }, ...(s ? TIERS.map((t) => ({ l: Math.min(maxL, s.tiers[t.id]), t: t.name })) : []), { l: +Lnow.toFixed(2), t: 'Now' }]
+    return stepsFrom(env.actions, `Increase to ${num(L, 2)}×`, h.chainId)
+  }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid])
+  const snaps: { l: number; t: string }[] = [...(minL <= 1 ? [{ l: 1, t: 'Close' }] : [{ l: minL, t: 'Repay loan' }]), ...(s ? TIERS.map((t) => ({ l: Math.min(maxL, s.tiers[t.id]), t: t.name })).filter((x) => x.l >= minL) : []), { l: +Lnow.toFixed(2), t: 'Now' }]
   return (
     <>
       <div className="tsec">
-        <span className="lbl">Leverage <Info label="Managing a loop">Drag left to deleverage: collateral is sold into {debt} to repay debt, and at 1× everything is sold and the loop is closed.{s ? <> Drag right to borrow more {debt} and buy more {holds}.</> : ''} Either way it is one transaction.</Info></span>
-        {maxL > 1 && <div className="levr"><span className="t50 mono" style={{ fontSize: 11 }}>close</span><input type="range" min={1} max={maxL} step={0.01} value={L} onChange={(e) => setL(parseFloat(e.target.value))} aria-label="Target leverage" style={{ ['--now' as string]: `${((Lnow - 1) / (maxL - 1)) * 100}%` }} className="lev-now" /><span className="v">{closing ? 'closed' : `${num(L, 2)}×`}</span></div>}
+        <span className="lbl">Leverage <Info label="Managing a loop">Drag left to deleverage: collateral is sold into {debt} to repay debt, and at 1× everything is sold and the loop is closed.{s && !loan ? <> Drag right to borrow more {debt} and buy more {holds}.</> : ''} Either way it is one transaction.</Info></span>
+        {loans.length > 1 && <div className="seg" role="radiogroup" aria-label="Which loan" style={{ marginBottom: 10 }}>{loans.map((x) => <button key={x.id} role="radio" aria-checked={x.id === loan?.id} aria-pressed={x.id === loan?.id} onClick={() => { setLoanId(x.id); setL(Lnow) }}>Loan {x.id}<span className="c" style={{ marginLeft: 6 }}>{usdShort(x.debtUsd)}</span></button>)}</div>}
+        {maxL > minL && <div className="levr"><span className="t50 mono" style={{ fontSize: 11 }}>{minL <= 1 ? 'close' : 'repaid'}</span><input type="range" min={minL} max={maxL} step={0.01} value={L} onChange={(e) => setL(parseFloat(e.target.value))} aria-label="Target leverage" style={{ ['--now' as string]: `${((Lnow - minL) / (maxL - minL)) * 100}%` }} className="lev-now" /><span className="v">{closing ? 'closed' : `${num(L, 2)}×`}</span></div>}
         <div className="snaps">{snaps.map((x) => <button key={x.t} className={`pctb ${Math.abs(L - x.l) < 0.02 ? 'on' : ''}`} onClick={() => setL(x.l)}>{x.t}{x.t !== 'Close' ? ` ${num(x.l, x.t === 'Now' ? 2 : 1)}×` : ''}</button>)}</div>
-        <div className="plain" style={{ marginTop: 8 }}>{same ? <span className="t50">You are at {num(Lnow, 2)}×. Move the slider to {s ? 'change' : 'reduce'} it.</span>
+        <div className="plain" style={{ marginTop: 8 }}>{same ? <span className="t50">You are at {num(Lnow, 2)}×. Move the slider to {s && !loan ? 'change' : 'reduce'} it.</span>
           : closing ? <>Sell all <b>{num(h.amount, 4)} {holds}</b> into {debt}, repay the <b>{usd(D)}</b> debt, and the rest (<b>{usd(h.valueUsd)}</b>) goes to your wallet as {debt}.</>
           : down ? <>Sell <b>{num(sellTok, 4)} {holds}</b> (≈ {usd(sellUsd)}) into {debt} and repay that much debt.</>
           : <>Borrow <b>{num(borrowTok, 4)} {debt}</b> (≈ {usd(borrowUsd)}) more and buy {holds} with it.</>}</div>
+        {loan && !same && <div className="plain t50" style={{ marginTop: 6 }}>This repays {loans.length > 1 ? `loan ${loan.id}` : 'your fixed-rate loan'}{minL > 1 ? `, which is ${usd(loan.debtUsd)} of the ${usd(D)} you owe` : ''}. Before its term ends the broker adds a penalty of about half the interest the repaid part would still pay.</div>}
         {h.valueUsd <= 0 && <div className="err" style={{ marginTop: 8 }}>This loop has no equity left: the collateral is worth less than the debt, so selling it cannot repay everything. Closing may fail; add {debt} on the venue to repay first.</div>}
       </div>
       <div className="tsec"><div className="cells">
-        {s && <div className="c hero"><span className="k">Net yield after</span><span className={`v ${net == null ? '' : net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{net == null ? '—' : pct(net)}</span><span className="s">{closing ? 'position closed' : `was ${pct(netAprAtLeverage(s.depSpot, s.borSpot, Lnow))} at ${num(Lnow, 2)}×`}</span></div>}
+        {s && !loan && <div className="c hero"><span className="k">Net yield after</span><span className={`v ${net == null ? '' : net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{net == null ? '—' : pct(net)}</span><span className="s">{closing ? 'position closed' : `was ${pct(netAprAtLeverage(s.depSpot, s.borSpot, Lnow))} at ${num(Lnow, 2)}×`}</span></div>}
         <div className="c"><span className="k">You hold</span><span className="v">{usd(C2)}</span><span className="s">{holds} · was {usd(C)}</span></div>
         <div className="c"><span className="k">You owe</span><span className="v">{usd(D2)}</span><span className="s">{debt} · was {usd(D)}</span></div>
         <div className="c"><span className="k">Health after</span><span className={`v ${closing || hf == null ? '' : hf < 1.1 ? 'bad' : hf < 1.25 ? 'warn' : 'ok'}`}>{closing || hf == null ? '—' : hf.toFixed(2)}</span><span className="s">{h.health != null ? `now ${h.health.toFixed(2)}` : ''}</span></div>
@@ -461,22 +535,34 @@ function Action({ ladder: l, label, account, isConnected, disabled, chainId }: {
       {l.err && <div className="err">{l.err}</div>}
       {!account ? <button className="btn wide pri" onClick={() => setViewAs(undefined)} disabled>Connect a wallet to continue</button>
         : viewing ? <button className="btn wide" disabled>Viewing {account.slice(0, 6)}… · connect to sign</button>
-        : <button className="btn wide pri" disabled={disabled || l.busy} onClick={l.start}>{l.busy ? 'Building…' : label}</button>}
+        : <button className="btn wide pri" disabled={disabled || l.busy} onClick={() => l.start(label)}>{l.busy ? 'Building…' : label}</button>}
       {!viewing && <SayWhy uid={uid} />}
       <div className="foot" style={{ marginTop: 8 }}>The API builds the exact calls (approvals, then the action); nothing is sent until you sign each one. Gas on {chainLabel(chainId)}.</div>
     </div>
   )
   return (
     <div className="tsec cta">
-      <span className="lbl">{l.finished ? 'Done' : l.pending ? 'Waiting for the block…' : 'Sign in your wallet'}</span>
-      <ol className="steps">{l.bundle.steps.map((st, i) => <li key={i} className={st.done ? 'done' : st === l.next ? 'on' : ''}><i>{st.done ? '✓' : i + 1}</i>{st.label}{st.hash && <span className="t40 mono" style={{ fontSize: 11, marginLeft: 'auto' }}>{st.hash.slice(0, 10)}…</span>}</li>)}</ol>
+      <span className="lbl">{l.settled ? 'Done' : l.finished ? 'Updating your positions…' : l.signing ? 'Confirm in your wallet' : l.pending ? 'Waiting for the block…' : 'Sign in your wallet'}</span>
+      <ol className="steps">{l.bundle.steps.map((st, i) => <StepRow key={i} st={st} n={i + 1} on={st === l.next} signing={l.signing && st === l.next} chainId={chainId} />)}</ol>
       {l.err && <div className="err" style={{ marginTop: 8 }}>{l.err}</div>}
       {l.finished && <SayWhy uid={uid} done />}
       <div className="actions" style={{ marginTop: 12 }}>
-        {l.finished ? <a className="btn wide pri" href="#/">See your positions</a>
-          : <button className="btn wide pri" disabled={!!l.pending || l.switching} onClick={l.sendNext}>{l.wrongChain ? `Switch wallet to ${chainLabel(chainId)}` : l.pending ? 'Pending…' : `Send ${l.done + 1} of ${l.total}`}</button>}
+        {l.finished ? <a className="btn wide pri" href="#/">{l.settled ? 'See your positions' : <><Spin sm /> Updating your positions…</>}</a>
+          : <button className="btn wide pri" disabled={!!l.pending || l.switching || (l.signing && !l.remote)} onClick={l.signing ? l.reopen : l.sendNext}>{l.switching ? 'Switching…' : l.wrongChain ? `Switch wallet to ${chainLabel(chainId)}` : l.signing ? (l.remote ? 'Open your wallet to confirm' : 'Confirm in your wallet…') : l.pending ? <><Spin sm /> Waiting for the block…</> : `Send ${l.done + 1} of ${l.total}`}</button>}
         <button className="btn" onClick={l.reset} disabled={!!l.pending}>Reset</button>
       </div>
     </div>
+  )
+}
+/** One step of the ladder: its number (a spinner while its transaction is out), and where that transaction is. */
+function StepRow({ st, n, on, signing, chainId }: { st: Step; n: number; on: boolean; signing: boolean; chainId: string }) {
+  const t = useTrace(st.hash)
+  const flying = !!t && !isDone(t)
+  return (
+    <li className={st.done ? 'done' : on ? 'on' : ''}>
+      <i>{st.done && !flying ? '✓' : flying || signing ? <Spin sm /> : n}</i>
+      <span className="sl">{st.label}{signing ? <small>Confirm in your wallet</small> : <TxNote t={t} />}</span>
+      {st.hash && <TxLink chainId={chainId} hash={t?.hash ?? st.hash} label={`${(t?.hash ?? st.hash).slice(0, 10)}…`} />}
+    </li>
   )
 }

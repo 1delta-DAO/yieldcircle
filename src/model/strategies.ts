@@ -136,7 +136,15 @@ export interface LoopStrategy extends Base {
   /** the collateral earns on its own (staking, savings, a PT, a fund) — false makes the loop a pure rate bet */
   collateralYields: boolean
   expiry?: number
+  /**
+   * Set on a FIXED-RATE loop: the terms the debt can be borrowed for, shortest first. The rate is
+   * the broker's, one per term, the same at any size — so `bor` / `borSpot` are the cheapest term and
+   * nothing walks a curve. Only Lista's broker today (see `classifyPair`).
+   */
+  terms?: LoopTerm[]
 }
+/** One fixed term: `apr` is effective (on `borrowAprShort`'s footing), `days` from the day it is opened. */
+export interface LoopTerm { id: string; days: number; apr: number }
 export type Strategy = SimpleStrategy | LoopStrategy
 
 /**
@@ -304,10 +312,14 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const L = r.underlyingInfoLong.asset, S = r.underlyingInfoShort.asset
   const label = `${L.symbol}/${S.symbol}`
   const no = (hide: HideCode): Candidate<LoopStrategy> => ({ s: null, hide, label, chainId: r.chainId })
-  // float debt only: a BROKERED market (Lista broker, Midnight book, Term repo) has no variable borrow and needs a term picker the
-  // simple ticket does not have. A `fixedTerm` block alone is not that — Lista's float-first markets carry one too.
   if (r.isBasketLong) return no('basket')
-  if (r.variableBorrowDisabledShort) return no('brokered')
+  // fixed-rate debt the ticket can build is a Lista broker's rate card: a few terms, one rate each, set
+  // by the broker rather than by size. Every other fixed debt prices off an order book or an auction
+  // the API does not quote at size yet (Midnight, Term, TermMax, Teller). Neither flag catches them
+  // all: Midnight sends `variableBorrowDisabledShort: false` on every row with a 0 % borrow rate, and
+  // a `fixedTerm` block alone means nothing — Lista's float markets and Exactly's pools carry one.
+  const terms = r.variableBorrowDisabledShort && r.fixedTerm?.model === 'lista' ? termCard(r) : []
+  if (r.variableBorrowDisabledShort ? !terms.length : FIXED_DATE.has(r.fixedTerm?.model ?? '') || r.debtTerms?.maturityKind === 'fixed-date') return no('brokered')
   const asset = baseOfCollateral(L, S.symbol)
   if (!asset) return no('unmapped')
   const debtBase = baseOfSymbol(S.symbol)
@@ -321,7 +333,8 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const p = L.props ?? {}
   const collateralYields = !!(p.lst || p.savings || p.pendle || p.spectra || p.rwa || (L.intrinsicYield ?? 0) > 0)
   // the at-size legs (quoted at $10k of collateral) when the venue has a depth grid, else the sticker
-  const dep = num(r.depositAprAtAmount) || num(r.depositAprLong), bor = num(r.borrowAprAtAmount) || num(r.borrowAprShort), maxLev = num(r.maxLeverage)
+  const dep = num(r.depositAprAtAmount) || num(r.depositAprLong), maxLev = num(r.maxLeverage)
+  const bor = terms.length ? Math.min(...terms.map((t) => t.apr)) : num(r.borrowAprAtAmount) || num(r.borrowAprShort)
   // no leverage and no collateral value are the two the ticket cannot build around;
   // a collateral paying nothing simply lands in the negative-carry bucket below
   if (!(maxLev >= 2)) return no('no-leverage')
@@ -343,8 +356,19 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     priceLong: r.underlyingInfoLong.prices?.priceUsd, priceShort: r.underlyingInfoShort.prices?.priceUsd, logoLong: L.logoURI, logoShort: S.logoURI,
     dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields,
     expiry: L.props?.pendle?.expiry ?? L.props?.spectra?.expiry,
+    ...(terms.length ? { terms, borSpot: bor } : {}),
   }
   return { s, hide: null, label, chainId: r.chainId }
+}
+/** Fixed debts that fall due on one date and price at size: shown only when the API quotes them honestly. */
+const FIXED_DATE = new Set(['midnight', 'term', 'termmax', 'teller'])
+/** `termsShort` → terms on the same footing as `borrowAprShort` (the card's rates are raw), shortest first. */
+function termCard(r: OptimizerRowRaw): LoopTerm[] {
+  const adj = num(r.intrinsicYieldShort) - num(r.rewardAprShort)
+  return (r.termsShort ?? [])
+    .map((t) => ({ id: String(t.termId), days: num(t.durationDays), apr: num(t.apr) + adj }))
+    .filter((t) => t.id && t.days > 0)
+    .sort((a, b) => a.days - b.days)
 }
 
 /**
@@ -356,9 +380,13 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
  * dropped seven of the 78 (2026-09-23: three Gauntlet USDT vaults on Ethereum,
  * paying 9.77 / 8.79 / 7.92 %, became one row). The cap per asset still
  * decides how many of them a reader is shown.
+ *
+ * A FIXED-RATE loop is kept apart from the float one on the same pair for
+ * the same reason: Lista's slisBNB/WBNB is 0.30 % floating with $6m to
+ * borrow and 0.5 % fixed with $141m, and the cheaper one silently won.
  */
 export const rowKey = (r: Strategy): string =>
-  r.kind === 'simple' && r.source === 'vault' ? `${r.chainId}|${r.ref}` : `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? r.debt : ''}`
+  r.kind === 'simple' && r.source === 'vault' ? `${r.chainId}|${r.ref}` : `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? `${r.debt}${r.terms ? '|fixed' : ''}` : ''}`
 export function dedupe<T extends Strategy>(rows: T[]): T[] {
   const best = new Map<string, T>()
   for (const r of rows) {

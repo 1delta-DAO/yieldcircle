@@ -53,16 +53,56 @@ export function Positions({ b }: { b: Book }) {
   )
 }
 
+/**
+ * One group, one row: the total on the right, one pill per asset below it.
+ * A pill says at a glance what the asset earns (green rate) and whether part
+ * of it sits idle (the amber moon); tapping it goes to the asset. The full
+ * breakdown — every venue, health, "put to work" — still exists, but behind
+ * a tap on the row, because five nested tree rows per asset was unreadable.
+ */
 function GroupCard({ gid, books, directional }: { gid: GroupId; books: AssetBook[]; directional: Holding[] }) {
   const g = GROUPS.find((x) => x.id === gid)!
+  const [open, setOpen] = React.useState(false)
   const total = books.reduce((a, b) => a + b.totalUsd, 0), idle = books.reduce((a, b) => a + b.idleUsd, 0), work = books.reduce((a, b) => a + b.atWorkUsd, 0), yearly = books.reduce((a, b) => a + b.yearlyUsd, 0)
+  const dirUsd = directional.reduce((a, h) => a + h.valueUsd, 0)
   return (
-    <div className="card">
-      <div className="ch gch"><GroupIcon id={g.id} color={g.color} size={18} /><span className="t">{g.name}</span><span className="m">{usd(total)}</span><span className="sp" />
-        <span className="m hide-m">idle {usd(idle)} · at work {usd(work)}{work ? ` · ${pct(yearly / work * 100)}` : ''}</span></div>
-      <div className="list">{books.map((b) => <AssetRows key={b.asset} b={b} />)}</div>
-      {directional.length > 0 && <div className="empty" style={{ borderTop: '1px solid var(--line)' }}>{directional.length} directional loop{directional.length > 1 ? 's' : ''} ({directional.map((h) => h.label.replace(' loop', '')).join(', ')}) with {usd(directional.reduce((a, h) => a + h.valueUsd, 0))} equity not shown: the debt is in another denomination, so it is a price bet rather than a carry.</div>}
+    <div className="card gsum">
+      <button type="button" className="gsum-h" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <GroupIcon id={g.id} color={g.color} size={22} />
+        <span className="gsum-t"><span className="t">{g.name}</span>
+          <small>{work >= 1 ? <>{pct(yearly / work * 100, 1)} on {usd(work)}</> : 'nothing at work'}{idle >= 1 && <span className="warn"> · {usd(idle)} idle</span>}</small></span>
+        <span className="sp" />
+        <span className="gsum-v">{usd(total)}{yearly >= 1 && <small className="ok">≈ {usd(yearly)}/yr</small>}</span>
+        <svg className="chev" viewBox="0 0 12 12" width="12" height="12" aria-hidden><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      <div className="apills">
+        {books.map((b) => <AssetPill key={b.asset} b={b} />)}
+        {dirUsd >= 1 && <button type="button" className="apill dir" onClick={() => setOpen(true)}
+          title={`${directional.map((h) => h.label.replace(' loop', '')).join(', ')} — the debt is in another denomination, so it is a price bet rather than a carry. Not counted in the group total.`}>
+          {directional.length} price bet{directional.length > 1 ? 's' : ''} <span className="m">{usd(dirUsd)}</span></button>}
+      </div>
+      {open && (
+        <div className="list">
+          {books.map((b) => <AssetRows key={b.asset} b={b} />)}
+          {directional.length > 0 && <div className="empty" style={{ borderTop: '1px solid var(--line)' }}>{directional.length} directional loop{directional.length > 1 ? 's' : ''} ({directional.map((h) => h.label.replace(' loop', '')).join(', ')}) with {usd(dirUsd)} equity not shown: the debt is in another denomination, so it is a price bet rather than a carry.</div>}
+        </div>
+      )}
     </div>
+  )
+}
+/** [icon USDC $2,499 4.1% ☾] — what you hold, what it earns, whether part is idle. Tap → the asset. */
+function AssetPill({ b }: { b: AssetBook }) {
+  const earning = b.atWorkUsd >= 1, idle = b.idleUsd >= 1
+  const title = [`${b.asset} · ${whatIs(b.asset)}`,
+    earning ? `${usd(b.atWorkUsd)} at work at ${pct(b.blended)}` : null,
+    idle ? `${usd(b.idleUsd)} idle, earning nothing` : null].filter(Boolean).join('\n')
+  return (
+    <button type="button" className="apill" title={title} onClick={() => go(b.group, { u: b.asset })}>
+      <Tok sym={b.asset} size={16} /><b>{b.asset}</b>
+      <span className="m">{usd(b.totalUsd)}</span>
+      {earning && <span className="ok">{pct(b.blended, 1)}</span>}
+      {idle && <svg className="idlemark" viewBox="0 0 16 16" width="11" height="11" role="img" aria-label="part idle"><path d="M13.4 9.4A5.6 5.6 0 1 1 6.6 2.6a4.5 4.5 0 0 0 6.8 6.8z" fill="currentColor" /></svg>}
+    </button>
   )
 }
 export function AssetRows({ b, sel }: { b: AssetBook; sel?: string }) {

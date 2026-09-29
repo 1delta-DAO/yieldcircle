@@ -247,6 +247,25 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 
 /* positions: group card → asset header row → idle row + strategy rows */
 .gcards{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+/* one row per group; the breakdown rows live behind a tap on it */
+.gsum-h{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;text-align:left;background:linear-gradient(180deg,#101010,#0b0b0b);transition:background .12s ease}
+.gsum-h:hover{background:#131313}
+.gsum-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.gsum-t .t{font-weight:600;font-size:14px}
+.gsum-t small{font-size:11.5px;color:var(--tx50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gsum-v{font-family:var(--mono);font-size:15px;text-align:right;line-height:1.3;flex:none}
+.gsum-v small{display:block;font-size:11px}
+.gsum-h .chev{flex:none;transition:transform .15s ease}
+.gsum-h[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.apills{display:flex;flex-wrap:wrap;gap:6px;padding:2px 14px 12px}
+.apill{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 10px;border:1px solid var(--line2);border-radius:999px;background:#111;font-size:12.5px;color:var(--tx);white-space:nowrap;transition:border-color .12s ease}
+.apill:hover{border-color:var(--tx50)}
+.apill b{font-weight:600}
+.apill .m,.apill .ok{font-family:var(--mono);font-size:11.5px}
+.apill .m{color:var(--tx70)}
+.apill .idlemark{color:var(--warning);flex:none}
+.apill.dir{border-style:dashed;color:var(--tx50)}
+.gsum .list{border-top:1px solid var(--line)}
 .card .ch .ic{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:11px;font-family:var(--mono);color:#000;flex:none}
 .row.arow{grid-template-columns:minmax(0,1fr) auto;min-height:50px;background:#0e0e0e;border-top:1px solid var(--line);border-bottom:1px solid var(--line-soft);cursor:default}
 .row.arow:hover{background:#0e0e0e}
@@ -1364,9 +1383,6 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .gh .n{font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--tx70)}
 .gh .sub{font-size:11.5px}
 .gh .more{font-size:12px}
-.card .ch.gch{min-height:38px;padding:8px 16px;gap:8px;background:#0b0b0b}
-.card .ch.gch .t{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--tx70)}
-.card .ch.gch .m{font-size:11.5px}
 
 /* ---------- transactions in flight (TxTray.tsx, sdk/txTrace.ts) ---------- */
 .txspin{display:inline-block;width:16px;height:16px;flex:none;border-radius:50%;border:2px solid rgba(47,211,232,.22);border-top-color:var(--primary);animation:txspin .8s linear infinite;vertical-align:-3px}

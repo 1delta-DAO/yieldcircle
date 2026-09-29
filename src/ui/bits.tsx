@@ -14,7 +14,8 @@ export const usd = (x: number | null | undefined) => {
 export const usdShort = (x: number | null | undefined) => {
   if (x == null || !Number.isFinite(x)) return '—'
   const a = Math.abs(x)
-  const body = a >= 1e9 ? `$${(a / 1e9).toFixed(1)}b` : a >= 1e6 ? `$${(a / 1e6).toFixed(0)}m` : a >= 1e3 ? `$${(a / 1e3).toFixed(0)}k` : `$${a.toFixed(0)}`
+  // under a dollar keeps its cents, as `usd` does: a $0.41 liquidation is not "$0"
+  const body = a >= 1e9 ? `$${(a / 1e9).toFixed(1)}b` : a >= 1e6 ? `$${(a / 1e6).toFixed(0)}m` : a >= 1e3 ? `$${(a / 1e3).toFixed(0)}k` : a >= 1 ? `$${a.toFixed(0)}` : a > 0 ? `$${a.toFixed(2)}`.replace('$0.00', '$0') : '$0'
   // the sign goes before the currency, and a figure that rounds to nothing has
   // no sign worth showing — a rebalance's net was reading as "$-0"
   return x < 0 && body !== '$0' ? `−${body}` : body

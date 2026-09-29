@@ -46,10 +46,6 @@ import type { Strategy } from "../model/strategies";
 
 type Tab = "following" | "menu" | "everyone";
 
-/** enough rows for the tab to be worth opening, and the deepest we will dig for them */
-const MENU_WANT = 12;
-const MENU_MAX = 200;
-
 /**
  * Rows that only ever accumulate, keyed by transaction.
  *
@@ -161,6 +157,17 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   );
 
   const desks = { issuers: inf.param, issuerMatch: inf.matchParam };
+  /**
+   * "In the menu" is the index's own filter now (`inMarkets`, the catalogue's
+   * uids in a POST body): the newest forty moves in markets this app can open,
+   * in one request. It used to read the unfiltered tape and keep what the
+   * catalogue matched — 2 of the newest 40, 10 of 120 — so the tab waited for
+   * the whole catalogue and then dug 40 → 120 → 200 before it had a page,
+   * 5–14 s after it opened (measured 2026-09-29). Until the catalogue settles
+   * the set is the last visit's, or the seed shipped with the build
+   * (`useMenu`), so the tab asks at once.
+   */
+  const set = tab === "menu" ? menu.feedSet : null;
   // a desk resolves server-side to its vaults' addresses, so "what has
   // Steakhouse been doing" is this feed with one extra parameter
   const q =
@@ -179,9 +186,9 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           curator: cf.param,
           ...desks,
         };
-  /** the follow feed is nobody's feed until a wallet says who "you" are */
-  const asked = tab !== "following" || !!account;
-  const feed = useFeedPage(q, limit, asked);
+  /** the follow feed is nobody's feed until a wallet says who "you" are, and the menu's until there is a menu */
+  const asked = tab === "following" ? !!account : tab !== "menu" || !!set;
+  const feed = useFeedPage(q, limit, asked, set ?? undefined);
 
   /**
    * A disabled query still hands back the previous key's placeholder, so
@@ -189,48 +196,16 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
    * this feed promises never to do.
    */
   const all = asked ? (feed.data?.txs ?? []) : [];
-  // "menu" is a client-side narrowing: the index has no uid-set filter, and the
-  // menu is at most a few hundred uids, so this costs nothing and stays honest
-  // about what it dropped.
-  const inMenu = (t: TxBundle) =>
-    t.legs.some((l) => l.marketUid && menu.byUid.has(l.marketUid));
-  /** the catalogue is a separate request; until it lands NOTHING is in the menu */
-  const menuReady = menu.byUid.size > 0 || (!menu.isLoading && menu.anyData);
-  const page = React.useMemo(
-    () => (tab === "menu" ? (menuReady ? all.filter(inMenu) : []) : all),
-    [tab, all, menuReady, menu.byUid],
-  );
   /**
-   * The menu tab filters client side, so each poll returns a different slice of
-   * the tape and therefore a different number of rows — the list was jumping
-   * between two and ten every twenty seconds while you read it. The rows that
-   * matched are kept and a poll can only ADD to them, so the column grows
-   * downwards instead of reshuffling under the cursor.
+   * A poll can only ADD to the menu column. The kept set is replaced by the
+   * live one when the catalogue settles, and a market that fell out of the
+   * menu in between would otherwise pull its row from under the cursor.
    */
   const scope = [tab, chainsParam, pf.param, inf.param, inf.matchParam, cf.param].join("|");
-  const kept = useStableRows(page, scope, tab === "menu" && !feed.isPlaceholderData);
-  const txs = tab === "menu" ? kept : page;
-  // counted on the page in hand, never against the accumulated column
-  const hidden = tab === "menu" && menuReady ? all.length - page.length : 0;
-
-  /**
-   * The index answers the most recent N transactions and this tab then keeps the
-   * ones it can open. Forty recent moves across every chain routinely contain
-   * none of them, which is why the page opened empty: not because nothing is
-   * happening, but because the window was too short to hold anything
-   * actionable. So it widens the window until it has something to show.
-   */
-  React.useEffect(() => {
-    // the catalogue must be SETTLED, not merely started: widening against a
-    // half-loaded menu digs for rows that were about to match anyway
-    if (tab !== "menu" || menu.isLoading || !menuReady) return;
-    if (feed.isFetching || !feed.data) return;
-    // measured on the page in hand — the accumulator commits a render later,
-    // and reading it here asks for another 200 rows before the first have shown
-    if (page.length >= MENU_WANT || limit >= MENU_MAX) return;
-    if (all.length < limit) return; // the index has nothing further back to give
-    setLimit((n) => Math.min(MENU_MAX, n * 3));
-  }, [tab, menu.isLoading, menuReady, feed.isFetching, feed.data, page.length, all.length, limit]);
+  const kept = useStableRows(all, scope, tab === "menu" && !feed.isPlaceholderData);
+  const txs = tab === "menu" ? kept : all;
+  /** what a client-side filter dropped — only an index without `inMarkets` makes one */
+  const hidden = tab === "menu" ? (feed.data?.outside ?? 0) : 0;
 
   const subjects = txs
     .map((t) => ({ kind: "position" as const, key: cardKey(t, pf.keys) }))
@@ -256,17 +231,11 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   const [open, setOpen] = React.useState<string | null>(null);
 
   /**
-   * Still looking. The menu tab has two waits the index knows nothing about —
-   * the catalogue request, and the widening above — and reporting "none of
-   * these are in the menu" during either is a verdict delivered before the
-   * evidence is in.
+   * Still looking. On a first visit the menu tab waits for the catalogue the
+   * index knows nothing about, and reporting "nothing in the menu" before it
+   * has landed is a verdict delivered before the evidence is in.
    */
-  const digging =
-    tab === "menu" &&
-    (!menuReady ||
-      menu.isLoading ||
-      (feed.isFetching && !txs.length) ||
-      (page.length < MENU_WANT && limit < MENU_MAX && all.length >= limit));
+  const digging = tab === "menu" && (!set || (feed.isFetching && !txs.length));
   const busy = feed.isLoading || digging;
 
   return (
@@ -361,21 +330,24 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
             </div>
           ))}
         {!busy && !txs.length && !feed.error && asked && (
-          /* Two empties that look identical and are not: the index answered
-             nothing, or it answered and the menu dropped all of it. Blaming
-             the menu for the first one is how a filter that returns rows
-             reads as a filter that is broken — a chip saying "Morpho 108k"
-             over "nothing in the markets this app can open" (2026-09-23). */
+          /* Two empties that look identical and are not: the index has
+             nothing for the filter, or it has moves and none of them are in
+             a market this app can open. Blaming the menu for the first one is
+             how a filter that returns rows reads as a filter that is broken —
+             a chip saying "Morpho 108k" over "nothing in the markets this app
+             can open" (2026-09-23). The index filters the menu itself now, so
+             an empty menu page says so and offers the whole tape to check. */
           <div className="empty">
-            {all.length === 0 ? (
+            {tab !== "menu" ? (
               <>
                 Nothing in the index for this filter
                 {pf.picked.length ? " and protocol" : ""} yet.
               </>
             ) : (
               <>
-                None of the last {all.length} moves the index has are in a
-                market this app can open.{" "}
+                {hidden > 0
+                  ? `None of the last ${hidden} moves the index has are in a market this app can open.`
+                  : `No move in a market this app can open${pf.picked.length || inf.param || cf.param ? " for this filter" : ""} in the index's last 30 days.`}{" "}
                 <button
                   className="lnk"
                   onClick={() => { location.hash = hashFor("everyone"); }}

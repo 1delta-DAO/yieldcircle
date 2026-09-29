@@ -18,7 +18,7 @@ import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
 import { AddrExplorers, CopyButton, Sk, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
-import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type VaultRow } from '../index/types'
+import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
 import { primaryLeg } from './Feed'
@@ -66,7 +66,7 @@ export function Wallet({ addr }: { addr: string }) {
       : rows.reduce((t, r) => t + (r.amountUsd ?? 0) * (r.side === 'borrow' ? -1 : 1), 0)
   // positions in markets that cannot pay them (tickets/0037): out of `nav`, named here
   const nImpaired = rows.filter((r) => r.valueStatus === 'impaired').length
-  const txList = React.useMemo(() => (txsQ.data?.txs ?? []).filter((t) => inScope(t.chainId)).slice(0, 40), [txsQ.data, inScope])
+  const txList = React.useMemo(() => (txsQ.data?.txs ?? []).filter((t) => inScope(t.chainId)).slice(0, 40).map((t) => ownLegs(t, addr)), [txsQ.data, inScope, addr])
   /**
    * What the index calls this address, read off the rows the page already
    * loaded — every ledger leg is stamped with `accountKind` / `accountLabel`.
@@ -399,4 +399,31 @@ function flowTotals(rows: FlowsResponse['flows']): FlowsResponse['totals'] {
   t.netSupplyUsd = t.depositedUsd - t.withdrawnUsd
   t.netBorrowUsd = t.borrowedUsd - t.repaidUsd
   return t
+}
+
+/**
+ * A move on a wallet's page is that wallet's part of the transaction. The
+ * index answers `accounts=` with WHOLE transactions (a filter keeps a bundle
+ * whole), so a liquidator clearing six Midnight borrowers in one tx put the
+ * batch's $24 and another borrower's leg on each of the six pages, where this
+ * wallet's own part was $0.41. The legs are narrowed to the wallet's and the
+ * totals recounted the way pos-indexer's `bundleTransactions` counts them
+ * (accruals and pass-throughs out, an unpriced leg counted as such). A bundle
+ * with no leg of its own (it matched as a transfer's counterparty) is kept.
+ */
+function ownLegs(t: TxBundle, addr: string): TxBundle {
+  const legs = t.legs.filter((l) => l.account === addr || l.to === addr)
+  if (!legs.length || legs.length === t.legs.length) return t
+  let volume: number | null = null
+  let unpriced = 0
+  const kinds: Record<string, number> = {}
+  for (const l of legs) {
+    const k = l.kind === 'transfer' ? 'transfer' : `${l.side}/${l.kind}`
+    kinds[k] = (kinds[k] ?? 0) + 1
+    if (l.kind === 'accrual' || l.passthrough) continue
+    if (l.amountUsd == null) unpriced++
+    else volume = (volume ?? 0) + Math.abs(l.amountUsd)
+  }
+  // `netUsd` needs the index's inflow / outflow sets; this page does not read it
+  return { ...t, legs, kinds, volumeUsd: volume, unpriced, netUsd: null, swap: t.subject?.account === addr ? t.swap : null, subject: t.subject ? { ...t.subject, account: addr, reason: 'wallet', accounts: 1 } : t.subject }
 }

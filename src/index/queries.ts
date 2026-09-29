@@ -10,12 +10,15 @@ const MIN = 60_000
  * is a growing `limit` — at feed sizes (40 → 200 rows) that is one small
  * request, and it means a refetch never duplicates or drops a row across a
  * page boundary the way a `since` window would.
+ *
+ * `inMarkets` narrows it to a set of markets, on the index (`recentTxsIn`).
  */
-export function useFeedPage(q: RecentQuery, limit: number, enabled = true) {
-  return useQuery({
+export function useFeedPage(q: RecentQuery, limit: number, enabled = true, inMarkets?: { uids: string[]; sig: string }) {
+  return useQuery<api.MenuFeed>({
     enabled,
-    queryKey: ['feed1', q, limit],
-    queryFn: ({ signal }) => api.recentTxs({ ...q, limit }, signal),
+    // the set is keyed by its signature, never by its 24 kB of uids
+    queryKey: ['feed1', q, limit, inMarkets?.sig ?? null],
+    queryFn: ({ signal }) => (inMarkets ? api.recentTxsIn({ ...q, limit }, inMarkets.uids, signal) : api.recentTxs({ ...q, limit }, signal)),
     staleTime: 15_000,
     refetchInterval: 20_000,
     placeholderData: (prev) => prev,

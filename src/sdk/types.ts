@@ -66,7 +66,8 @@ export interface EarnMarket {
   maturity?: { maturity?: number; kind?: string; [k: string]: unknown }
   termSheet?: EarnTermsDigest
 }
-export interface EarnResponse { start: number; count: number; total: number; items: EarnMarket[]; appliedDefaults?: Record<string, unknown> }
+/** `excluded.unrealizable`: rows the worker dropped from THIS page after the origin paged it, so `items` can be short of `count` on a page that was full */
+export interface EarnResponse { start: number; count: number; total: number; items: EarnMarket[]; appliedDefaults?: Record<string, unknown>; excluded?: { unrealizable?: number } }
 
 // ---------------------------------------------------------------- vault registry
 /**

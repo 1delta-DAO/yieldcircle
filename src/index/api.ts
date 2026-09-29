@@ -49,6 +49,43 @@ export interface RecentQuery extends Params {
 }
 export const recentTxs = (q: RecentQuery, signal?: AbortSignal) =>
   get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, group: 'tx' }, signal)
+/** What the menu feed answers: `outside` counts the moves a client-side filter dropped (the fallback only). */
+export type MenuFeed = { txs: TxBundle[]; following: Following | null; outside?: number }
+/** set once an index answers the POST 404/405: it predates it, so the session stops asking */
+let postUnsupported = false
+/** the fallback's window: the newest 200 hold ~26 menu moves, where 40 held 2 (measured 2026-09-29) */
+const FALLBACK_SCAN = 200
+/**
+ * The feed narrowed to a SET of markets — "only what this app can open".
+ *
+ * The set is the catalogue's ~300 uids, 24 kB, which a GET answers 431, so it
+ * rides in a POST body (pos-indexer `POST /events/recent`, `inMarkets`) and
+ * the index answers the newest `limit` transactions with a leg in it. That is
+ * one request; filtering the unfiltered tape here matched 2 of the newest 40
+ * and had to dig 40 → 120 → 200 before it had a page.
+ *
+ * An index that predates the route answers 404, and then the tape is read
+ * wide once and filtered here, as before — one request of 200 rather than
+ * three that dig for them.
+ */
+export async function recentTxsIn(q: RecentQuery, uids: string[], signal?: AbortSignal): Promise<MenuFeed> {
+  if (!postUnsupported) {
+    const r = await fetch(INDEX_BASE_URL + '/events/recent' + qs({ ...q, group: 'tx' }), {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ inMarkets: uids }), signal,
+    })
+    if (r.status !== 404 && r.status !== 405) {
+      const j = (await r.json().catch(() => ({}))) as MenuFeed & { error?: string }
+      if (!r.ok) throw new Error(j.error || `/events/recent → ${r.status}`)
+      return j
+    }
+    postUnsupported = true
+  }
+  const limit = Number(q.limit ?? 40)
+  const all = await recentTxs({ ...q, limit: Math.max(limit, FALLBACK_SCAN) }, signal)
+  const set = new Set(uids)
+  const hit = all.txs.filter((t) => t.legs.some((l) => l.marketUid && set.has(l.marketUid)))
+  return { txs: hit, following: all.following, outside: all.txs.length - hit.length }
+}
 export const recentEvents = (q: RecentQuery, signal?: AbortSignal) =>
   get<{ events: LedgerEvent[]; following: Following | null }>('/events/recent', q, signal)
 

@@ -1,4 +1,4 @@
-import { keepPreviousData, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, fetchVaults, loopClose, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
 import { capPerAsset, classifyEarn, classifyPair, dedupe, rowKey, type Candidate, type LoopStrategy, type SimpleStrategy, type Strategy } from '../model/strategies'
@@ -156,9 +156,9 @@ const WIDE_DEBT_TAGS = ['stablecoin', 'wnative', 'btc']
 /**
  * The vault registry for one chain, keyed by vault address — the share token's
  * symbol, name and curator, none of which the earn listing carries (see
- * `VaultListing`). Cached under its own key and shared by every earn query, so
- * it costs one request per chain per hour; an empty map on failure, because a
- * decoration must never take the listing down with it.
+ * `VaultListing`). Cached under its own key and joined onto the listing once
+ * both are in hand, so it costs one request per chain per hour and never
+ * holds the listing up; a failure is simply no decoration.
  */
 export type VaultIndex = Record<string, VaultListing>
 const vaultQuery = (chainId: string) => ({
@@ -169,8 +169,6 @@ const vaultQuery = (chainId: string) => ({
   },
   staleTime: HOUR,
 })
-/** One chain's registry, from the shared cache — `{}` on failure, never a rejection. */
-export const vaultIndex = (chainId: string, qc: QueryClient): Promise<VaultIndex> => qc.ensureQueryData(vaultQuery(chainId)).catch(() => ({}) as VaultIndex)
 /** The same registries for several chains, keyed `chainId:address`, for the holdings side. */
 export function useVaultIndex(chainIds: string[]): VaultIndex {
   const qs = useQueries({ queries: chainIds.map(vaultQuery) })
@@ -233,20 +231,24 @@ export type HiddenRow = Strategy & { hide: HideCode }
  * upstream (measured: identical row counts) and both become instant switches.
  */
 export function useCatalog(chainIds: string[]) {
-  const qc = useQueryClient()
   const { st } = useSettings()
   const buckets = chainBuckets(chainIds)
+  /**
+   * The listing alone. The vault registry is a DECORATION (a share token's
+   * symbol, name and curator) and is joined below, when both are in hand: it
+   * used to be awaited inside this request, so Ethereum's 2.1 MB registry
+   * (3.7–7.8 s cold, measured 2026-09-29) held up Ethereum's listing, which
+   * held up `isLoading`, which held up the home feed. A row now arrives with
+   * the listing and is renamed when the registry lands (a re-classify is ~5 ms).
+   */
   const earn = useQueries({
     queries: buckets.map((ids) => ({
-      queryKey: ['earn', ids.join(','), st.minTvlUsd],
-      queryFn: async () => {
-        const [vaultsPer, r] = await Promise.all([Promise.all(ids.map((c) => vaultIndex(c, qc))), fetchEarn({ chainIds: ids, count: 800, maxRiskScore: 5, minTvlUsd: st.minTvlUsd })])
-        const vaults = Object.fromEntries(ids.map((c, i) => [c, vaultsPer[i]]))
-        return sortOut(r.items.map((m) => classifyEarn(m, vaults[m.chainId]?.[String(m.ref).toLowerCase()])), 'simple')
-      },
+      queryKey: ['earn-rows', ids.join(','), st.minTvlUsd],
+      queryFn: async () => (await fetchEarn({ chainIds: ids, count: 1000, maxRiskScore: 5, minTvlUsd: st.minTvlUsd })).items,
       staleTime: 10 * 60_000,
     })),
   })
+  const vaults = useQueries({ queries: chainIds.map(vaultQuery) })
   const loops = useQueries({
     queries: buckets.flatMap((ids) => [
       ...LOOP_ARCHETYPES.map((a, i) => ({
@@ -261,32 +263,45 @@ export function useCatalog(chainIds: string[]) {
       })) : []),
     ]),
   })
+  // one stamp for "any answer changed": this hook runs in the header, the
+  // feed and Hot at once, and every catalogue query landing re-renders all three
+  const stamp = [chainIds.join(','), ...[...earn, ...vaults, ...loops].map((q) => q.dataUpdatedAt)].join('|')
+  const earnSorted = useMemo(() => {
+    const reg: Record<string, VaultIndex | undefined> = Object.fromEntries(chainIds.map((c, i) => [c, vaults[i]?.data]))
+    return earn.map((q) => (q.data ? sortOut(q.data.map((m) => classifyEarn(m, reg[m.chainId]?.[String(m.ref).toLowerCase()])), 'simple') : undefined))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stamp])
+  const derived = useMemo(() => {
+    const earnRows = earnSorted.flatMap((d) => d?.rows ?? [])
+    const loopRows = loops.flatMap((q) => q.data?.rows ?? [])
+    // every base-asset address the chain answered, shown or held back by a floor,
+    // so moving a floor never changes what the balance read asks for
+    const addresses: Record<string, string[]> = {}
+    for (const r of [...earnRows, ...loopRows]) (addresses[r.chainId] ??= []).push(...(r.kind === 'simple' ? [r.assetAddress] : [r.collateralAddress, r.debtAddress]))
+    const { show: simpleShow, hide: simpleHide } = split(earnRows, st)
+    const { show: loopShow, hide: loopHide } = split(loopRows, st)
+    const simple = capPerAsset(dedupe(simpleShow))
+    const loopRowsOut = capPerAsset(dedupe(loopShow))
+    // a hidden row that is another spelling of a visible one is noise: the same
+    // market on the same venue, kept out by `dedupe` and then handed back by the
+    // `+` as a duplicate
+    const shown = new Set([...simple, ...loopRowsOut].map(rowKey))
+    const hidden: HiddenRow[] = [
+      ...capPerAsset(dedupe(simpleHide.filter((r) => !shown.has(rowKey(r)))), 25),
+      ...capPerAsset(dedupe(loopHide.filter((r) => !shown.has(rowKey(r)))), 25),
+    ]
+    const structural = mergeStructural([...earnSorted, ...loops.map((q) => q.data)].flatMap((d) => (d ? [{ structural: d.structural, kind: d.kind }] : [])))
+    return { simple, loops: loopRowsOut, hidden, structural, addresses }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [earnSorted, stamp, st])
   // A chain is SETTLED once every request covering it has answered (or failed):
   // only then is its list of token addresses final, and only then is its
-  // balance read worth sending (see `useBalancesPerChain`).
+  // balance read worth sending (see `useBalancesPerChain`). The registry is not
+  // one of them — it names rows, it does not add any.
   const perBucket = loops.length / (buckets.length || 1)
   const settled = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched && loops.slice(j * perBucket, (j + 1) * perBucket).every((q) => q.isFetched) ? ids : [])))
-  const earnRows = earn.flatMap((q) => q.data?.rows ?? [])
-  const loopRows = loops.flatMap((q) => q.data?.rows ?? [])
-  // every base-asset address the chain answered, shown or held back by a floor,
-  // so moving a floor never changes what the balance read asks for
-  const addresses: Record<string, string[]> = {}
-  for (const r of [...earnRows, ...loopRows]) (addresses[r.chainId] ??= []).push(...(r.kind === 'simple' ? [r.assetAddress] : [r.collateralAddress, r.debtAddress]))
-  const { show: simpleShow, hide: simpleHide } = split(earnRows, st)
-  const { show: loopShow, hide: loopHide } = split(loopRows, st)
-  const simple = capPerAsset(dedupe(simpleShow))
-  const loopRowsOut = capPerAsset(dedupe(loopShow))
-  // a hidden row that is another spelling of a visible one is noise: the same
-  // market on the same venue, kept out by `dedupe` and then handed back by the
-  // `+` as a duplicate
-  const shown = new Set([...simple, ...loopRowsOut].map(rowKey))
-  const hidden: HiddenRow[] = [
-    ...capPerAsset(dedupe(simpleHide.filter((r) => !shown.has(rowKey(r)))), 25),
-    ...capPerAsset(dedupe(loopHide.filter((r) => !shown.has(rowKey(r)))), 25),
-  ]
-  const structural = mergeStructural([...earn, ...loops].flatMap((q) => (q.data ? [{ structural: q.data.structural, kind: q.data.kind }] : [])))
   return {
-    simple, loops: loopRowsOut, hidden, structural, settled, addresses,
+    ...derived, settled,
     isLoading: earn.some((q) => q.isLoading) || loops.some((q) => q.isLoading),
     isFetching: earn.some((q) => q.isFetching) || loops.some((q) => q.isFetching),
     anyData: earn.some((q) => q.data) || loops.some((q) => q.data),

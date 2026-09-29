@@ -20,15 +20,26 @@ import type { ApiTx, EarnPositionsResponse, EarnResponse, IrmResponse, LoopActio
 // its own `chainId`) — measured 2026-09-25: the ten small chains answer 536
 // rows / 2.9 MB in one call, against ten calls before. Paged to `total`, so a
 // bundle never silently stops at the page size.
+//
+// A next page only when this one was FULL: the worker drops unrealizable rows
+// from a page after the origin paged it (`excluded.unrealizable`), so `items`
+// falls short of `total` on a listing that is complete — Ethereum answered 526
+// of 528, and every load paid a second, sequential request for nothing. The
+// page size is the origin's cap (1000), so no chain needs a second page at the
+// default floor; worker-api's cron pre-warms exactly these pages
+// (`scheduled/prewarmListings.ts`), so the query must stay as it is there.
 export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number }): Promise<EarnResponse> {
   const count = p.count ?? 500
   const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest' }
+  const served = (r: EarnResponse) => r.items.length + (r.excluded?.unrealizable ?? 0)
   const first = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params })
   const items = [...first.items]
-  for (let page = 1; page < 4 && first.items.length && items.length < first.total; page++) {
-    const r = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params: { ...params, start: items.length } })
-    if (!r.items.length) break
-    items.push(...r.items)
+  let at = served(first)
+  for (let page = 1, last = first; page < 4 && served(last) >= count && at < first.total; page++) {
+    last = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params: { ...params, start: at } })
+    if (!last.items.length) break
+    items.push(...last.items)
+    at += served(last)
   }
   return { ...first, count: items.length, items }
 }

@@ -28,16 +28,24 @@ export function Home({ tab }: { tab?: string }) {
   const vp = useViewport()
   // below a desk Hot sits above the feed as one sideways row, so the feed
   // still starts on the first screen
+  //
+  // On a desk the PAGE does not scroll: the pulse stays put and the feed and
+  // the rail are two panes that each scroll on their own, with their own
+  // headers pinned. Before, the whole page scrolled until the rail reached
+  // its sticky offset and only then did the feed scroll alone — the first
+  // turn of the wheel moved everything, the next moved one column, and the
+  // rail's last cards were only reachable once the feed had been read to the
+  // end (2026-09-29).
   return (
-    <>
+    <div className="home-fit">
       <Pulse />
       <div className="home">
         <div className="home-main">
           {vp !== 'desk' && <Hot limit={8} strip />}
           <Feed tab={tab} />
         </div>
-        {vp === 'desk' && <div className="home-side"><Hot limit={6} /></div>}
+        {vp === 'desk' && <div className="home-side"><Hot limit={6} rail /></div>}
       </div>
-    </>
+    </div>
   )
 }

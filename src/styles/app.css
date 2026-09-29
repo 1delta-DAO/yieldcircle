@@ -1041,30 +1041,72 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
    one live line at the top, the feed under it, the busy markets beside it.
    ========================================================================= */
 
-/* ---------- pulse: one line that changes ---------- */
-.pulse{display:flex;align-items:center;gap:10px;min-height:40px;margin:-4px 0 18px;padding:0 14px;
-  border:1px solid var(--line);border-radius:999px;background:linear-gradient(90deg,#0d0d0d,var(--b200));overflow:hidden}
+/* ---------- pulse: the tape, running ----------
+   A label, then a strip that runs under a fade at the box's own edges. The
+   fade is on the window, never on the content, so no move's tail is eaten. */
+.pulse{display:flex;align-items:stretch;height:40px;margin:-4px 0 18px;border:1px solid var(--line);border-radius:12px;
+  background:var(--b200);overflow:hidden}
+.pulse .p-lbl{flex:none;display:flex;align-items:center;gap:8px;padding:0 14px 0 14px;border-right:1px solid var(--line);
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;color:var(--success);
+  background:linear-gradient(90deg,rgba(63,191,127,.1),transparent)}
 .pulse .dot{flex:none;animation:pulse-dot 2.4s ease-in-out infinite}
 @keyframes pulse-dot{0%,100%{opacity:1;box-shadow:0 0 6px var(--success)}50%{opacity:.45;box-shadow:0 0 2px var(--success)}}
-.pulse .p-lbl{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:600;color:var(--success);flex:none}
-.pulse .p-body{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;overflow:hidden;white-space:nowrap;
-  animation:pulse-in .45s ease-out;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
-@keyframes pulse-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-.pulse .p-body .who .wn small{display:none}
-.pulse .p-body > span{flex:none}
-@media (max-width:640px){ .pulse{padding:0 10px} }
+.pulse .p-view{flex:1;min-width:0;display:flex;align-items:center;overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 56px),transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 56px),transparent)}
+.pulse .p-track{display:flex;align-items:center;width:max-content}
+.pulse .p-track.run{animation:pulse-run var(--lap,60s) linear infinite}
+.pulse:hover .p-track.run,.pulse:focus-within .p-track.run{animation-play-state:paused}
+@keyframes pulse-run{to{transform:translateX(-50%)}}
+.pulse .p-it{display:flex;align-items:center;gap:7px;padding:0 18px;height:24px;font-size:13px;white-space:nowrap;color:var(--tx);
+  border-right:1px solid var(--line);border-radius:6px;transition:background .15s}
+.pulse .p-it:hover{background:var(--b300)}
+.pulse .p-it .who .wn small,.pulse .p-it .who .pill,.pulse .p-it .who .xtag,.pulse .p-it .who > :has(> .pill){display:none}
+.pulse .p-it .p-m{color:var(--tx70);max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.pulse .p-it .p-usd{font-family:var(--mono);font-size:12.5px;font-weight:600}
+.pulse .p-it .ago{font-size:11.5px;color:var(--tx40)}
+.pulse .p-empty{padding:0 16px;font-size:13px;color:var(--tx40)}
+@media (prefers-reduced-motion:reduce){ .pulse .p-view{overflow-x:auto;scrollbar-width:none} .pulse .dot{animation:none} }
+@media (max-width:640px){ .pulse .p-lbl{padding:0 10px} .pulse .p-it{padding:0 14px} .pulse .p-it .p-m{max-width:140px} }
 
 
 /* ---------- the two-column home ----------
    The feed is the page; Hot is a rail beside it on a desk (useViewport's
-   `desk`, hence 1080) and a short run above it below that. */
+   `desk`, hence 1080) and a short run above it below that.
+
+   On a desk the page itself does NOT scroll. The view is fitted to the
+   screen under the header, the pulse stays at the top, and the feed and the
+   rail are two panes that scroll on their own, each with its own header
+   pinned. One column scrolling under a page that also scrolls meant the
+   first turn of the wheel moved everything and the next moved one column. */
 .home{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:start}
 .home .sec{margin-top:0}
 .home-main .hot-sec{margin-bottom:22px}
-/* the rail is taller than a screen: pinned, it scrolls on its own, or its
-   last cards only come into view once the feed has been scrolled to its end */
-.home-side{position:sticky;top:78px;max-height:calc(100vh - 90px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--line) transparent;padding-bottom:12px}
 .home-side .hot-grid{grid-template-columns:minmax(0,1fr)}
+.feed-top,.hot-top{background:var(--bg)}
+@media (min-width:1080px){
+  .wrap:has(> .home-fit){height:calc(100dvh - 64px);padding-bottom:0;box-sizing:border-box;overflow:hidden}
+  .home-fit{height:100%;display:flex;flex-direction:column}
+  .home-fit .pulse{flex:none}
+  .home{flex:1;min-height:0;grid-template-rows:minmax(0,1fr);align-items:stretch}
+  /* the two panes. The scrollbar is a thin thumb that is only drawn while the
+     pointer is over the pane; its gutter is always reserved so nothing shifts
+     when it appears. (Chrome ignores ::-webkit-scrollbar once scrollbar-color
+     is set, so this is the whole of it.) */
+  .home-main,.home-side{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:transparent transparent;scrollbar-gutter:stable;padding-bottom:32px}
+  .home-main:hover,.home-side:hover{scrollbar-color:#2e2e2e transparent}
+  .home-main{padding-right:8px}
+  .home-side{padding-right:6px}
+  /* the pinned headers: the tabs and the chips over the feed, the title and the
+     chips over the rail. Each ends in a hairline so a card scrolling under it
+     reads as passing behind, not as being cut off. */
+  .feed-top,.hot-top{position:sticky;top:0;z-index:3;padding-bottom:12px;margin-bottom:12px;
+    box-shadow:0 1px 0 var(--line),0 10px 12px -8px rgba(0,0,0,.7)}
+  .feed-top .feed-h{margin-bottom:12px}
+  .hot-top .sec-h{margin-bottom:10px;flex-wrap:nowrap}
+  .hot-top > .pchips,.hot-top > .chips{margin-bottom:8px}
+  .hot-top > :last-child{margin-bottom:0}
+}
 /* the strip: one sideways row of cards above the feed.
    No scroll-snap: the cards re-rank while the catalogue loads, and a snapped
    row follows its card to wherever it moved, opening the strip half-scrolled. */

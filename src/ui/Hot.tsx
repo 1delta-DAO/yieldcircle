@@ -46,8 +46,11 @@ const WINDOWS: Win[] = ['1h', '6h', '24h', '7d']
  * `strip`: one row of cards that scrolls sideways and no filter chips — Hot
  * above the feed on a phone or a tablet, where the full section would push
  * the feed off the first screen.
+ * `rail`: the 360px column beside the feed on a desk. Its header is pinned
+ * over a pane the height of the screen, so it is kept to a few lines: no
+ * subtitle, fewer chips before the fold.
  */
-export function Hot({ limit = 8, showAll, strip }: { limit?: number; showAll?: boolean; strip?: boolean }) {
+export function Hot({ limit = 8, showAll, strip, rail }: { limit?: number; showAll?: boolean; strip?: boolean; rail?: boolean }) {
   const { chainIds, allChains, chainLabelFor } = useApp()
   const [win, setWin] = useSticky<Win>('hot:win', '24h')
   const menu = useMenu()
@@ -90,9 +93,11 @@ export function Hot({ limit = 8, showAll, strip }: { limit?: number; showAll?: b
 
   return (
     <section className="sec hot-sec">
+      {/* the title, the window and the filters: pinned above the rail on a desk */}
+      <div className="hot-top">
       <div className="sec-h">
-        <h2>Hot right now</h2>
-        {!strip && <span className="sub">where people are moving money — how often, and how much</span>}
+        <h2 title={rail ? 'where people are moving money — how often, and how much' : undefined}>Hot right now</h2>
+        {!strip && !rail && <span className="sub">where people are moving money — how often, and how much</span>}
         <span className="sp" />
         <div className="seg sm">
           {WINDOWS.map((w) => (
@@ -100,9 +105,10 @@ export function Hot({ limit = 8, showAll, strip }: { limit?: number; showAll?: b
           ))}
         </div>
       </div>
-      {!strip && <ProtocolChips f={pf} max={7} />}
-      {!strip && <IssuerChips f={inf} max={6} />}
+      {!strip && <ProtocolChips f={pf} max={rail ? 4 : 7} />}
+      {!strip && <IssuerChips f={inf} max={rail ? 4 : 6} />}
       {showAll && <CuratorChips f={cf} max={6} />}
+      </div>
       {q.isLoading && !rows.length && (
         <div className={strip ? 'hot-grid strip' : 'hot-grid'}>{[0, 1, 2, 3].map((i) => <div key={i} className="hotcard"><Sk w="70%" /><Sk w="40%" /></div>)}</div>
       )}

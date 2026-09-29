@@ -89,7 +89,7 @@ function useStableRows(rows: TxBundle[], scope: string, on: boolean, cap = 240) 
  */
 const DUST_USD = 10
 /** the size a card headlines; a bundle with an unpriced leg is never called small — it may not be */
-function isDust(t: TxBundle): boolean {
+export function isDust(t: TxBundle): boolean {
   if (t.unpriced > 0) return false
   const sizes = [t.volumeUsd, ...t.legs.map((l) => l.amountUsd)].filter(
     (v): v is number => v != null,
@@ -289,6 +289,9 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
     /* the feed is a reading column, not a page: 1060px is where the row's five
        columns fill the width instead of leaving a gap in the middle of each card */
     <div className="feedwrap">
+      {/* the tabs and the filters: pinned above the column on a desk, where the
+          column is the thing that scrolls */}
+      <div className="feed-top">
       <div className="feed-h">
         <div className="seg">
           <button
@@ -349,6 +352,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           </a>
         </div>
       )}
+      </div>
 
       {tab === "following" && !account && (
         <div className="note">

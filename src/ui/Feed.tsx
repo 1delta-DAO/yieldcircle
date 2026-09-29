@@ -81,6 +81,40 @@ function useStableRows(rows: TxBundle[], scope: string, on: boolean, cap = 240) 
 }
 
 
+/**
+ * Under this, a move is dust: a $0 rebalance, a few cents accrued, a vault
+ * nudging a rounding error between two markets. They are real and they are
+ * most of the tape on a quiet chain, and to someone reading what people are
+ * doing they are noise — so they are hidden unless asked for.
+ */
+const DUST_USD = 10
+/** the size a card headlines; a bundle with an unpriced leg is never called small — it may not be */
+function isDust(t: TxBundle): boolean {
+  if (t.unpriced > 0) return false
+  const sizes = [t.volumeUsd, ...t.legs.map((l) => l.amountUsd)].filter(
+    (v): v is number => v != null,
+  );
+  return sizes.length > 0 && Math.max(...sizes.map(Math.abs)) < DUST_USD
+}
+const DUST_KEY = "yieldcircle.feed.dust";
+/** a reader's preference, so it outlives the tab — unlike the filters, which ride in the link */
+function useShowDust(): [boolean, (v: boolean) => void] {
+  const [v, setV] = React.useState(() => {
+    try {
+      return localStorage.getItem(DUST_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const set = (on: boolean) => {
+    setV(on);
+    try {
+      localStorage.setItem(DUST_KEY, on ? "1" : "0");
+    } catch { /* private mode */ }
+  };
+  return [v, set];
+}
+
 const tabOf = (t: string | undefined): Tab =>
   t === "following" || t === "everyone" ? t : "menu";
 
@@ -203,7 +237,20 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
    */
   const scope = [tab, chainsParam, pf.param, inf.param, inf.matchParam, cf.param].join("|");
   const kept = useStableRows(all, scope, tab === "menu" && !feed.isPlaceholderData);
-  const txs = tab === "menu" ? kept : all;
+  const got = tab === "menu" ? kept : all;
+  const [showDust, setShowDust] = useShowDust();
+  const txs = showDust ? got : got.filter((t) => !isDust(t));
+  const dust = got.length - txs.length;
+  /**
+   * A page of dust is an empty page. When hiding it leaves the column short
+   * and the index had more to give, ask for the next page on its own rather
+   * than leaving "Load more" as the only way to find a real move.
+   */
+  React.useEffect(() => {
+    if (showDust || txs.length >= 15 || feed.isFetching) return;
+    if (all.length < limit || limit >= 280) return;
+    setLimit((n) => n + 60);
+  }, [showDust, txs.length, all.length, limit, feed.isFetching]);
   /** what a client-side filter dropped — only an index without `inMarkets` makes one */
   const hidden = tab === "menu" ? (feed.data?.outside ?? 0) : 0;
 
@@ -269,6 +316,17 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           </button>
         </div>
         <span className="sp" />
+        <label
+          className="dustchk"
+          title={`Moves under $${DUST_USD} — $0 rebalances, accruals, rounding. Hidden by default.`}
+        >
+          <input
+            type="checkbox"
+            checked={showDust}
+            onChange={(e) => setShowDust(e.target.checked)}
+          />
+          Small moves
+        </label>
         <ChainChip />
         <ShareView hash={here} />
       </div>
@@ -329,7 +387,15 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
               <Sk w="40%" />
             </div>
           ))}
-        {!busy && !txs.length && !feed.error && asked && (
+        {!busy && !txs.length && dust > 0 && !feed.error && (
+          <div className="empty">
+            Only small moves (under ${DUST_USD}) in the last {got.length}.{" "}
+            <button className="lnk" onClick={() => setShowDust(true)}>
+              Show them ›
+            </button>
+          </div>
+        )}
+        {!busy && !txs.length && !dust && !feed.error && asked && (
           /* Two empties that look identical and are not: the index has
              nothing for the filter, or it has moves and none of them are in
              a market this app can open. Blaming the menu for the first one is
@@ -377,7 +443,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
         ))}
       </div>
 
-      {txs.length > 0 && (
+      {got.length > 0 && (
         <div className="feed-more">
           <button
             className="btn"
@@ -386,6 +452,14 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           >
             {feed.isFetching ? "Loading…" : "Load more"}
           </button>
+          {dust > 0 && (
+            <span className="foot">
+              {dust} small move{dust > 1 ? "s" : ""} under ${DUST_USD} hidden —{" "}
+              <button className="lnk" onClick={() => setShowDust(true)}>
+                show them
+              </button>
+            </span>
+          )}
           {hidden > 0 && (
             <span className="foot">
               {hidden} more move{hidden > 1 ? "s" : ""} in markets this app has

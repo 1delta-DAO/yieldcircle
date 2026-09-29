@@ -629,6 +629,8 @@ h1 .pill.auto{vertical-align:middle;margin-left:9px}
 .feedwrap{max-width:1120px;margin:0 auto;container:feed/inline-size}
 .feed-h{display:flex;align-items:center;gap:12px;margin:2px 0 16px;flex-wrap:wrap}
 .feed-h h1{font-size:20px}
+.feed-h .dustchk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--tx70);cursor:pointer;user-select:none}
+.feed-h .dustchk input{margin:0;accent-color:var(--primary)}
 .feed-h .share{display:inline-flex;align-items:center;gap:6px}
 .feed-h .share.ok{color:var(--success);border-color:currentColor}
 .feed-h .seg button .c{margin-left:5px;font-family:var(--mono);font-size:11px;color:var(--tx40)}
@@ -1059,7 +1061,9 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .home{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:start}
 .home .sec{margin-top:0}
 .home-main .hot-sec{margin-bottom:22px}
-.home-side{position:sticky;top:78px}
+/* the rail is taller than a screen: pinned, it scrolls on its own, or its
+   last cards only come into view once the feed has been scrolled to its end */
+.home-side{position:sticky;top:78px;max-height:calc(100vh - 90px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--line) transparent;padding-bottom:12px}
 .home-side .hot-grid{grid-template-columns:minmax(0,1fr)}
 /* the strip: one sideways row of cards above the feed.
    No scroll-snap: the cards re-rank while the catalogue loads, and a snapped

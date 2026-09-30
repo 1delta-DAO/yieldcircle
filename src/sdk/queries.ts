@@ -382,7 +382,8 @@ export function useBalancesPerChain(account: string | undefined, chains: { chain
     queries: plans.map((p) => ({
       enabled: !!account && p.decided && p.liveAssets.length > 0,
       queryKey: ['balances', account, p.chainId, p.liveAssets.join(',')],
-      queryFn: () => fetchTokenBalances(account!, p.chainId, p.liveAssets),
+      // a chain read live is read for the chain's truth: never the browser's 15 s copy
+      queryFn: () => fetchTokenBalances(account!, p.chainId, p.liveAssets, live.has(p.chainId)),
       staleTime: 30_000,
       placeholderData: keepPreviousData,
     })),

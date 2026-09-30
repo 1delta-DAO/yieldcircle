@@ -36,7 +36,9 @@ export function phaseWords(t: Trace, now = Date.now()): { head: string; detail?:
       ? { head: `In block ${blk(t.block)}`, detail: `${t.conf ?? 1} of ${t.need} confirmations`, tone: 'run' }
       : { head: 'In a block', detail: 'confirming', tone: 'run' }
     case 'final': return { head: 'Final', detail: 'refreshing your balances', tone: 'run' }
-    case 'syncing': return { head: 'Updating your positions', detail: `final in block ${blk(t.block)}`, tone: 'run' }
+    case 'syncing': return t.moves === 'positions'
+      ? { head: 'Updating your positions', detail: `final in block ${blk(t.block)}`, tone: 'run' }
+      : { head: 'Updating your balance', detail: t.bridge ? `${t.bridge.name}: delivered` : `final in block ${blk(t.block)}`, tone: 'run' }
     case 'bridging': return { head: 'Bridging', detail: !t.bridge?.status || t.bridge.status === 'NOT_FOUND' ? 'waiting for the bridge to pick it up' : `${t.bridge.name}: ${t.bridge.status.toLowerCase().replace(/_/g, ' ')}`, tone: 'run' }
     case 'settled': return { head: 'Done', detail: t.note ?? (t.block ? `final in block ${blk(t.block)}` : undefined), tone: t.note ? 'warn' : 'ok' }
     case 'reverted': return { head: 'Reverted', detail: t.err, tone: 'bad' }
@@ -47,7 +49,7 @@ export function phaseWords(t: Trace, now = Date.now()): { head: string; detail?:
 
 /** The stages this trace goes through: a chain with one-block finality has no separate "in block". */
 function stages(t: Trace): string[] {
-  return ['Sent', ...(t.need > 1 ? ['In block', 'Final'] : ['Final']), ...(t.bridge ? ['Arrived'] : t.moves === 'positions' ? ['Synced'] : [])]
+  return ['Sent', ...(t.need > 1 ? ['In block', 'Final'] : ['Final']), ...(t.bridge ? ['Arrived'] : t.moves === 'positions' || t.watch ? ['Synced'] : [])]
 }
 /** How many stages are behind it. */
 function reached(t: Trace): number {

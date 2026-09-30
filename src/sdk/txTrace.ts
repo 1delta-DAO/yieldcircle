@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { useSyncExternalStore } from 'react'
 import { getBlockNumber, getTransactionReceipt, waitForTransactionReceipt } from 'viem/actions'
 import { wagmiConfig } from '../wallet/wagmi'
-import { bridgeStatus, fetchEarnPositions, type PositionsScope } from './api'
+import { bridgeStatus, fetchEarnPositions, fetchTokenBalances, type PositionsScope } from './api'
 import { balancesChanged } from './liveBalances'
 import type { EarnPosition, EarnPositionsResponse } from './types'
 
@@ -12,7 +12,8 @@ import type { EarnPosition, EarnPositionsResponse } from './types'
  *   pending   → sent, not in a block yet
  *   included  → in a block, not deep enough to call final
  *   final     → FINAL_CONFIRMATIONS deep, and the receipt re-read in the same block (no reorg)
- *   syncing   → the lender(s) / vault(s) it touched are re-read until they DIFFER from before
+ *   syncing   → the lender(s) / vault(s) it touched are re-read until they DIFFER from before;
+ *               for a swap or bridge, the balance(s) it pays into (`watch`), the same way
  *   bridging  → a cross-chain leg is on its way (the bridge's own status)
  *   settled   → done: every number on screen includes it
  *
@@ -49,6 +50,9 @@ export interface Trace {
   bridge?: { name: string; toChainId: string; tokenIn?: string; tokenOut?: string; status?: string }
   /** The market / earn uids it acts on (`AAVE_V3:1:0x…`, `vault.morpho:8453:0x…`) — what the re-read is narrowed to. */
   touches?: string[]
+  /** Balances it pays into (a swap's or bridge's output), read until they move; `watchBase` is their raw amount at send. */
+  watch?: { chainId: string; address: string }[]
+  watchBase?: Record<string, string>
   phase: Phase
   at: number; doneAt?: number
   block?: number; blockHash?: string; conf?: number; need: number
@@ -109,7 +113,7 @@ export function initTxTrace(client: QueryClient) {
  * Follow a transaction the wallet just returned. Idempotent on the hash, so a ladder restored
  * after a reload can call it again without starting a second watcher.
  */
-export function traceTx(t: { hash: Hex; chainId: string; account: string; title: string; label?: string; moves: Moves; bridge?: Trace['bridge']; touches?: (string | undefined)[] }) {
+export function traceTx(t: { hash: Hex; chainId: string; account: string; title: string; label?: string; moves: Moves; bridge?: Trace['bridge']; touches?: (string | undefined)[]; watch?: Trace['watch'] }) {
   if (get(t.hash)) { void run(t.hash); return }
   const account = t.account.toLowerCase()
   const touches = [...new Set(t.touches?.filter((u): u is string => !!u))]
@@ -118,9 +122,11 @@ export function traceTx(t: { hash: Hex; chainId: string; account: string; title:
   const scope = scopeOf(touches)
   const cached = t.moves === 'positions' && qc ? cachedRows(qc, account, t.chainId) : null
   const snap = cached ? fingerprint(cached, t.chainId, scope) : null
-  traces = [{ id: t.hash, hash: t.hash, chainId: t.chainId, account, title: t.title, label: t.label ?? t.title, moves: t.moves, bridge: t.bridge, touches, phase: 'pending', at: Date.now(), need: FINAL_CONFIRMATIONS[t.chainId] ?? 1, snap }, ...traces]
+  traces = [{ id: t.hash, hash: t.hash, chainId: t.chainId, account, title: t.title, label: t.label ?? t.title, moves: t.moves, bridge: t.bridge, touches, watch: t.watch?.length ? t.watch : undefined, phase: 'pending', at: Date.now(), need: FINAL_CONFIRMATIONS[t.chainId] ?? 1, snap }, ...traces]
   emit()
   if (t.moves === 'positions' && !cached) void readScope(account, t.chainId, scope).then((r) => { if (r && get(t.hash)?.snap == null) patch(t.hash, { snap: fingerprint(r.items, t.chainId, scope) }) })
+  // the watched balances before anything arrives: a bridge's destination cannot have moved yet
+  if (t.watch?.length) void readWatched(account, t.watch).then((b) => { if (b && !get(t.hash)?.watchBase) patch(t.hash, { watchBase: b }) })
   void run(t.hash)
 }
 export function dismissTrace(id: string) { patch(id, { seen: true }) }
@@ -197,11 +203,12 @@ async function step(id: string) {
   }
   if (t.phase === 'final') {
     if (qc && t.moves !== 'none') balancesChanged(qc, t.chainId)
-    patch(id, { phase: t.bridge ? 'bridging' : t.moves === 'positions' ? 'syncing' : 'settled', ...(t.bridge || t.moves === 'positions' ? {} : { doneAt: Date.now() }) })
+    const next: Phase = t.bridge ? 'bridging' : t.moves === 'positions' || t.watch ? 'syncing' : 'settled'
+    patch(id, { phase: next, ...(next === 'settled' ? { doneAt: Date.now() } : {}) })
     t = get(id)!
   }
   if (t.phase === 'bridging') return bridge(id)
-  if (t.phase === 'syncing') return sync(id)
+  if (t.phase === 'syncing') return t.moves === 'positions' ? sync(id) : balanceSync(id)
 }
 
 /** The cross-chain leg: the bridge's own status until it says so, then the destination's balances. */
@@ -212,7 +219,8 @@ async function bridge(id: string) {
     // NOT_FOUND right after the source lands is the bridge's indexing lag: keep asking
     if (r && r.status !== b.status) patch(id, { bridge: { ...b, status: r.status } })
     if (r && BRIDGE_TERMINAL.has(r.status)) {
-      if (r.status === 'DONE') { if (qc) balancesChanged(qc, t.chainId, b.toChainId); patch(id, { phase: 'settled', doneAt: Date.now() }) }
+      // DONE is the bridge's word, not the destination's balance: read that until it moves
+      if (r.status === 'DONE') { if (t.watch) { patch(id, { phase: 'syncing' }); return balanceSync(id) } if (qc) balancesChanged(qc, t.chainId, b.toChainId); patch(id, { phase: 'settled', doneAt: Date.now() }) }
       else patch(id, { phase: 'failed', doneAt: Date.now(), err: r.status === 'TRANSFER_REFUNDED' ? 'The bridge refunded it on the source chain.' : r.message ?? `The bridge answered ${r.status.toLowerCase()}.` })
       return
     }
@@ -238,6 +246,36 @@ async function sync(id: string) {
     if (snap == null || changed(snap, fingerprint(r.items, t.chainId, scope))) return done()
   }
   done('Final on chain, but the positions have not picked it up yet. They will on the next refresh.')
+}
+
+/**
+ * A swap's or bridge's output, read fresh until it differs from the balance at send — then every
+ * balance read on those chains. The destination of a bridge is read only now, never at the source
+ * landing, when it could only answer the old amount.
+ */
+async function balanceSync(id: string) {
+  const t = get(id)!, w = t.watch ?? []
+  let note: string | undefined = 'Arrived, but the balance has not shown it yet. It will on the next refresh.'
+  for (const wait of SYNC_WAITS) {
+    await sleep(wait)
+    const now = await readWatched(t.account, w)
+    const base = get(id)?.watchBase
+    if (now && (!base || Object.keys(now).some((k) => now[k] !== base[k]))) { note = undefined; break }
+  }
+  if (qc) balancesChanged(qc, t.chainId, t.bridge?.toChainId, ...w.map((x) => x.chainId))
+  patch(id, { phase: 'settled', doneAt: Date.now(), note })
+}
+/** Raw balances of the watched tokens, `chain:address` → amount; `null` if a read failed. */
+async function readWatched(account: string, w: { chainId: string; address: string }[]): Promise<Record<string, string> | null> {
+  const out: Record<string, string> = {}
+  try {
+    for (const c of [...new Set(w.map((x) => x.chainId))]) {
+      const asked = w.filter((x) => x.chainId === c).map((x) => x.address.toLowerCase())
+      const r = await fetchTokenBalances(account, c, asked, true)
+      for (const a of asked) out[`${c}:${a}`] = r.items.find((b) => b.address.toLowerCase() === a)?.balanceRaw ?? '0'
+    }
+    return out
+  } catch { return null }
 }
 
 // ---------------------------------------------------------------- positions, narrowed and compared

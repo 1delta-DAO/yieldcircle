@@ -169,7 +169,7 @@ export interface LoopPayAsset { address: string; symbol: string; decimals?: numb
 export interface LoopPayAssetsData { payAssets: LoopPayAsset[]; strict: boolean; notes: string[] }
 
 // ---------------------------------------------------------------- balances
-export interface TokenBalance { address: string; symbol: string; decimals: number; balanceRaw: string; balance: string; priceUSD?: number; balanceUSD?: number }
+export interface TokenBalance { address: string; symbol: string; name?: string; decimals: number; balanceRaw: string; balance: string; priceUSD?: number; balanceUSD?: number }
 
 // ---------------------------------------------------------------- interest-rate model
 /**

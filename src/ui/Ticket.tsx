@@ -213,7 +213,9 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
         <AmountBox unit={unit} value={amount} onChange={setAmount} onMax={idle ? () => setAmount(idle.amount) : undefined} />
         <div className="amt-sub"><span>{unit === '$' ? '' : `≈ ${usd(amtUsd)}`}</span><span>{account ? <>Idle: {idle ? `${num(idle.amount, 4)} ${idle.symbol}` : `0 ${chosen.symbol}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
         <GetLine account={account} short={!idle || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
-        {getOpen && <GetAsset target={{ chainId: s.chainId, address: chosen.address, symbol: chosen.symbol, decimals: chosen.decimals, price, logo: chosen.role === 'token' ? s.logo : undefined }} need={Math.max(0, amount - (idle?.amount ?? 0))} sources={allIdle} onClose={() => setGetOpen(false)} />}</div>
+        {/* every form the venue takes, the coin first (`payOptions` orders it): bought as the coin, the deposit needs no approval */}
+        {getOpen && <GetAsset targets={opts.map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price, logo: o.role === 'token' ? s.logo : undefined, have: balOf(o.address)?.amount ?? 0 }))} want={amount} sources={allIdle}
+          onTarget={(t) => setRole(opts.find((o) => o.address === t.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}</div>
       <div className="tsec"><div className="cells">
         <div className="c hero"><span className="k">You earn</span><span className={`v ${s.rate >= 3 ? 'ok' : ''}`}>{pct(s.rate)}</span><span className="s">{s.maturity ? `fixed to ${new Date(s.maturity * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'variable'}{s.rewards > 0.05 ? ` · incl. ${pct(s.rewards)} rewards` : ''}</span>
           {/* what MOVES the headline: absent on a vault and on the families that do not price off utilisation, which is exactly when there is nothing to open */}
@@ -328,7 +330,8 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
         <div className="amt-sub"><span>≈ {usd(E)} equity</span><span>{account ? <>Idle: {bal ? `${num(bal.amount, 4)} ${chosen?.symbol}` : `0 ${chosen?.symbol ?? ''}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
         {holding && <LegsNote h={holding} holds={s.holds} debt={s.debt} adding />}
         {chosen && <GetLine account={account} short={!bal || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />}
-        {getOpen && chosen && <GetAsset target={{ chainId: s.chainId, address: chosen.address, symbol: chosen.symbol, decimals: chosen.decimals, price: price || 1, logo: chosen.logo }} need={Math.max(0, amount - (bal?.amount ?? 0))} sources={allIdle} onClose={() => setGetOpen(false)} />}
+        {getOpen && chosen && <GetAsset targets={getForms(opts, chosen, s.chainId).map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price: o.price || price || 1, logo: o.logo, have: balOf(o.address, o.symbol)?.amount ?? 0 }))} want={amount} sources={allIdle}
+          onTarget={(t) => setRole(opts.find((o) => o.address.toLowerCase() === t.address.toLowerCase())?.role ?? null)} onClose={() => setGetOpen(false)} />}
         {s.terms && term && <>
           <span className="lbl" style={{ marginTop: 14 }}>Fix the {s.debt} rate for <Info label="Fixed-rate borrowing">
             <p style={{ margin: '0 0 6px' }}>{s.venue} lends {s.debt} here at a rate it sets for each term, the same at any size. The rate you pick is locked from today until the term ends.</p>
@@ -591,6 +594,15 @@ function LegsNote({ h, holds, debt, adding }: { h: Holding; holds: string; debt:
 }
 
 /** One quiet line under the amount: the way in when the wallet is short, a smaller link when it is not. */
+/**
+ * What "Get" buys for a loop: the chosen margin token — and, when it is the gas coin or its wrapper
+ * and the venue takes the coin, both of them, the coin first (no approval to pay it in).
+ */
+function getForms<T extends { role: string; address: string; symbol: string }>(opts: T[], chosen: T, chainId: string): T[] {
+  const coin = opts.find((o) => o.role === 'native')
+  const wrapped = opts.find((o) => o.role !== 'native' && wrapsNative(chainId, o.address))
+  return coin && wrapped && (chosen === coin || chosen === wrapped) ? [coin, wrapped] : [chosen]
+}
 function GetLine({ account, short, symbol, open, onOpen }: { account?: string; short: boolean; symbol: string; open: boolean; onOpen: () => void }) {
   if (!account || open) return null
   return <button className={`getline ${short ? 'short' : ''}`} onClick={onOpen}>{short ? <><b>Don't have enough {symbol}?</b> Get it from anything you hold, on any chain ›</> : <>Get more {symbol} from another asset or chain ›</>}</button>

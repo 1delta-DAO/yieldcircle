@@ -106,8 +106,10 @@ export function fetchOptimizerPairs(q: OptimizerQuery): Promise<OptimizerRespons
 // Single-chain only: `chainId` is required and there is no `chainIds` (the
 // multi-chain mode exists only on `/token/balances/rpc-call`, which hands back
 // RPC calls for the client to run). One request per chain is the floor here.
-export function fetchTokenBalances(account: string, chainId: string, assets: string[]) {
-  return apiFetch<{ items: TokenBalance[] }>('/v1/data/token/balances', { params: { chainId, account, assets: assets.join(',') } })
+// `fresh` bypasses the browser's copy: the route answers `max-age=15`, and a re-read seconds after
+// a transaction (or a bridge landing) would otherwise be handed the balance from before it.
+export function fetchTokenBalances(account: string, chainId: string, assets: string[], fresh = false) {
+  return apiFetch<{ items: TokenBalance[] }>('/v1/data/token/balances', { params: { chainId, account, assets: assets.join(',') }, ...(fresh ? { cache: 'no-store' as const } : {}) })
 }
 /**
  * `only` narrows the read to what one transaction touched: `lenders` are exact meta keys (the

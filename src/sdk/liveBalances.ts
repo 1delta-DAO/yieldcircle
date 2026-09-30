@@ -54,6 +54,9 @@ export function balancesChanged(qc: QueryClient, ...chainIds: (string | undefine
   for (const c of chainIds) if (c) until.set(c, t)
   recompute()
   setTimeout(recompute, LIVE_AFTER_TX_MS + 50)
-  void qc.invalidateQueries({ queryKey: ['balances'] })
+  // only these chains' reads (`['balances', account, chainId, assets]`): a bridge's SOURCE landing
+  // used to re-read the destination too, before anything had arrived, and that answer stuck
+  const hit = new Set(chainIds.filter(Boolean))
+  void qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'balances' && hit.has(String(q.queryKey[2])) })
   void qc.invalidateQueries({ queryKey: ['balances-index'] })
 }

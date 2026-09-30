@@ -258,10 +258,12 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .gsum-v small{display:block;font-size:11px}
 .gsum-h .chev{flex:none;transition:transform .25s cubic-bezier(.4,0,.2,1)}
 .gsum-h[aria-expanded="true"] .chev{transform:rotate(180deg)}
-.apills{display:flex;flex-wrap:wrap;gap:6px;padding:2px 14px 12px}
+.apills{display:flex;flex-wrap:wrap;gap:6px;padding:12px 14px}
 .apill{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 10px;border:1px solid var(--line2);border-radius:999px;background:#111;font-size:12.5px;color:var(--tx);white-space:nowrap;transition:border-color .12s ease}
 .apill:hover{border-color:var(--tx50)}
 .apill b{font-weight:600}
+.apt{line-height:1.2}
+.apt > * + *{margin-left:6px}
 .apill .m,.apill .ok{font-family:var(--mono);font-size:11.5px}
 .apill .m{color:var(--tx70)}
 .apill .idlemark{color:var(--warning);flex:none}
@@ -1490,3 +1492,15 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
   .txspin{animation-duration:2.4s}
   .txtrack span.on::before{animation:none;background:var(--primary);opacity:.55}
 }
+.get .get-as{margin:2px 0 10px}
+/* Get: paying with any token by address */
+.src.other{border-style:dashed;color:var(--tx50)}
+.src.other:hover{color:var(--tx);border-color:var(--tx50)}
+.custom-tok{margin-top:8px;border:1px solid var(--line2);border-radius:var(--r);padding:8px}
+.custom-tok .row{display:flex;gap:6px;align-items:center}
+.custom-tok select{flex:none;height:36px;background:var(--b300);color:var(--tx);border:1px solid var(--line2);border-radius:var(--r);padding:0 6px;font:inherit;font-size:12.5px}
+.custom-tok input{flex:1;min-width:0;height:36px;background:var(--bg);border:1px solid var(--line2);border-radius:var(--r);padding:0 10px;font-family:var(--mono);font-size:12.5px}
+.custom-tok input:focus{border-color:var(--primary);outline:none}
+.custom-tok .x{width:32px;height:32px;display:grid;place-items:center;color:var(--tx50);border-radius:var(--r)}
+.custom-tok .st{font-size:12px;margin-top:6px;line-height:1.4}
+@media (max-width:640px){ .custom-tok input{font-size:16px} }

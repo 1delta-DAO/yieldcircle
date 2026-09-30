@@ -100,9 +100,8 @@ function AssetPill({ b }: { b: AssetBook }) {
     idle ? `${usd(b.idleUsd)} idle, earning nothing` : null].filter(Boolean).join('\n')
   return (
     <button type="button" className="apill" title={title} onClick={() => go(b.group, { u: b.asset })}>
-      <Tok sym={b.asset} size={16} /><b>{b.asset}</b>
-      <span className="m">{usd(b.totalUsd)}</span>
-      {earning && <span className="ok">{pct(b.blended, 1)}</span>}
+      <Tok sym={b.asset} size={16} />
+      <span className="apt"><b>{b.asset}</b><span className="m">{usd(b.totalUsd)}</span>{earning && <span className="ok">{pct(b.blended, 1)}</span>}</span>
       {idle && <svg className="idlemark" viewBox="0 0 16 16" width="11" height="11" role="img" aria-label="part idle"><path d="M13.4 9.4A5.6 5.6 0 1 1 6.6 2.6a4.5 4.5 0 0 0 6.8 6.8z" fill="currentColor" /></svg>}
     </button>
   )

@@ -11,7 +11,8 @@ It is also the **social layer**: a feed of what other wallets are doing, a
 comment on every strategy, a character for every address and a leaderboard
 ranked on yield the index can prove. That half reads two public services —
 the position index and the social service — and is described in
-[`docs/social.md`](docs/social.md).
+[`docs/social.md`](docs/social.md). Which endpoint each screen reads, and
+where to add a new one: [`docs/apis.md`](docs/apis.md).
 
 ```
 cp .env.example .env     # VITE_BACKEND_BASE_URL — the credited backend for development

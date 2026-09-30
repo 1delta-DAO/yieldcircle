@@ -1504,3 +1504,4 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .custom-tok .x{width:32px;height:32px;display:grid;place-items:center;color:var(--tx50);border-radius:var(--r)}
 .custom-tok .st{font-size:12px;margin-top:6px;line-height:1.4}
 @media (max-width:640px){ .custom-tok input{font-size:16px} }
+.steps li .sl{overflow-wrap:anywhere}

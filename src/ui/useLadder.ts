@@ -2,6 +2,7 @@ import React from 'react'
 import { useAccount, useSendTransaction } from 'wagmi'
 import type { ApiTx, LoopActions } from '../sdk/types'
 import { nativeSymbol, WRAPPED_NATIVE } from '../model/positions'
+import { venueLabel } from '../model/strategies'
 import { useLiveBalances } from '../sdk/liveBalances'
 import { hasLanded, isDone, traceTx, useTrace, type Moves } from '../sdk/txTrace'
 import { isRemote, openWallet } from '../wallet/deeplink'
@@ -47,11 +48,17 @@ function wrapStep(tx: ApiTx, chainId?: string): Pick<Step, 'label' | 'onFail' | 
   return undefined
 }
 
+/**
+ * The API names a spender by its lender key — `Approve for MORPHO_BLUE_8BDB7D2C…` — which is a
+ * 64-hex market id to a reader (and overflowed the ticket). Said as the venue instead.
+ */
+const readableKeys = (d: string) => d.replace(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g, (k) => venueLabel(k))
+
 export function stepsFrom(a: LoopActions | null | undefined, routeLabel: string, chainId?: string): Step[] {
   if (!a) return []
   const step = (tx: ApiTx): Step => ({ kind: 'setup', tx, label: tx.description ?? routeLabel, ...wrapStep(tx, chainId) })
   const steps: Step[] = [
-    ...(a.permissions ?? []).map((tx) => ({ kind: 'permission' as const, tx, label: tx.description ?? 'Approve', moves: 'none' as const })),
+    ...(a.permissions ?? []).map((tx) => ({ kind: 'permission' as const, tx, label: tx.description ? readableKeys(tx.description) : 'Approve', moves: 'none' as const })),
     ...(a.transactions ?? []).map(step),
   ]
   const alts = a.alternatives ?? []

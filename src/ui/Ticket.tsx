@@ -177,7 +177,9 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
   const [role, setRole] = useSticky<PayRole | null>(`t:${s.id}:pay`, null)
   const chosen = opts.find((o) => o.role === role) ?? [...opts].sort((a, b) => (balOf(b.address)?.amount ?? 0) - (balOf(a.address)?.amount ?? 0))[0]
   const idle = balOf(chosen.address)
-  const unit = opts.length > 1 ? chosen.symbol : unitOf(s.asset)
+  // the token actually paid (WETH on Monad, where the gas coin is MON): the group's name ("ETH") is
+  // not what the wallet sends. Dollars stay dollars — a stablecoin amount is entered 1:1 as $.
+  const unit = unitOf(s.asset) === '$' ? '$' : chosen.symbol
   // the row rarely carries a price: any pay option's balance has it (the coin and its wrapper trade 1:1), else a same-asset balance as the estimate
   const price = s.priceUsd ?? opts.map((o) => balOf(o.address)?.price).find(Boolean) ?? allIdle.find((i) => i.asset === s.asset)?.price ?? (unit === '$' ? 1 : 0)
   const [amount, setAmount] = useSticky<number>(`t:${s.id}:amount`, () => (unit === '$' ? 1000 : Math.min(idle?.amount ?? 1, 1)))
@@ -209,7 +211,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
           <span className="lbl">You pay with <Info label="Paying with the native coin">This market holds {s.assetSymbol}, the wrapped form of {opts[0].symbol}. Paid in {opts[0].symbol}, the deposit wraps it for you: there is no {s.assetSymbol} to hold or approve first.</Info></span>
           <div className="seg" style={{ marginBottom: 10 }}>{opts.map((o) => <button key={o.role} aria-pressed={chosen.role === o.role} onClick={() => setRole(o.role)}><Tok sym={o.symbol} logo={o.role === 'token' ? s.logo : undefined} size={16} /> {o.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? num(balOf(o.address)?.amount ?? 0, 2) : ''}</span></button>)}</div>
         </>}
-        <span className="lbl">Amount of {opts.length > 1 ? chosen.symbol : s.asset}</span>
+        <span className="lbl">Amount of {unit === '$' ? s.asset : chosen.symbol}</span>
         <AmountBox unit={unit} value={amount} onChange={setAmount} onMax={idle ? () => setAmount(idle.amount) : undefined} />
         <div className="amt-sub"><span>{unit === '$' ? '' : `≈ ${usd(amtUsd)}`}</span><span>{account ? <>Idle: {idle ? `${num(idle.amount, 4)} ${idle.symbol}` : `0 ${chosen.symbol}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
         <GetLine account={account} short={!idle || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
@@ -234,7 +236,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
           <span className="s">{s.utilization != null ? `${Math.round(s.utilization * 100)}% lent out` : s.liquidityUsd != null ? 'can leave now' : 'not reported'}</span></div>
       </div></div>
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={i === 0 && s.risk >= 2 ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
-      <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${opts.length > 1 ? chosen.symbol : s.asset}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} />
+      <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} />
     </>
   )
 }

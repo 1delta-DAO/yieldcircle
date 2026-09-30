@@ -140,7 +140,8 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .tbl.strat-t td.r{overflow:hidden}
 /* the bubble and the chevron share one cell, so a row with no discussion costs
    no column */
-.tbl.strat-t col.c-rate{width:110px}
+.tbl.strat-t col.c-rate{width:170px}
+.tbl.strat-t col.c-earn{width:170px}
 .tbl.strat-t col.c-tail{width:64px}
 /* the chevron column is 32px wide and the cell padding was 16px a side, so the
    glyph had nothing left to sit in */
@@ -419,6 +420,7 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
      thing on a phone that was truncating to "USDT · Lend on A…" on three
      rows running */
   .tbl.strat-t col.c-rate{width:82px}
+  .tbl.strat-t col.c-earn{width:100px}
   .tbl.strat-t col.c-tail{width:34px}
   .tbl.strat-t td.tail{padding-right:8px}
   .tbl.strat-t td{height:auto;min-height:48px;padding-top:9px;padding-bottom:9px}

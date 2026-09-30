@@ -4,7 +4,7 @@
  * (collateral / debt); the API's in/out naming is translated here and nowhere else.
  */
 import { apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } from '../vendor/allocator/http'
-import type { ApiTx, EarnPositionsResponse, EarnResponse, IrmResponse, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance, VaultsResponse } from './types'
+import type { ApiTx, EarnPositionsResponse, EarnResponse, IrmResponse, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
 
 // ---------------------------------------------------------------- deposits (supply side)
 // `terms: 'digest'` — NOT 'none'. The digest is where the row's own prose lives:
@@ -42,16 +42,6 @@ export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRisk
     at += served(last)
   }
   return { ...first, count: items.length, items }
-}
-
-// The vault registry the earn listing leaves out (see `VaultListing`): one call
-// per chain, the whole set in one page (560 rows on Ethereum, ~200 kB), so no
-// paging and no per-row lookup. `includeExpired` is on for the same reason the
-// index turns it on — a matured PT is still held, and its row must still know
-// what it is. A failure here must never take down the listing it decorates;
-// the caller catches.
-export function fetchVaults(chainId: string) {
-  return apiFetch<VaultsResponse>('/v1/data/vaults', { params: { chainId, count: 1000, includeExpired: true } })
 }
 
 /**

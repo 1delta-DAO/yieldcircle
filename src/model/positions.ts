@@ -3,7 +3,7 @@
  * `/v1/data/earn/positions` (vault rows are standalone; a lending account with debt is a loop,
  * one without is a plain deposit per leg) and `/v1/data/token/balances` for idle.
  */
-import type { EarnPosition, TokenBalance, VaultListing } from '../sdk/types'
+import type { EarnPosition, TokenBalance } from '../sdk/types'
 import { baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
 import { marketTag } from './market'
 import { venueLabel } from './strategies'
@@ -54,19 +54,18 @@ export interface Holding {
   assetAddress?: string
 }
 /**
- * `vaults` is the registry the catalogue already loads (`VaultListing`): the
- * positions route names a vault the same way the listing does — `USDC · 0x5b8b`
- * — so without it a held vault reads as its asset and an address tail. Keyed
- * `chainId:address`, optional, decoration only.
+ * Vault rows name themselves from the positions route's own `name`/`brand`,
+ * the same fields the earn listing carries — no registry is joined. Unnamed
+ * vaults come back as `USDC · 0x5b8b`; the address tail is stripped.
  */
-export function holdingsFrom(items: EarnPosition[], vaults: Record<string, VaultListing> = {}): Holding[] {
+export function holdingsFrom(items: EarnPosition[]): Holding[] {
   const out: Holding[] = []
   for (const p of items) {
     if (p.venueKind === 'vault') {
       const asset = baseOfSymbol(p.asset.symbol); if (!asset || p.suppliedUsd < 0.5) continue
-      const v = vaults[`${p.chainId}:${String(p.vault ?? '').toLowerCase()}`]
-      const brand = p.brand ?? v?.curatorName ?? p.venue
-      out.push({ key: p.positionUid, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${v?.name ?? p.name ?? asset} · ${brand}`, venue: brand, valueUsd: p.suppliedUsd, apr: p.apr ?? p.rate?.total, earnUid: p.earnUid, logo: p.logoURI,
+      const brand = p.brand ?? p.venue
+      const own = (p.name ?? '').replace(/\s*·\s*0x[0-9a-f]{4,}$/i, '').trim()
+      out.push({ key: p.positionUid, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${own || asset} · ${brand}`, venue: brand, valueUsd: p.suppliedUsd, apr: p.apr ?? p.rate?.total, earnUid: p.earnUid, logo: p.logoURI,
         amount: parseFloat(p.assets) || 0, symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18, assetAddress: p.asset.address?.toLowerCase() })
       continue
     }

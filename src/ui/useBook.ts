@@ -1,5 +1,5 @@
 import { useApp } from '../state/AppState'
-import { useBalancesPerChain, useCatalog, useEarnPositions, useVaultIndex } from '../sdk/queries'
+import { useBalancesPerChain, useCatalog, useEarnPositions } from '../sdk/queries'
 import { books, holdingsFrom, idleFrom, type AssetBook, type Holding, type Idle } from '../model/positions'
 import type { Strategy } from '../model/strategies'
 
@@ -18,9 +18,7 @@ export function useBook() {
   const idleMerged: Idle[] = []
   for (const i of idle) { const cur = idleMerged.find((x) => x.asset === i.asset); if (cur) { cur.amount += i.amount; cur.usd += i.usd; if (i.usd > cur.usd - i.usd) { cur.address = i.address; cur.decimals = i.decimals; cur.chainId = i.chainId } } else idleMerged.push({ ...i }) }
   const pos = useEarnPositions(account, chainIds)
-  // the same registry the catalogue loads, so a held vault is named too (one cached request per chain)
-  const vaults = useVaultIndex(chainIds)
-  const holdings: Holding[] = pos.anyData ? holdingsFrom(pos.items, vaults) : []
+  const holdings: Holding[] = pos.anyData ? holdingsFrom(pos.items) : []
   const bk: AssetBook[] = books(holdings, idleMerged)
   return {
     ...cat, all, idle, idlePerChain: idle, books: bk, holdings,

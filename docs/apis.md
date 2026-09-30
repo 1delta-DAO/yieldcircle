@@ -56,8 +56,7 @@ that sometimes answer un-enveloped or with `ok` instead of `success`
 
 | Function | Endpoint | Used by | Notes |
 |---|---|---|---|
-| `fetchEarn` | `GET /v1/data/earn` | `useCatalog` → deposit rows | `chainIds` CSV; `terms: 'digest'` (not `none`, not `full`); pages only while a page is full; worker-api's cron pre-warms these exact params — don't change them casually |
-| `fetchVaults` | `GET /v1/data/vaults` | `vaultQuery` / `useVaultIndex` | one chain per call, `count: 1000`, `includeExpired`; a decoration — failure must not break the listing |
+| `fetchEarn` | `GET /v1/data/earn` | `useCatalog` → deposit rows (lending markets + vaults) | `chainIds` CSV; `terms: 'digest'` (not `none`, not `full`); pages only while a page is full; worker-api's cron pre-warms these exact params — don't change them casually. The one source for vaults and lending — there is no separate `/v1/data/vaults` fetch. A vault is named from the row's `curator`/`brand`/`name` (unnamed vaults arrive as `USDC · 0x5b8b`; the tail is stripped); `shareToken` is null on vault rows today, so the share symbol falls back to the build-time token map. Missing identity is fixed in the earn row, not with a second fetch. |
 | `fetchOptimizerPairs` | `GET /v1/data/lending/pairs/optimize` | `useCatalog` → loop rows (`optimizerPages`) | `chainId` for one chain, `chainIds` for several; archetypes = tag filters; asked with no risk cap / liquidity floor (floors are applied client-side in `model/visibility.ts`) |
 | `fetchIrm` | `GET /v1/data/lending/irm` | `useIrm` | **max 8 uids** per call (`IRM_MAX_BATCH`) — 10 returns 500 |
 | `fetchChains` | `GET /v1/data/chains` | `chainsQuery`, `ChainMark` | names + logos |

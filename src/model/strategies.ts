@@ -3,7 +3,7 @@
  * `/v1/data/earn` row on a base asset; a loop is one `/pairs/optimize` row whose collateral
  * resolves to a base asset and whose debt is the same denomination. Pure functions.
  */
-import type { EarnMarket, OptimizerRowRaw, VaultListing } from '../sdk/types'
+import type { EarnMarket, OptimizerRowRaw } from '../sdk/types'
 import { baseOfCollateral, baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
 import { marketTag } from './market'
@@ -210,16 +210,14 @@ export function vaultTag(name: string | null | undefined, known: (string | null 
 /**
  * `/earn` row → plain deposit, or null when it is not a strategy on a base asset we present.
  *
- * `vault` is the matching `/v1/data/vaults` row (see `VaultListing`) and is
- * what makes a vault row NAMEABLE: the earn listing carries `shareToken: null`
- * on every vault it serves and a synthesised `"USDC · 0x5b8b"` name, so
- * without the registry a curator-less MetaMorpho vault reads as the bare words
- * "Morpho vault" and three Gauntlet USDT vaults share one identity — which
- * `dedupe`, keyed on (chain, asset, holds, venue), then collapses to one row.
- * Optional on purpose: a registry that fails to load must cost labels, never
- * the listing.
+ * `/v1/data/earn` is the ONE source for vaults and lending alike (batched
+ * across chains) — no per-chain vault registry is joined. A vault is named
+ * from what the row carries: `curator`/`brand`, `name` (the server synthesises
+ * `"USDC · 0x5b8b"` for unnamed vaults — the tail is stripped), and
+ * `shareToken.symbol` where upstream sets it, else the build-time token map.
+ * Where the row is thin, the fix belongs in the earn row, not in a second fetch.
  */
-export function classifyEarn(m: EarnMarket, vault?: VaultListing): Candidate<SimpleStrategy> {
+export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const label = `${m.asset?.symbol ?? '?'} \u00b7 ${m.protocol?.name ?? m.brand ?? m.venue}`
   const no = (hide: HideCode): Candidate<SimpleStrategy> => ({ s: null, hide, label, chainId: m.chainId })
   const asset = baseOfSymbol(m.asset.symbol)
@@ -239,25 +237,25 @@ export function classifyEarn(m: EarnMarket, vault?: VaultListing): Candidate<Sim
   // the curator is the brand when upstream has none: `vault.morpho` with no
   // curator answers brand = protocol = 'Morpho', and "Morpho vault" is the
   // label that says nothing
-  const curator = m.curator?.name ?? vault?.curatorName ?? undefined
+  const curator = m.curator?.name ?? undefined
   const brand = m.brand && !sameWords(m.brand, protocol) ? m.brand : curator && !sameWords(curator, protocol) ? curator : m.brand ?? protocol
   // the server names unnamed vaults "USDC · 0x28b3": the address tail is not a token you hold
   const clean = (m.name ?? '').replace(/\s*·\s*0x[0-9a-f]{4,}$/i, '').trim()
   const named = clean && clean.toUpperCase() !== asset.toUpperCase() && clean.toUpperCase() !== m.asset.symbol.toUpperCase() ? clean : ''
   // the share token, resolved from the vault address: the listing's own logoURI is the ASSET's on nearly every row
   const share = isVault ? strategyToken(m.chainId, m.ref) : undefined
-  // the registry first — it answers for 208 of 208 vault rows, the build-time
-  // token map for 136 (it only knows tokens that made it into a chain token list)
-  const shareSym = m.shareToken?.symbol ?? vault?.symbol ?? share?.symbol
+  // the row's own share token first (null on vault rows as of 2026-09-30); the
+  // build-time token map covers the rest it knows (tokens in a chain token list)
+  const shareSym = m.shareToken?.symbol ?? share?.symbol
   // WHICH market: `Lend on Morpho` is the same sentence for three hundred Morpho markets and the
   // ticket deposits into one of them. Skipped when it only repeats the venue (`Capy Fi · CapyFi`).
-  // WHICH vault: the same question on the vault side, answered from the registry name
+  // WHICH vault: the same question on the vault side, answered from the row's own name
   const tag = isVault
-    ? vaultTag(vault?.name, [brand, protocol, curator, m.asset.symbol, vault?.underlyingInfo?.asset?.name], shareSym ?? asset)
+    ? vaultTag(named, [brand, protocol, curator, m.asset.symbol], shareSym ?? asset)
     : marketTag(m.name, m.asset.symbol)
   const market = tag && !sameWords(tag, brand) && !sameWords(tag, protocol) ? tag : ''
   let via: string, source: string, holds: string
-  if (m.venue === 'vault.lst') { via = `Stake with ${brand}`; source = 'staking'; holds = shareSym ?? named ?? asset }
+  if (m.venue === 'vault.lst') { via = `Stake with ${brand}`; source = 'staking'; holds = shareSym || named || asset }
   else if (m.venue === 'vault.savings') { via = `${brand} savings`; source = 'savings'; holds = shareSym ?? (named || asset) }
   else if (m.venue === 'vault.pendle') { via = 'Fixed on Pendle'; source = 'fixed'; holds = 'PT ' + (named || asset).replace(/^PT\s*/, '').split(' ')[0] }
   else if (isVault) { const who = `${brand}${market ? ` ${market}` : ''} vault`; via = sameWords(brand, protocol) ? who : `${who} · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || asset) }
@@ -265,7 +263,7 @@ export function classifyEarn(m: EarnMarket, vault?: VaultListing): Candidate<Sim
   // isolated market is not the V3 pool the same sentence would have named
   else { via = `Lend on ${brand}${market ? ` · ${market}` : ''}`; source = 'lending'; holds = asset }
   const ownLogo = m.logoURI && m.logoURI !== m.asset.logoURI ? m.logoURI : undefined
-  const logo = share?.logoURI ?? vault?.shareAsset?.logoURI ?? ownLogo ?? (isVault ? undefined : m.asset.logoURI)
+  const logo = share?.logoURI ?? ownLogo ?? (isVault ? undefined : m.asset.logoURI)
   const exitMode = m.exit?.mode ?? 'instant'
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const maturity = typeof m.maturity?.maturity === 'number' ? m.maturity.maturity : undefined
@@ -274,7 +272,7 @@ export function classifyEarn(m: EarnMarket, vault?: VaultListing): Candidate<Sim
     rate, risk, riskLabel, riskScore, tvlUsd: tvl,
     earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, assetSymbol: m.asset.symbol, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
-    exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, ref: m.ref, vaultName: vault?.name ?? undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0,
+    exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0,
     // an API that knows the flag sets it on the deposit; then a missing withdraw leg (an async exit) is a no
     nativeIn: dep.acceptsNative, nativeOut: dep.acceptsNative === undefined ? undefined : m.capabilities.find((c) => c.action === 'withdraw')?.acceptsNative ?? false,
     headline: m.termSheet?.supply?.headline || undefined, description: m.termSheet?.supply?.description || undefined,

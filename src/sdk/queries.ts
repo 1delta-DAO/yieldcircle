@@ -1,10 +1,10 @@
 import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, fetchVaults, loopClose, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
+import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
 import { capPerAsset, classifyEarn, classifyPair, dedupe, rowKey, type Candidate, type LoopStrategy, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { softHide, type HideCode } from '../model/visibility'
 import { useSettings, type Settings } from '../state/Settings'
-import type { OptimizerResponse, TokenBalance, VaultListing } from './types'
+import type { OptimizerResponse, TokenBalance } from './types'
 import { indexBalances } from '../index/api'
 import type { IndexBalanceItem } from '../index/types'
 import { useLiveChains } from './liveBalances'
@@ -154,34 +154,6 @@ const archetypeQuery = ({ anyDebtInBundle, ...a }: Archetype, ids: string[]) =>
 const WIDE_DEBT_TAGS = ['stablecoin', 'wnative', 'btc']
 
 /**
- * The vault registry for one chain, keyed by vault address — the share token's
- * symbol, name and curator, none of which the earn listing carries (see
- * `VaultListing`). Cached under its own key and joined onto the listing once
- * both are in hand, so it costs one request per chain per hour and never
- * holds the listing up; a failure is simply no decoration.
- */
-export type VaultIndex = Record<string, VaultListing>
-const vaultQuery = (chainId: string) => ({
-  queryKey: ['vaults', chainId],
-  queryFn: async (): Promise<VaultIndex> => {
-    const r = await fetchVaults(chainId)
-    return Object.fromEntries(r.items.map((v) => [v.vaultAddress.toLowerCase(), v]))
-  },
-  staleTime: HOUR,
-})
-/** The same registries for several chains, keyed `chainId:address`, for the holdings side. */
-export function useVaultIndex(chainIds: string[]): VaultIndex {
-  const qs = useQueries({ queries: chainIds.map(vaultQuery) })
-  const data = qs.map((q) => q.data)
-  return useMemo(() => {
-    const out: VaultIndex = {}
-    data.forEach((d, i) => { for (const [a, v] of Object.entries(d ?? {})) out[`${chainIds[i]}:${a}`] = v })
-    return out
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chainIds.join(','), ...data])
-}
-
-/**
  * What a chain answered, split into what can be shown and what cannot.
  *
  * `rows` are built strategies (visible or merely below a floor); `structural`
@@ -233,14 +205,6 @@ export type HiddenRow = Strategy & { hide: HideCode }
 export function useCatalog(chainIds: string[]) {
   const { st } = useSettings()
   const buckets = chainBuckets(chainIds)
-  /**
-   * The listing alone. The vault registry is a DECORATION (a share token's
-   * symbol, name and curator) and is joined below, when both are in hand: it
-   * used to be awaited inside this request, so Ethereum's 2.1 MB registry
-   * (3.7–7.8 s cold, measured 2026-09-29) held up Ethereum's listing, which
-   * held up `isLoading`, which held up the home feed. A row now arrives with
-   * the listing and is renamed when the registry lands (a re-classify is ~5 ms).
-   */
   const earn = useQueries({
     queries: buckets.map((ids) => ({
       queryKey: ['earn-rows', ids.join(','), st.minTvlUsd],
@@ -248,7 +212,6 @@ export function useCatalog(chainIds: string[]) {
       staleTime: 10 * 60_000,
     })),
   })
-  const vaults = useQueries({ queries: chainIds.map(vaultQuery) })
   const loops = useQueries({
     queries: buckets.flatMap((ids) => [
       ...LOOP_ARCHETYPES.map((a, i) => ({
@@ -265,10 +228,9 @@ export function useCatalog(chainIds: string[]) {
   })
   // one stamp for "any answer changed": this hook runs in the header, the
   // feed and Hot at once, and every catalogue query landing re-renders all three
-  const stamp = [chainIds.join(','), ...[...earn, ...vaults, ...loops].map((q) => q.dataUpdatedAt)].join('|')
+  const stamp = [chainIds.join(','), ...[...earn, ...loops].map((q) => q.dataUpdatedAt)].join('|')
   const earnSorted = useMemo(() => {
-    const reg: Record<string, VaultIndex | undefined> = Object.fromEntries(chainIds.map((c, i) => [c, vaults[i]?.data]))
-    return earn.map((q) => (q.data ? sortOut(q.data.map((m) => classifyEarn(m, reg[m.chainId]?.[String(m.ref).toLowerCase()])), 'simple') : undefined))
+    return earn.map((q) => (q.data ? sortOut(q.data.map((m) => classifyEarn(m)), 'simple') : undefined))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stamp])
   const derived = useMemo(() => {

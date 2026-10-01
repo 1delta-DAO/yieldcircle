@@ -60,6 +60,15 @@ export const tierLeverage = (maxLev: number, frac: number) => Math.round(Math.ma
 export const customRange = (maxLev: number): [number, number] => [1.1, Math.floor((1 + 0.98 * (Math.max(1, maxLev) - 1)) * 100) / 100]
 export type TierLeverages = Record<TierId, number>
 export const tierLeverages = (maxLev: number): TierLeverages => ({ defensive: tierLeverage(maxLev, 0.5), balanced: tierLeverage(maxLev, 0.75), aggressive: tierLeverage(maxLev, 0.9) })
+/**
+ * A decimal STRING (as the API prints a balance) → raw integer string, exact: digits past
+ * `decimals` are cut, never rounded up. A full exit sizes off this — `toRaw` of the parsed float
+ * keeps ~17 significant digits and can land a few wei ABOVE the balance, and the swap then reverts.
+ */
+export const decToRaw = (dec: string, decimals: number): string => {
+  const [i = '0', f = ''] = dec.trim().split('.')
+  return (BigInt(i || '0') * 10n ** BigInt(decimals) + BigInt((f + '0'.repeat(decimals)).slice(0, decimals) || '0')).toString()
+}
 /** Decimal amount → raw integer string (never floats in a query). */
 export const toRaw = (amount: number, decimals: number): string => {
   const [i, f = ''] = Math.max(0, amount).toFixed(Math.min(decimals, 12)).split('.')

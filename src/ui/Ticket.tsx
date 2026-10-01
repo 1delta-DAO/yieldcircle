@@ -424,7 +424,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const key = [s?.id ?? h.key, mode, eff, native ? 'native' : 'token', account ?? ''].join('|')
   const rate = s?.rate ?? h.apr
   const ladder = useLadder(key, h.chainId, async () => {
-    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: toRaw(eff, h.decimals), operator: account!, isAll: fullExit, receiveAsset: native ? ZERO : undefined })
+    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: all && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: account!, isAll: fullExit, receiveAsset: native ? ZERO : undefined })
     return stepsFrom(env.actions, 'Withdraw', h.chainId)
   }, [s?.earnUid, h.earnUid])
   const price = h.amount > 0 ? h.valueUsd / h.amount : 0
@@ -508,7 +508,9 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const keep = closing && !sameToken && recv === 'collateral'
   const owed = loan ? loan.debt : h.debtAmount ?? (pD ? D / pD : 0)
   const pDebt = pD || (owed > 0 ? D / owed : 0)
-  const cq = useCloseQuote(closing && collUid && debtUid ? { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: toRaw(h.amount, h.decimals), accountId: h.accountId, loanId: loan?.id } : null)
+  // the exact balance: a float-sized amount can overshoot it by a few wei and the swap reverts
+  const allRaw = h.amountRaw ?? toRaw(h.amount, h.decimals)
+  const cq = useCloseQuote(closing && collUid && debtUid ? { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: allRaw, accountId: h.accountId, loanId: loan?.id } : null)
   const sale = cq.data ?? null
   const rate = sale ? sale.output / sale.input : null
   const covers = sale ? sale.output >= owed * (1 + CLOSE_INTEREST_PAD) : null
@@ -523,7 +525,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const key = [s?.id ?? h.key, 'manage', L, keep ? 'keep' : 'sell', account ?? ''].join('|')
   const ladder = useLadder(key, h.chainId, async () => {
     if (down || !s) {
-      const amountRaw = toRaw(closing ? (keep ? sellKeep! : h.amount) : sellTok, h.decimals)
+      const amountRaw = closing && !keep ? allRaw : toRaw(closing ? sellKeep! : sellTok, h.decimals)
       const env = await loopClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: 50, isAll: closing, account: account!, accountId: h.accountId, loanId: loan?.id })
       if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
       return stepsFrom(env.actions, closing ? `Close the loop · receive ${keep ? holds : debt}` : `Deleverage to ${num(L, 2)}×`, h.chainId)

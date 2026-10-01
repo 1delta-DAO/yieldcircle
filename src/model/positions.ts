@@ -5,6 +5,7 @@
  */
 import type { EarnPosition, TokenBalance } from '../sdk/types'
 import { baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
+import { decToRaw } from './leverage'
 import { marketTag } from './market'
 import { venueLabel } from './strategies'
 
@@ -26,6 +27,8 @@ export interface Holding {
   directional?: boolean
   /** what is held, in token units, and the token: vault assets, a lending deposit, or a loop's collateral */
   amount: number
+  /** `amount` exactly, in raw units — what a full exit sends (see `decToRaw`) */
+  amountRaw?: string
   symbol: string
   decimals: number
   /** loop legs, for a close / reduce */
@@ -58,6 +61,8 @@ export interface Holding {
  * the same fields the earn listing carries — no registry is joined. Unnamed
  * vaults come back as `USDC · 0x5b8b`; the address tail is stripped.
  */
+/** the API's decimal string → exact raw units; none when the decimals are unknown or the string is not a plain decimal */
+const rawOf = (dec: string | undefined, decimals: number | undefined) => (dec && decimals != null && /^\d+(\.\d+)?$/.test(dec) ? decToRaw(dec, decimals) : undefined)
 export function holdingsFrom(items: EarnPosition[]): Holding[] {
   const out: Holding[] = []
   for (const p of items) {
@@ -66,7 +71,7 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
       const brand = p.brand ?? p.venue
       const own = (p.name ?? '').replace(/\s*·\s*0x[0-9a-f]{4,}$/i, '').trim()
       out.push({ key: p.positionUid, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${own || asset} · ${brand}`, venue: brand, valueUsd: p.suppliedUsd, apr: p.apr ?? p.rate?.total, earnUid: p.earnUid, logo: p.logoURI,
-        amount: parseFloat(p.assets) || 0, symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18, assetAddress: p.asset.address?.toLowerCase() })
+        amount: parseFloat(p.assets) || 0, amountRaw: rawOf(p.assets, p.asset.decimals), symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18, assetAddress: p.asset.address?.toLowerCase() })
       continue
     }
     // `Morpho sUSDS-USDT 97`: the positions route names the MARKET where the catalogue names the
@@ -78,7 +83,11 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
     const protocol = named ? full.slice(0, lead.length) : lead
     const instance = named ? full.slice(lead.length).trim() : ''
     const venueOf = (symbol: string | undefined) => { const t = marketTag(instance, symbol ?? ''); return t ? `${protocol} · ${t}` : protocol }
-    const accounts = p.crossMargin ? [{ accountId: '0', health: p.health, legs: p.legs, netUsd: p.netUsd, borrowedUsd: p.borrowedUsd, suppliedUsd: p.suppliedUsd }] : p.subAccounts
+    // `crossMargin` only says ONE sub-account is active — not that it is account 0. An Euler
+    // sub-account 3 (or a Fluid NFT) alone is still "cross-margin", and a close sent without its id
+    // goes to account 0. Keep the active one's id; '0' is the default and stays unsent.
+    const lone = p.crossMargin ? p.subAccounts.find((s) => s.netUsd !== 0 || s.legs.some((l) => l.depositsUsd > 0 || l.debtUsd > 0))?.accountId : undefined
+    const accounts = p.crossMargin ? [{ accountId: lone ?? '0', health: p.health, legs: p.legs, netUsd: p.netUsd, borrowedUsd: p.borrowedUsd, suppliedUsd: p.suppliedUsd }] : p.subAccounts
     for (const a of accounts) {
       // a leg with a `loanId` is one broker loan the market's unbound leg already counts: kept aside, never summed
       const own = a.legs.filter((l) => !l.loanId)
@@ -98,14 +107,14 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         const loans = a.legs.filter((l) => l.loanId && l.marketUid === d.marketUid && l.debtUsd > 0.005)
           .map((l) => ({ id: l.loanId!, debt: parseFloat(l.debt) || 0, debtUsd: l.debtUsd })).sort((x, y) => y.debtUsd - x.debtUsd)
         out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'loop', label: `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
-          amount: parseFloat(coll.deposits) || 0, symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtAmount: parseFloat(d.debt) || 0, accountId: p.crossMargin ? undefined : a.accountId, lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
+          amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
       } else {
         for (const l of supply) {
           const asset = baseOfSymbol(l.asset.symbol); if (!asset) continue
           // the label is the FAMILY, `venue` the market inside it: the two are printed together
           // (the asset page) and one under the other (the explorer), so neither may repeat the other
           out.push({ key: `${p.positionUid}:${a.accountId}:${l.marketUid}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${l.asset.symbol} · Lend on ${protocol}`, venue: venueOf(l.asset.symbol), valueUsd: l.depositsUsd, apr: p.depositApr, earnUid: l.earnUid, logo: l.asset.logoURI,
-            amount: parseFloat(l.deposits) || 0, symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, assetAddress: l.asset.address?.toLowerCase(), accountId: p.crossMargin ? undefined : a.accountId, lender: p.lender })
+            amount: parseFloat(l.deposits) || 0, amountRaw: rawOf(l.deposits, l.asset.decimals), symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, assetAddress: l.asset.address?.toLowerCase(), accountId: a.accountId === '0' ? undefined : a.accountId, lender: p.lender })
         }
       }
     }

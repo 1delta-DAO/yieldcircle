@@ -4,7 +4,7 @@ import { useAccount, useDisconnect } from 'wagmi'
 import { useApp } from '../state/AppState'
 import { useModalChrome } from '../ui/useModalChrome'
 import { readTouch } from '../ui/useViewport'
-import { useConnectFlow } from './useConnectFlow'
+import { useConnectFlow, type ConnectFlow } from './useConnectFlow'
 import { forgetWallet } from './deeplink'
 import { WALLETS } from './wallets'
 import { HAS_WC } from './wc'
@@ -76,13 +76,16 @@ function Waiting({ name, onReopen, onBack }: { name: string; onReopen: () => voi
   )
 }
 
-function Choose({ f, touch }: { f: ReturnType<typeof useConnectFlow>; touch: boolean }) {
-  const hasInjected = typeof window !== 'undefined' && !!(window as { ethereum?: unknown }).ethereum
+function Choose({ f, touch }: { f: ConnectFlow; touch: boolean }) {
   return (
     <>
-      {f.injected && hasInjected && (
+      {f.injected.length > 0 && (
         <div className="tsec">
-          <button className="btn pri wide" disabled={f.isPending} onClick={() => f.connect({ connector: f.injected! })}>{f.injected.name}</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {f.injected.map((c) => (
+              <button key={c.id} className="btn pri wide" disabled={f.isPending} onClick={() => f.connect({ connector: c })}>{c.name}</button>
+            ))}
+          </div>
           <p className="foot" style={{ marginTop: 6 }}>The wallet built into this browser.</p>
         </div>
       )}
@@ -110,7 +113,7 @@ function Choose({ f, touch }: { f: ReturnType<typeof useConnectFlow>; touch: boo
 }
 
 /** The desktop case: the wallet is a phone across the room. */
-function Qr({ f }: { f: ReturnType<typeof useConnectFlow> }) {
+function Qr({ f }: { f: ConnectFlow }) {
   const [copied, setCopied] = React.useState(false)
   /**
    * ONCE. Keying this on `!f.uri && !f.isPending` instead re-fires the moment a

@@ -1,5 +1,5 @@
 import React from 'react'
-import { useAccount, useConnect } from 'wagmi'
+import { useAccount, useConnect, type Connector, type UseConnectReturnType } from 'wagmi'
 import { openWithUri, rememberRedirect } from './deeplink'
 import type { WalletEntry } from './wallets'
 
@@ -15,14 +15,43 @@ import type { WalletEntry } from './wallets'
  */
 export type ConnectPhase = 'idle' | 'waiting' | 'error'
 
-export function useConnectFlow() {
+/** Everything `ConnectSheet` needs from the connect state machine. */
+export interface ConnectFlow {
+  connect: UseConnectReturnType['connect']
+  connectors: UseConnectReturnType['connectors']
+  /** The injected wallets to offer, named and connectable. */
+  injected: Connector[]
+  wc: Connector | undefined
+  uri: string | undefined
+  picked: WalletEntry | undefined
+  phase: ConnectPhase
+  isPending: boolean
+  error: Error | null
+  pick: (entry: WalletEntry) => void
+  reopen: () => void
+  cancel: () => void
+}
+
+export function useConnectFlow(): ConnectFlow {
   const { connect, connectors, isPending, error, reset } = useConnect()
   const { isConnected, connector: active } = useAccount()
   const [uri, setUri] = React.useState<string>()
   const [picked, setPicked] = React.useState<WalletEntry>()
 
   const wc = connectors.find((c) => c.id === 'walletConnect')
-  const injected = connectors.find((c) => c.id !== 'walletConnect')
+  /**
+   * The injected wallets wagmi knows about, in discovery order. `wagmiConfig`
+   * leaves `multiInjectedProviderDiscovery` on, so every EIP-6963 announcement
+   * becomes its own connector — named after the wallet and present even while
+   * that wallet is LOCKED: a locked extension still announces, only its
+   * accounts are hidden. The bare `injected()` connector (id `injected`) is the
+   * pre-EIP-6963 fallback and only counts when `window.ethereum` exists with no
+   * announcement.
+   */
+  const injectedConnectors = connectors.filter((c) => c.type === 'injected')
+  const discovered = injectedConnectors.filter((c) => c.id !== 'injected')
+  const hasEthereum = typeof window !== 'undefined' && 'ethereum' in window && !!window.ethereum
+  const injected = discovered.length ? discovered : hasEthereum ? injectedConnectors.filter((c) => c.id === 'injected') : []
 
   // `message` carries `display_uri`; the emitter is on the connector, not the hook
   React.useEffect(() => {

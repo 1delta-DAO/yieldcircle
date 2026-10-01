@@ -1507,3 +1507,6 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .custom-tok .st{font-size:12px;margin-top:6px;line-height:1.4}
 @media (max-width:640px){ .custom-tok input{font-size:16px} }
 .steps li .sl{overflow-wrap:anywhere}
+/* the US Dollar group's bands (issued dollars · yield desks · issuer not named) */
+.tbl.slim tr.band td{height:auto;padding:10px 16px 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx50);cursor:default;border-top:1px solid var(--line-soft)}
+.tbl.slim tr.band:first-child td{border-top:0}

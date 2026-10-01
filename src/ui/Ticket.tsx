@@ -1,5 +1,5 @@
 import React from 'react'
-import { unitOf } from '../model/assets'
+import { nameOf, unitOf } from '../model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
 import type { LoopStrategy, LoopTerm, SimpleStrategy, Strategy } from '../model/strategies'
 import type { LoopActions } from '../sdk/types'
@@ -36,7 +36,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: St
     <div className="ticket">
       <div className="grab" />
       <div className="th">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />}
-        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part{s.terms ? <>, fixed for the term you pick</> : ''}.</> : <SimpleWords s={s} />}</Info></div><div className="s">{s.asset} strategy · {s.kind === 'loop' ? `${s.venue}${s.terms ? ' · fixed rate' : ''}` : s.via} · {chainLabel(s.chainId)}</div></div>
+        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part{s.terms ? <>, fixed for the term you pick</> : ''}.{s.desk ? <> Your exposure is <b>{nameOf(s.asset)}</b>{s.instrument ? <> (through {s.instrument})</> : ''}: a dollar debt cannot depeg upward, so {s.debt} is a rate you pay, not a risk you hold.</> : ''}</> : <SimpleWords s={s} />}</Info></div><div className="s">{nameOf(s.asset)} strategy · {s.kind === 'loop' ? `${s.venue}${s.terms ? ' · fixed rate' : ''}` : s.via} · {chainLabel(s.chainId)}</div></div>
         <KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} />{holding && <LegsPill others={holding.others} />}<button className="x" onClick={onClose} aria-label="Close">✕</button></div>
       {holding && (
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
@@ -68,7 +68,7 @@ export function HoldingTicket({ h, onClose }: { h: Holding; onClose: () => void 
     <div className="ticket">
       <div className="grab" />
       <div className="th"><Tok sym={h.symbol} logo={h.logo} size={26} />
-        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{h.label.split(' · ')[0]}</div><div className="s">{h.asset} position · {h.venue} · {chainLabel(h.chainId)}</div></div>
+        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{h.label.split(' · ')[0]}</div><div className="s">{nameOf(h.asset)} position · {h.venue} · {chainLabel(h.chainId)}</div></div>
         <KindPill kind={h.kind} /><LegsPill others={h.others} /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
       <div className="tsec"><div className="modes"><span className="t50" style={{ fontSize: 12 }}>Not in the menu — you can {h.kind === 'loop' ? 'deleverage or close' : 'withdraw from'} it here.</span>
         <span className="sp" /><span className="sum">{usd(h.valueUsd)}{h.kind === 'loop' && h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}{h.health != null ? ` · health ${h.health.toFixed(2)}` : ''}</span></div></div>
@@ -217,7 +217,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
           <span className="lbl">You pay with <Info label="Paying with the native coin">This market holds {s.assetSymbol}, the wrapped form of {opts[0].symbol}. Paid in {opts[0].symbol}, the deposit wraps it for you: there is no {s.assetSymbol} to hold or approve first.</Info></span>
           <div className="seg" style={{ marginBottom: 10 }}>{opts.map((o) => <button key={o.role} aria-pressed={chosen.role === o.role} onClick={() => setRole(o.role)}><Tok sym={o.symbol} logo={o.role === 'token' ? s.logo : undefined} size={16} /> {o.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? num(balOf(o.address)?.amount ?? 0, 2) : ''}</span></button>)}</div>
         </>}
-        <span className="lbl">Amount of {unit === '$' ? s.asset : chosen.symbol}</span>
+        <span className="lbl">Amount of {unit === '$' ? s.assetSymbol : chosen.symbol}</span>
         <AmountBox unit={unit} value={amount} onChange={setAmount} onMax={idle ? () => setAmount(idle.amount) : undefined} />
         <div className="amt-sub"><span>{unit === '$' ? '' : `≈ ${usd(amtUsd)}`}</span><span>{account ? <>Idle: {idle ? `${num(idle.amount, 4)} ${idle.symbol}` : `0 ${chosen.symbol}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
         <GetLine account={account} short={!idle || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />

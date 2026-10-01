@@ -1,5 +1,5 @@
 import React from 'react'
-import { whatIs, type Group } from '../model/assets'
+import { nameOf, whatIs, type Group } from '../model/assets'
 import { markPicks, type Strategy } from '../model/strategies'
 import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
@@ -56,17 +56,17 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
       <div className={`asset${ticketOpen ? '' : ' noticket'}`}>
         <div className="main">
           <div className="hdr">
-            <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {u}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div></div></div>
+            <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {nameOf(u)}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div></div></div>
             <AssetChips group={group} route={route} assets={assets} u={u} all={inGroup} />
           </div>
           {idle.length > 0 && (
             <div className="idle-strip">{idle.map((x) => { const best = bestSimpleFor(x.asset), bestAny = bestFor(x.asset); return (
               <button key={x.asset} className="idle-row" disabled={!best} onClick={() => best && go(group.id, { u: x.asset, s: best.id, k: 'simple' })}>
-                <Tok sym={x.asset} /><span className="t"><b>{amt(x.asset, x.idle!.amount, x.idle!.usd)}</b> {x.asset} idle{bestAny ? <> <span className="t50">· <span className="hide-m">could earn </span>up to</span> <b className="ok">{pct(bestAny.rate)}</b></> : ''}</span><span className="sp" />{best && <span className="cta">Put to work ›</span>}
+                <Tok sym={x.asset} /><span className="t"><b>{amt(x.asset, x.idle!.amount, x.idle!.usd)}</b> {group.id === 'USD' ? `${nameOf(x.asset)} ` : x.asset !== x.idle!.symbol ? `${nameOf(x.asset)} ` : ''}idle{bestAny ? <> <span className="t50">· <span className="hide-m">could earn </span>up to</span> <b className="ok">{pct(bestAny.rate)}</b></> : ''}</span><span className="sp" />{best && <span className="cta">Put to work ›</span>}
               </button>) })}</div>
           )}
           {b.account && running.length > 0 && (
-            <section className="sec" style={{ marginTop: 14 }}><div className="sec-h"><h2>Your positions</h2><span className="sub">{usd(running.reduce((a, r) => a + r.h.valueUsd, 0))} at work in {group.name.toLowerCase()}{u !== 'all' ? ` · ${u}` : ''}.</span></div>
+            <section className="sec" style={{ marginTop: 14 }}><div className="sec-h"><h2>Your positions</h2><span className="sub">{usd(running.reduce((a, r) => a + r.h.valueUsd, 0))} at work in {group.name.toLowerCase()}{u !== 'all' ? ` · ${nameOf(u)}` : ''}.</span></div>
               <div className="card"><table className="tbl strat-t">
                 <colgroup><col /><col style={{ width: 96 }} /><col className="c-earn" /><col className="hide-m hide-t" style={{ width: 70 }} /><col className="hide-m hide-t" style={{ width: 138 }} /><col style={{ width: 32 }} /></colgroup>
                 <thead><tr><th>Position</th><th className="r">Value</th><th className="r">Earning</th><th className="r hide-m hide-t">Health</th><th className="r hide-m hide-t">Manage</th><th /></tr></thead>
@@ -100,7 +100,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                           its own where eight rows in nine said the same word; here it
                           sits second, so it is the part a narrow screen keeps rather
                           than the part it truncates. */}
-                      <small>{u === 'all' ? `${s.asset} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${s.exitWord.toLowerCase()}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.source}` : ''}{s.tvlUsd > 0 && <> · <Size s={s} /></>}</small></td>
+                      <small>{u === 'all' ? `${nameOf(s.asset)} · ` : ''}{s.kind === 'loop' && s.instrument ? `via ${s.instrument} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${s.exitWord.toLowerCase()}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.source}` : ''}{s.tvlUsd > 0 && <> · <Size s={s} /></>}</small></td>
                     {/* the rate, on its own: nothing else in this cell to read past */}
                     <td className="r"><span className={s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}>{pct(s.rate)}</span>{s.kind === 'simple' && s.rewards > 0.05 ? <small className="hide-m">incl. {pct(s.rewards)} rewards</small> : null}</td>
                     {/* a bubble on a row nobody has posted on is furniture, so it
@@ -152,7 +152,7 @@ function AssetChips({ group, route, assets, u, all, max = 6 }: { group: Group; r
       </button>
       {shown.map((a) => (
         <button key={a} className="chip" aria-pressed={u === a} onClick={() => go(group.id, { u: a, s: route.s, k: route.k })}>
-          <Tok sym={a} size={16} />{a} <span className="c">{countOf(a)}</span>
+          <Tok sym={a} size={16} />{nameOf(a)} <span className="c">{countOf(a)}</span>
         </button>
       ))}
       {hidden > 0 && <button className="chip more" onClick={() => setOpen(true)}>+{hidden}</button>}

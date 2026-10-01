@@ -5,6 +5,7 @@
  */
 import type { EarnPosition, TokenBalance } from '../sdk/types'
 import { baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
+import { deskKey, keyOfToken, moneyOf } from './desk'
 import { decToRaw } from './leverage'
 import { marketTag } from './market'
 import { venueLabel } from './strategies'
@@ -13,6 +14,7 @@ export interface Holding {
   key: string
   chainId: string
   group: GroupId
+  /** the row: a base asset, or a dollar's credit desk — a loop's COLLATERAL desk, never its debt's (`Strategy.asset`) */
   asset: string
   kind: 'simple' | 'loop'
   label: string
@@ -67,10 +69,10 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
   const out: Holding[] = []
   for (const p of items) {
     if (p.venueKind === 'vault') {
-      const asset = baseOfSymbol(p.asset.symbol); if (!asset || p.suppliedUsd < 0.5) continue
+      const asset = keyOfToken({ ...p.asset, chainId: p.chainId }); if (!asset || p.suppliedUsd < 0.5) continue
       const brand = p.brand ?? p.venue
       const own = (p.name ?? '').replace(/\s*·\s*0x[0-9a-f]{4,}$/i, '').trim()
-      out.push({ key: p.positionUid, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${own || asset} · ${brand}`, venue: brand, valueUsd: p.suppliedUsd, apr: p.apr ?? p.rate?.total, earnUid: p.earnUid, logo: p.logoURI,
+      out.push({ key: p.positionUid, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${own || p.asset.symbol || asset} · ${brand}`, venue: brand, valueUsd: p.suppliedUsd, apr: p.apr ?? p.rate?.total, earnUid: p.earnUid, logo: p.logoURI,
         amount: parseFloat(p.assets) || 0, amountRaw: rawOf(p.assets, p.asset.decimals), symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18, assetAddress: p.asset.address?.toLowerCase() })
       continue
     }
@@ -97,10 +99,17 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
       if (!supply.length) continue
       if (debt.length) {
         const coll = supply[0], d = debt[0]
-        const asset = baseOfSymbol(coll.asset.symbol) ?? baseOfSymbol(d.asset.symbol); if (!asset) continue
+        const collT = { ...coll.asset, chainId: p.chainId }, debtT = { ...d.asset, chainId: p.chainId }
+        // a dollar / ether / bitcoin loop is its COLLATERAL's desk (the debt is a rate, not an
+        // exposure). A collateral nothing can place, against such a debt, is not filed under the
+        // debt: it stands for itself as a price bet, which is all this can honestly say about it
+        const money = moneyOf(debtT)
+        const same = !!money && moneyOf(collT) === money
+        const asset = money ? (same ? deskKey(collT, money) : keyOfToken(collT) ?? coll.asset.symbol) : baseOfSymbol(coll.asset.symbol) ?? baseOfSymbol(d.asset.symbol)
+        if (!asset) continue
         const debtBase = baseOfSymbol(d.asset.symbol)
         // same test as the catalogue's: same money, not the same display tab
-        const directional = !debtBase || !sameMoney(debtBase, asset)
+        const directional = money ? !same : !debtBase || !sameMoney(debtBase, asset)
         const lev = a.suppliedUsd > 0 && a.netUsd > 0 ? a.suppliedUsd / a.netUsd : p.leverage
         const others = [...supply.slice(1).map((l) => ({ side: 'collateral' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.deposits) || 0, usd: l.depositsUsd })),
           ...debt.slice(1).map((l) => ({ side: 'debt' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.debt) || 0, usd: l.debtUsd }))]
@@ -110,7 +119,7 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
           amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
       } else {
         for (const l of supply) {
-          const asset = baseOfSymbol(l.asset.symbol); if (!asset) continue
+          const asset = keyOfToken({ ...l.asset, chainId: p.chainId }); if (!asset) continue
           // the label is the FAMILY, `venue` the market inside it: the two are printed together
           // (the asset page) and one under the other (the explorer), so neither may repeat the other
           out.push({ key: `${p.positionUid}:${a.accountId}:${l.marketUid}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${l.asset.symbol} · Lend on ${protocol}`, venue: venueOf(l.asset.symbol), valueUsd: l.depositsUsd, apr: p.depositApr, earnUid: l.earnUid, logo: l.asset.logoURI,
@@ -211,7 +220,7 @@ export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
     // The whitelist decides what an ERC-20 balance IS, and drops the ones this app does not
     // present. A gas coin is never dropped: the wallet holds it whether or not the whitelist
     // carries it, so an unlisted one stands for itself (group `MORE`) rather than vanishing.
-    const asset = baseOfSymbol(symbol) ?? (native ? symbol : undefined); if (!asset) continue
+    const asset = keyOfToken({ chainId, address: native ? undefined : b.address, symbol }) ?? (native ? symbol : undefined); if (!asset) continue
     const amount = parseFloat(b.balance); if (!(amount > 0)) continue
     const usd = b.balanceUSD ?? amount * (b.priceUSD ?? 0)
     // dust is not idle money: a native full exit through a wrap-less venue unwraps a floor and leaves

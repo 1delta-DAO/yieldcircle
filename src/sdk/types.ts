@@ -5,7 +5,18 @@
  */
 
 // ---------------------------------------------------------------- earn (deposits)
-export interface EarnAsset { address: string; symbol: string; decimals: number; assetGroup?: string; priceUsd?: number; logoURI?: string }
+/**
+ * Whose credit a token is (token-lists `props.issuer`): `kind` is `institution` / `protocol` / ….
+ * `hops` on an exposure says how far the walk from the wrapper went.
+ */
+export interface IssuerRef { id: string; name?: string; kind?: string | null; hops?: number }
+/**
+ * The credit desk the API resolved for a token (`issuerExposures` by fewest hops, else `issuer`);
+ * `via` is the instrument when it differs (`pendle` on a PT over sUSDe). Optional: an API without
+ * it is answered from `issuer` / `issuerExposures` and token-lists (`model/desk.ts`).
+ */
+export interface DeskRef extends IssuerRef { via?: string }
+export interface EarnAsset { address: string; symbol: string; decimals: number; assetGroup?: string; priceUsd?: number; logoURI?: string; issuer?: IssuerRef | null; issuerExposures?: IssuerRef[] | null; desk?: DeskRef | null; denomination?: string | null }
 export interface EarnRate { total: number; base?: number; rewards?: number; intrinsic?: number; marketOwn?: number; passthrough?: boolean; kind: string; source: string }
 export interface EarnAmount { raw?: string; formatted?: number; usd?: number }
 export interface EarnExit { mode: string; settlement?: 'sync' | 'async'; cooldownSecs?: number; feeBps?: number }
@@ -70,7 +81,7 @@ export interface EarnMarket {
 export interface EarnResponse { start: number; count: number; total: number; items: EarnMarket[]; appliedDefaults?: Record<string, unknown>; excluded?: { unrealizable?: number } }
 
 // ---------------------------------------------------------------- earn positions
-export interface EarnPositionAsset { address: string; symbol?: string; decimals?: number; priceUsd?: number; logoURI?: string }
+export interface EarnPositionAsset { address: string; symbol?: string; decimals?: number; priceUsd?: number; logoURI?: string; issuer?: IssuerRef | null; desk?: DeskRef | null; denomination?: string | null }
 /** `loanId`: the leg is ONE fixed-term loan (Lista's broker), also counted in the market's unbound leg — never add the two */
 export interface EarnPositionLeg { earnUid?: string; marketUid: string; loanId?: string; asset: EarnPositionAsset; side: 'supply' | 'borrow' | 'both' | 'none'; deposits: string; depositsUsd: number; debt: string; debtUsd: number }
 export interface EarnPositionBase { positionUid: string; chainId: string; venue: string; venueKind: string; brand?: string; name?: string; logoURI?: string; suppliedUsd: number; borrowedUsd: number; netUsd: number; apr?: number }
@@ -82,7 +93,7 @@ export interface EarnPositionsResponse { ok: boolean; account: string; items: Ea
 // ---------------------------------------------------------------- optimizer (loops)
 export interface AssetRef {
   chainId: string; address: string; symbol: string; name?: string; decimals?: number; logoURI?: string; assetGroup?: string; intrinsicYield?: number
-  props?: { lst?: { type?: string; asset?: string; provider?: string }; pendle?: { expiry: number; tokenType?: string; underlyingAsset?: string }; spectra?: { expiry?: number; maturity?: number }; rwa?: { type?: string; issuer?: string }; savings?: { base?: string; underlying?: string }; stablecoin?: { base?: string }; risk?: { score?: number; source?: string; category?: string }; wnative?: boolean; [k: string]: unknown }
+  props?: { lst?: { type?: string; asset?: string; provider?: string }; pendle?: { expiry: number; tokenType?: string; underlyingAsset?: string }; spectra?: { expiry?: number; maturity?: number }; rwa?: { type?: string; issuer?: string }; savings?: { base?: string; underlying?: string }; stablecoin?: { base?: string }; issuer?: IssuerRef | null; issuerExposures?: IssuerRef[] | null; risk?: { score?: number; source?: string; category?: string }; wnative?: boolean; [k: string]: unknown }
 }
 export interface UnderlyingInfo { asset: AssetRef; prices?: { priceUsd?: number } }
 export interface OptimizerRowRaw {
@@ -106,6 +117,8 @@ export interface OptimizerRowRaw {
   /** `maturityKind: 'fixed-date'` is a debt that falls due on one date (Midnight, Term, TermMax) */
   debtTerms?: { maturityKind?: string; canOpen?: boolean } | null
   underlyingInfoLong: UnderlyingInfo; underlyingInfoShort: UnderlyingInfo
+  /** the credit desk of each leg, resolved by the API (docs/stablecoin-exposure.md); absent on an API without it */
+  collateralDesk?: DeskRef | null; debtDesk?: DeskRef | null
   risk: { maxTokenScore?: number; breakdown: { category: string; score: number | null; label?: string }[] }
 }
 export interface OptimizerResponse { start: number; count: number; total: number; hasMore: boolean; nextStart?: number; items: OptimizerRowRaw[] }

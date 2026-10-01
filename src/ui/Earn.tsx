@@ -1,5 +1,5 @@
 import React from 'react'
-import { GROUPS, whatIs, type GroupId } from '../model/assets'
+import { GROUPS, deskOf, nameOf, whatIs, type DeskKind, type GroupId } from '../model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
 import { GroupIcon, Sk, Tok, amt, pct, usd } from './bits'
@@ -42,16 +42,58 @@ export function Earn() {
   )
 }
 
+/**
+ * The dollar, ether and bitcoin groups are read by DESK — whose credit — in bands: the coin
+ * itself (ether), what an institution or exchange issues, what a protocol issues, and what no
+ * desk is named for. A loop sits on its collateral's desk: what it borrows is a rate, not an
+ * exposure. `More` has no bands.
+ */
+type Band = { kind: DeskKind; title: string; tip: string }
+const UNNAMED: Band = { kind: 'unknown', title: 'Issuer not named', tip: 'Tokens the token lists name no issuer for. Each stands for itself.' }
+const BANDS: Partial<Record<GroupId, Band[]>> = {
+  USD: [
+    { kind: 'issued', title: 'Issued dollars', tip: 'Fiat-backed coins: a deposit here lends that coin out.' },
+    { kind: 'yield', title: 'Yield desks', tip: 'Protocols’ dollars. A loop sits here by what it posts as collateral — the dollar it borrows is a rate, not an exposure.' },
+    UNNAMED,
+  ],
+  ETH: [
+    { kind: 'plain', title: 'Ether', tip: 'ETH and WETH: nobody’s liability.' },
+    { kind: 'yield', title: 'Staking & restaking', tip: 'Protocols’ staked ether. A loop sits here by what it posts as collateral — the WETH it borrows is a rate, not an exposure.' },
+    { kind: 'issued', title: 'Exchange-staked', tip: 'Ether staked through an exchange (Coinbase, Binance).' },
+    UNNAMED,
+  ],
+  BTC: [
+    { kind: 'issued', title: 'Custodied bitcoin', tip: 'Bitcoin held by a custodian or exchange and issued on-chain against it.' },
+    { kind: 'yield', title: 'Protocol bitcoin', tip: 'Bridged, staked or restaked bitcoin issued by a protocol.' },
+    UNNAMED,
+  ],
+}
+const bandOf = (a: string): DeskKind => deskOf(a)?.kind ?? 'unknown'
+/** The tokens a desk row actually offers, most strategies first: `USDe, sUSDe, PT-sUSDE +3`. */
+function membersOf(os: Strategy[], max = 3): string {
+  const n = new Map<string, number>()
+  // one entry per ticker, however a list cases it (`wBETH`, `WBETH`): the first spelling seen wins
+  const spelt = new Map<string, string>()
+  for (const o of os) {
+    const t = (o.kind === 'simple' ? (o.source === 'staking' || o.source === 'savings' ? o.holds : o.assetSymbol) : o.holds).replace(/^(PT-[A-Za-z0-9]+)-.*$/, '$1')
+    const k = t.toUpperCase(); if (!spelt.has(k) || /[a-z]/.test(t)) spelt.set(k, t); n.set(k, (n.get(k) ?? 0) + 1)
+  }
+  const ranked = [...n].sort((x, y) => y[1] - x[1]).map(([k]) => spelt.get(k)!)
+  return ranked.slice(0, max).join(', ') + (ranked.length > max ? ` +${ranked.length - max}` : '')
+}
+
 function GroupBlock({ gid, strategies, books, loading, hasAccount }: { gid: GroupId; strategies: Strategy[]; books: AssetBook[]; loading: boolean; hasAccount: boolean }) {
   const g = GROUPS.find((x) => x.id === gid)!
+  const bands = BANDS[gid]
+  const banded = !!bands
   const assets = [...new Set([...strategies.map((s) => s.asset), ...books.map((b) => b.asset)])]
   const rows = assets.map((a) => {
     const os = strategies.filter((s) => s.asset === a)
     const best = os.length ? os.reduce((m, o) => (o.rate > m.rate ? o : m)) : null
     const b = books.find((x) => x.asset === a)
     const venues = new Set(os.map((o) => o.venue.split(' · ')[0])).size
-    return { a, os, best, b, venues }
-  }).filter((r) => r.os.length || r.b).sort((x, y) => (y.b?.totalUsd ?? 0) - (x.b?.totalUsd ?? 0) || (y.best?.rate ?? 0) - (x.best?.rate ?? 0))
+    return { a, os, best, b, venues, band: bands ? Math.max(0, bands.findIndex((x) => x.kind === bandOf(a))) : 0 }
+  }).filter((r) => r.os.length || r.b).sort((x, y) => x.band - y.band || (y.b?.totalUsd ?? 0) - (x.b?.totalUsd ?? 0) || (y.best?.rate ?? 0) - (x.best?.rate ?? 0))
   if (!rows.length && !loading) return null
   const total = books.reduce((a, b) => a + b.totalUsd, 0), idle = books.reduce((a, b) => a + b.idleUsd, 0)
   return (
@@ -59,15 +101,16 @@ function GroupBlock({ gid, strategies, books, loading, hasAccount }: { gid: Grou
       <div className="gh"><GroupIcon id={g.id} color={g.color} size={16} /><span className="n">{g.name}</span><span className="sub">{total ? `${usd(total)}${idle ? ` · ${usd(idle)} idle` : ''}` : g.desc}</span><span className="sp" /><a className="more" href={`#/${gid}`}>{loading && !strategies.length ? '…' : `${strategies.length} strateg${strategies.length === 1 ? 'y' : 'ies'} ›`}</a></div>
       <div className="card"><table className="tbl slim"><tbody>
         {loading && !rows.length && [0, 1, 2].map((i) => <tr key={i}><td><Sk w={120} /></td><td className="what"><Sk w={220} /></td><td className="r"><Sk w={90} /></td><td /></tr>)}
-        {rows.map(({ a, os, best, b, venues }) => (
-          <tr key={a} onClick={() => go(gid, { u: a, k: best?.kind })}>
-            <td><div className="nm"><Tok sym={a} />{a}</div></td>
-            <td className="what">{whatIs(a)}{venues ? <span className="t40"> · {venues} venue{venues > 1 ? 's' : ''}</span> : ''}</td>
+        {rows.map(({ a, os, best, b, venues, band }, i) => (<React.Fragment key={a}>
+          {bands && band !== rows[i - 1]?.band && <tr className="band"><td colSpan={hasAccount ? 5 : 4} title={bands[band].tip}>{bands[band].title}</td></tr>}
+          <tr onClick={() => go(gid, { u: a, k: best?.kind })}>
+            <td><div className="nm"><Tok sym={a} />{nameOf(a)}</div></td>
+            <td className="what">{banded && os.length ? membersOf(os) : whatIs(a)}{venues ? <span className="t40"> · {venues} venue{venues > 1 ? 's' : ''}</span> : ''}</td>
             {hasAccount && <td className={`r ${b ? '' : 't40'}`}>{b ? <>{amt(a, (b.idle?.amount ?? 0) + (b.idle?.price ? b.atWorkUsd / b.idle.price : 0), b.totalUsd)}{b.atWorkUsd ? <small className="ok">{pct(b.blended)} on {Math.round(b.atWorkUsd / b.totalUsd * 100)}%</small> : <small className="t40">idle</small>}</> : '—'}</td>}
             <td className="r upto">{best ? <><span className="t50">up to</span> <span className={best.rate >= 3 ? 'ok' : ''}>{pct(best.rate)}</span><small>{best.kind === 'loop' ? `${best.rec}× loop` : 'deposit'}<span className="hide-m"> · {os.length} strateg{os.length !== 1 ? 'ies' : 'y'}</span></small></> : <span className="t40">—</span>}</td>
             <td className="r t40" style={{ width: 20 }}>›</td>
           </tr>
-        ))}
+        </React.Fragment>))}
       </tbody></table></div>
     </section>
   )

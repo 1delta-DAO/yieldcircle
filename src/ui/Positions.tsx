@@ -10,7 +10,7 @@
  * user's own positions are the one thing the index must not serve.
  */
 import React from 'react'
-import { GROUPS, whatIs, type GroupId } from '../model/assets'
+import { GROUPS, nameOf, whatIs, type GroupId } from '../model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
 import { GroupIcon, KindPill, LegsPill, Sk, Tok, amt, pct, usd } from './bits'
@@ -95,13 +95,13 @@ function GroupCard({ gid, books, directional }: { gid: GroupId; books: AssetBook
 /** [icon USDC $2,499 4.1% ☾] — what you hold, what it earns, whether part is idle. Tap → the asset. */
 function AssetPill({ b }: { b: AssetBook }) {
   const earning = b.atWorkUsd >= 1, idle = b.idleUsd >= 1
-  const title = [`${b.asset} · ${whatIs(b.asset)}`,
+  const title = [`${nameOf(b.asset)} · ${whatIs(b.asset)}`,
     earning ? `${usd(b.atWorkUsd)} at work at ${pct(b.blended)}` : null,
     idle ? `${usd(b.idleUsd)} idle, earning nothing` : null].filter(Boolean).join('\n')
   return (
     <button type="button" className="apill" title={title} onClick={() => go(b.group, { u: b.asset })}>
       <Tok sym={b.asset} size={16} />
-      <span className="apt"><b>{b.asset}</b><span className="m">{usd(b.totalUsd)}</span>{earning && <span className="ok">{pct(b.blended, 1)}</span>}</span>
+      <span className="apt"><b>{nameOf(b.asset)}</b><span className="m">{usd(b.totalUsd)}</span>{earning && <span className="ok">{pct(b.blended, 1)}</span>}</span>
       {idle && <svg className="idlemark" viewBox="0 0 16 16" width="11" height="11" role="img" aria-label="part idle"><path d="M13.4 9.4A5.6 5.6 0 1 1 6.6 2.6a4.5 4.5 0 0 0 6.8 6.8z" fill="currentColor" /></svg>}
     </button>
   )
@@ -115,7 +115,7 @@ function AssetDetail({ b }: { b: AssetBook }) {
   const g = GROUPS.find((x) => x.id === b.group)!
   return (
     <div className="xasset">
-      <div className="xh"><Tok sym={b.asset} size={15} /><span className="t">{b.asset}</span><span className="d">{whatIs(b.asset)}</span><span className="sp" />
+      <div className="xh"><Tok sym={b.asset} size={15} /><span className="t">{nameOf(b.asset)}</span><span className="d">{whatIs(b.asset)}</span><span className="sp" />
         <span className="m">{g.unit === '$' || !b.idle?.price ? usd(b.totalUsd) : amt(b.asset, b.idle.amount + b.atWorkUsd / b.idle.price)}</span></div>
       {b.idle && b.idle.usd >= 1 && (
         <button type="button" className="xrow idle" onClick={() => go(b.group, { u: b.asset })}>

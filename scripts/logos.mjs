@@ -5,7 +5,7 @@
 // re-picked an icon per symbol by hand. The pipeline now publishes that map itself
 // (`scripts/logos/groupLogos.ts` → `logos-by-symbol.json`, one ranked winner per ticker over
 // every asset group), so all that is left here is the SUBSET: the symbols this app presents,
-// read straight out of BASE + WRAPPER in src/model/assets.ts. Add an asset there and it gets an
+// read straight out of BASE + DESK + WRAPPER in src/model/assets.ts. Add an asset there and it gets an
 // icon on the next run; nothing to curate twice.
 //
 // Usage: node scripts/logos.mjs [/path/to/token-lists]   (or TOKEN_LISTS_DIR=…)
@@ -57,6 +57,24 @@ function recordKeys(body) {
 
 const assets = readFileSync(new URL('../src/model/assets.ts', import.meta.url), 'utf8')
 const bases = recordKeys(literalBody(assets, 'const BASE:'))
+// the dollar desks' row keys draw as their flagship ticker (`syrupUSDC` for Maple, `USDe` for Ethena)
+const deskEntries = [...literalBody(assets, 'const DESK:').matchAll(/(?:'([^']+)'|([A-Za-z0-9_$-]+))\s*:\s*\{\s*sym:\s*'([^']+)'/g)].map((m) => [m[1] ?? m[2], m[3].toUpperCase()])
+const deskSyms = deskEntries.map(([, sym]) => sym)
+/**
+ * A desk's icon is its OWN token's, not the ticker's winner: `USD3` ranks Reserve's coin first,
+ * and the 3Jane row is not Reserve. Taken from the first offered chain list holding a token of
+ * that ticker issued by that desk; the ticker index stays the fallback.
+ */
+const deskIcon = {}
+for (const chain of ['1', '8453', '42161', '56', '43114', '999', '9745']) {
+  let list
+  try { list = Object.values(JSON.parse(readFileSync(join(root, `${chain}.json`), 'utf8')).list) } catch { continue }
+  for (const [id, sym] of deskEntries) {
+    if (deskIcon[sym]) continue
+    const t = list.find((x) => x.symbol?.toUpperCase() === sym && x.props?.issuer?.id === id && x.logoURI)
+    if (t) deskIcon[sym] = t.logoURI
+  }
+}
 // WRAPPER maps a wrapper's symbol to the base asset it stands for; both halves are used, the
 // value as the fallback icon for a wrapper the index has never heard of.
 const wrapped = Object.fromEntries(
@@ -97,10 +115,10 @@ if (Object.keys(nativeIcon).length) console.log(`gas coin icon taken from its as
 
 const out = {}
 const missing = []
-for (const sym of [...bases, ...Object.keys(wrapped)]) {
+for (const sym of [...new Set([...bases, ...deskSyms, ...Object.keys(wrapped)])]) {
   // A bridged or renamed wrapper (USDC.e, DAI.e) is folded into its base's asset group upstream,
   // so it has no ticker of its own — it draws as what it is, the base asset.
-  const uri = nativeIcon[sym] ?? index[sym] ?? index[wrapped[sym]]
+  const uri = nativeIcon[sym] ?? deskIcon[sym] ?? index[sym] ?? index[wrapped[sym]]
   if (uri) out[sym] = uri
   else missing.push(sym)
 }
@@ -111,7 +129,7 @@ if (missing.length) {
   // A base asset with no icon draws a blank circle in the app, so say which — the fix belongs in
   // token-lists (the asset has no `logoURI` on any chain), not in a hand-written override here.
   console.warn(`no icon for ${missing.join(', ')}`)
-  if (missing.some((s) => bases.includes(s))) process.exitCode = 1
+  if (missing.some((s) => bases.includes(s) || deskSyms.includes(s))) process.exitCode = 1
 }
 
 // ---------------------------------------------------------------------------------------------

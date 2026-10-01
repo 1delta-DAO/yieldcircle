@@ -15,7 +15,7 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as idx from '../index/api'
-import { GROUPS, whatIs } from '../model/assets'
+import { GROUPS, nameOf, whatIs } from '../model/assets'
 import { tokenHref, walletHref } from '../state/AppState'
 import { useMenu } from './useMenu'
 import { GroupIcon, Popover, Tok, pct, usdShort } from './bits'
@@ -71,12 +71,12 @@ export function Search() {
     // one row per asset the menu can earn on, carrying the best it pays
     const best = new Map<string, { group: string; rate: number; n: number }>()
     for (const s of menu.all) {
-      if (!s.asset.toLowerCase().includes(lo)) continue
+      if (!s.asset.toLowerCase().includes(lo) && !nameOf(s.asset).toLowerCase().includes(lo)) continue
       const cur = best.get(s.asset)
       best.set(s.asset, { group: s.group, rate: Math.max(cur?.rate ?? -Infinity, s.rate), n: (cur?.n ?? 0) + 1 })
     }
     for (const [asset, b] of [...best].sort((x, y) => Number(!x[0].toLowerCase().startsWith(lo)) - Number(!y[0].toLowerCase().startsWith(lo)) || y[1].rate - x[1].rate).slice(0, 5))
-      out.push({ key: `e:${asset}`, href: `#/${b.group}?u=${encodeURIComponent(asset)}`, icon: <Tok sym={asset} size={22} />, label: <>Earn on {asset}</>, sub: <>up to <span className="ok">{pct(b.rate)}</span> · {b.n} strateg{b.n === 1 ? 'y' : 'ies'}</> })
+      out.push({ key: `e:${asset}`, href: `#/${b.group}?u=${encodeURIComponent(asset)}`, icon: <Tok sym={asset} size={22} />, label: <>Earn on {nameOf(asset)}</>, sub: <>up to <span className="ok">{pct(b.rate)}</span> · {b.n} strateg{b.n === 1 ? 'y' : 'ies'}</> })
     for (const g of GROUPS) if (g.name.toLowerCase().includes(lo) || g.id.toLowerCase() === lo)
       out.push({ key: `g:${g.id}`, href: `#/${g.id}`, icon: <GroupIcon id={g.id} color={g.color} size={22} />, label: g.name, sub: g.desc })
     for (const r of tokens.data?.assets ?? [])

@@ -95,6 +95,23 @@ tx is final and the answer has *changed*.
 - Filters that are cheap to apply client-side stay out of the request (so they
   are not in the query key). Only `minTvlUsd` and `wideNet` change requests.
 
+### Dollar desks (whose credit)
+
+The US Dollar group is grouped by the collateral's **credit desk**, never by
+the debt ([`stablecoin-exposure.md`](stablecoin-exposure.md)). The API serves
+the resolved desk where it can — `collateralDesk` / `debtDesk` on optimizer
+rows, `asset.desk` + `asset.denomination` on earn rows and on every
+`/earn/positions` asset — and `model/desk.ts` falls back to `props.issuer` /
+`issuerExposures` and `src/data/desks.json` (`node scripts/desks.mjs`, rebuilt
+from token-lists) for an API without them. Rules:
+
+- Group with `model/desk.ts` (`keyOfToken`, `usdKey`), never by symbol.
+- Don't trust `props.stablecoin` / `denomination: 'USD'` alone: token-lists
+  also stamps it by bare ticker. `isUsd` needs desks.json or a named desk.
+- `GET /v1/data/earn/desks` (facet: desk → members, deposit/loop counts,
+  rates in percent) and `issuerMatch=credit` exist upstream; the app does not
+  call them yet.
+
 ## Position index — endpoints used (`src/index/api.ts`)
 
 Plain JSON, no envelope, no key, CORS `*`. Errors are `{ error }` + non-2xx

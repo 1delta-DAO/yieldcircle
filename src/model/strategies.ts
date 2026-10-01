@@ -1,10 +1,13 @@
 /**
  * Strategy rows from the two listings, curated for a simple mode: a plain deposit is one
  * `/v1/data/earn` row on a base asset; a loop is one `/pairs/optimize` row whose collateral
- * resolves to a base asset and whose debt is the same denomination. Pure functions.
+ * resolves to a base asset and whose debt is the same denomination. A dollar's "base asset" is
+ * its credit desk (`model/desk.ts`). Pure functions, but for the desk memo they fill
+ * (`noteToken`), which positions and balances read.
  */
 import type { EarnMarket, OptimizerRowRaw } from '../sdk/types'
-import { baseOfCollateral, baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
+import { baseOfCollateral, baseOfSymbol, deskOf, groupOf, sameMoney, type GroupId } from './assets'
+import { creditDesk, deskKey, moneyOf, noteToken } from './desk'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
 import { marketTag } from './market'
 import type { HideCode } from './visibility'
@@ -18,8 +21,15 @@ interface Base {
   kind: 'simple' | 'loop'
   chainId: string
   group: GroupId
-  /** base asset symbol (canonical) */
+  /**
+   * The row this strategy sits on: the base asset (`ETH`, `WBTC`), or for a dollar the DESK whose
+   * credit it is — the deposit's own token, a loop's COLLATERAL, never its debt (`DESK` in
+   * assets.ts; `nameOf` says it in words). `USDe` for an sUSDe/USDC loop, `syrupUSDC` (Maple) for
+   * a syrupUSDC/USDC one.
+   */
   asset: string
+  /** the desk's issuer id (`ethena`, `circle`, `sym:USDf` for a dollar nobody is named for); dollars only */
+  desk?: string
   /** token you end up holding */
   holds: string
   venue: string
@@ -135,6 +145,8 @@ export interface LoopStrategy extends Base {
   borrowLiquidityUsd: number
   /** the collateral earns on its own (staking, savings, a PT, a fund) — false makes the loop a pure rate bet */
   collateralYields: boolean
+  /** whose CONTRACT the collateral is when that is not whose credit (`Pendle` on a PT over sUSDe) */
+  instrument?: string
   expiry?: number
   /**
    * Set on a FIXED-RATE loop: the terms the debt can be borrowed for, shortest first. The rate is
@@ -220,8 +232,16 @@ export function vaultTag(name: string | null | undefined, known: (string | null 
 export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const label = `${m.asset?.symbol ?? '?'} \u00b7 ${m.protocol?.name ?? m.brand ?? m.venue}`
   const no = (hide: HideCode): Candidate<SimpleStrategy> => ({ s: null, hide, label, chainId: m.chainId })
-  const asset = baseOfSymbol(m.asset.symbol)
+  // a dollar, ether or bitcoin sits on its desk's row; anything else on its whitelisted base
+  const tok = { ...m.asset, chainId: m.chainId }
+  const money = moneyOf(tok)
+  const coin = baseOfSymbol(m.asset.symbol)
+  let asset = money ? deskKey(tok, money) : coin
   if (!asset) return no('unmapped')
+  if (money) noteToken(m.chainId, m.asset.address, asset)
+  // the token in words: the asset is a desk for a dollar (`USDS` for a DAI market), so what the
+  // row HOLDS is spelled from the token itself
+  const own = coin ?? m.asset.symbol
   if (m.basket) return no('basket')
   // the structural gates only: a row nobody can deposit into is not a strategy
   // at any floor. Size, rate and risk are floors and live in `softHide`.
@@ -241,34 +261,41 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const brand = m.brand && !sameWords(m.brand, protocol) ? m.brand : curator && !sameWords(curator, protocol) ? curator : m.brand ?? protocol
   // the server names unnamed vaults "USDC · 0x28b3": the address tail is not a token you hold
   const clean = (m.name ?? '').replace(/\s*·\s*0x[0-9a-f]{4,}$/i, '').trim()
-  const named = clean && clean.toUpperCase() !== asset.toUpperCase() && clean.toUpperCase() !== m.asset.symbol.toUpperCase() ? clean : ''
+  const named = clean && clean.toUpperCase() !== own.toUpperCase() && clean.toUpperCase() !== m.asset.symbol.toUpperCase() ? clean : ''
   // the share token, resolved from the vault address: the listing's own logoURI is the ASSET's on nearly every row
   const share = isVault ? strategyToken(m.chainId, m.ref) : undefined
   // the row's own share token first (null on vault rows as of 2026-09-30); the
   // build-time token map covers the rest it knows (tokens in a chain token list)
   const shareSym = m.shareToken?.symbol ?? share?.symbol
+  // A staking or savings vault leaves you holding the ISSUER's token (ankrETH, tETH, syrupUSDC),
+  // so the row is that issuer's, not the deposited coin's: staking ETH with Ankr is Ankr's credit.
+  // A curated vault keeps its deposit token's desk; where its money sits is a disclosure (`exposure`).
+  if (money && (m.venue === 'vault.lst' || m.venue === 'vault.savings')) {
+    const st = { chainId: m.chainId, address: m.shareToken?.address ?? m.ref, symbol: shareSym }
+    if (moneyOf(st) === money && creditDesk(st, money)) asset = deskKey(st, money)
+  }
   // WHICH market: `Lend on Morpho` is the same sentence for three hundred Morpho markets and the
   // ticket deposits into one of them. Skipped when it only repeats the venue (`Capy Fi · CapyFi`).
   // WHICH vault: the same question on the vault side, answered from the row's own name
   const tag = isVault
-    ? vaultTag(named, [brand, protocol, curator, m.asset.symbol], shareSym ?? asset)
+    ? vaultTag(named, [brand, protocol, curator, m.asset.symbol], shareSym ?? own)
     : marketTag(m.name, m.asset.symbol)
   const market = tag && !sameWords(tag, brand) && !sameWords(tag, protocol) ? tag : ''
   let via: string, source: string, holds: string
-  if (m.venue === 'vault.lst') { via = `Stake with ${brand}`; source = 'staking'; holds = shareSym || named || asset }
-  else if (m.venue === 'vault.savings') { via = `${brand} savings`; source = 'savings'; holds = shareSym ?? (named || asset) }
-  else if (m.venue === 'vault.pendle') { via = 'Fixed on Pendle'; source = 'fixed'; holds = 'PT ' + (named || asset).replace(/^PT\s*/, '').split(' ')[0] }
-  else if (isVault) { const who = `${brand}${market ? ` ${market}` : ''} vault`; via = sameWords(brand, protocol) ? who : `${who} · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || asset) }
+  if (m.venue === 'vault.lst') { via = `Stake with ${brand}`; source = 'staking'; holds = shareSym || named || own }
+  else if (m.venue === 'vault.savings') { via = `${brand} savings`; source = 'savings'; holds = shareSym ?? (named || own) }
+  else if (m.venue === 'vault.pendle') { via = 'Fixed on Pendle'; source = 'fixed'; holds = 'PT ' + (named || own).replace(/^PT\s*/, '').split(' ')[0] }
+  else if (isVault) { const who = `${brand}${market ? ` ${market}` : ''} vault`; via = sameWords(brand, protocol) ? who : `${who} · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || own) }
   // the BRAND, not the protocol: `Aave V3` and `Aave V4` are both "Aave" upstream, and a V4
   // isolated market is not the V3 pool the same sentence would have named
-  else { via = `Lend on ${brand}${market ? ` · ${market}` : ''}`; source = 'lending'; holds = asset }
+  else { via = `Lend on ${brand}${market ? ` · ${market}` : ''}`; source = 'lending'; holds = own }
   const ownLogo = m.logoURI && m.logoURI !== m.asset.logoURI ? m.logoURI : undefined
   const logo = share?.logoURI ?? ownLogo ?? (isVault ? undefined : m.asset.logoURI)
   const exitMode = m.exit?.mode ?? 'instant'
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const maturity = typeof m.maturity?.maturity === 'number' ? m.maturity.maturity : undefined
   const s: SimpleStrategy = {
-    id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
+    id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
     rate, risk, riskLabel, riskScore, tvlUsd: tvl,
     earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, assetSymbol: m.asset.symbol, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
@@ -318,14 +345,27 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   // a `fixedTerm` block alone means nothing — Lista's float markets and Exactly's pools carry one.
   const terms = r.variableBorrowDisabledShort && r.fixedTerm?.model === 'lista' ? termCard(r) : []
   if (r.variableBorrowDisabledShort ? !terms.length : FIXED_DATE.has(r.fixedTerm?.model ?? '') || r.debtTerms?.maturityKind === 'fixed-date') return no('brokered')
-  const asset = baseOfCollateral(L, S.symbol)
-  if (!asset) return no('unmapped')
-  const debtBase = baseOfSymbol(S.symbol)
-  if (!debtBase) return no('unmapped')
-  // the SAME MONEY, not merely the same tab: 'More' holds BNB, AVAX, the euro
-  // and gold together, and sAVAX against EURC is a price bet wearing a carry's
-  // clothes (docs: assets.ts `denomOf`)
-  if (!sameMoney(debtBase, asset)) return no('cross-denom')
+  // A dollar, ether or bitcoin loop sits on its COLLATERAL's desk. The debt is a rate, not an
+  // exposure: a stable does not depeg upward, so borrowing USDC against sUSDe is Ethena's credit;
+  // borrowing WETH against wstETH is Lido's (docs/stablecoin-exposure.md). Any debt of the same
+  // money will do, whitelisted or not.
+  const coll = { ...L, chainId: r.chainId, desk: r.collateralDesk }
+  const debtMoney = moneyOf({ ...S, chainId: r.chainId, desk: r.debtDesk }), collMoney = moneyOf(coll)
+  let asset: string | undefined
+  if (debtMoney || collMoney) {
+    if (debtMoney !== collMoney) return no((debtMoney || baseOfSymbol(S.symbol)) && (collMoney || baseOfCollateral(L, S.symbol)) ? 'cross-denom' : 'unmapped')
+    asset = deskKey(coll, collMoney!)
+    noteToken(r.chainId, L.address, asset)
+  } else {
+    asset = baseOfCollateral(L, S.symbol)
+    if (!asset) return no('unmapped')
+    const debtBase = baseOfSymbol(S.symbol)
+    if (!debtBase) return no('unmapped')
+    // the SAME MONEY, not merely the same tab: 'More' holds BNB, AVAX, the euro
+    // and gold together, and sAVAX against EURC is a price bet wearing a carry's
+    // clothes (docs: assets.ts `denomOf`)
+    if (!sameMoney(debtBase, asset)) return no('cross-denom')
+  }
   // a carry needs collateral that yields on its own (staking, savings, a PT, a fund); lending one plain stable
   // against another is a rate bet on a small market — a FLOOR (`Settings.showRateBets`), not a structural gate
   const p = L.props ?? {}
@@ -346,14 +386,15 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const rate = netAprAtLeverage(dep, bor, rec)
   const { risk, riskLabel } = riskOf(worst)
   const venue = venueLabel(r.lender, r.curatorNameLong)
+  const instrument = r.collateralDesk?.via ?? (p.pendle || p.spectra ? p.issuer?.name : undefined)
   const s: LoopStrategy = {
-    id: `l:${r.marketLongUid}|${r.marketShortUid}`, kind: 'loop', chainId: r.chainId, group: groupOf(asset), asset, holds: L.symbol, venue, venueKey: r.lender, logo: L.logoURI,
+    id: `l:${r.marketLongUid}|${r.marketShortUid}`, kind: 'loop', chainId: r.chainId, group: groupOf(asset), asset, desk: debtMoney ? deskOf(asset)?.id : undefined, holds: L.symbol, venue, venueKey: r.lender, logo: L.logoURI,
     rate, risk, riskLabel, riskScore: worst, tvlUsd: num(r.totalDepositsUsdLong),
     lender: r.lender, debt: S.symbol, marketLongUid: r.marketLongUid, marketShortUid: r.marketShortUid,
     collateralAddress: L.address, debtAddress: S.address, decimalsLong: L.decimals ?? 18, decimalsShort: S.decimals ?? 18,
     priceLong: r.underlyingInfoLong.prices?.priceUsd, priceShort: r.underlyingInfoShort.prices?.priceUsd, logoLong: L.logoURI, logoShort: S.logoURI,
     dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields,
-    expiry: L.props?.pendle?.expiry ?? L.props?.spectra?.expiry,
+    expiry: L.props?.pendle?.expiry ?? L.props?.spectra?.expiry, instrument,
     ...(terms.length ? { terms, borSpot: bor } : {}),
   }
   return { s, hide: null, label, chainId: r.chainId }

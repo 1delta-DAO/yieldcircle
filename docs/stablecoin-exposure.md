@@ -1,6 +1,6 @@
 # Stablecoin exposure — group by whose credit, not by ticker
 
-**Status:** plan — authored 2026-10-01. Crosses `token-lists` (issuer data),
+**Status:** implemented 2026-10-01 (app; token-lists and worker-api changes in their working trees, not yet merged — see *Implementation status* at the end). Authored 2026-10-01. Crosses `token-lists` (issuer data),
 `lending-sdks/worker-api` (the 1delta API), `yieldcircle` (the app). Sibling of
 [`fiat-stablecoins.md`](fiat-stablecoins.md), which handles the *money* axis
 (USD / EUR / CHF); this one handles the *credit* axis inside one money.
@@ -76,10 +76,15 @@ README and pos-indexer `docs/issuer-exposure.md`) is exactly this axis:
 
 ```
 creditDesk(token) =
-    issuerExposures (lowest hops)   // PT-sUSDe → ethena, not pendle
- ?? issuer                          // sUSDe → ethena, USDC → circle
- ?? unattributed(root symbol)       // see below — NEVER the debt
+    issuer, unless it is only the wrapper's instrument   // sUSDe → ethena, USDC → circle, srUSDe → strata
+ ?? issuerExposures (lowest hops)                       // PT-sUSDe (issuer pendle) → ethena
+ ?? unattributed(root symbol)                           // see below — NEVER the debt
 ```
+
+"Only the instrument" = issuer id in `{pendle, spectra, exponent}`, or the
+token carries `props.pendle/spectra/exponent/receipt`. The issuer wins over an
+exposure on purpose: Strata's srUSDe is exposed to Ethena, but a tranche is
+Strata's product and belongs on Strata's row.
 
 `issuerMatch=any` is the wrong semantics for a list of rows: a PT-sUSDe matches
 both `pendle` and `ethena`, so the rows would not partition and counts would
@@ -205,7 +210,7 @@ client-side from `props.issuer{,Exposures}`); when phase 2 lands, it reads
    switch from `asset` to `desk` for grouping (16 call sites,
    `src/ui/{Earn,Positions,Search,Ticket,AssetPage,useBook}`).
 
-### Phase 5 — same axis for ETH / BTC (later)
+### Phase 5 — same axis for ETH / BTC (done 2026-10-01)
 
 Identical problem: every LST folds into "ETH" today. With the same code: plain
 ETH/WETH rows (no issuer — nobody's liability) vs Lido, ether.fi, Renzo, … and
@@ -245,3 +250,98 @@ group once phase 1 coverage for LST/LRT is checked.
 2. token-lists phase 1 in parallel (shrinks the unattributed rows).
 3. API phase 2; then delete the client-side rule and the `desks.json` fallback.
 4. Phase 5.
+
+## Implementation status (2026-10-01)
+
+**yieldcircle (done, `pnpm build` passes):**
+
+- `src/model/assets.ts` — `DESK` registry (row key = flagship ticker, name,
+  kind `issued`/`yield`/`unknown`), `learnDesk` / `learnUnattributed` for
+  desks it does not register, `nameOf`; BASE dollars carry their `desk`;
+  `syrupUSDC/T` and `sUSDC` removed from `WRAPPER`.
+- `src/model/desk.ts` — `creditDesk`, `isUsd`, `usdKey`, `keyOfToken`,
+  `noteToken` (the catalogue's keys, for positions read by address).
+- `scripts/desks.mjs` → `src/data/desks.json` — `chain:address` → desk id
+  (`~ROOT` / `''` when unattributed) for every USD token on an offered chain.
+  Re-run after a token-lists regenerate. `scripts/logos.mjs` now also draws
+  each desk's icon from its own token (`USD3` is three different coins).
+- `strategies.ts` / `positions.ts` — dollar rows key on the collateral's desk;
+  any USD debt is accepted (the debt is a rate); an unplaceable collateral
+  against a dollar debt is a price bet, never filed under the debt.
+- UI — Earn's US Dollar block is banded *Issued dollars · Yield desks · Issuer
+  not named*, rows named by desk with the tokens actually offered; desk names
+  in the asset page, chips, positions, search and ticket; loops say "via
+  Pendle" and, in the explainer, why the debt is not the exposure.
+
+Measured on the chain 1 + Base listings: Maple now holds 17 loops that were
+USDC/USDT rows; the Circle row is 306 deposits + 6 loops whose collateral IS
+USDC.
+
+**`props.stablecoin` is not trusted alone.** token-lists 100ace1 stamps it by
+bare ticker as a fallback (`stablecoin-symbols.json`), which tags ~600
+non-dollars (Ethernity ERN, Hacken HAI, a DefiAi `DAI` …). `desks.mjs` only
+takes it when the group/address is in the group-keyed `stablecoin.json` or a
+desk is named; `isUsd` takes it from a row only with an issuer. Fix upstream:
+restrict the symbol fallback (e.g. require the feed row's name to match).
+
+**token-lists (working tree):** desks `falcon`, `saturn`, `strata`, `tori`,
+`stables-labs`, `axis`, `openeden`, `overnight`, `synthetix`, `angle`; avUSD /
+savUSD, sDOLA, sGho, sYUSD, 3Jane USD3/sUSD3, REUSDE / stUSR / sreUSD (moved
+from pos-indexer's overrides), pUSD → `nest`; generic savings inheritance
+(never through an institution's dollar); `npm run issuer:check` with an
+allowlist that can only shrink.
+
+**worker-api (working tree, branch `solana`; tsc clean, desk tests pass):**
+`CreditDesk { id, name, kind?, via?, hops }` on optimizer rows
+(`collateralDesk`/`debtDesk`), earn `asset` (`desk`, `denomination`,
+`issuer`, `issuerExposures`, stamped on origin and merge paths), every
+`/earn/positions` asset, and `/token/available`; `issuerMatch=credit` on
+optimize / earn / token-available; `GET /v1/data/earn/desks` (rates in
+percent, not fractions; `partial` when a source failed or a cap hit).
+Round 2: `credit` (and `collateralDesk`/`debtDesk`, pool `desk`) on
+`/lending/pairs`, `/pairs/leverage`, `/lending/pools` via a bounded page walk
+(`truncated`, `total: null`); `/earn/desks?denomination=ETH|BTC` (plain
+ETH/WETH under `plain:ETH`; a loop counts only when both legs are the same
+money); `props.stablecoin` trusted only with an issuer or when token-lists'
+group-keyed `stablecoin.json` names the token; shared types in margin-fetcher
+(`CreditDesk`, `AssetIssuerAttribution`); no `/earn/desks` pre-warm.
+
+**Phase 5 (app, 2026-10-01):** the Ether and Bitcoin groups read by desk too.
+`DESK` is per money (`USD` / `ETH` / `BTC` — Coinbase is cbETH in one and cbBTC
+in the other); `moneyOf` / `deskKey` in `model/desk.ts` replace the dollar-only
+`isUsd` / `usdKey`; `desks.json` carries `eth` and `btc` tables. Plain ETH/WETH
+are the `Ether` row (kind `plain`, nobody's liability); wstETH/WETH loops sit on
+Lido, LBTC/WBTC on Lombard. A staking or savings vault (`vault.lst`,
+`vault.savings`) sits on its SHARE token's desk — staking ETH with Ankr is
+Ankr's credit, syrupUSDC deposits are Maple's — while a curated vault keeps its
+deposit token's desk. Earn bands: *Ether · Staking & restaking ·
+Exchange-staked* and *Custodied bitcoin · Protocol bitcoin*, each with *Issuer
+not named*. `More` (BNB, AVAX, HYPE, …) is unchanged.
+
+**token-lists round 2 (working tree, 2026-10-01):** the ticker fallback now
+needs identity evidence (an address the feed lists for that ticker, or a name
+the real coin is known under), and the generator drops stale `stablecoin` /
+`issuer` / `issuerExposures` from the reused published lists before the
+overlays run — so a wrong tag can now go away. Tagged stablecoins 2187 → 1738
+(ERN, HAI, GAI, MOD, MUST, DefiAi DAI … gone; EURC/EURA/JPYC/TGBP variants
+kept). ~280 dollar groups attributed (Apyx, Neutrl, Noon, Pareto, Parallel,
+Metronome, USDD, Origin, K3 sBOLD, Maple syrupUSDG, USDbC → circle, …) and
+the ETH/BTC wrappers (Threshold, Function FBTC, Ava Labs BTC.b, Solv, Origin
+OETH, YieldNest, Dinero, …), each with a money (`denomination` / `lst.asset`).
+Checks: `issuer:check` (350 dollar tokens without a desk, all allowlisted with a
+reason) and `issuer:check:eth-btc` (only plain ETH/WETH and the mixed `BTC`
+group lack one), both in `.github/workflows/issuer-check.yml`, outside the
+auto-generate job. After it lands, re-run `node scripts/desks.mjs` and
+`node scripts/logos.mjs` here.
+
+**token-lists round 3 (working tree, 2026-10-01):** the not-yet-curated dollar
+allowlist is gone (222 → 71 entries, each with a specific reason); mixed groups
+split by address through `ISSUER_BY_ADDRESS` (BUSD paxos/binance, TUSD
+techteryx, eUSD lybra/telcoin, USDV, USDA, USDB, bridged PYUSD/USD1 on
+Arbitrum), the mixed `BTC` group split (Ava Labs BTC.b, Symbiosis syBTC).
+Open: dead-bridge and fork copies, unverifiable bridge routes, a handful of
+unidentified tickers, and a few NON-stablecoins the stablecoin overlay still
+tags (`HOME`, `NECT` on Berachain, `NEX`, Starbase `STAR`). pos-indexer
+migration `0047_issuer_overrides_upstreamed.sql` removes the three seeded
+overrides. In the app's live sample no dollar row is left under *Issuer not
+named*.

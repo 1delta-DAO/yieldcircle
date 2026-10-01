@@ -168,6 +168,12 @@ const nativeMaxRounds = (key: string, chainId: string) => Object.entries(NATIVE_
 function paysNative(a: LoopActions | null | undefined): boolean {
   return [...(a?.permissions ?? []), ...(a?.transactions ?? []), ...(a?.alternatives ?? []).slice(0, 1)].some((t) => { try { return BigInt(t.value || '0') > 0n } catch { return false } })
 }
+/**
+ * A loop answer with no quote has no swap route: `quotes: []`, no transactions, and still the
+ * lender's permissions (Lista's borrow approval), which on their own only cost the user gas.
+ */
+const hasRoute = (d: { quotes?: unknown[] } | null | undefined) => !!d?.quotes?.length
+const NO_ROUTE = 'No swap route at this size right now, so there is nothing to sign. Try another amount or leverage, or come back later.'
 function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[] }) {
   const { account, isConnected } = useApp()
   const [getOpen, setGetOpen] = React.useState(false)
@@ -311,6 +317,8 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
   // 2026-09-29): on a fixed loop only its entry cost is kept, and the payback is this ticket's own
   const payback = !econ ? null : term ? (net > 0 && E > 0 && econ.entryCostUsd.total > 0 ? econ.entryCostUsd.total / (E * net / 100 / 365) : null) : econ.breakEvenDays.total
   const simHf = q.data?.data?.simulation?.post?.healthFactor
+  // answered, but with no route: the build would come back with nothing but an approval
+  const noRoute = !!q.data && !hasRoute(q.data.data)
   const yearly = E * net / 100
   const key = [s.id, amount, L, term?.id ?? '', chosen?.role ?? '', account ?? ''].join('|')
   const ladder = useLadder(key, s.chainId, async () => {
@@ -319,6 +327,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
       collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: 50, leverage: L, account: account!,
       payAsset: chosen ? (chosen.role === 'native' ? ZERO : chosen.address) : undefined, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined, termId: term?.id,
     })
+    if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     if (chosen?.role === 'native' && !paysNative(env.actions)) throw new Error(`This loop does not take ${chosen.symbol} directly. Pay with another asset.`)
     return stepsFrom(env.actions, `Open ${num(L, 2)}× loop${term ? ` · ${term.days}-day fixed` : ''}`, s.chainId)
   }, [s.marketLongUid, s.marketShortUid])
@@ -368,7 +377,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
             the curve says how close the market is to doing it. */}
         <div className="c"><span className="k">You hold</span><span className="v">{usd(C)}</span><span className="s">{s.holds} on {s.venue}</span><IrmLink uid={s.marketLongUid} side="supply" label="supply curve" rewards={s.rewardsLong} /></div>
         <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · {term ? `fixed ${pct(term.apr)} for ${term.days} days` : 'floating'} · {usdShort(s.borrowLiquidityUsd)} to borrow</span><IrmLink uid={s.marketShortUid} side="borrow" label={term ? 'rate after the term' : 'borrow curve'} rewards={s.rewardsShort} /></div>
-        <div className="c"><span className="k">Entry cost</span><span className="v">{q.isFetching && !econ ? <Sk w={60} h={14} /> : econ ? usd(econ.entryCostUsd.total) : '—'}</span><span className="s">{econ ? `${payback != null ? `earned back in ${Math.ceil(payback)} days` : 'slippage, fees, gas'}` : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
+        <div className="c"><span className="k">Entry cost</span><span className="v">{q.isFetching && !econ ? <Sk w={60} h={14} /> : econ ? usd(econ.entryCostUsd.total) : '—'}</span><span className="s">{econ ? `${payback != null ? `earned back in ${Math.ceil(payback)} days` : 'slippage, fees, gas'}` : noRoute ? 'no route at this size' : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
         <div className="c"><span className="k">Health</span><span className={`v ${(simHf ?? hf) < 1.1 ? 'bad' : (simHf ?? hf) < 1.25 ? 'warn' : 'ok'}`}>{(simHf ?? hf).toFixed(2)}</span><span className="s">{simHf ? 'simulated by the API' : 'from the liquidation threshold'}</span></div>
       </div>
         <span className="lbl" style={{ marginTop: 14 }}>Liquidation</span>
@@ -387,7 +396,8 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
         {s.expiry && <li><i /><span>The collateral matures on {new Date(s.expiry * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}; the position must be closed or rolled.</span></li>}
         {s.rewardsLong + s.rewardsShort > 0.05 && <li><i /><span>Part of the rate is incentives that can stop without notice.</span></li>}
       </ul></div>
-      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen} chainId={s.chainId} />
+      {noRoute && <div className="err" style={{ margin: '0 0 10px' }}>{NO_ROUTE}</div>}
+      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute} chainId={s.chainId} />
     </>
   )
 }
@@ -515,10 +525,12 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
     if (down || !s) {
       const amountRaw = toRaw(closing ? (keep ? sellKeep! : h.amount) : sellTok, h.decimals)
       const env = await loopClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: 50, isAll: closing, account: account!, accountId: h.accountId, loanId: loan?.id })
+      if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
       return stepsFrom(env.actions, closing ? `Close the loop · receive ${keep ? holds : debt}` : `Deleverage to ${num(L, 2)}×`, h.chainId)
     }
     // a pure leverage step: borrow more against what is there, no new margin
     const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: 50, leverage: L, account: account! })
+    if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     return stepsFrom(env.actions, `Increase to ${num(L, 2)}×`, h.chainId)
   }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid])
   const snaps: { l: number; t: string }[] = [...(minL <= 1 ? [{ l: 1, t: 'Close' }] : [{ l: minL, t: 'Repay loan' }]), ...(s ? TIERS.map((t) => ({ l: Math.min(maxL, s.tiers[t.id]), t: t.name })).filter((x) => x.l >= minL) : []), { l: +Lnow.toFixed(2), t: 'Now' }]

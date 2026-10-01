@@ -108,14 +108,31 @@ export function baseOfSymbol(sym: string | undefined): string | undefined {
  * Base asset of a loop's collateral from its props: savings.underlying (sUSDe → USDe), lst.asset (wstETH → ETH),
  * the parenthesised underlying of a PT's name ("PT reUSD (USDC) …" → USDC), then the symbol itself.
  */
-export function baseOfCollateral(a: { symbol: string; name?: string; assetGroup?: string; props?: { lst?: { asset?: string }; savings?: { underlying?: string }; pendle?: unknown; spectra?: unknown } }, debtSymbol: string): string | undefined {
+export function baseOfCollateral(a: { symbol: string; name?: string; assetGroup?: string; props?: { lst?: { asset?: string }; savings?: { base?: string; underlying?: string }; stablecoin?: { base?: string }; pendle?: unknown; spectra?: unknown } }, debtSymbol: string): string | undefined {
   const p = a.props ?? {}
   const cands: (string | undefined)[] = [p.savings?.underlying, p.lst?.asset]
   if (p.pendle || p.spectra) { const m = /\(([A-Za-z0-9]+)\)/.exec(a.assetGroup ?? a.name ?? ''); cands.push(m?.[1]) }
   cands.push(a.symbol)
   for (const c of cands) { const b = baseOfSymbol(c); if (b) return b }
-  // an LST-BTC (lst.asset = BTC) has no base of its own: the debt wrapper (WBTC) is what the user owns
-  return baseOfSymbol(debtSymbol)
+  const debtBase = baseOfSymbol(debtSymbol)
+  // No whitelisted base. Which money the collateral is decides the fallback:
+  // - an LST of an unwhitelisted coin: it is the debt's money only when its
+  //   `lst.asset` is that same money — a BTC LST against WBTC/cbBTC, never
+  //   against WETH (that is a price bet, not a carry).
+  if (p.lst && !p.savings && !p.stablecoin) {
+    const lstDenom = denomOf(p.lst.asset ?? a.symbol)
+    return debtBase && lstDenom === denomOf(debtBase) ? debtBase : a.symbol
+  }
+  // - a savings/stablecoin token is its OWN money (`*.base`, e.g. `USD`): it
+  //   inherits the debt only when the debt is that same money; otherwise the
+  //   token is returned as-is so the cross-denom gate rejects it — a srUSD/WETH
+  //   bet must not read as an ETH carry.
+  if (p.savings || p.stablecoin) {
+    const own = (p.savings?.base ?? p.stablecoin?.base ?? '').toLowerCase()
+    return own && debtBase && own === denomOf(debtBase) ? debtBase : a.symbol
+  }
+  // - anything else (a governance token, an LP) is a foreign money, never the debt.
+  return a.symbol
 }
 export const groupOf = (base: string): GroupId => baseInfo(base)?.group ?? 'MORE'
 
@@ -132,6 +149,9 @@ export const groupOf = (base: string): GroupId => baseInfo(base)?.group ?? 'MORE
 export type Denomination = 'usd' | 'eth' | 'btc' | 'bnb' | 'avax' | 'eur' | 'xau' | string
 const DENOM: Record<string, Denomination> = {
   BNB: 'bnb', AVAX: 'avax',
+  // raw chain coins, for an LST's `lst.asset` (`LBTC → BTC`) that has no
+  // wrapper of its own in the whitelist
+  BTC: 'btc', SOL: 'sol',
   EURC: 'eur', EURCV: 'eur',
   XAUT: 'xau', PAXG: 'xau',
 }

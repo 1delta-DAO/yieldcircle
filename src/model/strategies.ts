@@ -230,9 +230,9 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const rate = m.rate?.total ?? 0
   const tvl = m.tvl?.usd ?? 0
   const isVault = m.venueKind === 'vault'
-  // a row the API left unscored is treated as its worst: hidden by the default
-  // cap of 4, shown by "everything"
-  const riskScore = m.risk?.score ?? 5
+  // a row the API left unscored (missing or 0) is treated as its worst: hidden
+  // by the default cap of 4, shown by "everything"
+  const riskScore = m.risk?.score || 5
   const protocol = m.protocol?.name ?? m.venue
   // the curator is the brand when upstream has none: `vault.morpho` with no
   // curator answers brand = protocol = 'Morpho', and "Morpho vault" is the

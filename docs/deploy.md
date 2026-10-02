@@ -1,33 +1,42 @@
-# Deploy — two Cloudflare Workers, git-linked
+# Deploy — Cloudflare, git-linked
 
-Both are standard Workers Builds projects: each has a committed
-`wrangler.toml` with no secrets, Cloudflare builds on push, and secrets live
-in the dashboard. Create each with Workers & Pages → Create → **Workers** →
-Import a repository → this repo. The project name **must equal** the `name`
-in its `wrangler.toml`.
+The app is a **Pages** project, the optional x-link helper a **Worker**. Both
+build on push to `main`; secrets live in the dashboard, never in git.
 
-## 1 · The app — `yieldcircle`
+## 1 · The app — Pages project `yieldcircle`
 
-A Worker serving `dist/` as static assets ([`wrangler.toml`](../wrangler.toml)).
+Configured entirely in the dashboard (the root `wrangler.toml` is gitignored
+and unused by the git build).
 
 | Settings → Build | value |
 |---|---|
-| Root directory | `/` |
 | Build command | `pnpm build` |
-| Deploy command | `npx wrangler deploy` |
+| Build output directory | `dist` |
+| Root directory | `/` |
 
-**No variable is required** — the API, index, social and site URLs all
-default to production. Two optional build variables:
+**No build variable is required** — the API, index, social and site URLs all
+default to production. Optional, and only effective on the next build:
 
 | Build variable | value |
 |---|---|
 | `VITE_WC_PROJECT_ID` | Reown project id — without it phones cannot connect a wallet (the build warns) |
-| `VITE_XLINK_URL` | the x-link worker's URL, only if that worker is deployed |
+| `VITE_XLINK_URL` | `https://xlink.yieldcircle.io` |
 
-A build variable takes effect on the next build.
+**The beta gate** (`functions/_middleware.ts`, tickets/0002) needs, under
+both Production and Preview:
 
-Locally: `pnpm deploy` (= menu-seed + build + `wrangler deploy`), or
-`pnpm deploy:preview` for a preview version that does not take traffic.
+| Settings → … | name | value |
+|---|---|---|
+| Bindings → KV namespace | `WHITELIST` | the `WHITELIST` namespace (`23ce3e9b…`) |
+| Variables and Secrets (Secret) | `GATE_SECRET` | 32+ random characters (`openssl rand -base64 32`) |
+| Variables and Secrets (optional) | `GATE_OFF` | `1` opens the app to everyone — the end of the beta |
+
+Without the binding or the secret every page answers *"Beta gate is not
+configured"* (fails closed). Manage the list with `pnpm whitelist`
+(`add`, `remove`, `list`, `waitlist`, `promote N` — see
+`scripts/whitelist.mjs`).
+
+Locally: `pnpm deploy` / `pnpm deploy:preview` (direct upload of `dist`).
 
 ## 2 · The x-link worker — `yieldcircle-xlink` (optional)
 
@@ -50,10 +59,3 @@ Secrets survive deploys — wrangler never touches them. In the toml, fill
 `X_CLIENT_ID` and set `REDIRECT_URI` to the worker URL + `/callback` (register
 the same in the X app). For `wrangler dev`, the secrets go in the gitignored
 `worker/x-link/.dev.vars`.
-
-## The beta gate (tickets/0002)
-
-Lands in the app worker itself: a `main` script with
-`assets.run_worker_first = true` and the `WHITELIST` KV binding — the lines are
-already in the root `wrangler.toml`, commented. Plus `GATE_SECRET` as a Secret
-on the `yieldcircle` project.

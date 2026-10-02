@@ -2,10 +2,9 @@
 
 - status: open
 - created: 2026-10-02
-- area: `gate/` (new, the app worker's `main` script), `src/ui/` (one gate
-  screen), `scripts/whitelist.mjs` (new), `pos-indexer` (one badge row)
+- area: `functions/_middleware.ts` + `gate/page.ts` (Pages Functions), `scripts/whitelist.mjs` (new), `pos-indexer` (one badge row)
 - depends on: nothing new. The app already deploys as a Cloudflare Worker with
-  static assets (`docs/deploy.md`), already operates a Worker + KV (`worker/x-link`), already
+  Pages Functions (`docs/deploy.md`), already operates a Worker + KV (`worker/x-link`), already
   signs EIP-712 (`src/social/sign.ts`), and the free X-post verification
   mechanic already shipped in `pos-indexer` (`packages/social/src/xVerify.ts`).
 
@@ -29,10 +28,9 @@ design** (CORS `*`, no keys) and shared with other consumers. So:
    emails, no OAuth, no sessions to invent. Proving you own a whitelisted
    address is one signature, and every piece needed for that — connect flow,
    signing, signature recovery with viem — is already in the stack.
-3. **The gate goes at the edge, in the same deploy.** The app is a Worker
-   serving `dist/` as static assets; give it a `main` script with
-   `assets.run_worker_first = true` and KV/D1 bindings, and that script runs
-   in front of **every** request, static assets included — so a
+3. **The gate goes at the edge, in the same deploy.** The app is a Pages
+   project; a root `functions/_middleware.ts` runs in front of **every**
+   request, static assets included — so a
    non-whitelisted visitor never receives the app bundle at all. That is a
    real gate, unlike a client-side check that anyone opens devtools around
    (and someone *would*, in a quote-tweet, on launch day).
@@ -130,22 +128,26 @@ og-image, and the page shares itself.
   is treated as such. The costly signals (signature, X post, invite from a
   member) are the numbers that matter.
 - **No accounts, no emails, no sessions beyond one HMAC cookie.** The day the
-  beta opens, drop `main` from `wrangler.toml` and the app is exactly what it
-  was.
+  beta opens, set `GATE_OFF=1` (or delete `functions/`) and the app is
+  exactly what it was.
 
 ## Deploying
 
-[`docs/deploy.md`](../docs/deploy.md). The gate's `main`, `run_worker_first`
-and `WHITELIST` binding are already in the root `wrangler.toml`, commented;
-`GATE_SECRET` is a Secret on the `yieldcircle` project.
+[`docs/deploy.md`](../docs/deploy.md): the `WHITELIST` binding and
+`GATE_SECRET` on the Pages project.
+
+**Built (2026-10-02):** task 1 and 3, plus a lean task 2 — the gate page
+records an unlisted wallet as `wait:<address>` in the same KV (no D1, no
+position number yet) and offers a Share-on-X button. The gate page uses an
+injected wallet only (the app bundle, WalletConnect included, is what the gate
+withholds), so phones use a wallet's in-app browser.
 
 ## Tasks
 
-1. `gate/index.ts` + `verify.ts` + cookie HMAC; uncomment the gate lines in
-   `wrangler.toml`.
+1. ✅ `functions/_middleware.ts` + `gate/page.ts` + cookie HMAC.
 2. Waitlist screen (gate mode of the SPA or one static page) + `gate/join.ts`
    + D1 table + position number.
-3. `scripts/whitelist.mjs` — add / promote / export.
+3. ✅ `scripts/whitelist.mjs` — add / remove / list / waitlist / promote.
 4. Invite codes: derivation, redeem endpoint, "Your 3 codes" surface in-app.
 5. X-post skip: port `xVerify.ts`'s oEmbed check into a gate function.
 6. pos-indexer: `beta` system tag from the whitelist + one gated layer.

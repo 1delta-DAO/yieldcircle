@@ -1,0 +1,82 @@
+// Manage the closed-beta whitelist (tickets/0002) in the WHITELIST KV namespace.
+//
+//   node scripts/whitelist.mjs add 0xabc… 0xdef… [--source team]   whitelist addresses
+//   node scripts/whitelist.mjs add --file wave1.txt [--source wave1] one address per line
+//   node scripts/whitelist.mjs remove 0xabc…
+//   node scripts/whitelist.mjs list                                 whitelisted wallets
+//   node scripts/whitelist.mjs waitlist                             wallets that asked to join
+//   node scripts/whitelist.mjs promote 100                          whitelist the 100 oldest waitlist entries
+//
+// Keys are always lower-cased: the gate looks up `wl:<lowercase address>`.
+import { execFileSync } from 'node:child_process'
+import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+const NAMESPACE = '23ce3e9b23224ce09a4cd4f486480870'
+const ACCOUNT = process.env.CLOUDFLARE_ACCOUNT_ID ?? 'd8773eeff51cfcf5d53f08344acae545'
+
+const wrangler = (...args) =>
+  execFileSync('npx', ['--yes', 'wrangler@4', 'kv', ...args, '--namespace-id', NAMESPACE, '--remote'], {
+    encoding: 'utf8',
+    env: { ...process.env, CLOUDFLARE_ACCOUNT_ID: ACCOUNT },
+    stdio: ['ignore', 'pipe', 'inherit'],
+  })
+
+const [cmd, ...rest] = process.argv.slice(2)
+const flag = (name) => { const i = rest.indexOf(`--${name}`); return i < 0 ? undefined : rest.splice(i, 2)[1] }
+
+const addresses = (list) => {
+  const out = list.map((a) => a.trim().toLowerCase()).filter(Boolean)
+  const bad = out.filter((a) => !/^0x[0-9a-f]{40}$/.test(a))
+  if (bad.length) { console.error(`not an address: ${bad.join(', ')}`); process.exit(1) }
+  return [...new Set(out)]
+}
+
+const keys = (prefix) => JSON.parse(wrangler('key', 'list', '--prefix', prefix)).map((k) => k.name)
+
+const put = (list, source) => {
+  const ts = new Date().toISOString()
+  const dir = mkdtempSync(join(tmpdir(), 'wl-'))
+  const file = join(dir, 'bulk.json')
+  writeFileSync(file, JSON.stringify(list.map((a) => ({ key: `wl:${a}`, value: JSON.stringify({ source, ts }) }))))
+  wrangler('bulk', 'put', file)
+  console.log(`whitelisted ${list.length}`)
+}
+
+switch (cmd) {
+  case 'add': {
+    const source = flag('source') ?? 'manual'
+    const file = flag('file')
+    const list = addresses(file ? readFileSync(file, 'utf8').split(/\s+/) : rest)
+    if (!list.length) { console.error('no addresses given'); process.exit(1) }
+    put(list, source)
+    break
+  }
+  case 'remove':
+    for (const a of addresses(rest)) wrangler('key', 'delete', `wl:${a}`)
+    console.log('removed')
+    break
+  case 'list':
+    console.log(keys('wl:').map((k) => k.slice(3)).join('\n'))
+    break
+  case 'waitlist': {
+    const listed = new Set(keys('wl:').map((k) => k.slice(3)))
+    console.log(keys('wait:').map((k) => k.slice(5)).filter((a) => !listed.has(a)).join('\n'))
+    break
+  }
+  case 'promote': {
+    const n = Number(rest[0])
+    if (!(n > 0)) { console.error('usage: promote <count>'); process.exit(1) }
+    const listed = new Set(keys('wl:').map((k) => k.slice(3)))
+    const waiting = keys('wait:').map((k) => k.slice(5)).filter((a) => !listed.has(a))
+    const dated = waiting.map((a) => ({ a, ts: JSON.parse(wrangler('key', 'get', `wait:${a}`) || '{}').ts ?? '' }))
+    const next = dated.sort((x, y) => x.ts.localeCompare(y.ts)).slice(0, n).map((x) => x.a)
+    if (next.length) put(next, 'waitlist')
+    else console.log('waitlist is empty')
+    break
+  }
+  default:
+    console.error('usage: whitelist.mjs add|remove|list|waitlist|promote — see the header of this file')
+    process.exit(1)
+}

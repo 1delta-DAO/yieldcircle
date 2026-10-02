@@ -11,6 +11,7 @@ import type { ApiEnvelope } from '../vendor/allocator/http'
 import { useApp } from '../state/AppState'
 import { isRemote, openWallet } from '../wallet/deeplink'
 import { useSwitchTo } from '../wallet/useSwitchTo'
+import { isSolAddr, normAddr } from '../model/address'
 import { DecimalInput, Info, Popover, Tok, num, usd } from './bits'
 
 export interface Target { chainId: string; address: string; symbol: string; decimals: number; price: number; logo?: string }
@@ -34,7 +35,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   const [ti, setTi] = React.useState(0)
   const target = targets[Math.min(ti, targets.length - 1)]
   const need = Math.max(0, want - target.have)
-  const isTarget = (i: Idle) => targets.some((t) => i.chainId === t.chainId && i.address.toLowerCase() === t.address.toLowerCase())
+  const isTarget = (i: Idle) => targets.some((t) => i.chainId === t.chainId && normAddr(i.address) === normAddr(t.address))
   // what you can pay with: every idle base-asset balance on any chain except the forms being bought, biggest first
   // (the wrapper is not a source for the coin: holding it, the ticket simply pays with it)
   const opts = React.useMemo(() => sources.filter((i) => i.usd >= 1 && !isTarget(i)).sort((a, b) => b.usd - a.usd), [sources, targets.map((t) => t.chainId + t.address).join()])
@@ -81,7 +82,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   const quotes = quote?.data?.quotes ?? []
   const best = quotes[sel]
   const tx = quote?.actions?.alternatives?.[sel]
-  const perms = (quote?.actions?.permissions ?? []).filter((p) => !best?.approvalTarget || !p.spender || p.spender.toLowerCase() === best.approvalTarget.toLowerCase())
+  const perms = (quote?.actions?.permissions ?? []).filter((p) => !best?.approvalTarget || !p.spender || normAddr(p.spender) === normAddr(best.approvalTarget))
   // the approval and the swap/bridge are followed by `txTrace.ts`, like every ladder step: the tray shows them too
   const approveTr = useTrace(pendingApprove)
   const approved = hasLanded(approveTr)
@@ -206,15 +207,15 @@ const shortErr = (m: string) => (m.length > 140 ? m.slice(0, 140) + '…' : m)
 function CustomToken({ account, chainId0, onUse, onCancel }: { account: string; chainId0: string; onUse: (i: Idle) => void; onCancel: () => void }) {
   const [chainId, setChainId] = React.useState(chainId0)
   const [raw, setRaw] = React.useState('')
-  const addr = raw.trim().toLowerCase()
-  const valid = /^0x[0-9a-f]{40}$/.test(addr)
+  const addr = normAddr(raw.trim())
+  const valid = /^0x[0-9a-f]{40}$/.test(addr) || isSolAddr(addr)
   const q = useQuery({
     enabled: valid,
     queryKey: ['custom-token', chainId, addr, account],
     queryFn: () => fetchTokenBalances(account, chainId, [addr], true),
     staleTime: 30_000, retry: false,
   })
-  const b = q.data?.items.find((i) => i.address.toLowerCase() === addr)
+  const b = q.data?.items.find((i) => normAddr(i.address) === addr)
   const found = b?.symbol ? b : undefined
   React.useEffect(() => {
     if (!found) return

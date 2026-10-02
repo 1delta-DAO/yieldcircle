@@ -10,6 +10,8 @@ import { useSocialWrite } from '../social/sign'
 import type { Message, SubjectKind } from '../social/types'
 import { Ago, Stake, Who } from './social-bits'
 import { Sk } from './bits'
+import { normAddr } from '../model/address'
+import { useSolWallet } from '../wallet/solana'
 
 const REACTIONS: { kind: string; glyph: string; title: string }[] = [
   { kind: 'like', glyph: '♥', title: 'like' },
@@ -29,6 +31,9 @@ export function Thread({ kind, subjectKey, title, placeholder, compact }: {
   const authors = msgs.map((m) => m.author)
   const { profile } = useProfiles(authors)
   const { account, message, react, remove } = useSocialWrite()
+  // a Solana-only user READS; the social service does not accept ed25519
+  // identities yet (docs/solana.md §F), and the composer says so in words
+  const solOnly = !account && !!useSolWallet().account
   const refresh = useSocialRefresh()
   const [body, setBody] = React.useState('')
   const [replyTo, setReplyTo] = React.useState<Message | null>(null)
@@ -69,10 +74,10 @@ export function Thread({ kind, subjectKey, title, placeholder, compact }: {
         {!t.isLoading && !tops.length && <p className="thread-empty">Nobody has said anything here yet.</p>}
         {tops.map((m) => (
           <div key={m.id} className="msg">
-            <Row m={m} profile={profile(m.author)} mine={account === m.author.toLowerCase()} onReply={() => setReplyTo(m)} onDelete={() => drop(m)} />
+            <Row m={m} profile={profile(m.author)} mine={account === normAddr(m.author)} onReply={() => setReplyTo(m)} onDelete={() => drop(m)} />
             {kids(m.id).map((k) => (
               <div key={k.id} className="msg reply">
-                <Row m={k} profile={profile(k.author)} mine={account === k.author.toLowerCase()} onDelete={() => drop(k)} />
+                <Row m={k} profile={profile(k.author)} mine={account === normAddr(k.author)} onDelete={() => drop(k)} />
               </div>
             ))}
           </div>
@@ -84,13 +89,13 @@ export function Thread({ kind, subjectKey, title, placeholder, compact }: {
           value={body}
           maxLength={1000}
           rows={compact ? 2 : 3}
-          placeholder={account ? placeholder ?? 'Say something — it is signed by your wallet and public.' : 'Connect a wallet to post'}
+          placeholder={account ? placeholder ?? 'Say something — it is signed by your wallet and public.' : solOnly ? 'Posting from a Solana wallet is not supported yet' : 'Connect a wallet to post'}
           disabled={!account || busy}
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void post() }}
         />
         <div className="composer-f">
-          <span className="foot">{account ? 'One signature, no gas. Everything here is public.' : 'Reads are open; posting needs a wallet.'}</span>
+          <span className="foot">{account ? 'One signature, no gas. Everything here is public.' : solOnly ? 'Reads are open. Posting from a Solana wallet comes once the social service accepts ed25519 signatures — until then, connect an EVM wallet to post.' : 'Reads are open; posting needs a wallet.'}</span>
           <span className="sp" />
           <button className="btn sm pri" disabled={!account || busy || !body.trim()} onClick={() => void post()}>{busy ? 'Signing…' : replyTo ? 'Reply' : 'Post'}</button>
         </div>

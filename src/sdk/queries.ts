@@ -8,6 +8,7 @@ import type { OptimizerResponse, TokenBalance } from './types'
 import { indexBalances } from '../index/api'
 import type { IndexBalanceItem } from '../index/types'
 import { useLiveChains } from './liveBalances'
+import { isEvmAddr, isEvmChain, isSolAddr, isSvmChain, normAddr } from '../model/address'
 import { toRaw } from '../model/leverage'
 import { historyUids, type HistoryGet } from '../model/rateHistory'
 import { useHistoryFor } from './rateHistoryStore'
@@ -44,7 +45,13 @@ export const CHAINS: { id: string; label: string }[] = [
   { id: '4217', label: 'Tempo' },
   { id: '988', label: 'Stable' },
   { id: '98866', label: 'Plume' },
+  // the one non-EVM chain: a string id, no wagmi entry (docs/solana.md §B).
+  // `EVM_CHAINS` below is what wallet code may iterate; everything read-only
+  // treats `solana` like any other id.
+  { id: 'solana', label: 'Solana' },
 ]
+/** The chains wagmi knows — switchChain, receipt watchers, balance fallbacks. Never hand `solana` to these. */
+export const EVM_CHAINS = CHAINS.filter((c) => isEvmChain(c.id))
 /**
  * Names and logos from the API's own chain directory, keyed by id — one
  * request for every chain, cached for a day, and a failure is simply no
@@ -283,13 +290,21 @@ function split<T extends Strategy>(rows: T[], st: Settings): { show: T[]; hide: 
   return { show, hide }
 }
 
-/** The asset list a balance read sends: native always (the zero address), then the catalogue's, sorted so the key is stable. */
-const balanceAssets = (addresses: string[]) => [...new Set(['0x0000000000000000000000000000000000000000', ...addresses.filter(Boolean).map((a) => a.toLowerCase())])].sort().slice(0, 60)
+/**
+ * The asset list a balance read sends: native always (the zero address on EVM;
+ * the Solana route answers the native row unasked), then the catalogue's,
+ * sorted so the key is stable. Base58 keeps its case.
+ */
+const balanceAssets = (addresses: string[], chainId?: string) =>
+  [...new Set([...(isSvmChain(chainId) ? [] : ['0x0000000000000000000000000000000000000000']), ...addresses.filter(Boolean).map((a) => normAddr(a))])].sort().slice(0, 60)
+/** Can this account sign / hold on this chain? One account per VM (docs/solana.md §5). */
+const accountFits = (account: string | undefined, chainId: string) =>
+  !!account && (isSvmChain(chainId) ? isSolAddr(account) : isEvmAddr(account))
 /** Idle balances: one request per chain for the addresses the catalogue knows (native always at the zero address). */
 export function useBalances(account: string | undefined, chainId: string, addresses: string[]) {
-  const assets = balanceAssets(addresses)
+  const assets = balanceAssets(addresses, chainId)
   return useQuery({
-    enabled: !!account && assets.length > 0,
+    enabled: accountFits(account, chainId) && assets.length > 0,
     queryKey: ['balances', account, chainId, assets.join(',')],
     queryFn: () => fetchTokenBalances(account!, chainId, assets),
     staleTime: 30_000,
@@ -319,10 +334,13 @@ function fromIndex(i: IndexBalanceItem): TokenBalance | null {
  */
 export function useBalancesPerChain(account: string | undefined, chains: { chainId: string; addresses: string[]; ready: boolean }[]) {
   const live = useLiveChains()
-  const settled = chains.filter((c) => c.ready)
-  const asked = Object.fromEntries(settled.map((c) => [c.chainId, balanceAssets(c.addresses)]))
+  // a chain whose VM the account cannot hold on reads nothing: an EVM wallet
+  // has no Solana balances and the routes reject the address shape
+  const settled = chains.filter((c) => c.ready && accountFits(account, c.chainId))
+  // the index's balance POST is the EVM index's; Solana reads live only
+  const asked = Object.fromEntries(settled.filter((c) => isEvmChain(c.chainId)).map((c) => [c.chainId, balanceAssets(c.addresses, c.chainId)]))
   const idx = useQuery({
-    enabled: !!account && settled.length > 0,
+    enabled: !!account && Object.keys(asked).length > 0,
     queryKey: ['balances-index', account, JSON.stringify(asked)],
     queryFn: ({ signal }) => indexBalances(account!, asked, signal),
     staleTime: 15_000,
@@ -331,15 +349,17 @@ export function useBalancesPerChain(account: string | undefined, chains: { chain
     placeholderData: keepPreviousData,
   })
   const plans = chains.map(({ chainId, addresses, ready }) => {
-    const all = balanceAssets(addresses)
+    const fits = accountFits(account, chainId)
+    const all = fits ? balanceAssets(addresses, chainId) : []
     const c = idx.data?.chains.find((x) => x.chainId === chainId)
     const fromIdx = !!c && c.state === 'complete' && !live.has(chainId) && !idx.isError
     const indexItems: TokenBalance[] = []
     const liveAssets = new Set<string>(fromIdx ? c!.unknownAssets ?? [] : all)
-    if (fromIdx) for (const i of c!.items) { const b = fromIndex(i); if (b) indexItems.push(b); else liveAssets.add(i.address.toLowerCase()) }
+    if (fromIdx) for (const i of c!.items) { const b = fromIndex(i); if (b) indexItems.push(b); else liveAssets.add(normAddr(i.address)) }
     // wait for the index's answer before reading live (one request instead of fifteen); while a
-    // new key is in flight, the previous answer decides for the chains it already carries
-    const decided = ready && (!account || idx.isError || (!!idx.data && (!idx.isPlaceholderData || !!c)))
+    // new key is in flight, the previous answer decides for the chains it already carries.
+    // Solana is never in the POST, so it never waits on it.
+    const decided = ready && (!account || !fits || isSvmChain(chainId) || idx.isError || (!!idx.data && (!idx.isPlaceholderData || !!c)))
     return { chainId, ready, fromIdx, indexItems, liveAssets: [...liveAssets].sort(), decided }
   })
   const liveQs = useQueries({
@@ -357,8 +377,8 @@ export function useBalancesPerChain(account: string | undefined, chains: { chain
     const needLive = p.liveAssets.length > 0
     // the index's rows first; a live row fills what the index did not answer (the live route
     // always adds the native coin, which the index already carries on a complete chain)
-    const have = new Set(p.indexItems.map((b) => b.address.toLowerCase()))
-    const items = [...p.indexItems, ...(q.data?.items ?? []).filter((b) => !have.has(b.address.toLowerCase()))]
+    const have = new Set(p.indexItems.map((b) => normAddr(b.address)))
+    const items = [...p.indexItems, ...(q.data?.items ?? []).filter((b) => !have.has(normAddr(b.address)))]
     const done = p.decided && (!needLive || !!q.data || q.isError)
     return {
       data: done || p.indexItems.length ? { items } : undefined,
@@ -370,15 +390,26 @@ export function useBalancesPerChain(account: string | undefined, chains: { chain
   })
 }
 /**
+ * `/v1/data/earn/positions` for `solana` (UNIFIED_API_PLAN §4.2): checked
+ * 2026-10-02, a base58 account still answers `INVALID_PARAM`. Flip this when
+ * worker-api serves it — everything downstream (useBook, txTrace re-reads) is
+ * already VM-aware. Until then a Solana wallet's own book is simply absent;
+ * the hard rule (never the index for the connected user) holds either way.
+ */
+export const SOL_POSITIONS_READY = false
+/**
  * Positions, in the same buckets as the catalogue: the big chains alone, the
  * rest in one request. One request for every chain was the slowest answer on
  * the page (a single slow chain held up all of them); fifteen would spend the
  * rate limit. Buckets land as they come, so the big chains show first.
  */
 export function useEarnPositions(account: string | undefined, chainIds: string[]) {
+  // one account per VM: an EVM account is asked about the EVM chains only, a
+  // Solana one about `solana` only — the route rejects the other shape.
+  const fit = chainIds.filter((id) => accountFits(account, id) && (isEvmChain(id) || SOL_POSITIONS_READY))
   const qs = useQueries({
-    queries: chainBuckets(chainIds).map((ids) => ({
-      enabled: !!account,
+    queries: chainBuckets(fit).map((ids) => ({
+      enabled: !!account && ids.length > 0,
       queryKey: ['earn-positions', account, ids.join(',')],
       queryFn: () => fetchEarnPositions(account!, ids),
       staleTime: 60_000,

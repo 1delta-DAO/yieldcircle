@@ -273,7 +273,13 @@ export function parseFind(raw: string): FindQuery {
     return { type: 'address', address: s.toLowerCase() }
   if (/^0x[0-9a-fA-F]{64}$/.test(s))
     return { type: 'tx', hash: s.toLowerCase() }
-  if (/^[^\s:]+:\d+:[^\s]+$/.test(s)) return { type: 'uid', uid: s }
+  // a uid's chain id may be a string (`solana`); the uid keeps its case
+  if (/^[^\s:]+:[^\s:]+:[^\s]+$/.test(s)) return { type: 'uid', uid: s }
+  // base58, case kept: 32–44 characters is a Solana address, 86–88 a signature
+  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s) && /[A-Z]/.test(s) && /[a-z0-9]/.test(s))
+    return { type: 'address', address: s }
+  if (/^[1-9A-HJ-NP-Za-km-z]{86,88}$/.test(s))
+    return { type: 'tx', hash: s }
   const handle = s.startsWith('@')
   const key = searchKey(s)
   if (!key) return { type: 'empty' }

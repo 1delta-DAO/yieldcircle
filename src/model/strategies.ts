@@ -12,8 +12,9 @@ import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } fro
 import { marketTag } from './market'
 import type { HideCode } from './visibility'
 import STRATEGY_TOKENS from '../data/strategy-tokens.json'
+import { normAddr } from './address'
 /** `chain:vaultAddress` → the share token you end up holding (scripts/logos.mjs, from the chain token lists). */
-const strategyToken = (chainId: string, ref: string | undefined) => (ref ? (STRATEGY_TOKENS as Record<string, { symbol: string; logoURI: string | null }>)[`${chainId}:${ref.toLowerCase()}`] : undefined)
+const strategyToken = (chainId: string, ref: string | undefined) => (ref ? (STRATEGY_TOKENS as Record<string, { symbol: string; logoURI: string | null }>)[`${chainId}:${normAddr(ref)}`] : undefined)
 
 export type Risk = 1 | 2 | 3
 interface Base {
@@ -70,6 +71,10 @@ export interface SimpleStrategy extends Base {
   priceUsd?: number
   exitMode: string
   exitWord: string
+  /** `exit.cooldownSecs`: how long a cooldown / queue takes, where the API knows it. Read through {@link exitTerms}. */
+  exitSecs?: number
+  /** `exit.feeBps`: what leaving NOW costs on a fee-or-queue exit */
+  exitFeeBps?: number
   /**
    * What can leave the market right now (`EarnMarket.liquidity`), and how much
    * of the deposits are lent out. Size and liquidity are two different
@@ -191,7 +196,47 @@ const riskOf = (score: number | undefined, _label?: string): { risk: Risk; riskL
   const risk: Risk = score <= 2 ? 1 : score <= 4 ? 2 : 3
   return { risk, riskLabel: risk === 1 ? 'Low' : risk === 2 ? 'Medium' : 'High' }
 }
-const EXIT_WORD: Record<string, string> = { instant: 'Any time', 'instant-capped': 'Any time', 'instant-or-queued': 'Any time or queued', queued: 'Queued', 'fixed-cooldown': 'Cooldown', 'request-based': 'Queued', 'market-sale': 'Sell on market', 'off-chain': 'Off-chain' }
+const EXIT_WORD: Record<string, string> = { instant: 'Any time', 'instant-capped': 'Any time', 'instant-or-queued': 'Any time or queued', queued: 'Queued', 'fixed-cooldown': 'Cooldown', 'request-based': 'Queued', 'market-sale': 'Sell on market', 'off-chain': 'Off-chain', 'fee-or-queued': 'Fee or queue' }
+const DAY = 86400
+/** `17 Dec 2026` */
+export const dateOf = (t: number) => new Date(t * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+/** `7 days`, `~1 day`, `18 h` — a cooldown is a whole number of days nearly always; the `~` says when it is not */
+export const spanOf = (secs: number) => {
+  if (secs < DAY) return `${Math.max(1, Math.round(secs / 3600))} h`
+  const d = Math.round(secs / DAY)
+  return `${d * DAY === secs ? '' : '~'}${d} day${d === 1 ? '' : 's'}`
+}
+/**
+ * The exit WITH its clock, from the row's own numbers: a PT's maturity, a
+ * cooldown's `cooldownSecs`. `word` / `when` fill the ticket's Exit cell,
+ * `short` the list's meta line, `risk` the "what can go wrong" line (null on an
+ * instant exit, whose risk is liquidity, said elsewhere).
+ *
+ * Where the API publishes no time (queued LST exits, most request-based vaults
+ * as of 2026-10-02) it says so instead of a vague "may take time".
+ */
+export function exitTerms(s: SimpleStrategy, now = Date.now() / 1000): { word: string; when: string; short: string; risk: string | null } {
+  if (s.maturity) {
+    const days = Math.ceil((s.maturity - now) / DAY)
+    if (days <= 0) return { word: 'Matured', when: `redeem at par since ${dateOf(s.maturity)}`, short: 'matured', risk: null }
+    return {
+      word: `${days} day${days === 1 ? '' : 's'}`, when: `par on ${dateOf(s.maturity)} · or sell any time`, short: `matures in ${days}d`,
+      risk: `Before ${dateOf(s.maturity)} the only exit is selling on the market, at whatever price is bid — it can be below par.`,
+    }
+  }
+  const word = EXIT_WORD[s.exitMode] ?? s.exitMode
+  if (s.exitMode === 'instant' || s.exitMode === 'instant-capped') return { word, when: 'same block', short: 'any time', risk: null }
+  const fee = s.exitFeeBps ? `${+(s.exitFeeBps / 100).toFixed(2)}%` : ''
+  if (s.exitSecs) {
+    const t = spanOf(s.exitSecs)
+    const how = s.exitMode === 'fixed-cooldown' ? 'cooldown' : 'queue'
+    return {
+      word: t, when: fee ? `${how} · or now for a ${fee} fee` : how, short: `${t.replace(/ days?$/, 'd')} ${how}${fee ? ` or ${fee} fee` : ''}`,
+      risk: fee ? `Leaving now costs ${fee}; without the fee the exit takes about ${t}.` : `Getting out takes about ${t} (${how}); the funds are not yours to move until then.`,
+    }
+  }
+  return { word, when: 'wait time not published', short: word.toLowerCase(), risk: `Exit is ${word.toLowerCase()} and the venue publishes no wait time: you may wait to get out at par.` }
+}
 
 const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/g, '')
 /** carried by names, carries nothing: `Safe x Steakhouse`, `Gauntlet x Lista USD1 Vault` */
@@ -281,10 +326,12 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
     ? vaultTag(named, [brand, protocol, curator, m.asset.symbol], shareSym ?? own)
     : marketTag(m.name, m.asset.symbol)
   const market = tag && !sameWords(tag, brand) && !sameWords(tag, protocol) ? tag : ''
+  // a PT's maturity is part of WHICH product it is: PT sUSDai Oct and PT sUSDai Feb are two rows
+  const maturity = typeof m.maturity?.maturity === 'number' ? m.maturity.maturity : undefined
   let via: string, source: string, holds: string
   if (m.venue === 'vault.lst') { via = `Stake with ${brand}`; source = 'staking'; holds = shareSym || named || own }
   else if (m.venue === 'vault.savings') { via = `${brand} savings`; source = 'savings'; holds = shareSym ?? (named || own) }
-  else if (m.venue === 'vault.pendle') { via = 'Fixed on Pendle'; source = 'fixed'; holds = 'PT ' + (named || own).replace(/^PT\s*/, '').split(' ')[0] }
+  else if (m.venue === 'vault.pendle') { via = `Fixed on Pendle${maturity ? ` · ${dateOf(maturity)}` : ''}`; source = 'fixed'; holds = 'PT ' + (named || own).replace(/^PT\s*/, '').split(' ')[0] }
   else if (isVault) { const who = `${brand}${market ? ` ${market}` : ''} vault`; via = sameWords(brand, protocol) ? who : `${who} · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || own) }
   // the BRAND, not the protocol: `Aave V3` and `Aave V4` are both "Aave" upstream, and a V4
   // isolated market is not the V3 pool the same sentence would have named
@@ -293,13 +340,12 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const logo = share?.logoURI ?? ownLogo ?? (isVault ? undefined : m.asset.logoURI)
   const exitMode = m.exit?.mode ?? 'instant'
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
-  const maturity = typeof m.maturity?.maturity === 'number' ? m.maturity.maturity : undefined
   const s: SimpleStrategy = {
     id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
     rate, risk, riskLabel, riskScore, tvlUsd: tvl,
     earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, assetSymbol: m.asset.symbol, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
-    exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0,
+    exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, exitSecs: m.exit?.cooldownSecs || undefined, exitFeeBps: m.exit?.feeBps || undefined, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0,
     // an API that knows the flag sets it on the deposit; then a missing withdraw leg (an async exit) is a no
     nativeIn: dep.acceptsNative, nativeOut: dep.acceptsNative === undefined ? undefined : m.capabilities.find((c) => c.action === 'withdraw')?.acceptsNative ?? false,
     headline: m.termSheet?.supply?.headline || undefined, description: m.termSheet?.supply?.description || undefined,
@@ -320,7 +366,9 @@ export function venueLabel(lender: string, curator?: string | null): string {
   if (lender.startsWith('LISTA')) return 'Lista'
   if (lender.startsWith('VENUS')) return 'Venus'
   // instance-keyed lenders (Gearbox pools, Fraxlend pairs, Silo markets): the words, without the trailing ids
-  return lender.replace(/(_(?:[0-9A-F]{40}|[0-9A-F]{6,8}|\d+))+$/i, '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  // a Solana lender key's instance is a base58 pubkey (KAMINO_C7h9…) or a
+  // numbered pool (JUPITER_LEND_main_8): strip those tails like the hex ones
+  return lender.replace(/(_(?:[0-9A-F]{40}|[0-9A-F]{6,8}|\d+|[1-9A-HJ-NP-Za-km-z]{32,44}))+$/i, '').replace(/_main$/i, '').toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 /**
@@ -423,9 +471,13 @@ function termCard(r: OptimizerRowRaw): LoopTerm[] {
  * A FIXED-RATE loop is kept apart from the float one on the same pair for
  * the same reason: Lista's slisBNB/WBNB is 0.30 % floating with $6m to
  * borrow and 0.5 % fixed with $141m, and the cheaper one silently won.
+ *
+ * So is each MATURITY of one PT (a deposit's `maturity`, a loop's collateral
+ * `expiry`): `holds` reads `PT sUSDai` for both the Oct and the Feb market, and
+ * 2026-10-02 four Pendle pairs lost their nearer maturity to the higher rate.
  */
 export const rowKey = (r: Strategy): string =>
-  r.kind === 'simple' && r.source === 'vault' ? `${r.chainId}|${r.ref}` : `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? `${r.debt}${r.terms ? '|fixed' : ''}` : ''}`
+  r.kind === 'simple' && r.source === 'vault' ? `${r.chainId}|${r.ref}` : `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? `${r.debt}${r.terms ? '|fixed' : ''}|${r.expiry ?? ''}` : r.maturity ?? ''}`
 export function dedupe<T extends Strategy>(rows: T[]): T[] {
   const best = new Map<string, T>()
   for (const r of rows) {

@@ -12,6 +12,7 @@ import type { FlowBucket, MarketTapeQuery } from '../index/api'
 import { useProfiles } from '../social/queries'
 import { useMenu } from './useMenu'
 import { parseUid, protocolKeyOf } from '../model/uid'
+import { normAddr } from '../model/address'
 import { prettyProtocol } from './ProtocolFilter'
 import { DeskChips } from './IssuerFilter'
 import { CuratorMark } from './CuratorFilter'
@@ -255,7 +256,7 @@ function tapeQuery(f: TapeFilter, me: string | undefined): MarketTapeQuery {
   return {
     minUsd: f.size || undefined,
     kinds: KINDS[f.kind].kinds || undefined,
-    follower: f.following && me ? me.toLowerCase() : undefined,
+    follower: f.following && me ? normAddr(me) : undefined,
   }
 }
 

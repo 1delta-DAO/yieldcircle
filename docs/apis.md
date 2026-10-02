@@ -6,7 +6,8 @@ has **no backend of its own**; it reads three services:
 | Service | Base URL (env) | Default | What for | Client code |
 |---|---|---|---|---|
 | **1delta API** (worker-api / "allocator") | `VITE_BACKEND_BASE_URL` | `https://allocator.api.1delta.io` | catalogue, the connected user's positions + balances, every transaction built | `src/vendor/allocator/http.ts` → `src/sdk/api.ts` → `src/sdk/queries.ts` |
-| **Position index** (`pos-indexer`) | `VITE_INDEX_BASE_URL` | `https://positions.1delta.io` | other wallets, feed, markets, hot/trending, board, curators, assets, idle-balance snapshots | `src/index/api.ts` → `src/index/queries.ts` |
+| **Position index** (`pos-indexer`) | `VITE_INDEX_BASE_URL` | `https://positions.1delta.io` | other wallets, feed, markets, hot/trending, board, curators, assets, idle-balance snapshots — the EVM chains | `src/index/api.ts` → `src/index/queries.ts` |
+| **Solana position index** (`pos-indexer/apps/sol-indexer`) | `VITE_SOL_INDEX_BASE_URL` | `https://sol-positions.1delta.io` | the same ledger questions for `solana`, a separate service until the merge ([`solana.md`](solana.md)) | `src/index/api.ts` routes to it by chain / address shape / uid; it must answer the EVM index's shapes — no adapter here |
 | **Social service** (`pos-indexer/packages/social`) | `VITE_SOCIAL_BASE_URL` | `https://social.1delta.io` | threads, profiles, follows, ratings (EIP-712 signed writes) | `src/social/api.ts` → `src/social/queries.ts` (see [`social.md`](social.md)) |
 
 All base URLs are resolved in `src/config/backend.ts`. Vite bakes them in at
@@ -156,7 +157,11 @@ final (`balancesChanged`, called only by `txTrace.ts`). See
 ## Joining the two: market uids
 
 Catalogue rows (1delta API) and index rows join on the **market uid**
-`<lender>:<chainId>:<ref>` (ref lower-cased). Loops already carry it
+`<lender>:<chainId>:<ref>` — the ref lower-cased on EVM chain ids ONLY. Base58
+is case-significant: lowering a Solana ref makes a different key and orphans
+the market's threads and holders, which is why every address spelling goes
+through `model/address.ts` `normAddr` (hex lowered, base58 verbatim). Loops
+already carry it
 (`marketLongUid` / `marketShortUid`); deposits are rebuilt from
 `EarnMarket.ref`, and vaults are `vault.<provider>:<chainId>:<address>`.
 All of that is in `src/model/uid.ts` (`uidOf`, `uidsOf`, `parseUid`); the
@@ -185,4 +190,6 @@ the same uid.
   worker-api (`lending-sdks/packages/worker-api`, `wrangler dev`, no rate limit).
 - The index and social services can run locally on `:8090` / `:8091`
   (`pos-indexer`); set `VITE_INDEX_BASE_URL` / `VITE_SOCIAL_BASE_URL`.
-- `?as=0x…` in the app URL reads any address without a wallet.
+- `?as=0x…` in the app URL reads any address without a wallet — a base58
+  Solana address works the same (`?as=<pubkey>`).
+- The Solana index can be pointed elsewhere with `VITE_SOL_INDEX_BASE_URL`.

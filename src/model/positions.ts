@@ -4,6 +4,7 @@
  * one without is a plain deposit per leg) and `/v1/data/token/balances` for idle.
  */
 import type { EarnPosition, TokenBalance } from '../sdk/types'
+import { isSvmChain, normAddr } from './address'
 import { baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
 import { deskKey, keyOfToken, moneyOf } from './desk'
 import { decToRaw } from './leverage'
@@ -73,7 +74,7 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
       const brand = p.brand ?? p.venue
       const own = (p.name ?? '').replace(/\s*·\s*0x[0-9a-f]{4,}$/i, '').trim()
       out.push({ key: p.positionUid, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${own || p.asset.symbol || asset} · ${brand}`, venue: brand, valueUsd: p.suppliedUsd, apr: p.apr ?? p.rate?.total, earnUid: p.earnUid, logo: p.logoURI,
-        amount: parseFloat(p.assets) || 0, amountRaw: rawOf(p.assets, p.asset.decimals), symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18, assetAddress: p.asset.address?.toLowerCase() })
+        amount: parseFloat(p.assets) || 0, amountRaw: rawOf(p.assets, p.asset.decimals), symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18, assetAddress: normAddr(p.asset.address) })
       continue
     }
     // `Morpho sUSDS-USDT 97`: the positions route names the MARKET where the catalogue names the
@@ -123,7 +124,7 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
           // the label is the FAMILY, `venue` the market inside it: the two are printed together
           // (the asset page) and one under the other (the explorer), so neither may repeat the other
           out.push({ key: `${p.positionUid}:${a.accountId}:${l.marketUid}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${l.asset.symbol} · Lend on ${protocol}`, venue: venueOf(l.asset.symbol), valueUsd: l.depositsUsd, apr: p.depositApr, earnUid: l.earnUid, logo: l.asset.logoURI,
-            amount: parseFloat(l.deposits) || 0, amountRaw: rawOf(l.deposits, l.asset.decimals), symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, assetAddress: l.asset.address?.toLowerCase(), accountId: a.accountId === '0' ? undefined : a.accountId, lender: p.lender })
+            amount: parseFloat(l.deposits) || 0, amountRaw: rawOf(l.deposits, l.asset.decimals), symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, assetAddress: normAddr(l.asset.address), accountId: a.accountId === '0' ? undefined : a.accountId, lender: p.lender })
         }
       }
     }
@@ -133,7 +134,8 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
 
 /** One idle balance: one TOKEN on one chain (native ETH and WETH are two entries with the same base `asset`). */
 export interface Idle { asset: string; symbol: string; amount: number; usd: number; address: string; decimals: number; price: number; chainId: string }
-export const isNativeAddress = (a: string) => /^0x0{40}$/i.test(a) || /^0xe{40}$/i.test(a)
+/** Solana's balances route spells the native row's address `native` (there is no zero address on SVM). */
+export const isNativeAddress = (a: string) => /^0x0{40}$/i.test(a) || /^0xe{40}$/i.test(a) || a === 'native'
 /**
  * What the native coin of a chain IS. It used to be "BNB on 56, ETH
  * everywhere else", which was true until Avalanche was offered and then said
@@ -159,7 +161,10 @@ const NATIVE: Record<string, string> = {
   // balances belong in the US Dollar group with every other dollar, not in a drawer of oddities.
   // Tempo's pathUSD is dollar-priced too, but `assets.ts` keeps it in More and says why there.
   '5042': 'USDC', '988': 'USDT0', '4217': 'pathUSD',
+  'solana': 'SOL',
 }
+/** Native coin decimals: 18 on every EVM chain here, 9 for SOL (lamports). `ui/Ticket.tsx` reads this instead of hard-coding 18. */
+export const nativeDecimals = (chainId: string): number => (isSvmChain(chainId) ? 9 : 18)
 /** The coin the row reported, else what this chain is known to use, else ether. */
 export const nativeSymbol = (chainId: string, reported?: string): string => reported || NATIVE[chainId] || 'ETH'
 /**
@@ -197,18 +202,20 @@ export const WRAPPED_NATIVE: Record<string, string> = {
   '999': '0x5555555555555555555555555555555555555555', '143': '0x3bd359c1119da7da1d913d1c4d2b7c461115433a',
   '9745': '0x6100e367285b01f48d07953803a2d8dca5d19873', '137': '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270',
   '4663': '0x0bd7d308f8e1639fab988df18a8011f41eacad73', '98866': '0xea237441c92cae6fc17caaf9a7acb3f953be4bd1',
+  // wSOL — base58, case kept (normAddr is the identity on it)
+  'solana': 'So11111111111111111111111111111111111111112',
 }
 /** Is this token the chain's wrapped gas coin — i.e. can the native coin stand in for it on a deposit or withdraw? */
-export const wrapsNative = (chainId: string, address?: string) => !!address && WRAPPED_NATIVE[chainId] === address.toLowerCase()
+export const wrapsNative = (chainId: string, address?: string) => !!address && WRAPPED_NATIVE[chainId] === normAddr(address)
 const DUST_USD = 0.01
 export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
   const out: Idle[] = []
   const gasToken = GAS_TOKEN_ERC20[chainId]
-  const hasGasToken = !!gasToken && items.some((b) => b.address.toLowerCase() === gasToken.address)
+  const hasGasToken = !!gasToken && items.some((b) => normAddr(b.address) === gasToken.address)
   const view = NATIVE_ERC20_VIEW[chainId]
   const hasNative = !!view && items.some((b) => isNativeAddress(b.address))
   for (let b of items) {
-    if (hasNative && b.address.toLowerCase() === view) continue
+    if (hasNative && normAddr(b.address) === view) continue
     const native = isNativeAddress(b.address)
     // Arc / Stable: the native row is the token's balance again — count it once
     if (native && gasToken) {
@@ -226,7 +233,8 @@ export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
     // dust is not idle money: a native full exit through a wrap-less venue unwraps a floor and leaves
     // wei of WETH behind (docs/native-routes.md). Only a PRICED balance is judged — unpriced stays
     if (b.priceUSD && usd < DUST_USD) continue
-    out.push({ asset, symbol, amount, usd, address: native && !gasToken ? '0x0000000000000000000000000000000000000000' : b.address.toLowerCase(), decimals: b.decimals, price: b.priceUSD ?? (amount ? usd / amount : 0), chainId })
+    // native keeps the spelling its chain's routes use: the zero address on EVM, `native` on Solana
+    out.push({ asset, symbol, amount, usd, address: native && !gasToken && !isSvmChain(chainId) ? '0x0000000000000000000000000000000000000000' : normAddr(b.address), decimals: b.decimals, price: b.priceUSD ?? (amount ? usd / amount : 0), chainId })
   }
   return out
 }

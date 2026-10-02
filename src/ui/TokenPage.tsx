@@ -20,6 +20,7 @@ import { useAsset, useAssetBook, useAssetHistory, useAssetHolders, useFeedPage }
 import type { AssetBookRow, AssetHistory, AssetMarket, AssetSlice } from '../index/types'
 import { indexChainLabel, subjectOf } from '../index/types'
 import { chainLabel } from '../sdk/queries'
+import { normAddr } from '../model/address'
 import { useCounts, useProfiles } from '../social/queries'
 import { ChainMark } from './ChainMark'
 import { Slices } from './Curator'
@@ -208,7 +209,7 @@ export function TokenPage({ group }: { group: string }) {
       {d?.headline && (
         <section className="sec">
           <div className="sec-h"><h2>What holders say</h2><span className="sub">claims about {chainName(d.headline.chainId)} {sym}, weighted by what the claimant holds — never a score</span></div>
-          <div className="card pad rate-card"><Rate kind="asset" subject={`${d.headline.chainId}:${d.headline.address.toLowerCase()}`} /></div>
+          <div className="card pad rate-card"><Rate kind="asset" subject={`${d.headline.chainId}:${normAddr(d.headline.address)}`} /></div>
         </section>
       )}
 

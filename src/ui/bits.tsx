@@ -1,5 +1,6 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
+import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
 import { assetLogo, colorOf, short, unitOf } from '../model/assets'
 import { ChainMark, addressUrl, chainInfo, txUrl } from './ChainMark'
 import type { Risk } from '../model/strategies'
@@ -151,7 +152,8 @@ const FAMILY: [RegExp, string][] = [
 /** Candidate venue icons, most specific first; the badge walks them on load error and gives up quietly. */
 export function venueIconUrls(key: string): string[] {
   const f = FAMILY.find(([re]) => re.test(key))?.[1]
-  const base = key.toLowerCase().replace(/(_[0-9a-f]{40,64}|_\d+)+$/, '')
+  // the instance tail: 40–64 hex on EVM, a 32–44 char base58 pubkey (here already lower-cased) on Solana, a bare number
+  const base = key.toLowerCase().replace(/(_[0-9a-f]{40,64}|_[a-z0-9]{32,44}|_\d+)+$/, '').replace(/_main$/, '')
   return [...new Set([f, base.startsWith('vault.') ? undefined : base].filter((n): n is string => !!n))].map(iconUrl)
 }
 /** A PROTOCOL's mark (a filter chip, not a row): the generic family icon first, the index's instance logo only after it. */
@@ -238,7 +240,10 @@ export function CopyButton({ text, label = 'Copy address' }: { text: string; lab
  */
 /** `seen`, when given, dims every chain outside it — an explorer link for a chain the index has no activity on. */
 export function AddrExplorers({ addr, chainIds, seen }: { addr: string; chainIds: string[]; seen?: Set<string> }) {
-  const ids = [...new Set(chainIds)].filter((id) => addressUrl(id, addr))
+  // "the same address on every EVM chain" holds only inside one VM: a base58
+  // address exists on Solana alone, and a 0x one never does
+  const fits = (id: string) => (isSolAddr(addr) ? isSvmChain(id) : isEvmChain(id))
+  const ids = [...new Set(chainIds)].filter((id) => fits(id) && addressUrl(id, addr))
   if (!ids.length) return null
   return (
     <span className="addrx">

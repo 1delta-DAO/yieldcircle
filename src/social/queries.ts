@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { isEvmAddr, normAddr } from '../model/address'
 import * as api from './api'
 import type { Profile, SubjectKind } from './types'
 
@@ -31,8 +32,9 @@ export function useCounts(subjects: { kind: SubjectKind; key: string }[]) {
 
 export function useProfile(account: string | undefined) {
   return useQuery({
-    enabled: !!account,
-    queryKey: ['profile', account?.toLowerCase()],
+    // a base58 account 400s on the social service until it knows ed25519 identities
+    enabled: !!account && isEvmAddr(normAddr(account)),
+    queryKey: ['profile', normAddr(account)],
     queryFn: () => api.profile(account!),
     staleTime: MIN,
   })
@@ -40,7 +42,7 @@ export function useProfile(account: string | undefined) {
 
 /** Profiles for every address in a view, batched. Missing ones resolve to null and stay cached as null. */
 export function useProfiles(accounts: string[]) {
-  const want = [...new Set(accounts.map((a) => a.toLowerCase()).filter(Boolean))].sort()
+  const want = [...new Set(accounts.map((a) => normAddr(a)).filter(Boolean))].sort()
   const q = useQuery({
     enabled: want.length > 0,
     queryKey: ['profiles', want.join(',')],
@@ -48,31 +50,31 @@ export function useProfiles(accounts: string[]) {
     staleTime: 5 * MIN,
   })
   const map = q.data ?? {}
-  return { profile: (a: string): Profile | null => map[a.toLowerCase()] ?? null, isLoading: q.isLoading }
+  return { profile: (a: string): Profile | null => map[normAddr(a)] ?? null, isLoading: q.isLoading }
 }
 
 export function useFollowers(account: string | undefined) {
-  return useQuery({ enabled: !!account, queryKey: ['followers', account?.toLowerCase()], queryFn: () => api.followers(account!), staleTime: MIN })
+  return useQuery({ enabled: !!account && isEvmAddr(normAddr(account)), queryKey: ['followers', normAddr(account)], queryFn: () => api.followers(account!), staleTime: MIN })
 }
 
 /** Who the connected wallet follows — the feed's scope and every Follow button's state. */
 export function useMyFollows(account: string | undefined) {
   const q = useQuery({
     enabled: !!account,
-    queryKey: ['follows', account?.toLowerCase()],
+    queryKey: ['follows', normAddr(account)],
     queryFn: () => api.follows(account!),
     staleTime: 30_000,
   })
   const follows = q.data?.follows ?? []
   return {
     follows,
-    wallets: follows.filter((f) => f.targetKind === 'wallet').map((f) => f.target.toLowerCase()),
+    wallets: follows.filter((f) => f.targetKind === 'wallet').map((f) => normAddr(f.target)),
     // a market target is stored VERBATIM (a uid's protocol segment is case-significant)
     markets: follows.filter((f) => f.targetKind === 'market').map((f) => f.target),
     /** a desk the feed expands to its vault addresses (pos-indexer tickets/0013 §8.4) */
     curators: follows.filter((f) => f.targetKind === 'curator').map((f) => f.target),
     isFollowing: (kind: 'wallet' | 'market' | 'curator', target: string) =>
-      follows.some((f) => f.targetKind === kind && (kind === 'wallet' ? f.target.toLowerCase() === target.toLowerCase() : f.target === target)),
+      follows.some((f) => f.targetKind === kind && (kind === 'wallet' ? normAddr(f.target) === normAddr(target) : f.target === target)),
     isLoading: q.isLoading,
   }
 }
@@ -121,8 +123,8 @@ export function useSocialRefresh() {
   const qc = useQueryClient()
   return {
     thread: (kind: SubjectKind, key: string) => { void qc.invalidateQueries({ queryKey: ['thread', kind, key] }); void qc.invalidateQueries({ queryKey: ['counts'] }) },
-    follows: (account?: string) => { void qc.invalidateQueries({ queryKey: ['follows', account?.toLowerCase()] }); void qc.invalidateQueries({ queryKey: ['followers'] }); void qc.invalidateQueries({ queryKey: ['feed1'] }) },
-    profile: (account?: string) => { void qc.invalidateQueries({ queryKey: ['profile', account?.toLowerCase()] }); void qc.invalidateQueries({ queryKey: ['profiles'] }) },
+    follows: (account?: string) => { void qc.invalidateQueries({ queryKey: ['follows', normAddr(account)] }); void qc.invalidateQueries({ queryKey: ['followers'] }); void qc.invalidateQueries({ queryKey: ['feed1'] }) },
+    profile: (account?: string) => { void qc.invalidateQueries({ queryKey: ['profile', normAddr(account)] }); void qc.invalidateQueries({ queryKey: ['profiles'] }) },
     ratings: (kind: api.RatingSubjectKind, key: string) => { void qc.invalidateQueries({ queryKey: ['ratings', kind, key] }); void qc.invalidateQueries({ queryKey: ['rating-counts'] }) },
   }
 }

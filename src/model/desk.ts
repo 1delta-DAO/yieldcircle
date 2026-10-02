@@ -18,6 +18,7 @@
  * ticker it does not curate.
  */
 import DESKS from '../data/desks.json'
+import { normAddr } from './address'
 import { baseInfo, baseOfSymbol, deskById, deskOfBase, groupOf, learnDesk, learnUnattributed, type DeskGroup } from './assets'
 
 export interface IssuerLike { id: string; name?: string | null; kind?: string | null; hops?: number }
@@ -37,7 +38,7 @@ export interface DeskToken {
 const TABLE: Record<DeskGroup, Record<string, string>> = { USD: DESKS.tokens as Record<string, string>, ETH: DESKS.eth as Record<string, string>, BTC: DESKS.btc as Record<string, string> }
 const NAMES = DESKS.desks as unknown as Record<string, [string, string | null]>
 const SEEN = new Map<string, string>()
-const at = (t: DeskToken) => (t.chainId && t.address ? `${t.chainId}:${t.address.toLowerCase()}` : '')
+const at = (t: DeskToken) => (t.chainId && t.address ? `${t.chainId}:${normAddr(t.address)}` : '')
 const byHops = (a: IssuerLike, b: IssuerLike) => (a.hops ?? 9) - (b.hops ?? 9)
 const isWrapper = (p: DeskToken['props']) => !!(p && (p.pendle || p.spectra || p.exponent || p.receipt))
 /** Desks that only ever issue the WRAPPER: whose contract, never whose credit. */
@@ -128,5 +129,5 @@ export const keyOfToken = (t: DeskToken): string | undefined => { const m = mone
 
 /** Remember the row the catalogue gave a token, for the responses that carry only its address. */
 export function noteToken(chainId: string, address: string | undefined, key: string): void {
-  if (address) SEEN.set(`${chainId}:${address.toLowerCase()}`, key)
+  if (address) SEEN.set(`${chainId}:${normAddr(address)}`, key)
 }

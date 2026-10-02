@@ -5,6 +5,7 @@
  * only, no fetching except the one-line hooks that are genuinely per-widget.
  */
 import React from 'react'
+import { normAddr } from '../model/address'
 import { Character, unearned, specFor } from '../identity/character'
 import { AUTO_TITLE, labelFor, shortAddr } from '../identity/name'
 import { useMyFollows, useSocialRefresh } from '../social/queries'
@@ -282,7 +283,7 @@ export function FollowButton({ kind, target, small, label, quiet }: {
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
   const on = f.isFollowing(kind, target)
-  const mine = kind === 'wallet' && account && target.toLowerCase() === account
+  const mine = kind === 'wallet' && account && normAddr(target) === account
   if (mine) return null
   const go = async (e: React.MouseEvent) => {
     e.stopPropagation(); e.preventDefault()

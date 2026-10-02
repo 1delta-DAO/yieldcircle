@@ -5,6 +5,7 @@
  * and nothing to log out of.
  */
 import { SOCIAL_BASE_URL } from '../config/backend'
+import { normAddr } from '../model/address'
 import type { Follow, Follower, Profile, ProfileResponse, SubjectKind, Thread, ThreadSummary, TypedData } from './types'
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -46,7 +47,11 @@ export const profile = async (account: string): Promise<ProfileResponse> => {
  * of what the index owes this app — docs/social.md §9).
  */
 export async function profiles(accounts: string[]): Promise<Record<string, Profile | null>> {
-  const want = [...new Set(accounts.map((a) => a.toLowerCase()))].filter(Boolean)
+  // the service verifies 0x authors only (ADDR regex server-side): a base58
+  // account in the batch would 400 the WHOLE request and cost every EVM
+  // profile on the page, so Solana wallets resolve to null until social
+  // accepts ed25519 identities (docs/solana.md §F)
+  const want = [...new Set(accounts.map((a) => normAddr(a)))].filter((a) => /^0x[0-9a-f]{40}$/.test(a))
   if (!want.length) return {}
   try {
     const r = await call<{ profiles: Record<string, Profile | null> }>('/profiles', post('/profiles', { accounts: want }))
@@ -197,7 +202,8 @@ export const eventKey = (e: { chainId: string; txHash: string; logIndex: number;
  * `logIndex` nobody knows until the log is decoded.
  */
 export const positionKey = (x: { chainId: string; account: string; marketUid: string; side: string; posId?: string | null }) =>
-  `${x.chainId}|${x.account.toLowerCase()}|${x.marketUid}|${x.side}|${x.posId ?? ''}`
+  `${x.chainId}|${normAddr(x.account)}|${x.marketUid}|${x.side}|${x.posId ?? ''}`
 /** A market uid is stored VERBATIM: its protocol segment is case-significant. */
 export const marketKey = (uid: string) => uid
-export const walletKey = (a: string) => a.toLowerCase()
+/** hex lowered, base58 verbatim (docs/solana.md §F: the key choice is agreed with social before the first Solana thread) */
+export const walletKey = (a: string) => normAddr(a)

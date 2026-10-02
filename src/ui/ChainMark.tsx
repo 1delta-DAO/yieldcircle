@@ -21,7 +21,11 @@
 import React from 'react'
 import { useChainMeta } from '../sdk/queries'
 
-export interface ChainInfo { id: string; name: string; short: string; color: string; explorer: string; explorerName: string }
+export interface ChainInfo {
+  id: string; name: string; short: string; color: string; explorer: string; explorerName: string
+  /** the explorer's address path where it is not `/address/` (Solscan says `/account/`) */
+  accountPath?: string
+}
 export const CHAIN_INFO: Record<string, ChainInfo> = {
   '1': { id: '1', name: 'Ethereum', short: 'ETH', color: '#627eea', explorer: 'https://etherscan.io', explorerName: 'Etherscan' },
   '8453': { id: '8453', name: 'Base', short: 'BASE', color: '#0052ff', explorer: 'https://basescan.org', explorerName: 'Basescan' },
@@ -44,6 +48,8 @@ export const CHAIN_INFO: Record<string, ChainInfo> = {
   '4217': { id: '4217', name: 'Tempo', short: 'TEMPO', color: '#64748b', explorer: 'https://explore.tempo.xyz', explorerName: 'Tempo Explorer' },
   '988': { id: '988', name: 'Stable', short: 'STBL', color: '#64748b', explorer: 'https://stablescan.xyz', explorerName: 'Stablescan' },
   '98866': { id: '98866', name: 'Plume', short: 'PLUME', color: '#64748b', explorer: 'https://explorer.plume.org', explorerName: 'Plume Explorer' },
+  // the one non-EVM chain. Solscan's paths differ: a wallet is /account/, a transaction /tx/.
+  'solana': { id: 'solana', name: 'Solana', short: 'SOL', color: '#9945ff', explorer: 'https://solscan.io', explorerName: 'Solscan', accountPath: '/account/' },
 }
 
 /** the ids `Glyph` draws; the rest wear their own letters */
@@ -58,7 +64,7 @@ export const chainInfo = (id: string | undefined): ChainInfo | undefined => (id 
 export const txUrl = (chainId: string | undefined, hash: string | undefined) =>
   chainId && hash && chainInfo(chainId) ? `${chainInfo(chainId)!.explorer}/tx/${hash}` : undefined
 export const addressUrl = (chainId: string | undefined, address: string | undefined) =>
-  chainId && address && chainInfo(chainId) ? `${chainInfo(chainId)!.explorer}/address/${address}` : undefined
+  chainId && address && chainInfo(chainId) ? `${chainInfo(chainId)!.explorer}${chainInfo(chainId)!.accountPath ?? '/address/'}${address}` : undefined
 
 function Glyph({ id }: { id: string }) {
   switch (id) {

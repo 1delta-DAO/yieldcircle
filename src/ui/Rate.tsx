@@ -23,6 +23,7 @@
  */
 import React from 'react'
 import { useRatingLabels, useRatings, useSocialRefresh } from '../social/queries'
+import { normAddr } from '../model/address'
 import { useSocialWrite } from '../social/sign'
 import type { RatingLabel, RatingLabelAgg, RatingSubjectKind, RatingVote } from '../social/api'
 import { Who } from './social-bits'
@@ -99,7 +100,7 @@ export function Rate({
   const conviction = applicable.filter((l) => l.group === 'conviction')
   const serious = applicable.filter((l) => l.group !== 'conviction')
   const mine = new Set(
-    (q.data?.votes ?? []).filter((v) => v.account.toLowerCase() === account).map((v) => v.label),
+    (q.data?.votes ?? []).filter((v) => normAddr(v.account) === account).map((v) => v.label),
   )
   const said = q.data?.totals.wallets ?? 0
   const followed = Object.entries(q.data?.byFollowed ?? {})

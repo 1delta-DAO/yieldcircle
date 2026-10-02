@@ -19,10 +19,11 @@ const rpc = (c: Chain) => {
 }
 
 /**
- * Every chain `CHAINS` in `sdk/queries.ts` offers must be here: `switchChain`
- * throws `ChainNotConfiguredError` for any other id (and cannot hand the
- * wallet the params for `wallet_addEthereumChain`), and a receipt watcher has
- * no client to poll. Tempo is written out by hand: viem's `tempo` carries
+ * Every EVM chain `CHAINS` in `sdk/queries.ts` offers must be here (that is
+ * `EVM_CHAINS`; `solana` is wallet-standard's, not wagmi's — `wallet/solana.ts`):
+ * `switchChain` throws `ChainNotConfiguredError` for any other id (and cannot
+ * hand the wallet the params for `wallet_addEthereumChain`), and a receipt
+ * watcher has no client to poll. Tempo is written out by hand: viem's `tempo` carries
  * Tempo's own transaction formatters (for its native account type, not a plain
  * `eth_sendTransaction` through a wallet) and ~340 kB of `ox/tempo` with them.
  */

@@ -8,6 +8,8 @@
  * never has to switch to leave a comment.
  */
 import { useAccount, useSignTypedData } from 'wagmi'
+import { base58Encode } from '../model/address'
+import { solSignMessage } from '../wallet/solana'
 import * as api from './api'
 import type { RatingSubjectKind } from './api'
 import type { SubjectKind } from './types'
@@ -97,6 +99,28 @@ const now = () => Math.floor(Date.now() / 1000)
  * posted — a caller awaits the write, not the signature.
  */
 export interface Envelope { primaryType: PrimaryType; message: Record<string, unknown>; signature: string }
+
+/**
+ * The SOLANA signer (docs/solana.md §F): ed25519 over the JSON-canonical,
+ * domain-separated form of the same typed payload. **Not wired into `send`
+ * yet** — the social service verifies EIP-712 over a `0x` author only
+ * (`packages/social`: `hexToBuf` on accounts, the ADDR regex), so a write
+ * signed this way is refused today. It exists so the payload shape is agreed
+ * and pinned before the first Solana thread is written; when the service
+ * accepts ed25519 identities, `sign` below picks the signer by the author's
+ * VM and nothing else changes.
+ */
+export async function signSolanaEnvelope<T extends PrimaryType>(primaryType: T, message: Record<string, unknown>): Promise<Envelope> {
+  const sig = await solSignMessage(canonicalJson({ domain: DOMAIN, primaryType, message }))
+  return { primaryType, message, signature: base58Encode(sig) }
+}
+/** Deterministic JSON: object keys sorted at every depth, arrays kept in order. The exact form the verifier must reproduce. */
+function canonicalJson(v: unknown): string {
+  if (Array.isArray(v)) return '[' + v.map(canonicalJson).join(',') + ']'
+  if (v && typeof v === 'object')
+    return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canonicalJson((v as Record<string, unknown>)[k])).join(',') + '}'
+  return JSON.stringify(v)
+}
 
 export function useSocialWrite() {
   const { address } = useAccount()

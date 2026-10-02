@@ -17,6 +17,7 @@ import { AutoTag, Badges, FollowButton, Impaired, Money, Who, Ago, describeBundl
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
+import { normAddr } from '../model/address'
 import { AddrExplorers, CopyButton, Sk, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
@@ -26,7 +27,10 @@ import { TokLink } from './TokenPage'
 
 export function Wallet({ addr }: { addr: string }) {
   const { address } = useAccount()
-  const isMe = address?.toLowerCase() === addr
+  const { solSigner } = useApp()
+  // "me" is per VM: the EVM signer OR the Solana one — the hard rule (never
+  // the index for the connected user's positions) holds on both
+  const isMe = normAddr(address) === addr || (!!solSigner && solSigner === addr)
   const p = useProfile(addr)
   const profile = p.data?.profile ?? null
   const followers = useFollowers(addr)

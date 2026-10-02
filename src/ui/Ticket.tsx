@@ -1,17 +1,18 @@
 import React from 'react'
 import { nameOf, unitOf } from '../model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
-import type { LoopStrategy, LoopTerm, SimpleStrategy, Strategy } from '../model/strategies'
-import type { LoopActions } from '../sdk/types'
-import { nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
+import { dateOf, exitTerms, type LoopStrategy, type LoopTerm, type SimpleStrategy, type Strategy } from '../model/strategies'
+import { isSvmTx, type LoopActions } from '../sdk/types'
+import { nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
 import { earnDeposit, earnWithdraw, loopClose, loopOpen, ZERO } from '../sdk/api'
-import { chainLabel, useCloseQuote, useIrm, useLoopPayAssets, useLoopQuote, useRateHistory } from '../sdk/queries'
+import { chainLabel, SOL_POSITIONS_READY, useCloseQuote, useIrm, useLoopPayAssets, useLoopQuote, useRateHistory } from '../sdk/queries'
 import { seriesFor } from '../model/rateHistory'
 import { RateHistoryPanel, useSparkRewards } from './Spark'
 import { useApp, type Mode } from '../state/AppState'
 import { useSticky } from '../state/sticky'
 import { DecimalInput, Info, KindPill, LegsPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
 import { Who } from './social-bits'
+import { isSvmChain, normAddr } from '../model/address'
 import { useProfiles } from '../social/queries'
 import { stepsFrom, useLadder, type Ladder, type Step } from './useLadder'
 import { isDone, useTrace } from '../sdk/txTrace'
@@ -135,9 +136,9 @@ const SOURCE_WORDS: Record<string, string> = {
 type PayRole = 'native' | 'token'
 interface PayOption { role: PayRole; address: string; symbol: string; decimals: number }
 function payOptions(s: SimpleStrategy): PayOption[] {
-  const token: PayOption = { role: 'token', address: s.assetAddress.toLowerCase(), symbol: s.assetSymbol, decimals: s.decimals }
+  const token: PayOption = { role: 'token', address: normAddr(s.assetAddress), symbol: s.assetSymbol, decimals: s.decimals }
   const native = s.nativeIn ?? (wrapsNative(s.chainId, s.assetAddress) && !startsAny(s.venueKey, NO_NATIVE_DEPOSIT))
-  return native ? [{ role: 'native', address: ZERO, symbol: nativeSymbol(s.chainId), decimals: 18 }, token] : [token]
+  return native ? [{ role: 'native', address: ZERO, symbol: nativeSymbol(s.chainId), decimals: nativeDecimals(s.chainId) }, token] : [token]
 }
 /**
  * The API answers "can the coin go in / come out here" itself (`acceptsNative`, read into
@@ -168,7 +169,8 @@ const nativeMaxRounds = (key: string, chainId: string) => Object.entries(NATIVE_
  * deposit, a bundler call, or Gearbox's wrap step).
  */
 function paysNative(a: LoopActions | null | undefined): boolean {
-  return [...(a?.permissions ?? []), ...(a?.transactions ?? []), ...(a?.alternatives ?? []).slice(0, 1)].some((t) => { try { return BigInt(t.value || '0') > 0n } catch { return false } })
+  // an svm step has no `value` and resolves its lamport transfers inside the message: trust it
+  return [...(a?.permissions ?? []), ...(a?.transactions ?? []), ...(a?.alternatives ?? []).slice(0, 1)].some((t) => { if (isSvmTx(t)) return true; try { return BigInt(t.value || '0') > 0n } catch { return false } })
 }
 /**
  * A loop answer with no quote has no swap route: `quotes: []`, no transactions, and still the
@@ -177,7 +179,9 @@ function paysNative(a: LoopActions | null | undefined): boolean {
 const hasRoute = (d: { quotes?: unknown[] } | null | undefined) => !!d?.quotes?.length
 const NO_ROUTE = 'No swap route at this size right now, so there is nothing to sign. Try another amount or leverage, or come back later.'
 function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[] }) {
-  const { account, isConnected } = useApp()
+  const { account, isConnected, solSigner } = useApp()
+  // who the API builds for: the VM's own signer — a Solana row is built for the Solana wallet
+  const actor = isSvmChain(s.chainId) ? solSigner : account
   const [getOpen, setGetOpen] = React.useState(false)
   const opts = React.useMemo(() => payOptions(s), [s.id])
   // the balance of the EXACT token: a wstETH row is not paid with the wallet's ETH, and WHYPE is not HYPE until the API is told so
@@ -195,7 +199,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
   const yearly = amtUsd * s.rate / 100
   const key = [s.id, amount, chosen.role, account ?? ''].join('|')
   const ladder = useLadder(key, s.chainId, async () => {
-    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: account!, payAsset: chosen.role === 'native' ? ZERO : undefined })
+    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: actor!, payAsset: chosen.role === 'native' ? ZERO : undefined })
     if (chosen.role === 'native' && !paysNative(env.actions)) throw new Error(`${s.brand} does not take ${chosen.symbol} directly here. Pay with ${s.assetSymbol}.`)
     return stepsFrom(env.actions, s.via, s.chainId)
   }, [s.earnUid, s.marketUid])
@@ -204,9 +208,10 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
   // pool that is 94 % lent out is not the "rare, short" case the generic
   // sentence describes, and the figure to check it against is right there
   const tight = s.utilization != null && s.utilization >= 0.9
+  const exit = exitTerms(s)
   const risks = [
     s.source === 'lending' ? 'Rate floats with utilisation.' : s.source === 'fixed' ? 'Carry ends at maturity; roll or redeem.' : s.source === 'staking' ? 'Staking rate drifts with network activity; slashing is socialised.' : 'Rate is set by the protocol and can change.',
-    s.exitWord !== 'Any time' ? `Exit is ${s.exitWord.toLowerCase()}: you may wait to get out at par.`
+    exit.risk ? exit.risk
       : tight ? `${Math.round(s.utilization! * 100)}% of this market is lent out — only ${usdShort(s.liquidityUsd)} can be withdrawn right now, and a bigger exit waits for a borrower to repay.`
       : 'Withdrawals wait if the pool is fully borrowed (rare, short).',
     ...(s.risk >= 3 ? ['Rated high risk by the API\'s venue and token scoring.'] : []),
@@ -227,14 +232,14 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
         {getOpen && <GetAsset targets={opts.map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price, logo: o.role === 'token' ? s.logo : undefined, have: balOf(o.address)?.amount ?? 0 }))} want={amount} sources={allIdle}
           onTarget={(t) => setRole(opts.find((o) => o.address === t.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}</div>
       <div className="tsec"><div className="cells">
-        <div className="c hero"><span className="k">You earn</span><span className={`v ${s.rate >= 3 ? 'ok' : ''}`}>{pct(s.rate)}</span><span className="s">{s.maturity ? `fixed to ${new Date(s.maturity * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'variable'}{s.rewards > 0.05 ? ` · incl. ${pct(s.rewards)} rewards` : ''}</span>
+        <div className="c hero"><span className="k">You earn</span><span className={`v ${s.rate >= 3 ? 'ok' : ''}`}>{pct(s.rate)}</span><span className="s">{s.maturity ? `fixed to ${dateOf(s.maturity)}` : 'variable'}{s.rewards > 0.05 ? ` · incl. ${pct(s.rewards)} rewards` : ''}</span>
           {/* what MOVES the headline: absent on a vault and on the families that do not price off utilisation, which is exactly when there is nothing to open */}
           <IrmLink uid={s.marketUid} side="supply" rewards={s.rewards} /></div>
         <div className="c"><span className="k">Per year</span><span className="v">{usd(yearly)}</span><span className="s">≈ {usd(yearly / 12)} / month</span></div>
         {/* the vault's own name under the share token: `steakUSDC` / `Steakhouse USDC`. WHICH vault is the thing the venue alone never says. */}
         <div className="c"><span className="k">You hold</span><span className="v">{s.holds}</span><span className="s" title={s.vaultName ? `${s.vaultName} · ${s.venue}` : s.venue}>{s.vaultName ?? s.venue}</span></div>
         <div className="c"><span className="k">Risk</span><span className="v" style={{ fontSize: 14 }}><RiskDot r={s.risk} label={s.riskLabel} /></span><span className="s">{s.source} yield</span></div>
-        <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{s.exitWord}</span><span className="s">{s.exitWord === 'Any time' ? 'same block' : 'may take time'}</span></div>
+        <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{exit.word}</span><span className="s">{exit.when}</span></div>
         {/* SIZE and LIQUIDITY are two questions, and the ticket used to answer
             neither properly — the size hid under the exit word and how much of
             it could actually leave was nowhere. A $200m pool that is 99 % lent
@@ -284,7 +289,8 @@ const defaultTerm = (ts: LoopTerm[]) => [...ts].sort((a, b) => a.apr - b.apr || 
 const dayOf = (days: number) => new Date(Date.now() + days * 86400_000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
 function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle[]; allIdle: Idle[]; holding: Holding | null }) {
-  const { account, isConnected } = useApp()
+  const { account, isConnected, solSigner } = useApp()
+  const actor = isSvmChain(s.chainId) ? solSigner : account
   const [getOpen, setGetOpen] = React.useState(false)
   const unit = unitOf(s.asset)
   // pay with the collateral or the debt token, whichever the venue accepts and the wallet holds more of
@@ -296,7 +302,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
     return list
   }, [pay.data, s.id])
   // the pay-with chips read the exact token: native is the zero address in the balances (and the API), wrapped is its own entry
-  const balOf = (address: string, _symbol: string) => idle.find((i) => i.address === address.toLowerCase())
+  const balOf = (address: string, _symbol: string) => idle.find((i) => i.address === normAddr(address))
   const [role, setRole] = useSticky<'collateral' | 'debt' | 'native' | null>(`t:${s.id}:role`, null)
   const chosen = opts.find((o) => o.role === role) ?? [...opts].sort((a, b) => (balOf(b.address, b.symbol)?.usd ?? 0) - (balOf(a.address, a.symbol)?.usd ?? 0))[0]
   const bal = chosen ? balOf(chosen.address, chosen.symbol) : undefined
@@ -340,7 +346,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
   const ladder = useLadder(key, s.chainId, async () => {
     const debtTokens = s.priceShort ? D / s.priceShort : 0
     const env = await loopOpen({
-      collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: 50, leverage: L, account: account!,
+      collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: 50, leverage: L, account: actor!,
       payAsset: chosen ? (chosen.role === 'native' ? ZERO : chosen.address) : undefined, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined, termId: term?.id,
     })
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
@@ -358,7 +364,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
         {holding && <LegsNote h={holding} holds={s.holds} debt={s.debt} adding />}
         {chosen && <GetLine account={account} short={!bal || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />}
         {getOpen && chosen && <GetAsset targets={getForms(opts, chosen, s.chainId).map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price: o.price || price || 1, logo: o.logo, have: balOf(o.address, o.symbol)?.amount ?? 0 }))} want={amount} sources={allIdle}
-          onTarget={(t) => setRole(opts.find((o) => o.address.toLowerCase() === t.address.toLowerCase())?.role ?? null)} onClose={() => setGetOpen(false)} />}
+          onTarget={(t) => setRole(opts.find((o) => normAddr(o.address) === normAddr(t.address))?.role ?? null)} onClose={() => setGetOpen(false)} />}
         {s.terms && term && <>
           <span className="lbl" style={{ marginTop: 14 }}>Fix the {s.debt} rate for <Info label="Fixed-rate borrowing">
             <p style={{ margin: '0 0 6px' }}>{s.venue} lends {s.debt} here at a rate it sets for each term, the same at any size. The rate you pick is locked from today until the term ends.</p>
@@ -410,7 +416,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
           {!!holding && <li><i /><span>This opens a second loan beside the one you hold, on the same collateral. Each has its own term and is repaid on its own.</span></li>}
         </> : <li className="w"><i /><span>Net yield goes negative if the {s.debt} borrow rate rises above the {s.holds} rate.</span></li>}
         <li className="w"><i /><span>Liquidation if {s.holds} trades at a discount to {s.debt}.</span></li>
-        {s.expiry && <li><i /><span>The collateral matures on {new Date(s.expiry * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}; the position must be closed or rolled.</span></li>}
+        {s.expiry && <li><i /><span>The collateral matures on {dateOf(s.expiry)}; the position must be closed or rolled.</span></li>}
         {s.rewardsLong + s.rewardsShort > 0.05 && <li><i /><span>Part of the rate is incentives that can stop without notice.</span></li>}
       </ul></div>
       {noRoute && <div className="err" style={{ margin: '0 0 10px' }}>{NO_ROUTE}</div>}
@@ -421,7 +427,8 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
 
 /** Withdraw from a deposit the wallet already holds. `s` is null for a position the menu has no row for. */
 function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mode: Mode }) {
-  const { account, isConnected } = useApp()
+  const { account, isConnected, solSigner } = useApp()
+  const actor = isSvmChain(h.chainId) ? solSigner : account
   const all = mode === 'close'
   const [amount, setAmount] = useSticky<number>(`t:${h.key}:withdraw`, () => +(h.amount / 2).toFixed(6))
   const eff = all ? h.amount : Math.min(amount, h.amount)
@@ -441,10 +448,11 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const key = [s?.id ?? h.key, mode, eff, native ? 'native' : 'token', account ?? ''].join('|')
   const rate = s?.rate ?? h.apr
   const ladder = useLadder(key, h.chainId, async () => {
-    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: all && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: account!, isAll: fullExit, receiveAsset: native ? ZERO : undefined })
+    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: all && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: actor!, isAll: fullExit, receiveAsset: native ? ZERO : undefined })
     return stepsFrom(env.actions, 'Withdraw', h.chainId)
   }, [s?.earnUid, h.earnUid])
   const price = h.amount > 0 ? h.valueUsd / h.amount : 0
+  const exit = s && exitTerms(s)
   return (
     <>
       <div className="tsec">
@@ -460,7 +468,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
       <div className="tsec"><div className="cells">
         <div className="c hero"><span className="k">You get back</span><span className="v">{usd(eff * price)}</span><span className="s">{num(eff, 4)} {outSym} to your wallet</span></div>
         <div className="c"><span className="k">Left in</span><span className="v">{num(Math.max(0, h.amount - eff), 4)}</span><span className="s">{h.symbol}{rate != null ? ` · still earning ${pct(rate)}` : ''}</span></div>
-        {s && <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{s.exitWord}</span><span className="s">{s.exitWord === 'Any time' ? 'same block' : 'may take time'}</span></div>}
+        {exit && <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{exit.word}</span><span className="s">{exit.when}</span></div>}
       </div></div>
       <Action ladder={ladder} label={`Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={!(eff > 0)} chainId={h.chainId} />
     </>
@@ -477,7 +485,8 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
  * nothing but the two market uids the position already names.
  */
 function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; closeFirst?: boolean }) {
-  const { account, isConnected } = useApp()
+  const { account, isConnected, solSigner } = useApp()
+  const actor = isSvmChain(h.chainId) ? solSigner : account
   const holds = s?.holds ?? h.symbol, debt = s?.debt ?? h.debtSymbol ?? 'debt'
   // the book as the API reports it: equity and leverage from the position, prices only to size the legs in tokens
   const E = Math.max(h.valueUsd, 0.01)
@@ -543,12 +552,12 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const ladder = useLadder(key, h.chainId, async () => {
     if (down || !s) {
       const amountRaw = closing && !keep ? allRaw : toRaw(closing ? sellKeep! : sellTok, h.decimals)
-      const env = await loopClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: 50, isAll: closing, account: account!, accountId: h.accountId, loanId: loan?.id })
+      const env = await loopClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: 50, isAll: closing, account: actor!, accountId: h.accountId, loanId: loan?.id })
       if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
       return stepsFrom(env.actions, closing ? `Close the loop · receive ${keep ? holds : debt}` : `Deleverage to ${num(L, 2)}×`, h.chainId)
     }
     // a pure leverage step: borrow more against what is there, no new margin
-    const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: 50, leverage: L, account: account! })
+    const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: 50, leverage: L, account: actor! })
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     return stepsFrom(env.actions, `Increase to ${num(L, 2)}×`, h.chainId)
   }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid])
@@ -651,11 +660,19 @@ function Action({ ladder: l, label, account, isConnected, disabled, chainId }: {
   const { setViewAs } = useApp()
   const { uid } = React.useContext(TicketCtx)
   const viewing = !!account && !isConnected
+  // Solana actions open together with the positions read (docs/solana.md
+  // "Sequencing" step 4): the deposit route already builds, but a deposit the
+  // app cannot read back is money that vanishes from the user's book — so the
+  // button waits for `SOL_POSITIONS_READY` and says so, rather than signing
+  // into a blind spot.
+  const solWait = isSvmChain(chainId) && !SOL_POSITIONS_READY
   if (!l.bundle) return (
     <div className="tsec cta">
       {l.err && <div className="err">{l.err}</div>}
-      {!account ? <button className="btn wide pri" onClick={() => setViewAs(undefined)} disabled>Connect a wallet to continue</button>
+      {solWait ? <button className="btn wide" disabled>Transactions on Solana open shortly — browsing and tracking work today</button>
+        : !account ? <button className="btn wide pri" onClick={() => setViewAs(undefined)} disabled>Connect a wallet to continue</button>
         : viewing ? <button className="btn wide" disabled>Viewing {account.slice(0, 6)}… · connect to sign</button>
+        : !l.isConnected ? <button className="btn wide" disabled>{isSvmChain(chainId) ? 'Connect a Solana wallet (Phantom, Solflare, Backpack) to sign' : 'Connect a wallet to sign'}</button>
         : <button className="btn wide pri" disabled={disabled || l.busy} onClick={() => l.start(label)}>{l.busy ? 'Building…' : label}</button>}
       {!viewing && <SayWhy uid={uid} />}
       <div className="foot" style={{ marginTop: 8 }}>The API builds the exact calls (approvals, then the action); nothing is sent until you sign each one. Gas on {chainLabel(chainId)}.</div>

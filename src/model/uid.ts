@@ -3,8 +3,9 @@
  *
  * A LOOP is already joined: the index's `createMarketUid` is a port of the
  * lending-sdks function the optimizer uses — `<lender>:<chainId>:<ref>` with
- * the ref lower-cased — so `marketLongUid` here and `market_uid` there are the
- * same string, and so is the social thread key. Nothing to translate.
+ * the ref lower-cased on EVM chain ids (base58 keeps its case) — so
+ * `marketLongUid` here and `market_uid` there are the same string, and so is
+ * the social thread key. Nothing to translate.
  *
  * A DEPOSIT is not. `/v1/data/earn` rows carry an `earnUid`, which spans
  * lending markets AND vaults, while the index keys a vault
@@ -19,12 +20,19 @@
  * never as an error.
  */
 import type { EarnMarket } from '../sdk/types'
+import { isEvmChain } from './address'
 import type { Strategy } from './strategies'
 
-/** `<lender>:<chainId>:<ref>` — the index's shape, ported (never imported). */
+/**
+ * `<lender>:<chainId>:<ref>` — the index's shape, ported (never imported).
+ * The ref is lower-cased only on EVM chain ids: hex is case-insignificant,
+ * base58 is not — a lowered Solana ref is a DIFFERENT key, and would orphan
+ * the market's threads and holders (lending-sdks-sol `marketUid.ts` does the
+ * same).
+ */
 export function createMarketUid(chainId: string, lender: string, ref: string): string | null {
   if (!chainId || !lender || !ref) return null
-  return `${lender}:${chainId}:${ref.toLowerCase()}`
+  return `${lender}:${chainId}:${isEvmChain(chainId) ? ref.toLowerCase() : ref}`
 }
 
 /** The index / social uid of one `/v1/data/earn` row. */

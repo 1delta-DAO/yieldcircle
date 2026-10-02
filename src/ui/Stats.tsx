@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as idx from '../index/api'
 import { useFollowers } from '../social/queries'
 import { usdShort } from './bits'
+import { normAddr } from '../model/address'
 
 export function useMyStats(account: string | undefined) {
   const board = useQuery({
@@ -22,8 +23,8 @@ export function useMyStats(account: string | undefined) {
     retry: false,
   })
   const f = useFollowers(account)
-  const a = account?.toLowerCase()
-  const i = a ? (board.data?.rows ?? []).findIndex((r) => r.account.toLowerCase() === a) : -1
+  const a = normAddr(account)
+  const i = a ? (board.data?.rows ?? []).findIndex((r) => normAddr(r.account) === a) : -1
   return {
     rank: i >= 0 ? i + 1 : null,
     perDay: i >= 0 ? board.data!.rows[i].perDayUsd : null,
@@ -52,7 +53,7 @@ export function MyStats({ account }: { account: string }) {
   return (
     <div className="mystats">
       <a href="#/board"><b>{s.rank != null ? `#${s.rank}` : '—'}</b><small>{s.rank != null ? `${usdShort(s.perDay)}/day on the board` : 'not on the board'}</small></a>
-      <a href={`#/w/${account.toLowerCase()}`}><b>{s.followers ?? '—'}</b><small>follower{s.followers === 1 ? '' : 's'}</small></a>
+      <a href={`#/w/${normAddr(account)}`}><b>{s.followers ?? '—'}</b><small>follower{s.followers === 1 ? '' : 's'}</small></a>
     </div>
   )
 }

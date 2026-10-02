@@ -1,6 +1,23 @@
 # 0001 — Solana in YieldCircle: catalogue, positions, actions, feed
 
-- status: open
+- status: in progress — the client side of workstreams A–F landed 2026-10-02
+  (uids/addresses, the `solana` chain, two-index routing, wallet-standard +
+  svm ladder + signature watcher, composer gating). Still open here:
+  - flip `SOL_POSITIONS_READY` (`sdk/queries.ts`) when worker-api serves
+    `/v1/data/earn/positions` for base58 (§4.2) — the book, withdraw/manage
+    flows AND the ticket's Solana action buttons activate with it (deposit
+    already builds server-side — verified 2026-10-02, Kamino USDC answers one
+    `chainType: 'svm'` step — but a deposit the app cannot read back is gated
+    on purpose);
+  - Solana rows in feed/Hot/holders appear once pos-indexer item 2 (EVM
+    shapes on sol-positions) ships — the client already fans out and reads
+    a non-matching shape as empty;
+  - `search/rank.ts` gained base58/string-chain-id recognition ahead of its
+    source: port the same hunk to pos-indexer `packages/position-store/src/search.ts`
+    (until then `pnpm search-rank` reports a diff);
+  - pos-indexer owes a `protocolKeyOf` rule for Solana lender keys
+    (`KAMINO_<pubkey>`, `JUPITER_LEND_main_8`) before protocol filters can
+    fold them; the app's copy stays in step with the index's.
 - created: 2026-10-01
 - area: `src/model/uid.ts`, `src/wallet/*`, `src/ui/useLadder.ts`,
   `src/sdk/*`, `src/index/*`, `src/config/backend.ts`, `src/social/sign.ts`

@@ -26,6 +26,7 @@
  * §3.5). Status you cannot buy is the whole point.
  */
 import React from 'react'
+import { fnv1a } from './name'
 
 // ---------------------------------------------------------------- palettes
 export interface Palette { name: string; bg: string; bg2: string; body: string; body2: string; ink: string; accent: string }
@@ -168,7 +169,12 @@ const free = (k: keyof Spec) => SIZES[k] - GATED.filter((g) => g.layer === k).le
  */
 export function specOf(addr: string): Spec {
   const a = addr.toLowerCase().replace(/^0x/, '').padEnd(40, '0')
-  const n = (i: number) => parseInt(a.slice(i * 6, i * 6 + 6), 16) || 0
+  // hex keeps its historical slices so no EVM face changes; base58 slices
+  // parse mostly to NaN→0 and barely vary, so a non-hex address hashes instead
+  const hex = /^[0-9a-f]+$/.test(a)
+  const n = hex
+    ? (i: number) => parseInt(a.slice(i * 6, i * 6 + 6), 16) || 0
+    : (i: number) => fnv1a(`${i}:${addr}`)
   return { c: n(0) % free('c'), e: n(1) % free('e'), m: n(2) % free('m'), a: n(3) % free('a'), p: n(4) % free('p'), b: n(5) % free('b') }
 }
 export const formatSpec = (s: Spec) => `yc1:b${s.b}.c${s.c}.e${s.e}.m${s.m}.a${s.a}.p${s.p}`

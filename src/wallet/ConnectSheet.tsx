@@ -4,13 +4,14 @@ import { useAccount, useDisconnect } from 'wagmi'
 import { useApp } from '../state/AppState'
 import { useModalChrome } from '../ui/useModalChrome'
 import { readTouch } from '../ui/useViewport'
+import { isAddr } from '../model/address'
+import { useSolWallet } from './solana'
 import { useConnectFlow, type ConnectFlow } from './useConnectFlow'
 import { forgetWallet } from './deeplink'
 import { WALLETS } from './wallets'
 import { HAS_WC } from './wc'
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
-const ADDR = /^0x[0-9a-fA-F]{40}$/
 
 /**
  * The wallet dialog.
@@ -51,6 +52,8 @@ export function ConnectSheet({ onClose }: { onClose: () => void }) {
           <div className="tsec"><p className="err" style={{ margin: 0 }}>{f.error.message.split('\n')[0]}</p></div>
         )}
 
+        <SolanaSection />
+
         <div className="tsec">
           <span className="lbl">View as</span>
           <ViewAs value={viewAs} onApply={setViewAs} />
@@ -58,6 +61,39 @@ export function ConnectSheet({ onClose }: { onClose: () => void }) {
         </div>
         {active && <div className="tsec"><p className="foot" style={{ margin: 0 }}>Connected with {active.name}.</p></div>}
       </div>
+    </div>
+  )
+}
+
+/**
+ * The Solana side of the sheet — one account per VM, beside the EVM one, never
+ * instead of it (docs/solana.md §5). Wallet-standard discovery only finds
+ * extensions in THIS browser (Phantom, Solflare, Backpack); a phone connects
+ * from the wallet app's own browser, the same answer the EVM list gives.
+ */
+function SolanaSection() {
+  const sol = useSolWallet()
+  return (
+    <div className="tsec">
+      <span className="lbl">Solana</span>
+      {sol.account ? (
+        <div className="actions">
+          <span className="addr" style={{ alignSelf: 'center' }}>{short(sol.account.address)}</span>
+          <button className="btn" onClick={() => sol.disconnect()}>Disconnect</button>
+        </div>
+      ) : sol.wallets.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {sol.wallets.map((w) => (
+            <button key={w.name} className="btn wide" onClick={() => void sol.connect(w).catch(() => {})}>
+              {w.icon && <img src={w.icon} alt="" width={16} height={16} style={{ verticalAlign: '-3px', marginRight: 6 }} />}
+              {w.name}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="foot" style={{ margin: 0 }}>No Solana wallet in this browser. Phantom, Solflare or Backpack appear here once installed — or open this page in the wallet app's own browser.</p>
+      )}
+      {sol.error && <p className="err" style={{ margin: '6px 0 0' }}>{sol.error}</p>}
     </div>
   )
 }
@@ -172,7 +208,7 @@ function ViewAs({ value, onApply }: { value?: string; onApply: (a: string | unde
   const [text, setText] = React.useState(value ?? '')
   React.useEffect(() => setText(value ?? ''), [value])
   const trimmed = text.trim()
-  const bad = trimmed !== '' && !ADDR.test(trimmed)
+  const bad = trimmed !== '' && !isAddr(trimmed)
   const apply = () => { if (!bad) onApply(trimmed || undefined) }
   return (
     <>
@@ -183,13 +219,13 @@ function ViewAs({ value, onApply }: { value?: string; onApply: (a: string | unde
           autoComplete="off"
           spellCheck={false}
           aria-label="Address to view"
-          placeholder="0x…"
+          placeholder="0x… or a Solana address"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') apply() }}
         />
         <button className="max" onClick={apply} disabled={bad}>{trimmed ? 'Use' : 'Clear'}</button>
       </div>
-      {bad && <p className="err" style={{ margin: '6px 0 0' }}>That is not a 0x address.</p>}
+      {bad && <p className="err" style={{ margin: '6px 0 0' }}>That is not a 0x or Solana address.</p>}
     </>
   )
 }

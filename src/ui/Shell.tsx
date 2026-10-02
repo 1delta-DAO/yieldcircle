@@ -19,6 +19,7 @@
  * below that, where a thumb reaches them.
  */
 import React from 'react'
+import { normAddr } from '../model/address'
 import { Logo } from './Logo'
 import { ConnectButton } from '../wallet/ConnectButton'
 import { useApp, useRoute, type View } from '../state/AppState'
@@ -75,7 +76,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
 /** The face, top-left: the way into everything about you. A dot says alerts are waiting. */
 function Me() {
-  const { account, signer } = useApp()
+  const { account, signer, solSigner } = useApp()
   const [open, setOpen] = React.useState(false)
   return (
     <>
@@ -104,7 +105,7 @@ function UnseenDot() {
  * does not fit beside it, the sheet carries that too.
  */
 function Yours() {
-  const { account, signer } = useApp()
+  const { account, signer, solSigner } = useApp()
   const [open, setOpen] = React.useState(false)
   const b = useBook()
   if (!account) return <ConnectButton compact />
@@ -120,7 +121,7 @@ function Yours() {
       <Drawer open={open} onClose={() => setOpen(false)} side="right" label="Your money">
         <div className="hide-d"><MyStats account={account} /></div>
         {/* the book on screen is the signer's own: what is on its way into it */}
-        <TxInFlight account={account.toLowerCase() === signer ? signer : undefined} />
+        <TxInFlight account={normAddr(account) === signer ? signer : account === solSigner ? solSigner : undefined} />
         <Positions b={b} />
       </Drawer>
     </>

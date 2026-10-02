@@ -124,9 +124,20 @@ export interface OptimizerRowRaw {
 export interface OptimizerResponse { start: number; count: number; total: number; hasMore: boolean; nextStart?: number; items: OptimizerRowRaw[] }
 
 // ---------------------------------------------------------------- actions
-export interface ApiTx { to: string; data: string; value: string; description?: string }
+export interface ApiTx { to: string; data: string; value: string; description?: string; chainType?: 'evm' }
+/**
+ * A Solana step (worker-api `v1/envelope.ts`): one base64-serialized unsigned
+ * `VersionedTransaction` — there is no to/data/value analogue, every account
+ * is resolved up front. **It PERISHES**: the embedded blockhash dies after
+ * ~150 blocks (~60–90 s), `lastValidBlockHeight` says exactly when. A dead
+ * blob is re-built by calling the action endpoint again, never re-sent.
+ */
+export interface SvmTx { chainType: 'svm'; transaction: string; lastValidBlockHeight?: number; expiresAt?: string; description?: string }
+/** A step of either VM. `chainType` absent means `'evm'`; an svm step only ever appears for an svm chain. */
+export type AnyTx = ApiTx | SvmTx
+export const isSvmTx = (t: AnyTx | undefined | null): t is SvmTx => !!t && (t as SvmTx).chainType === 'svm'
 /** `transactions` run in order (pre-steps when there are `alternatives`); `postTransactions` run after the chosen route (e.g. unwrap to native). */
-export interface LoopActions { transactions: ApiTx[]; permissions: ApiTx[]; alternatives?: ApiTx[]; postTransactions?: ApiTx[] }
+export interface LoopActions { transactions: AnyTx[]; permissions: AnyTx[]; alternatives?: AnyTx[]; postTransactions?: AnyTx[] }
 export interface TradeEconomics {
   notionalUsd: { equity: number; collateral: number; debt: number }
   entryCostUsd: { slippage: number; fees: number; gas: number | null; total: number }

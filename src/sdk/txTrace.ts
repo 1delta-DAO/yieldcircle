@@ -4,6 +4,8 @@ import { getBlockNumber, getTransactionReceipt, waitForTransactionReceipt } from
 import { wagmiConfig } from '../wallet/wagmi'
 import { bridgeStatus, fetchEarnPositions, fetchTokenBalances, type PositionsScope } from './api'
 import { balancesChanged } from './liveBalances'
+import { isEvmAddr, isEvmChain, isSvmChain, normAddr } from '../model/address'
+import { getBlockHeight, getSignatureStatus } from '../wallet/solRpc'
 import type { EarnPosition, EarnPositionsResponse } from './types'
 
 /**
@@ -42,8 +44,8 @@ export type Moves = 'none' | 'balances' | 'positions'
 type Hex = `0x${string}`
 type Snap = Record<string, number>
 export interface Trace {
-  /** The hash it was SENT with; `hash` follows a speed-up in the wallet. */
-  id: Hex; hash: Hex; chainId: string; account: string
+  /** The hash it was SENT with; `hash` follows a speed-up in the wallet. A Solana signature (base58) on `solana`. */
+  id: string; hash: string; chainId: string; account: string
   /** The action (`Deposit · 100 USDC`) and this transaction's part of it (`Approve USDC`). */
   title: string; label: string
   moves: Moves
@@ -56,6 +58,8 @@ export interface Trace {
   phase: Phase
   at: number; doneAt?: number
   block?: number; blockHash?: string; conf?: number; need: number
+  /** Solana only: the block height the blob dies at — past it with no status, the send is `dropped`. */
+  lastValidHeight?: number
   note?: string; err?: string
   /** What it touched, as it stood when it was sent — `null` when there was nothing to compare with. */
   snap?: Snap | null
@@ -113,16 +117,16 @@ export function initTxTrace(client: QueryClient) {
  * Follow a transaction the wallet just returned. Idempotent on the hash, so a ladder restored
  * after a reload can call it again without starting a second watcher.
  */
-export function traceTx(t: { hash: Hex; chainId: string; account: string; title: string; label?: string; moves: Moves; bridge?: Trace['bridge']; touches?: (string | undefined)[]; watch?: Trace['watch'] }) {
+export function traceTx(t: { hash: string; chainId: string; account: string; title: string; label?: string; moves: Moves; bridge?: Trace['bridge']; touches?: (string | undefined)[]; watch?: Trace['watch']; lastValidHeight?: number }) {
   if (get(t.hash)) { void run(t.hash); return }
-  const account = t.account.toLowerCase()
+  const account = normAddr(t.account)
   const touches = [...new Set(t.touches?.filter((u): u is string => !!u))]
   // the baseline is the cached list — certainly from before the transaction; with none cached,
   // the same narrow read the sync will make, sent now while the transaction is still pending
   const scope = scopeOf(touches)
   const cached = t.moves === 'positions' && qc ? cachedRows(qc, account, t.chainId) : null
   const snap = cached ? fingerprint(cached, t.chainId, scope) : null
-  traces = [{ id: t.hash, hash: t.hash, chainId: t.chainId, account, title: t.title, label: t.label ?? t.title, moves: t.moves, bridge: t.bridge, touches, watch: t.watch?.length ? t.watch : undefined, phase: 'pending', at: Date.now(), need: FINAL_CONFIRMATIONS[t.chainId] ?? 1, snap }, ...traces]
+  traces = [{ id: t.hash, hash: t.hash, chainId: t.chainId, account, title: t.title, label: t.label ?? t.title, moves: t.moves, bridge: t.bridge, touches, watch: t.watch?.length ? t.watch : undefined, phase: 'pending', at: Date.now(), need: FINAL_CONFIRMATIONS[t.chainId] ?? 1, snap, lastValidHeight: t.lastValidHeight }, ...traces]
   emit()
   if (t.moves === 'positions' && !cached) void readScope(account, t.chainId, scope).then((r) => { if (r && get(t.hash)?.snap == null) patch(t.hash, { snap: fingerprint(r.items, t.chainId, scope) }) })
   // the watched balances before anything arrives: a bridge's destination cannot have moved yet
@@ -130,13 +134,13 @@ export function traceTx(t: { hash: Hex; chainId: string; account: string; title:
   void run(t.hash)
 }
 export function dismissTrace(id: string) { patch(id, { seen: true }) }
-export function clearSettled(account: string) { traces = traces.filter((t) => t.account !== account.toLowerCase() || !isDone(t)); emit() }
+export function clearSettled(account: string) { traces = traces.filter((t) => t.account !== normAddr(account) || !isDone(t)); emit() }
 
 const subscribe = (f: () => void) => { subs.add(f); return () => { subs.delete(f) } }
 /** Every trace (newest first) for this wallet. */
 export function useTraces(account: string | undefined): Trace[] {
   const all = useSyncExternalStore(subscribe, () => traces)
-  const a = account?.toLowerCase()
+  const a = normAddr(account)
   return a ? all.filter((t) => t.account === a) : NONE
 }
 const NONE: Trace[] = []
@@ -164,6 +168,7 @@ async function run(id: string) {
 
 async function step(id: string) {
   let t = get(id)!
+  if (isSvmChain(t.chainId)) return solStep(id)
   // viem's actions on wagmi's client, not wagmi's wrappers: wagmi's receipt wait THROWS on a revert
   // (after an extra eth_call for the reason), and a revert is an answer here, not an error
   const client = wagmiConfig.getClient({ chainId: Number(t.chainId) as ChainId })
@@ -172,7 +177,7 @@ async function step(id: string) {
     let cancelled = false
     try {
       const r = await waitForTransactionReceipt(client, {
-        hash: t.hash, timeout: Math.max(60_000, DROP_MS - (Date.now() - t.at)),
+        hash: t.hash as Hex, timeout: Math.max(60_000, DROP_MS - (Date.now() - t.at)),
         // a speed-up keeps going under its new hash; a cancel in the wallet ends it
         onReplaced: (rep) => { if (rep.reason === 'cancelled') cancelled = true; else patch(id, { hash: rep.transaction.hash, note: 'Sped up in the wallet.' }) },
       })
@@ -195,7 +200,7 @@ async function step(id: string) {
     }
     if (t.need > 1) {
       // deep enough — but only if it is still in the block it landed in
-      const again = await getTransactionReceipt(client, { hash: t.hash }).catch(() => null)
+      const again = await getTransactionReceipt(client, { hash: t.hash as Hex }).catch(() => null)
       if (!again || again.blockHash !== t.blockHash) { patch(id, { phase: 'pending', block: undefined, blockHash: undefined, conf: 0, note: 'Its block was re-organised away; waiting for it to land again.' }); return step(id) }
     }
     patch(id, { phase: 'final', conf: Math.max(t.conf ?? 1, t.need) })
@@ -208,6 +213,44 @@ async function step(id: string) {
     t = get(id)!
   }
   if (t.phase === 'bridging') return bridge(id)
+  if (t.phase === 'syncing') return t.moves === 'positions' ? sync(id) : balanceSync(id)
+}
+
+/**
+ * The Solana watcher. A signature has no receipt to wait for: `getSignatureStatuses` is polled
+ * until `confirmed` (plan §D — that is when the same scoped positions re-read starts; `finalized`
+ * trails it by ~13 s and the index reads finalized slots anyway). A status that never appears
+ * before `lastValidBlockHeight` passes is DEAD — the blockhash expired — and reads `dropped`;
+ * the ladder's message says to build a fresh transaction, never to retry the blob.
+ */
+async function solStep(id: string) {
+  let t = get(id)!
+  if (t.phase === 'pending') {
+    const slow = setTimeout(() => { if (get(id)?.phase === 'pending') patch(id, { note: 'Taking longer than usual. Solana transactions expire after ~90 seconds; if this one does, start the action again.' }) }, Math.max(0, SLOW_MS - (Date.now() - t.at)))
+    try {
+      for (;;) {
+        const st = await getSignatureStatus(t.hash).catch(() => null)
+        if (st) {
+          if (st.err) { patch(id, { phase: 'reverted', block: st.slot, doneAt: Date.now(), err: 'The transaction failed on chain; only the fee was spent.' }); return }
+          if (st.confirmationStatus === 'confirmed' || st.confirmationStatus === 'finalized') { patch(id, { phase: 'final', block: st.slot, conf: 1, note: undefined }); break }
+          if (get(id)!.phase === 'pending') patch(id, { phase: 'included', block: st.slot, conf: 1 })
+        } else if (t.lastValidHeight) {
+          const h = await getBlockHeight().catch(() => null)
+          if (h != null && h > t.lastValidHeight) { patch(id, { phase: 'dropped', doneAt: Date.now(), err: 'It expired before it landed (a Solana transaction lives ~90 seconds). Start the action again for a fresh one.' }); return }
+        } else if (Date.now() - t.at > DROP_MS) { patch(id, { phase: 'dropped', doneAt: Date.now(), err: 'Never made it into a block.' }); return }
+        await sleep(2_000)
+        t = get(id)!
+      }
+    } finally { clearTimeout(slow) }
+    t = get(id)!
+  }
+  if (t.phase === 'included') { patch(id, { phase: 'final' }); t = get(id)! }
+  if (t.phase === 'final') {
+    if (qc && t.moves !== 'none') balancesChanged(qc, t.chainId)
+    const next: Phase = t.moves === 'positions' || t.watch ? 'syncing' : 'settled'
+    patch(id, { phase: next, ...(next === 'settled' ? { doneAt: Date.now() } : {}) })
+    t = get(id)!
+  }
   if (t.phase === 'syncing') return t.moves === 'positions' ? sync(id) : balanceSync(id)
 }
 
@@ -270,9 +313,9 @@ async function readWatched(account: string, w: { chainId: string; address: strin
   const out: Record<string, string> = {}
   try {
     for (const c of [...new Set(w.map((x) => x.chainId))]) {
-      const asked = w.filter((x) => x.chainId === c).map((x) => x.address.toLowerCase())
+      const asked = w.filter((x) => x.chainId === c).map((x) => normAddr(x.address))
       const r = await fetchTokenBalances(account, c, asked, true)
-      for (const a of asked) out[`${c}:${a}`] = r.items.find((b) => b.address.toLowerCase() === a)?.balanceRaw ?? '0'
+      for (const a of asked) out[`${c}:${a}`] = r.items.find((b) => normAddr(b.address) === a)?.balanceRaw ?? '0'
     }
     return out
   } catch { return null }
@@ -291,8 +334,9 @@ function scopeOf(touches: string[]): PositionsScope | null {
   const lenders = new Set<string>(), vaults = new Set<string>()
   for (const u of touches) {
     const [head, , ref] = u.split(':')
-    if (head?.startsWith('vault.') && /^0x[0-9a-f]{40}$/i.test(ref ?? '')) vaults.add(ref.toLowerCase())
-    else if (/^[A-Z][A-Z0-9_]*$/.test(head ?? '') && ref) lenders.add(head)
+    if (head?.startsWith('vault.') && ref && (isEvmAddr(ref) || !isEvmChain(u.split(':')[1]))) vaults.add(normAddr(ref))
+    // Solana lender keys mix case (`JUPITER_LEND_main_8`); EVM ones stay all-caps
+    else if (/^[A-Z][A-Za-z0-9_]*$/.test(head ?? '') && ref) lenders.add(head)
     else return null
   }
   return {
@@ -302,13 +346,13 @@ function scopeOf(touches: string[]): PositionsScope | null {
   }
 }
 const inScope = (p: EarnPosition, chainId: string, scope: PositionsScope | null) =>
-  p.chainId === chainId && (!scope || (p.venueKind === 'lending' ? !!scope.lenders?.includes(p.lender) : !!scope.vaults?.includes(p.vault.toLowerCase())))
+  p.chainId === chainId && (!scope || (p.venueKind === 'lending' ? !!scope.lenders?.includes(p.lender) : !!scope.vaults?.includes(normAddr(p.vault))))
 const readScope = (account: string, chainId: string, scope: PositionsScope | null) =>
   fetchEarnPositions(account, [chainId], scope ?? {}, true).catch(() => null)
 
 /** The `useEarnPositions` request(s) for this wallet that cover this chain. */
 const bucket = (account: string, chainId: string) => ({ predicate: (q: { queryKey: readonly unknown[] }) =>
-  q.queryKey[0] === 'earn-positions' && String(q.queryKey[1]).toLowerCase() === account && String(q.queryKey[2]).split(',').includes(chainId) })
+  q.queryKey[0] === 'earn-positions' && normAddr(String(q.queryKey[1])) === account && String(q.queryKey[2]).split(',').includes(chainId) })
 function cachedRows(client: QueryClient, account: string, chainId: string): EarnPosition[] | null {
   const hits = client.getQueriesData<EarnPositionsResponse>(bucket(account, chainId)).filter(([, d]) => d)
   return hits.length ? hits.flatMap(([, d]) => d!.items) : null

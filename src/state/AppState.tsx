@@ -1,5 +1,7 @@
 import React from 'react'
 import { useAccount } from 'wagmi'
+import { isAddr, normAddr } from '../model/address'
+import { useSolWallet } from '../wallet/solana'
 import { CHAINS } from '../sdk/queries'
 import { readFeedLink } from './feedLink'
 
@@ -47,7 +49,6 @@ export interface Route {
   copy?: string
 }
 const GROUP_IDS = new Set(['USD', 'ETH', 'BTC', 'MORE'])
-const ADDR = /^0x[0-9a-fA-F]{40}$/
 
 export function parseRoute(hash = location.hash): Route {
   const h = hash.replace(/^#\/?/, '')
@@ -69,7 +70,8 @@ export function parseRoute(hash = location.hash): Route {
   if (head === 'board') return { view: 'board', ...base }
   if (head === 'me') return { view: 'me', ...base }
   if (head === 'alerts') return { view: 'alerts', ...base }
-  if (head === 'w' && seg[1] && ADDR.test(seg[1])) return { view: 'wallet', addr: seg[1].toLowerCase(), ...base }
+  // hex is canonically lower; a base58 wallet keeps its case — it IS the address
+  if (head === 'w' && seg[1] && isAddr(seg[1])) return { view: 'wallet', addr: normAddr(seg[1]), ...base }
   if (head === 'm' && seg[1]) return { view: 'market', uid: seg.slice(1).join('/'), ...base }
   // a desk id is a registry slug or `cand:<chain>:<address>` — the colons survive the hash
   if (head === 'c' && seg[1]) return { view: 'curator', curatorId: decodeURIComponent(seg.slice(1).join('/')), ...base }
@@ -87,7 +89,7 @@ export function go(path: string, params: Record<string, string | undefined | nul
 }
 /** A market uid carries colons and dots, so it is encoded — and its case is significant, never lowered. */
 export const marketHref = (uid: string) => `#/m/${encodeURIComponent(uid)}`
-export const walletHref = (a: string) => `#/w/${a.toLowerCase()}`
+export const walletHref = (a: string) => `#/w/${normAddr(a)}`
 /** An asset page. The group key is case-significant and may carry spaces and colons. */
 export const tokenHref = (group: string) => `#/t/${encodeURIComponent(group)}`
 
@@ -139,6 +141,8 @@ interface AppCtx {
   account: string | undefined
   /** the CONNECTED wallet only — the one that can sign, and the one whose positions never come from the index */
   signer: string | undefined
+  /** the connected SOLANA wallet — one account per VM (docs/solana.md §5); a page's chain decides which is "you" */
+  solSigner: string | undefined
   viewAs: string | undefined
   setViewAs: (a: string | undefined) => void
   isConnected: boolean
@@ -195,6 +199,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setChains(chains.includes(c) ? chains.filter((x) => x !== c) : [...(chains.length ? chains : []), c])
   const [viewAs, setViewAs] = React.useState<string | undefined>(() => new URLSearchParams(location.search).get('as') ?? undefined)
   const { address, isConnected } = useAccount()
+  const sol = useSolWallet()
   const chainIds = chains.length ? chains : ALL()
   const allChains = chains.length === 0
   const chainLabelFor = () =>
@@ -203,7 +208,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       : chains.length === 1
         ? (CHAINS.find((c) => c.id === chains[0])?.label ?? chains[0])
         : `${chains.length} chains`
-  const account = viewAs && ADDR.test(viewAs) ? viewAs : address
-  return <Ctx.Provider value={{ chains, setChains, toggleChain, chainIds, allChains, chainLabelFor, chainsFromLink, dismissLinkChains, account, signer: address?.toLowerCase(), viewAs, setViewAs, isConnected }}>{children}</Ctx.Provider>
+  // the EVM wallet leads; a Solana-only user is still "somebody" everywhere a page shows you to yourself
+  const account = viewAs && isAddr(viewAs) ? normAddr(viewAs) : address ?? sol.account?.address
+  return <Ctx.Provider value={{ chains, setChains, toggleChain, chainIds, allChains, chainLabelFor, chainsFromLink, dismissLinkChains, account, signer: address?.toLowerCase(), solSigner: sol.account?.address, viewAs, setViewAs, isConnected: isConnected || !!sol.account }}>{children}</Ctx.Provider>
 }
 export const useApp = () => { const c = React.useContext(Ctx); if (!c) throw new Error('AppProvider missing'); return c }

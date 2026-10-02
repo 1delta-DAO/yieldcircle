@@ -33,6 +33,18 @@ export const INDEX_BASE_URL =
   (import.meta.env.VITE_INDEX_BASE_URL as string | undefined) ?? 'https://positions.1delta.io'
 
 /**
+ * The SOLANA position index (`pos-indexer/apps/sol-indexer`), public at
+ * https://sol-positions.1delta.io — a separate service until it merges into
+ * pos-indexer (docs/solana.md). Same rules: read-only, no key, never the
+ * connected user's own positions. `index/api.ts` routes to it by chain,
+ * address shape or uid; it must answer the EVM index's response shapes —
+ * YieldCircle does not adapt them (plan decision 2), so a route that still
+ * answers its old `{ok, data}` envelope simply reads as empty here.
+ */
+export const SOL_INDEX_BASE_URL =
+  (import.meta.env.VITE_SOL_INDEX_BASE_URL as string | undefined) ?? 'https://sol-positions.1delta.io'
+
+/**
  * The social service, public at https://social.1delta.io. Reads are open;
  * every write is an EIP-712 message signed by the wallet that authored it, so
  * there are no sessions, no cookies and no key here either.

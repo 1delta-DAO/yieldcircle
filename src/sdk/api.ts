@@ -4,6 +4,7 @@
  * (collateral / debt); the API's in/out naming is translated here and nowhere else.
  */
 import { apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } from '../vendor/allocator/http'
+import { isNativeAddress } from '../model/positions'
 import type { RateHistoryResponse } from '../model/rateHistory'
 import type { ApiTx, EarnPositionsResponse, EarnResponse, IrmResponse, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
 
@@ -110,8 +111,12 @@ export function fetchOptimizerPairs(q: OptimizerQuery): Promise<OptimizerRespons
 // RPC calls for the client to run). One request per chain is the floor here.
 // `fresh` bypasses the browser's copy: the route answers `max-age=15`, and a re-read seconds after
 // a transaction (or a bridge landing) would otherwise be handed the balance from before it.
-export function fetchTokenBalances(account: string, chainId: string, assets: string[], fresh = false) {
-  return apiFetch<{ items: TokenBalance[] }>('/v1/data/token/balances', { params: { chainId, account, assets: assets.join(',') }, ...(fresh ? { cache: 'no-store' as const } : {}) })
+export async function fetchTokenBalances(account: string, chainId: string, assets: string[], fresh = false) {
+  const r = await apiFetch<{ items: TokenBalance[]; native?: TokenBalance }>('/v1/data/token/balances', { params: { chainId, account, assets: assets.length ? assets.join(',') : undefined }, ...(fresh ? { cache: 'no-store' as const } : {}) })
+  // Solana answers the gas coin as its own `native` row (`address: 'native'`, 9 decimals) beside
+  // `items`; EVM carries it inside `items` at the zero address. One shape for every caller.
+  const items = r.native && !r.items.some((b) => isNativeAddress(b.address)) ? [...r.items, r.native] : r.items
+  return { ...r, items }
 }
 /**
  * `only` narrows the read to what one transaction touched: `lenders` are exact meta keys (the

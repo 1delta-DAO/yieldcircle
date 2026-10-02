@@ -14,6 +14,7 @@ import React from 'react'
 import { useAccount } from 'wagmi'
 import { chainLabel } from '../sdk/queries'
 import { dismissTrace, isDone, isOk, useTraces, type Trace } from '../sdk/txTrace'
+import { useSolWallet } from '../wallet/solana'
 import { TxLink } from './bits'
 
 const LINGER_MS = 8_000
@@ -111,7 +112,11 @@ export function TxInFlight({ account }: { account: string | undefined }) {
 
 export function TxTray() {
   const { address } = useAccount()
-  const all = useTraces(address)
+  const sol = useSolWallet()
+  // one tray over both VMs' signers — a Solana deposit shows beside an EVM one
+  const evmTraces = useTraces(address)
+  const solTraces = useTraces(sol.account?.address)
+  const all = React.useMemo(() => [...evmTraces, ...solTraces].sort((a, b) => b.at - a.at), [evmTraces, solTraces])
   const [open, setOpen] = React.useState(false)
   const live = all.filter((t) => !isDone(t))
   // a success lingers a moment; anything that went wrong stays until it is dismissed

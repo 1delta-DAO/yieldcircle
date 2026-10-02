@@ -1,9 +1,12 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
+import { isEvmAddr, normAddr } from '../model/address'
 import * as api from './api'
 import type { RecentQuery } from './api'
 import type { TxBundle } from './types'
 
 const MIN = 60_000
+/** a 404 is an answer (the route does not exist on that index), not a hiccup worth three retries */
+const retry404 = (n: number, e: unknown) => n < 3 && !/\u2192 404$/.test((e as Error)?.message ?? '')
 
 /**
  * The feed. The index answers newest-first and has no cursor, so "load more"
@@ -31,6 +34,7 @@ export function useAccountTxs(account: string | undefined, chainId?: string, lim
     queryKey: ['acct-txs', account, chainId, limit],
     queryFn: () => api.accountTxs(account!, { chainId, limit }),
     staleTime: 30_000,
+    retry: retry404,
   })
 }
 export function useAccountFlows(account: string | undefined, days = 30, chainId?: string) {
@@ -39,6 +43,7 @@ export function useAccountFlows(account: string | undefined, days = 30, chainId?
     queryKey: ['acct-flows', account, days, chainId],
     queryFn: () => api.accountFlows(account!, { days, chainId }),
     staleTime: 5 * MIN,
+    retry: retry404,
   })
 }
 export function useIndexPositions(account: string | undefined, chainId?: string) {
@@ -47,6 +52,7 @@ export function useIndexPositions(account: string | undefined, chainId?: string)
     queryKey: ['idx-positions', account, chainId],
     queryFn: () => api.accountPositions(account!, { chainId }),
     staleTime: MIN,
+    retry: retry404,
   })
 }
 /**
@@ -185,7 +191,8 @@ export function useCuratorHolders(id: string | undefined, limit = 12) {
  * rendering as a whale with a generated name.
  */
 export function useCuratorsByAccount(addresses: string[]) {
-  const want = [...new Set(addresses.map((a) => a?.toLowerCase()).filter(Boolean))].sort()
+  // desks are an EVM-index fact; a base58 address in the CSV 400s the whole batch
+  const want = [...new Set(addresses.map((a) => normAddr(a)).filter((a) => isEvmAddr(a)))].sort()
   const q = useQuery({
     enabled: want.length > 0,
     queryKey: ['curators-by-account', want.join(',')],
@@ -194,7 +201,7 @@ export function useCuratorsByAccount(addresses: string[]) {
     retry: false,
   })
   const map = q.data?.curators ?? {}
-  return { curatorOf: (a: string | undefined) => (a ? (map[a.toLowerCase()] ?? null) : null), isLoading: q.isLoading }
+  return { curatorOf: (a: string | undefined) => (a ? (map[normAddr(a)] ?? null) : null), isLoading: q.isLoading }
 }
 
 // ---------------------------------------------------------------- assets (pos-indexer tickets/0026)

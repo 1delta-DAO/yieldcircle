@@ -63,6 +63,7 @@ const BASE: Record<string, { sym: string; group: GroupId; what: string; color: s
   // above (USDT0 through WRAPPER) — a dollar does not become another asset by being the thing
   // you pay fees with.
   HYPE: { sym: 'HYPE', group: 'MORE', what: 'Hyperliquid native coin', color: '#1a9e8f' },
+  SOL: { sym: 'SOL', group: 'MORE', what: 'Solana native coin', color: '#9945ff' },
   MON: { sym: 'MON', group: 'MORE', what: 'Monad native coin', color: '#836ef9' },
   POL: { sym: 'POL', group: 'MORE', what: 'Polygon native coin (formerly MATIC)', color: '#8247e5' },
   XPL: { sym: 'XPL', group: 'MORE', what: 'Plasma native coin', color: '#64748b' },
@@ -90,6 +91,10 @@ const WRAPPER: Record<string, string> = {
   // these, shMON resolved to MON only by falling back to the DEBT leg's symbol.
   SHMON: 'MON', SMON: 'MON', GMON: 'MON', APRMON: 'MON',
   KHYPE: 'HYPE', STHYPE: 'HYPE', WSTHYPE: 'HYPE', BEHYPE: 'HYPE', LSTHYPE: 'HYPE', SHYPE: 'HYPE', HYPED: 'HYPE', VHYPE: 'HYPE',
+  // Solana: wSOL IS SOL, and the liquid-staking tokens are SOL strategies
+  // (docs/solana.md §E.3) — the same reading as wstETH → ETH above. These are
+  // the LSTs the Solana catalogue actually answers (facets, 2026-10-02).
+  WSOL: 'SOL', JITOSOL: 'SOL', JUPSOL: 'SOL', BSOL: 'SOL', MSOL: 'SOL', INF: 'SOL', DFDVSOL: 'SOL', RASOL: 'SOL',
   // Tether's omnichain (LayerZero OFT) deployments: the same money under a 0-suffixed ticker
   // (see the USDT note in BASE). Balances keep their own symbol and address — only the ASSET merges.
   USDT0: 'USDT', XAUT0: 'XAUt',

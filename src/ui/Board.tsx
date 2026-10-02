@@ -13,6 +13,7 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useApp, go, marketHref } from '../state/AppState'
+import { isSvmChain } from '../model/address'
 import * as idx from '../index/api'
 import { useProfiles } from '../social/queries'
 import { FollowButton, Money, Who } from './social-bits'
@@ -106,7 +107,11 @@ export function Board({ window: w }: { window?: string }) {
       <div className="card">
         {q.isLoading && <div className="empty"><Sk w={240} /></div>}
         {q.isError && <div className="empty">This deploy of the index has no earners board yet — it appears the moment the position-carry job runs.</div>}
-        {!q.isLoading && !q.isError && !rows.length && <div className="empty">Nothing to rank with these filters.</div>}
+        {!q.isLoading && !q.isError && !rows.length && (
+          <div className="empty">{!allChains && chainIds.every((id) => isSvmChain(id))
+            ? 'The earners board is not on Solana yet — it ranks what the EVM index can prove.'
+            : 'Nothing to rank with these filters.'}</div>
+        )}
         <div className="list">
           {rows.map((r, i) => {
             const name = r.legs[0]?.marketName ?? r.riskKey

@@ -1,6 +1,6 @@
 import React from 'react'
 import { nameOf, whatIs, type Group } from '../model/assets'
-import { markPicks, type Strategy } from '../model/strategies'
+import { exitTerms, markPicks, type Strategy } from '../model/strategies'
 import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
 import { useBook } from './useBook'
@@ -115,7 +115,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                           its own where eight rows in nine said the same word; here it
                           sits second, so it is the part a narrow screen keeps rather
                           than the part it truncates. */}
-                      <small>{u === 'all' ? `${nameOf(s.asset)} · ` : ''}{s.kind === 'loop' && s.instrument ? `via ${s.instrument} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${s.exitWord.toLowerCase()}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.source}` : ''}{s.tvlUsd > 0 && <> · <Size s={s} /></>}</small></td>
+                      <small>{u === 'all' ? `${nameOf(s.asset)} · ` : ''}{s.kind === 'loop' && s.instrument ? `via ${s.instrument} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${exitTerms(s).short}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.source}` : ''}{(s.tvlUsd > 0 || s.kind === 'loop') && <> · <Size s={s} /></>}</small></td>
                     {/* the rate, on its own: nothing else in this cell to read past */}
                     <td className="r">{(() => { const ser = seriesFor(s, get, withRewards); const spike = isSpike(s.rate, ser); return (<>
                       <span className="rate-row">{ser && <RateTrend ser={ser} now={s.rate} spike={spike} />}<span className={s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}>{pct(s.rate)}</span></span>
@@ -184,16 +184,21 @@ function AssetChips({ group, route, assets, u, all, max = 6 }: { group: Group; r
  *
  * Size belongs on the row because it is the second thing anyone asks after the
  * rate, and because a high rate on a small market is a different proposition
- * from the same rate on a deep one. Liquidity stays in the title and in the
- * ticket: it is the number you check before committing, not while scanning.
+ * from the same rate on a deep one. A loop also says what is left to borrow:
+ * that, not the collateral market, caps the position and sets how far the
+ * borrow rate moves as you take it. Llamalend reports no collateral size (its
+ * collateral sits in the market's AMM, not lent out), so there the borrow
+ * figure is the whole answer.
  */
 function Size({ s }: { s: Strategy }) {
-  const liq = s.kind === 'simple' ? s.liquidityUsd : s.borrowLiquidityUsd
-  const title = s.kind === 'loop'
-    ? `${usdShort(s.tvlUsd)} deposited in the collateral market · ${usdShort(liq)} available to borrow`
-    : `${usdShort(s.tvlUsd)} deposited${liq != null ? ` · ${usdShort(liq)} available to withdraw right now` : ' · how much can be withdrawn right now is not reported'}`
+  if (s.kind === 'loop') {
+    const title = `${s.tvlUsd > 0 ? `${usdShort(s.tvlUsd)} deposited in the collateral market · ` : ''}${usdShort(s.borrowLiquidityUsd)} of ${s.debt} still available to borrow`
+    return <span title={title}>{s.tvlUsd > 0 ? `${usdShort(s.tvlUsd)} · ` : ''}{usdShort(s.borrowLiquidityUsd)} to borrow</span>
+  }
+  const liq = s.liquidityUsd
+  const title = `${usdShort(s.tvlUsd)} deposited${liq != null ? ` · ${usdShort(liq)} available to withdraw right now` : ' · how much can be withdrawn right now is not reported'}`
   // a market that is all but lent out is the one case worth a mark on the row
-  const tight = s.kind === 'simple' && s.utilization != null && s.utilization >= 0.95
+  const tight = s.utilization != null && s.utilization >= 0.95
   return <span className={tight ? 'warn' : undefined} title={title}>{usdShort(s.tvlUsd)}{tight ? ' · thin' : ''}</span>
 }
 

@@ -25,13 +25,29 @@ const NOUNS = [
 ]
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 
+/**
+ * FNV-1a over the RAW string — the seed for a non-hex address. A base58
+ * address is case-significant, so no lowering here: `So11…` and `so11…` are
+ * different wallets and get different names.
+ */
+export function fnv1a(s: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0 }
+  return h >>> 0
+}
 /** "Amber Otter" — the same for a given address everywhere. */
 export function autoName(addr: string): string {
   const a = addr.toLowerCase().replace(/^0x/, '')
   if (a.length < 10) return addr
-  const n1 = parseInt(a.slice(0, 5), 16)
-  const n2 = parseInt(a.slice(5, 10), 16)
-  return `${cap(ADJECTIVES[n1 % ADJECTIVES.length])} ${cap(NOUNS[n2 % NOUNS.length])}`
+  // the historical seed for hex, so no EVM wallet changes its name; a base58
+  // address used to come out as `parseInt → NaN` and crash on `cap(undefined)`
+  if (/^[0-9a-f]+$/.test(a.slice(0, 10))) {
+    const n1 = parseInt(a.slice(0, 5), 16)
+    const n2 = parseInt(a.slice(5, 10), 16)
+    return `${cap(ADJECTIVES[n1 % ADJECTIVES.length])} ${cap(NOUNS[n2 % NOUNS.length])}`
+  }
+  const h = fnv1a(addr)
+  return `${cap(ADJECTIVES[(h >>> 16) % ADJECTIVES.length])} ${cap(NOUNS[h % NOUNS.length])}`
 }
 
 export const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`

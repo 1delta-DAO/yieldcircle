@@ -3,8 +3,27 @@
  * has no writes and no key, so there is no boundary to vendor here — but the
  * same discipline as `sdk/api.ts` applies, the wire naming is translated once
  * and nowhere else.
+ *
+ * TWO indexes since docs/solana.md: the EVM one (`INDEX_BASE_URL`) and the
+ * Solana one (`SOL_INDEX_BASE_URL`), a separate service until the merge. The
+ * split lives HERE and nowhere above it (plan decision 1):
+ *
+ *   - wallet, market and holders calls go to exactly ONE index, chosen by the
+ *     address shape or the uid's chain segment;
+ *   - the feed, Hot and trending FAN OUT to both when the chain scope spans
+ *     both VMs ("all chains" means both indexes, not "omit chainIds"), and
+ *     merge by time or by rank;
+ *   - everything else (board, curators, assets, stress, find, balances) is
+ *     EVM-only until those routes exist on Solana.
+ *
+ * The Solana index must answer the EVM index's shapes — this file does NOT
+ * adapt them (plan decision 2). A route of it that still answers its old
+ * `{ok, data}` snake_case envelope reads as an EMPTY page here (`safeTxs` and
+ * friends), so nothing renders garbage while pos-indexer item 2 lands, and
+ * one index failing never takes the other's rows down with it.
  */
-import { INDEX_BASE_URL } from '../config/backend'
+import { INDEX_BASE_URL, SOL_INDEX_BASE_URL } from '../config/backend'
+import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
 import type { AccountIdentity, AccountKind, AssetBookRow, IndexBalances, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, ImpairedCount, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
 
 /** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
@@ -17,12 +36,37 @@ function qs(p: Params): string {
   const s = q.toString()
   return s ? '?' + s : ''
 }
-async function get<T>(path: string, p: Params = {}, signal?: AbortSignal): Promise<T> {
-  const r = await fetch(INDEX_BASE_URL + path + qs(p), { signal })
+async function get<T>(path: string, p: Params = {}, signal?: AbortSignal, base = INDEX_BASE_URL): Promise<T> {
+  const r = await fetch(base + path + qs(p), { signal })
   const j = (await r.json().catch(() => ({}))) as T & { error?: string }
   if (!r.ok) throw new Error(j.error || `${path} → ${r.status}`)
   return j
 }
+
+/** Which index serves a chain / an address / a uid. One call, one index — never both. */
+export const indexFor = (chainId: string | undefined) => (isSvmChain(chainId) ? SOL_INDEX_BASE_URL : INDEX_BASE_URL)
+export const indexForAddr = (a: string) => (isSolAddr(a) ? SOL_INDEX_BASE_URL : INDEX_BASE_URL)
+export const indexForUid = (uid: string) => indexFor(uid.split(':')[1])
+
+/**
+ * The fan-out plan for a chain scope. `evm` is the chainIds CSV for the EVM
+ * index (`undefined` = all of its chains, `null` = do not ask it); `sol` says
+ * whether the Solana index is in scope. No `chainIds` at all means EVERY
+ * chain, which since Solana means both indexes.
+ */
+function splitScope(chainIds?: string | null): { evm: string | undefined | null; sol: boolean } {
+  if (!chainIds) return { evm: undefined, sol: true }
+  const ids = String(chainIds).split(',').filter(Boolean)
+  const evm = ids.filter((id) => isEvmChain(id))
+  return { evm: evm.length ? evm.join(',') : null, sol: ids.some((id) => isSvmChain(id)) }
+}
+/** A Solana-index answer that is not yet in the EVM shape reads as an empty page, never as garbage. */
+const safeTxs = (j: { txs?: unknown; following?: Following | null } | null): { txs: TxBundle[]; following: Following | null } =>
+  j && Array.isArray(j.txs) ? (j as { txs: TxBundle[]; following: Following | null }) : { txs: [], following: j?.following ?? null }
+const EMPTY_TXS = { txs: [] as TxBundle[], following: null }
+/** newest first; both lists are already sorted so this is one pass of interleaving */
+const byTime = (a: TxBundle[], b: TxBundle[], limit?: number) =>
+  [...a, ...b].sort((x, y) => Date.parse(y.blockTs) - Date.parse(x.blockTs)).slice(0, limit)
 
 /** The feed. `follower` resolves the follow graph in SQL server-side; a wallet that follows nobody gets an EMPTY feed, never the global one. */
 export interface RecentQuery extends Params {
@@ -47,12 +91,26 @@ export interface RecentQuery extends Params {
   /** asset groups, comma-joined (pos-indexer tickets/0026) — an unknown group answers an EMPTY page */
   assetGroups?: string
 }
-export const recentTxs = (q: RecentQuery, signal?: AbortSignal) =>
-  get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, group: 'tx' }, signal)
+/** The feed, from both indexes when the scope spans both VMs, merged by time. */
+export async function recentTxs(q: RecentQuery, signal?: AbortSignal): Promise<{ txs: TxBundle[]; following: Following | null }> {
+  const { evm, sol } = splitScope(q.chainIds)
+  const ask = (base: string, chainIds: string | undefined) =>
+    get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, chainIds, group: 'tx' }, signal, base)
+  const [e, s] = await Promise.all([
+    // the EVM index's errors still throw (no silent regression); the Solana
+    // one degrading — down, or still on its old shapes — costs its rows only
+    evm !== null ? ask(INDEX_BASE_URL, evm) : Promise.resolve(null),
+    sol ? ask(SOL_INDEX_BASE_URL, undefined).then(safeTxs).catch(() => EMPTY_TXS) : Promise.resolve(null),
+  ])
+  if (!s) return e ?? EMPTY_TXS
+  if (!e) return { txs: s.txs.slice(0, limitOf(q)), following: s.following }
+  return { txs: byTime(e.txs, s.txs, limitOf(q)), following: e.following }
+}
+const limitOf = (q: { limit?: number }) => (q.limit == null ? undefined : Number(q.limit))
 /** What the menu feed answers: `outside` counts the moves a client-side filter dropped (the fallback only). */
 export type MenuFeed = { txs: TxBundle[]; following: Following | null; outside?: number }
-/** set once an index answers the POST 404/405: it predates it, so the session stops asking */
-let postUnsupported = false
+/** set once an index answers the POST 404/405: it predates it, so the session stops asking — PER index (plan §C) */
+const postUnsupported = new Map<string, boolean>()
 /** the fallback's window: the newest 200 hold ~26 menu moves, where 40 held 2 (measured 2026-09-29) */
 const FALLBACK_SCAN = 200
 /**
@@ -66,38 +124,71 @@ const FALLBACK_SCAN = 200
  *
  * An index that predates the route answers 404, and then the tape is read
  * wide once and filtered here, as before — one request of 200 rather than
- * three that dig for them.
+ * three that dig for them. Each index keeps its own uids and its own
+ * fallback: a 404 from the Solana index must not switch the POST off for the
+ * EVM one.
  */
 export async function recentTxsIn(q: RecentQuery, uids: string[], signal?: AbortSignal): Promise<MenuFeed> {
-  if (!postUnsupported) {
-    const r = await fetch(INDEX_BASE_URL + '/events/recent' + qs({ ...q, group: 'tx' }), {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ inMarkets: uids }), signal,
-    })
-    if (r.status !== 404 && r.status !== 405) {
-      const j = (await r.json().catch(() => ({}))) as MenuFeed & { error?: string }
-      if (!r.ok) throw new Error(j.error || `/events/recent → ${r.status}`)
-      return j
+  const { evm, sol } = splitScope(q.chainIds)
+  const one = async (base: string, chainIds: string | undefined, set: string[]): Promise<MenuFeed> => {
+    if (!set.length) return EMPTY_TXS
+    if (!postUnsupported.get(base)) {
+      const r = await fetch(base + '/events/recent' + qs({ ...q, chainIds, group: 'tx' }), {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ inMarkets: set }), signal,
+      })
+      if (r.status !== 404 && r.status !== 405) {
+        const j = (await r.json().catch(() => ({}))) as MenuFeed & { error?: string }
+        if (!r.ok) throw new Error(j.error || `/events/recent → ${r.status}`)
+        return { ...safeTxs(j), outside: j.outside }
+      }
+      postUnsupported.set(base, true)
     }
-    postUnsupported = true
+    const limit = Number(q.limit ?? 40)
+    const all = safeTxs(await get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, chainIds, group: 'tx', limit: Math.max(limit, FALLBACK_SCAN) }, signal, base))
+    const want = new Set(set)
+    const hit = all.txs.filter((t) => t.legs.some((l) => l.marketUid && want.has(l.marketUid)))
+    return { txs: hit, following: all.following, outside: all.txs.length - hit.length }
   }
-  const limit = Number(q.limit ?? 40)
-  const all = await recentTxs({ ...q, limit: Math.max(limit, FALLBACK_SCAN) }, signal)
-  const set = new Set(uids)
-  const hit = all.txs.filter((t) => t.legs.some((l) => l.marketUid && set.has(l.marketUid)))
-  return { txs: hit, following: all.following, outside: all.txs.length - hit.length }
+  const [e, s] = await Promise.all([
+    evm !== null ? one(INDEX_BASE_URL, evm, uids.filter((u) => !isSvmChain(u.split(':')[1]))) : Promise.resolve(null),
+    sol ? one(SOL_INDEX_BASE_URL, undefined, uids.filter((u) => isSvmChain(u.split(':')[1]))).catch(() => EMPTY_TXS as MenuFeed) : Promise.resolve(null),
+  ])
+  if (!s) return e ?? EMPTY_TXS
+  if (!e) return s
+  const outside = e.outside != null || s.outside != null ? (e.outside ?? 0) + (s.outside ?? 0) : undefined
+  return { txs: byTime(e.txs, s.txs, limitOf(q)), following: e.following, outside }
 }
-export const recentEvents = (q: RecentQuery, signal?: AbortSignal) =>
-  get<{ events: LedgerEvent[]; following: Following | null }>('/events/recent', q, signal)
+export async function recentEvents(q: RecentQuery, signal?: AbortSignal): Promise<{ events: LedgerEvent[]; following: Following | null }> {
+  const { evm, sol } = splitScope(q.chainIds)
+  const ask = (base: string, chainIds: string | undefined) =>
+    get<{ events: LedgerEvent[]; following: Following | null }>('/events/recent', { ...q, chainIds }, signal, base)
+  const safe = (j: { events?: unknown; following?: Following | null } | null) =>
+    j && Array.isArray(j.events) ? (j as { events: LedgerEvent[]; following: Following | null }) : { events: [] as LedgerEvent[], following: null }
+  const [e, s] = await Promise.all([
+    evm !== null ? ask(INDEX_BASE_URL, evm) : Promise.resolve(null),
+    sol ? ask(SOL_INDEX_BASE_URL, undefined).then(safe).catch(() => safe(null)) : Promise.resolve(null),
+  ])
+  if (!s) return e ?? safe(null)
+  if (!e) return s
+  const events = [...e.events, ...s.events].sort((x, y) => Date.parse(y.blockTs) - Date.parse(x.blockTs)).slice(0, limitOf(q))
+  return { events, following: e.following }
+}
 
-export const accountTxs = (account: string, p: { chainId?: string; limit?: number } = {}) =>
-  get<{ account: string; identity?: AccountIdentity | null; txs: TxBundle[] }>(`/accounts/${account}/events`, { ...p, group: 'tx' })
-export const accountFlows = (account: string, p: { chainId?: string; days?: number } = {}) =>
-  get<FlowsResponse>(`/accounts/${account}/flows`, p)
+export const accountTxs = async (account: string, p: { chainId?: string; limit?: number } = {}) => {
+  const j = await get<{ account: string; identity?: AccountIdentity | null; txs: TxBundle[] }>(`/accounts/${account}/events`, { ...p, group: 'tx' }, undefined, indexForAddr(account))
+  return Array.isArray(j.txs) ? j : { account, identity: null, txs: [] }
+}
+export const accountFlows = async (account: string, p: { chainId?: string; days?: number } = {}) => {
+  const j = await get<FlowsResponse>(`/accounts/${account}/flows`, p, undefined, indexForAddr(account))
+  return Array.isArray(j.flows) ? j : { account, days: p.days ?? 30, flows: [], totals: { depositedUsd: 0, withdrawnUsd: 0, borrowedUsd: 0, repaidUsd: 0, netSupplyUsd: 0, netBorrowUsd: 0, nEvents: 0, unpriced: 0 } }
+}
 /** Another wallet's positions. NEVER called for the connected user — that is the live allocator path. */
-export const accountPositions = (account: string, p: { chainId?: string } = {}) =>
-  get<PositionsResponse>(`/positions/${account}`, p)
+export const accountPositions = async (account: string, p: { chainId?: string } = {}) => {
+  const j = await get<PositionsResponse>(`/positions/${account}`, p, undefined, indexForAddr(account))
+  return Array.isArray(j.positions) ? j : { account, identity: null, positions: [], totals: { depositsUsd: 0, debtUsd: 0, navUsd: 0 }, asOf: null }
+}
 
-export const market = (uid: string) => get<MarketRow>(`/markets/${encodeURIComponent(uid)}`)
+export const market = (uid: string) => get<MarketRow>(`/markets/${encodeURIComponent(uid)}`, {}, undefined, indexForUid(uid))
 /**
  * A market's tape. Any filter makes it a 30-day window where `limit` counts
  * transactions; each one still comes back whole (every leg in this market).
@@ -110,10 +201,14 @@ export interface MarketTapeQuery extends Params {
   /** only the wallets this address follows — resolved by the index; following nobody is an empty tape */
   follower?: string
 }
-export const marketTxs = (uid: string, limit = 50, f: MarketTapeQuery = {}, signal?: AbortSignal) =>
-  get<{ marketUid: string; txs: TxBundle[] }>(`/markets/${encodeURIComponent(uid)}/events`, { ...f, limit, group: 'tx' }, signal)
-export const marketHolders = (uid: string, p: { side?: string; limit?: number } = {}) =>
-  get<{ marketUid: string; holders: Holder[] }>(`/markets/${encodeURIComponent(uid)}/holders`, p)
+export const marketTxs = async (uid: string, limit = 50, f: MarketTapeQuery = {}, signal?: AbortSignal) => {
+  const j = await get<{ marketUid: string; txs: TxBundle[] }>(`/markets/${encodeURIComponent(uid)}/events`, { ...f, limit, group: 'tx' }, signal, indexForUid(uid))
+  return Array.isArray(j.txs) ? j : { marketUid: uid, txs: [] }
+}
+export const marketHolders = async (uid: string, p: { side?: string; limit?: number } = {}) => {
+  const j = await get<{ marketUid: string; holders: Holder[] }>(`/markets/${encodeURIComponent(uid)}/holders`, p, undefined, indexForUid(uid))
+  return Array.isArray(j.holders) ? j : { marketUid: uid, holders: [] }
+}
 /** Rows are per (side, bucket) and carry the rollup's own snake_case field names. */
 export interface FlowBucket {
   side: string
@@ -123,19 +218,35 @@ export interface FlowBucket {
   n_events: number
   n_wallets: number
 }
-export const marketFlow = (uid: string, p: { hours?: number; bucket?: 'hour' | 'day' } = {}) =>
-  get<{ marketUid: string; bucket: string; hours: number; flow: FlowBucket[] }>(
-    `/markets/${encodeURIComponent(uid)}/flow`, p,
+export const marketFlow = async (uid: string, p: { hours?: number; bucket?: 'hour' | 'day' } = {}) => {
+  const j = await get<{ marketUid: string; bucket: string; hours: number; flow: FlowBucket[] }>(
+    `/markets/${encodeURIComponent(uid)}/flow`, p, undefined, indexForUid(uid),
   )
+  return Array.isArray(j.flow) ? j : { marketUid: uid, bucket: p.bucket ?? 'day', hours: p.hours ?? 0, flow: [] }
+}
 /**
  * The vault rows for ONE share token, across every chain that carries it.
  * What a wallet page asks when the address it was opened on is a vault: the
  * rate it pays depositors lives on the token, not on the positions it holds.
  */
-export const vaultsAt = (address: string) =>
-  get<{ vaults: VaultRow[] }>('/vaults', { address, limit: 10 })
-export const trending = (p: { window?: '1h' | '24h' | '7d'; chainId?: string; side?: string; limit?: number } = {}) =>
-  get<{ window: string; markets: TrendingMarket[] }>('/trending', p)
+export const vaultsAt = async (address: string) => {
+  const j = await get<{ vaults: VaultRow[] }>('/vaults', { address, limit: 10 }, undefined, indexForAddr(address))
+  return Array.isArray(j.vaults) ? j : { vaults: [] }
+}
+/** Trending: one index when a chain is named, both (merged; the hook re-sorts by `netUsd`) when none is. */
+export async function trending(p: { window?: '1h' | '24h' | '7d'; chainId?: string; side?: string; limit?: number } = {}): Promise<{ window: string; markets: TrendingMarket[] }> {
+  const safe = (j: { window?: string; markets?: unknown } | null) =>
+    j && Array.isArray(j.markets) ? (j as { window: string; markets: TrendingMarket[] }) : { window: p.window ?? '24h', markets: [] as TrendingMarket[] }
+  if (p.chainId) {
+    const j = await get<{ window: string; markets: TrendingMarket[] }>('/trending', p, undefined, indexFor(p.chainId))
+    return safe(j)
+  }
+  const [e, s] = await Promise.all([
+    get<{ window: string; markets: TrendingMarket[] }>('/trending', p),
+    get<{ window: string; markets: TrendingMarket[] }>('/trending', p, undefined, SOL_INDEX_BASE_URL).then(safe).catch(() => safe(null)),
+  ])
+  return { window: e.window, markets: [...e.markets, ...s.markets] }
+}
 /**
  * The earners board (pos-indexer tickets/0036): what POSITIONS earn now —
  * `netPositions`' carry on equity at today's rates, next to the realized 7 d
@@ -233,8 +344,27 @@ export interface HotMarket {
   lenderName?: string | null
   lenderLogo?: string | null
 }
-export const hot = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; issuers?: string; issuerMatch?: IssuerMatch; curator?: string; assetGroups?: string; limit?: number } = {}) =>
-  get<{ window: string; hours: number; method: string; markets: HotMarket[] }>('/hot', p)
+export async function hot(p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; issuers?: string; issuerMatch?: IssuerMatch; curator?: string; assetGroups?: string; limit?: number } = {}): Promise<{ window: string; hours: number; method: string; markets: HotMarket[] }> {
+  type Hot = { window: string; hours: number; method: string; markets: HotMarket[] }
+  const { evm, sol } = splitScope(p.chainIds ?? p.chainId)
+  const ask = (base: string, chainIds: string | undefined) => get<Hot>('/hot', { ...p, chainId: undefined, chainIds }, undefined, base)
+  const safe = (j: Hot | null) => (j && Array.isArray(j.markets) ? j : null)
+  const [e, s] = await Promise.all([
+    evm !== null ? ask(INDEX_BASE_URL, evm) : Promise.resolve(null),
+    sol ? ask(SOL_INDEX_BASE_URL, undefined).then(safe).catch(() => null) : Promise.resolve(null),
+  ])
+  if (!s) return e ?? { window: p.window ?? '24h', hours: 0, method: '', markets: [] }
+  if (!e) return { ...s, markets: s.markets.slice(0, p.limit) }
+  // the two heat scores are percentiles over DIFFERENT populations and do not
+  // compare — interleave by rank (plan "Open decisions") until the ledgers
+  // merge and can score jointly
+  const markets: HotMarket[] = []
+  for (let i = 0; i < Math.max(e.markets.length, s.markets.length); i++) {
+    if (e.markets[i]) markets.push(e.markets[i])
+    if (s.markets[i]) markets.push(s.markets[i])
+  }
+  return { ...e, markets: p.limit ? markets.slice(0, p.limit) : markets }
+}
 
 /**
  * The protocols worth offering as a filter: the ones with activity in the

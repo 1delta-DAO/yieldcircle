@@ -34,10 +34,13 @@ issued.
 
 ```bash
 npx wrangler kv namespace create XLINK      # id → wrangler.toml
-npx wrangler secret put X_CLIENT_SECRET
-npx wrangler secret put XLINK_SECRET        # the same value the social service has
 npx wrangler deploy
 ```
+
+`X_CLIENT_SECRET` and `XLINK_SECRET` (the same value the social service has)
+are plain `[vars]` in `wrangler.toml`, which is **gitignored** — the config
+with its ids and secrets lives only on the deploying machine. Deploy this
+worker manually from here; a git-linked build has no config to read.
 
 Then set `VITE_XLINK_URL` on the Pages project to the worker's origin, and
 `XLINK_SECRET` in the social service's environment. Without either, the app

@@ -6,23 +6,36 @@ import { pct } from './bits'
 /**
  * A row's 30-day rate line, inline SVG (no chart library for 30 points).
  *
- * The vertical range spans at least `MIN_SPAN` percentage points, so a market
- * that paid 3.5–3.6 % all month draws flat instead of as a seismograph — the
- * line's job is to say "steady" or "one-off", and per-row autoscaling turns
- * every rounding wobble into a cliff. A day with no sample is a break in the
- * line, never interpolated; the dashed line is the 30-day mean.
+ * The vertical range spans at least `MIN_SPAN` percentage points PER TURN OF
+ * LEVERAGE, so a market that paid 3.5–3.6 % all month draws flat instead of as
+ * a seismograph — the line's job is to say "steady" or "one-off", and per-row
+ * autoscaling turns every rounding wobble into a cliff. The floor scales with
+ * the series' leverage because a loop's series is `dep·L − bor·(L−1)`: at 25×
+ * the same rounding wobble is 25 points wide, and with a flat 1-point floor
+ * every loop drew as a mountain range filling the box.
+ *
+ * The range itself is set by the body of the month, not its wildest day: it is
+ * fenced past the 10th/90th percentile, and a day beyond the fence draws
+ * pinned to the edge — still visibly an outlier, no longer the owner of the
+ * scale. A day with no sample is a break in the line, never interpolated; the
+ * dashed line is the 30-day mean.
  */
 const MIN_SPAN = 1
 
 function geometry(ser: RateSeries, w: number, h: number, pad: number) {
   const vals = ser.points.filter((p): p is number => p !== null)
   if (vals.length < 2) return null
-  let lo = Math.min(...vals), hi = Math.max(...vals)
+  const sorted = [...vals].sort((a, b) => a - b)
+  const at = (t: number) => sorted[Math.round(t * (sorted.length - 1))]
+  const fence = 1.5 * (at(0.9) - at(0.1))
+  let lo = Math.max(sorted[0], at(0.1) - fence)
+  let hi = Math.min(sorted[sorted.length - 1], at(0.9) + fence)
   if (ser.avg !== null) { lo = Math.min(lo, ser.avg); hi = Math.max(hi, ser.avg) }
-  if (hi - lo < MIN_SPAN) { const mid = (hi + lo) / 2; lo = mid - MIN_SPAN / 2; hi = mid + MIN_SPAN / 2 }
+  const span = MIN_SPAN * Math.max(1, ser.leverage ?? 1)
+  if (hi - lo < span) { const mid = (hi + lo) / 2; lo = mid - span / 2; hi = mid + span / 2 }
   const n = ser.points.length
   const x = (i: number) => pad + (i * (w - 2 * pad)) / Math.max(1, n - 1)
-  const y = (v: number) => pad + ((hi - v) * (h - 2 * pad)) / (hi - lo)
+  const y = (v: number) => pad + ((hi - Math.min(hi, Math.max(lo, v))) * (h - 2 * pad)) / (hi - lo)
   const runs: string[] = []
   let cur = ''
   ser.points.forEach((p, i) => {

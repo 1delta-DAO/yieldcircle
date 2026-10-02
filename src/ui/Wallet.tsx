@@ -68,16 +68,21 @@ export function Wallet({ addr }: { addr: string }) {
   const nImpaired = rows.filter((r) => r.valueStatus === 'impaired').length
   const txList = React.useMemo(() => (txsQ.data?.txs ?? []).filter((t) => inScope(t.chainId)).slice(0, 40).map((t) => ownLegs(t, addr)), [txsQ.data, inScope, addr])
   /**
-   * What the index calls this address, read off the rows the page already
-   * loaded — every ledger leg is stamped with `accountKind` / `accountLabel`.
+   * What the index calls this address. The responses the page already loads
+   * carry `identity` top-level now — answered from the index's name tables
+   * directly, so a labelled address with no legs in this window keeps its
+   * name. Scanning the legs stays as the fallback against an older index.
    * A labelled address is not a generated name and takes no `auto` tag.
    */
   const idx = React.useMemo<AccountIdentity | null>(
     () =>
+      txsQ.data?.identity ??
+      pos.data?.identity ??
       (txsQ.data?.txs ?? [])
         .flatMap((t) => t.legs)
-        .find((l) => l.account === addr && (l.accountLabel || l.accountKind)) ?? null,
-    [txsQ.data, addr],
+        .find((l) => l.account === addr && (l.accountLabel || l.accountKind)) ??
+      null,
+    [txsQ.data, pos.data, addr],
   )
   const name = labelFor(addr, profile, idx)
   const spec = specFor(addr, profile?.avatarUrl)

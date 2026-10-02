@@ -70,7 +70,7 @@ const KIND_LABEL: Record<Kind, string> = {
 }
 const PAGES: { title: string; href: string; words: string }[] = [
   { title: 'Earn', href: '#/earn', words: 'earn explore catalogue strategies menu' },
-  { title: 'Leaderboard', href: '#/board', words: 'leaderboard board ranking top yield' },
+  { title: 'Board', href: '#/board', words: 'leaderboard board earners ranking top yield apr' },
   { title: 'Asset book', href: '#/t', words: 'asset book tokens assets lent' },
   { title: 'Alerts', href: '#/alerts', words: 'alerts notifications away' },
   { title: 'Your profile', href: '#/me', words: 'profile me settings name' },
@@ -92,10 +92,11 @@ function claimOf(h: FindHit): string | null {
   if (h.kind !== 'wallet') return null
   const s = h.match.source
   const t = h.match.term.toLowerCase()
-  const ensWord = t.endsWith('.base.eth') ? 'Basename' : 'ENS'
+  const ensWord = t.endsWith('.base.eth') ? 'Basename' : t.endsWith('.bnb') ? 'Space ID' : 'ENS'
   return ({
     seed: 'known', signed: 'signed', x: 'X', farcaster: 'Farcaster', tag: 'explorer tag', label: 'contract name',
     index: 'index label', primary: ensWord, ens: 'ENS', basename: 'Basename', address: null,
+    'ens-text': 'X via ENS', dataset: 'label set',
   } as Record<string, string | null>)[s] ?? null
 }
 

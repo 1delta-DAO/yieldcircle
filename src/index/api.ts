@@ -5,7 +5,7 @@
  * and nowhere else.
  */
 import { INDEX_BASE_URL } from '../config/backend'
-import type { AccountKind, AssetBookRow, IndexBalances, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, ImpairedCount, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
+import type { AccountIdentity, AccountKind, AssetBookRow, IndexBalances, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, ImpairedCount, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
 
 /** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
 export type IssuerMatch = 'any' | 'direct' | 'exposure'
@@ -90,7 +90,7 @@ export const recentEvents = (q: RecentQuery, signal?: AbortSignal) =>
   get<{ events: LedgerEvent[]; following: Following | null }>('/events/recent', q, signal)
 
 export const accountTxs = (account: string, p: { chainId?: string; limit?: number } = {}) =>
-  get<{ account: string; txs: TxBundle[] }>(`/accounts/${account}/events`, { ...p, group: 'tx' })
+  get<{ account: string; identity?: AccountIdentity | null; txs: TxBundle[] }>(`/accounts/${account}/events`, { ...p, group: 'tx' })
 export const accountFlows = (account: string, p: { chainId?: string; days?: number } = {}) =>
   get<FlowsResponse>(`/accounts/${account}/flows`, p)
 /** Another wallet's positions. NEVER called for the connected user — that is the live allocator path. */
@@ -137,23 +137,67 @@ export const vaultsAt = (address: string) =>
 export const trending = (p: { window?: '1h' | '24h' | '7d'; chainId?: string; side?: string; limit?: number } = {}) =>
   get<{ window: string; markets: TrendingMarket[] }>('/trending', p)
 /**
- * Realized yield per wallet over a window: `units × Δindex`, valued — the
- * number the index can actually prove, as opposed to a screenshot. Answers 404
- * on a deploy that has no rollup yet, and every caller falls back rather than
- * showing an empty board.
+ * The earners board (pos-indexer tickets/0036): what POSITIONS earn now —
+ * `netPositions`' carry on equity at today's rates, next to the realized 7 d
+ * figure the ledger proved. One row per netted position, not per wallet: the
+ * old realized board ranked whole wallets by size and the top was allocator
+ * plumbing at 1.00× leverage. Answers 404 on a deploy whose `position-carry`
+ * job has not run; the caller says so rather than showing an empty board.
  */
-export interface BoardRow {
+export interface EarnerLeg {
+  marketUid: string
+  marketName?: string | null
+  side: string
+  amountUsd: number | null
+  aprNow: number | null
+  intrinsicApr: number | null
+  intrinsicSource?: string | null
+  aprEffective: number | null
+  symbol: string | null
+  assetGroup: string | null
+  valueStatus?: string | null
+  faceUsd?: number | null
+}
+export interface EarnerRow {
+  key: string
+  chainId: string
   account: string
-  realizedUsd: number
-  avgPositionUsd?: number | null
-  ratePct?: number | null
-  nPositions?: number
-  exact?: boolean
+  posId: string
+  riskKey: string
+  lenderKey: string
+  marketUids: string[]
+  supplyUsd: number
+  debtUsd: number
+  equityUsd: number
+  leverage: number | null
+  annualUsd: number | null
+  perDayUsd: number | null
+  netAprPct: number | null
+  apr24hPct: number | null
+  exact: boolean
+  since: string | null
+  risk: string[]
+  riskDetail: Record<string, unknown> | null
+  legs: EarnerLeg[]
+  /** the proven number beside the promised one: `units × Δindex` over 7 d, all positions */
+  realized7dUsd: number | null
   accountKind?: AccountKind
   accountLabel?: string | null
+  accountLabelSource?: string | null
 }
-export const leaderboard = (p: { window?: '24h' | '7d' | '30d' | 'all'; limit?: number; chainId?: string } = {}) =>
-  get<{ window: string; rows: BoardRow[]; method?: string; asOf?: string }>('/leaderboard', p)
+export interface EarnersResponse {
+  sort: string
+  window: string
+  direction: string
+  exclude: string[]
+  /** what the default preset hid, per flag — one row may count under several */
+  hidden: Record<string, number>
+  ratingFlags: { status: 'ok' | 'stale' | 'unavailable'; computedAt: string | null; nSubjects: number | null }
+  computedAt: string | null
+  rows: EarnerRow[]
+}
+export const earners = (p: { sort?: 'perDay' | 'apr'; preset?: 'all'; people?: boolean; chainIds?: string; protocols?: string; assetGroups?: string; limit?: number } = {}) =>
+  get<EarnersResponse>('/earners', { ...p, people: p.people ? '1' : undefined })
 
 /**
  * What is HOT: the markets people are acting in, ranked on frequency AND size

@@ -47,7 +47,7 @@ export function Alerts() {
   React.useEffect(() => { if (txs.length) writeSeen(Date.now()) }, [txs.length])
 
   if (!account) return <div className="note">Connect a wallet to see what the people and markets you follow have been doing.</div>
-  if (!has) return <div className="note"><b>Nothing to watch yet.</b> Follow a wallet or a market and their moves collect here. <a className="pri" href="#/board">The leaderboard</a> is a good place to start.</div>
+  if (!has) return <div className="note"><b>Nothing to watch yet.</b> Follow a wallet or a market and their moves collect here. <a className="pri" href="#/board">The board</a> is a good place to start.</div>
 
   const fresh = txs.filter((t) => Date.parse(t.blockTs) > seen)
   const older = txs.filter((t) => Date.parse(t.blockTs) <= seen)

@@ -62,14 +62,29 @@ export const AUTO_TITLE =
  * knows — a renderer that asks `!handle && !displayName` calls every labelled
  * vault auto.
  */
+/** label sources that NAME a plain wallet: the wallet's own ENS / Basename, our seed file, a third-party tag */
+const WALLET_NAME_SOURCES = new Set(['ens', 'basename', 'seed', 'tag'])
+
 export function labelFor(
   addr: string,
   profile?: NameLike | null,
-  idx?: { accountKind?: string | null; accountLabel?: string | null } | null,
+  idx?: {
+    accountKind?: string | null
+    accountLabel?: string | null
+    accountLabelSource?: string | null
+  } | null,
 ): { label: string; generated: boolean; kind?: string | null } {
   // 'unknown' is the index's DEFAULT for an address it has not classified —
-  // it says nothing, so it must not outrank the generated name
-  if (idx?.accountLabel && idx.accountKind && idx.accountKind !== 'eoa' && idx.accountKind !== 'unknown')
+  // it says nothing, so it must not outrank the generated name. A label whose
+  // SOURCE is a name (ENS / Basename / seed / tag) stands on its own: an
+  // ENS-named EOA is `vitalik.eth`, not Amber Otter — but never over a
+  // signed profile, which is the wallet speaking for itself.
+  const strongKind =
+    idx?.accountKind && idx.accountKind !== 'eoa' && idx.accountKind !== 'unknown'
+  const named = idx?.accountLabelSource && WALLET_NAME_SOURCES.has(idx.accountLabelSource)
+  if (idx?.accountLabel && strongKind)
     return { label: idx.accountLabel, generated: false, kind: idx.accountKind }
+  if (idx?.accountLabel && named && !profile?.handle && !profile?.displayName)
+    return { label: idx.accountLabel, generated: false, kind: idx.accountKind ?? null }
   return { ...displayFor(addr, profile), kind: idx?.accountKind ?? null }
 }

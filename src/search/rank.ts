@@ -48,8 +48,10 @@ export const TERM_SOURCES = [
   'signed',
   'x',
   'primary',
+  'ens-text',
   'farcaster',
   'tag',
+  'dataset',
   'label',
   'index',
   'ens',
@@ -65,8 +67,10 @@ const SOURCE_PRIOR: Record<string, number> = {
   x: 0.9,
   primary: 0.8,
   index: 0.8,
+  'ens-text': 0.75,
   farcaster: 0.7,
   tag: 0.7,
+  dataset: 0.65,
   label: 0.5,
   context: 0.3,
   ens: 0.4,
@@ -103,9 +107,9 @@ export function searchKey(s: string): string {
     .replace(/\s+/g, ' ')
 }
 
-/** `vitalik.eth` / `jesse.base.eth` → the name without its namespace */
+/** `vitalik.eth` / `jesse.base.eth` / `cooper.bnb` → the name without its namespace */
 export const bareEns = (key: string): string =>
-  key.replace(/\.(base\.)?eth$/, '')
+  key.replace(/\.(base\.eth|eth|bnb)$/, '')
 
 /** a word boundary inside a name: space and the separators people type past */
 const WORD = /[\s._\-/:()|,+]+/

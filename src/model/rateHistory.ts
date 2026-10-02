@@ -42,11 +42,17 @@ export interface RateHistoryResponse {
   missing: string[]
 }
 
-/** A row's line: one percent per day (null = no data), its hours-weighted mean and how much of the window it covers. */
+/**
+ * A row's line: one percent per day (null = no data), its hours-weighted mean
+ * and how much of the window it covers. A loop's series carries the leverage
+ * it was netted at, because every judgement about the series scales with it —
+ * what is "flat" or "a spike" for a deposit is a rounding wobble at 25×.
+ */
 export interface RateSeries {
   points: (number | null)[]
   avg: number | null
   coverage: number | null
+  leverage?: number
 }
 
 /** The uids a row needs: its own, or a loop's two legs. */
@@ -91,7 +97,7 @@ export function loopSeries(long: RateHistoryItem, short: RateHistoryItem, L: num
     points.push(netAprAtLeverage(d, b, L))
   }
   const cov = [long.coverage30, short.coverage30].filter((c): c is number => c !== null)
-  return { points, avg: mean(points, (i) => Math.min(hoursAt(long, i), hoursAt(short, i))), coverage: cov.length ? Math.min(...cov) : null }
+  return { points, avg: mean(points, (i) => Math.min(hoursAt(long, i), hoursAt(short, i))), coverage: cov.length ? Math.min(...cov) : null, leverage: L }
 }
 
 /** Where a series reads a uid's history from (the shared store's lookup). */
@@ -122,12 +128,15 @@ export function avgLast(ser: RateSeries, days = 7): number | null {
 
 /**
  * Is the rate on the row a spike rather than what the market has paid? True
- * when it is well above the 30-day mean — half again and at least 1.5 points —
- * on a window that is mostly covered. A one-night event is not a yield.
+ * when it is well above the 30-day mean — half again and at least 1.5 points
+ * per turn of leverage — on a window that is mostly covered. A one-night event
+ * is not a yield. The absolute bar scales with the series' leverage: 1.5
+ * points is a move on a deposit, but on a 25× loop it is one basis point of
+ * spread, and without the scaling every levered row read as a spike.
  */
 export function isSpike(now: number, ser: RateSeries | null): boolean {
   if (!ser || ser.avg === null || (ser.coverage ?? 0) < 0.6) return false
-  return now - ser.avg >= 1.5 && now >= ser.avg * 1.5
+  return now - ser.avg >= 1.5 * Math.max(1, ser.leverage ?? 1) && now >= ser.avg * 1.5
 }
 
 /**

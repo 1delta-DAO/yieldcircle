@@ -12,7 +12,7 @@ export type UsdStatus = 'exact' | 'provisional' | 'pending' | 'no-asset' | 'no-i
  * `dex` = a liquidity venue (Balancer's Vault) wrapping / unwrapping lending receipts inside a swap;
  * `wrapper` = holds a lending position as the 1:1 backing of a token it issues (Aquabank's reserves).
  */
-export type AccountKind = 'vault' | 'protocol' | 'router' | 'dex' | 'wrapper' | 'eoa' | 'contract' | null
+export type AccountKind = 'vault' | 'protocol' | 'router' | 'dex' | 'wrapper' | 'eoa' | 'contract' | 'safe' | 'cex' | 'deployer' | 'curator' | 'adapter' | null
 
 export interface Named {
   lenderKey: string
@@ -77,7 +77,12 @@ export interface Valued extends Desked {
   /** the cross-chain asset key, when the index answers one — what an asset page is keyed by */
   assetGroup?: string | null
 }
-export interface AccountIdentity { accountKind?: AccountKind; accountLabel?: string | null }
+export interface AccountIdentity {
+  accountKind?: AccountKind
+  accountLabel?: string | null
+  /** null/absent = the index's own claim; else `chain` / `blockscout` / `ens` / `basename` / `seed` / `tag` */
+  accountLabelSource?: string | null
+}
 
 export interface LedgerEvent extends Named, Valued, AccountIdentity {
   chainId: string
@@ -219,6 +224,8 @@ export interface PositionGroup {
 }
 export interface PositionsResponse {
   account: string
+  /** what the index calls the address itself (pos-indexer: name tables, not legs) */
+  identity?: AccountIdentity | null
   positions: IndexPosition[]
   groups?: PositionGroup[]
   totals: { depositsUsd: number; debtUsd: number; navUsd: number; impaired?: number; impairedFaceUsd?: number }

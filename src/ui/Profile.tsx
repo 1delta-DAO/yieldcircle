@@ -144,7 +144,7 @@ export function ProfilePage() {
             <div className="amt sm"><input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="stables, delta-neutral, long-only" /></div>
             <span className="foot">Up to five, self-declared — they are shown apart from the earned ones.</span>
           </label>
-          <label className="check"><input type="checkbox" checked={unlisted} onChange={(e) => setUnlisted(e.target.checked)} /> <span>Unlisted — keep me off the leaderboard and out of discovery. <span className="t40">The chain stays public either way; this is about appearing as a person.</span></span></label>
+          <label className="check"><input type="checkbox" checked={unlisted} onChange={(e) => setUnlisted(e.target.checked)} /> <span>Unlisted — keep me off the board and out of discovery. <span className="t40">The chain stays public either way; this is about appearing as a person.</span></span></label>
           <div className="actions">
             <button className="btn pri wide" disabled={busy} onClick={() => void save()}>{busy ? 'Signing…' : 'Sign and save'}</button>
           </div>

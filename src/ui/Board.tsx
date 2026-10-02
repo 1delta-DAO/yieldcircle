@@ -1,109 +1,137 @@
 /**
- * The leaderboard. The metric is **realized yield** — what a position actually
- * earned, `units × Δindex` valued in dollars — because that is the one number
- * the index can prove and a screenshot cannot.
+ * The board: what POSITIONS earn now (pos-indexer tickets/0036). The old
+ * realized board is gone on purpose — ranked by dollars earned it was a size
+ * ranking, and the top 25 were allocator contracts at 1.00× leverage. This
+ * one ranks the position, not the wallet: the carry on equity at today's
+ * rates, beside the realized 7 d figure the ledger proved.
  *
- * Where the deploy has no rollup yet the board falls back to net deposits in
- * the window and SAYS SO on the page. A proxy labelled as yield would be worth
- * less than nothing here.
+ * The index's default preset hides the rows whose figure is not a yield
+ * anyone can take home — phantom, rate-capped, locked, strategy, exploited —
+ * and the board SAYS what it hid; one tap shows everything, flagged. A flag
+ * marks a row, it never deletes it.
  */
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useApp } from '../state/AppState'
+import { useApp, go, marketHref } from '../state/AppState'
 import * as idx from '../index/api'
 import { useProfiles } from '../social/queries'
 import { FollowButton, Money, Who } from './social-bits'
 import { Sk, pct, usdShort } from './bits'
-import { go } from '../state/AppState'
 import { ChainChip } from './ChainPicker'
 
-// the three the rollup keeps; an "all time" board would need a rollup of its
-// own, not a wider window, because the index cache does not go back far enough
-type Win = '24h' | '7d' | '30d'
-const WINDOWS: Win[] = ['24h', '7d', '30d']
-const HOURS: Record<Win, number> = { '24h': 24, '7d': 168, '30d': 720 }
+type Sort = 'perDay' | 'apr'
+
+const FLAG_TITLES: Record<string, string> = {
+  phantom: 'a market that cannot pay this claim — its value is out of every sum',
+  'illiquid-exit': 'bigger than the market’s available cash, or utilization ≥ 98%',
+  'rate-capped': 'the rate is the model’s ceiling: a dead market compounding what nobody can withdraw',
+  locked: 'async or request-based exit, a fixed term, or a PT before maturity',
+  strategy: 'trading P&L or LP fees annualised — not lending yield',
+  leveraged: 'supply over equity past 3×',
+  'rate-spike': 'the live rate is far above its own 24 h mean',
+  'rate-unverified': 'a rate outside the plausibility band (−50% … +300%)',
+  thin: 'a vault with almost no money or almost no holders',
+  stress: 'the index’s own stress signals are lit on a leg’s market',
+  exploited: 'wallets with checkable positions flagged this as exploited / under exploit / bad debt — evidence attached',
+}
+
+function Flags({ row }: { row: idx.EarnerRow }) {
+  if (!row.risk.length) return null
+  return (
+    <span className="flags">
+      {row.risk.map((f) => {
+        const d = row.riskDetail?.[f]
+        const detail = Array.isArray(d) && d.length ? `\n${JSON.stringify(d[0])}` : ''
+        return (
+          <span key={f} className={`pill flag${f === 'exploited' ? ' bad' : ''}`} title={`${FLAG_TITLES[f] ?? f}${detail}`}>
+            {f}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
 
 export function Board({ window: w }: { window?: string }) {
-  const { chainIds, allChains, chainLabelFor } = useApp()
-  const win: Win = WINDOWS.includes(w as Win) ? (w as Win) : '7d'
-  const chainId = allChains || chainIds.length > 1 ? undefined : chainIds[0]
+  const { chainIds, allChains } = useApp()
+  const sort: Sort = w === 'apr' ? 'apr' : 'perDay'
+  const [showAll, setShowAll] = React.useState(false)
+  const [contracts, setContracts] = React.useState(false)
 
-  const real = useQuery({
-    queryKey: ['leaderboard', win, chainId ?? 'all'],
-    queryFn: () => idx.leaderboard({ window: win, limit: 50, chainId }),
-    staleTime: 5 * 60_000,
+  const q = useQuery({
+    queryKey: ['earners', sort, showAll, contracts, allChains ? 'all' : chainIds.join(',')],
+    queryFn: () =>
+      idx.earners({
+        sort,
+        preset: showAll ? 'all' : undefined,
+        people: !contracts,
+        chainIds: allChains ? undefined : chainIds.join(','),
+        limit: 50,
+      }),
+    staleTime: 60_000,
     retry: false,
   })
-  // the fallback: aggregate the window's tape per wallet, client-side
-  const fallback = useQuery({
-    enabled: real.isError,
-    queryKey: ['board-fallback', win, chainIds.join(',')],
-    queryFn: async () => {
-      const since = new Date(Date.now() - HOURS[win] * 3600_000).toISOString()
-      const r = await idx.recentEvents({ since, limit: 1000, chainIds: allChains ? undefined : chainIds.join(',') })
-      const by = new Map<string, { account: string; netUsd: number; n: number }>()
-      for (const e of r.events) {
-        if (e.accountKind === 'vault' || e.accountKind === 'protocol' || e.accountKind === 'router' || e.accountKind === 'dex' || e.accountKind === 'wrapper') continue
-        if (e.side === 'borrow') continue
-        const v = e.amountUsd
-        if (v == null) continue
-        const sign = /withdraw|redeem|burn/.test(e.kind) ? -1 : /deposit|supply|mint/.test(e.kind) ? 1 : 0
-        if (!sign) continue
-        const cur = by.get(e.account) ?? { account: e.account, netUsd: 0, n: 0 }
-        cur.netUsd += sign * v
-        cur.n++
-        by.set(e.account, cur)
-      }
-      return [...by.values()].filter((x) => x.netUsd > 0).sort((a, b) => b.netUsd - a.netUsd).slice(0, 50)
-    },
-    staleTime: 5 * 60_000,
-  })
 
-  const rows = real.data?.rows
-  const alt = fallback.data
-  const accounts = rows?.map((r) => r.account) ?? alt?.map((a) => a.account) ?? []
-  const { profile } = useProfiles(accounts)
-  const loading = real.isLoading || (real.isError && fallback.isLoading)
+  const rows = q.data?.rows ?? []
+  const hidden = Object.entries(q.data?.hidden ?? {})
+  const flags = q.data?.ratingFlags
+  const { profile } = useProfiles(rows.map((r) => r.account))
 
   return (
     <>
       <div className="feed-h">
-        <h1>Leaderboard</h1>
+        <h1>Board</h1>
         <span className="sp" />
         <ChainChip />
-        <div className="seg">{WINDOWS.map((x) => <button key={x} aria-pressed={win === x} onClick={() => go('board', { t: x })}>{x}</button>)}</div>
+        <div className="seg">
+          <button aria-pressed={sort === 'perDay'} onClick={() => go('board', { t: 'day' })} title="most dollars a day at today’s rates">$/day</button>
+          <button aria-pressed={sort === 'apr'} onClick={() => go('board', { t: 'apr' })} title="highest net APR — exact positions over $10k equity only">APR</button>
+        </div>
       </div>
 
-      {real.isError ? (
-        <div className="note"><b>Showing net deposits, not yield.</b> This deploy of the index has no realized-yield rollup yet, so the board ranks what wallets put to work in the window. Realized yield is <span className="mono">units × Δindex</span>, valued — it appears here the moment the rollup does.</div>
-      ) : (
-        <div className="note">Realized yield is what the position <b>earned</b>: its units multiplied by the change in its market’s index, valued in dollars. Flows in and out are removed, so adding money never looks like a profit. Wallets that marked themselves unlisted are not here.</div>
+      <div className="note">
+        What positions <b>earn now</b>: the net carry on equity at today’s rates — a projection, so the proven
+        7-day figure sits beside it. Positions whose rate is not a yield anyone can take home are hidden
+        {hidden.length > 0 && <> ({hidden.map(([f, n]) => `${f} ${n}`).join(' · ')})</>}
+        {' '}
+        <button className="linklike" onClick={() => setShowAll((x) => !x)}>{showAll ? 'hide them again' : 'show them, flagged'}</button>
+        {' · '}
+        <button className="linklike" onClick={() => setContracts((x) => !x)}>{contracts ? 'people only' : 'include contracts'}</button>
+        . Wallets that marked themselves unlisted are not here.
+      </div>
+      {flags && flags.status !== 'ok' && (
+        <div className="note warn">Community exploit flags are {flags.status} on this index right now — the exploited exclusion may be out of date.</div>
       )}
 
       <div className="card">
-        {loading && <div className="empty"><Sk w={240} /></div>}
-        {!loading && !accounts.length && <div className="empty">Nothing to rank in this window.</div>}
+        {q.isLoading && <div className="empty"><Sk w={240} /></div>}
+        {q.isError && <div className="empty">This deploy of the index has no earners board yet — it appears the moment the position-carry job runs.</div>}
+        {!q.isLoading && !q.isError && !rows.length && <div className="empty">Nothing to rank with these filters.</div>}
         <div className="list">
-          {rows?.map((r, i) => (
-            <a key={r.account} className="row wrow board" href={`#/w/${r.account}`}>
-              <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
-              <Who account={r.account} profile={profile(r.account)} idx={r} plain
-                sub={r.nPositions ? `${r.nPositions} position${r.nPositions === 1 ? '' : 's'}${r.exact === false ? ' · approximate' : ''}` : undefined} />
-              <span className="sp" />
-              {r.ratePct != null && <span className="v ok hide-m">{pct(r.ratePct)}<small>on {usdShort(r.avgPositionUsd)}</small></span>}
-              <span className="v"><Money usd={r.realizedUsd} /><small>earned</small></span>
-              <span onClick={(e) => e.preventDefault()}><FollowButton kind="wallet" target={r.account} small /></span>
-            </a>
-          ))}
-          {!rows && alt?.map((a, i) => (
-            <a key={a.account} className="row wrow board" href={`#/w/${a.account}`}>
-              <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
-              <Who account={a.account} profile={profile(a.account)} plain sub={`${a.n} move${a.n === 1 ? '' : 's'}`} />
-              <span className="sp" />
-              <span className="v"><Money usd={a.netUsd} /><small>put to work</small></span>
-              <span onClick={(e) => e.preventDefault()}><FollowButton kind="wallet" target={a.account} small /></span>
-            </a>
-          ))}
+          {rows.map((r, i) => {
+            const name = r.legs[0]?.marketName ?? r.riskKey
+            return (
+              <a key={r.key} className="row wrow board" href={`#/w/${r.account}`}>
+                <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
+                <Who account={r.account} profile={profile(r.account)} idx={r} plain
+                  sub={
+                    <>
+                      <span className="mono" onClick={(e) => { e.preventDefault(); e.stopPropagation(); location.hash = marketHref(r.marketUids[0]) }}>{name}</span>
+                      {r.marketUids.length > 1 && <> +{r.marketUids.length - 1}</>}
+                      {r.leverage != null && r.leverage > 1.05 && <> · {r.leverage.toFixed(1)}×</>}
+                      {' · '}{usdShort(r.equityUsd)} equity
+                    </>
+                  } />
+                <span className="sp" />
+                <Flags row={r} />
+                <span className="v ok hide-m" title={r.exact ? 'every leg carries a price and a rate' : 'a leg has no rate or price: this is a floor, not a guess'}>
+                  {r.exact ? '' : '≈ '}{pct(r.netAprPct)}<small>{r.apr24hPct != null ? `${pct(r.apr24hPct)} 24h` : 'net APR'}</small>
+                </span>
+                <span className="v"><Money usd={r.perDayUsd} /><small>a day{r.realized7dUsd != null ? ` · ${usdShort(r.realized7dUsd)} proven 7d` : ''}</small></span>
+                <span onClick={(e) => e.preventDefault()}><FollowButton kind="wallet" target={r.account} small /></span>
+              </a>
+            )
+          })}
         </div>
       </div>
     </>

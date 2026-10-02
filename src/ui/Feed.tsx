@@ -371,7 +371,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
             it is never quietly replaced by the global one. Open a wallet or a
             market and press Follow, or start from{" "}
             <a className="pri" href="#/board">
-              the leaderboard
+              the board
             </a>
             .
           </div>

@@ -14,4 +14,4 @@ ALLOWED_ORIGIN = "*"
 
 [[kv_namespaces]]
 binding = "XLINK"
-id = ""
+id = "dd34cb3c87b64dafb5523156ab334e8f"

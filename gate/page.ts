@@ -46,8 +46,8 @@ export const overlay = () => `
 </div>
 <script>
 (() => {
-  var T_VERIFY = ${JSON.stringify(message('__A__', '__I__'))};
-  var T_REQUEST = ${JSON.stringify(message('__A__', '__I__', '__E__'))};
+  var T_VERIFY = ${JSON.stringify(message('__a__', '__i__'))};
+  var T_REQUEST = ${JSON.stringify(message('__a__', '__i__', '__e__'))};
   var $ = function (id) { return document.getElementById(id); };
   var status = function (t, err) { $('yc-status').textContent = t || ''; $('yc-status').className = err ? 'err' : ''; };
   var eth = window.ethereum;
@@ -86,7 +86,7 @@ export const overlay = () => `
   function enter() {
     var issued = new Date().toISOString();
     status('Sign to enter \\u2014 free, no transaction.');
-    return sign(T_VERIFY.replace('__A__', address.toLowerCase()).replace('__I__', issued)).then(function (signature) {
+    return sign(T_VERIFY.replace('__a__', address.toLowerCase()).replace('__i__', issued)).then(function (signature) {
       return post('/gate/verify', { address: address, issued: issued, signature: signature });
     }).then(function () { status('You\\u2019re in.'); location.reload(); });
   }
@@ -105,7 +105,7 @@ export const overlay = () => `
     if (!email || !el.checkValidity()) { status('Enter a valid email address.', true); btn.disabled = false; el.focus(); return; }
     var issued = new Date().toISOString();
     status('Sign to prove the wallet is yours \\u2014 free, no transaction.');
-    return sign(T_REQUEST.replace('__A__', address.toLowerCase()).replace('__I__', issued).replace('__E__', email)).then(function (signature) {
+    return sign(T_REQUEST.replace('__a__', address.toLowerCase()).replace('__i__', issued).replace('__e__', email)).then(function (signature) {
       return post('/gate/request', { address: address, issued: issued, signature: signature, email: email });
     }).then(function () {
       $('yc-title').textContent = 'You\\u2019re in line';

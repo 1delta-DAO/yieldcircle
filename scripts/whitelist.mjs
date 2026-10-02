@@ -4,7 +4,7 @@
 //   node scripts/whitelist.mjs add --file wave1.txt [--source wave1] one address per line
 //   node scripts/whitelist.mjs remove 0xabc…
 //   node scripts/whitelist.mjs list                                 whitelisted wallets
-//   node scripts/whitelist.mjs waitlist                             requests from /lineup: address, email, when
+//   node scripts/whitelist.mjs waitlist                             requests from /lineup as CSV: address,email,when
 //   node scripts/whitelist.mjs promote 100                          whitelist the 100 oldest waitlist entries
 //
 // Keys are always lower-cased: the gate looks up `wl:<lowercase address>`.
@@ -69,7 +69,7 @@ switch (cmd) {
     console.log(keys('wl:').map((k) => k.slice(3)).join('\n'))
     break
   case 'waitlist':
-    console.log(pending().map((x) => `${x.a}  ${x.email}  ${x.ts}`).join('\n'))
+    console.log(pending().map((x) => `${x.a},${x.email},${x.ts}`).join('\n'))
     break
   case 'promote': {
     const n = Number(rest[0])

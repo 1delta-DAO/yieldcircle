@@ -34,6 +34,7 @@ const COOKIE = 'yc_beta'
 const COOKIE_DAYS = 30
 const SIGNATURE_MAX_AGE_MS = 10 * 60_000
 const NOTIFY_EMAIL = 'achim@1delta.io'
+const THREAD_ANCHOR = '<beta-requests@yieldcircle.io>'
 // Served without a cookie: share cards, icons and the manifest must work for
 // a link posted on X, which is the point of the waitlist.
 const PUBLIC = /^\/(og\.png|favicon[\w.-]*|apple-touch-icon\.png|icon-[\w.-]+\.png|site\.webmanifest|robots\.txt|logo[\w.-]*\.svg|mark-plain\.svg)$/
@@ -99,8 +100,10 @@ async function notify(env: Gated, account: string, email: string, ts: string): P
       from: 'YieldCircle <onboarding@resend.dev>',
       to: [env.NOTIFY_EMAIL || NOTIFY_EMAIL],
       reply_to: email,
-      subject: `Beta request: ${email}`,
-      text: `${email} asked to join the YieldCircle beta.\n\nWallet: ${account}\nAt: ${ts}\n\nApprove:\n  pnpm whitelist add ${account} --source lineup\n`,
+      // A fixed subject plus a shared References anchor keeps every request in ONE mail thread.
+      subject: 'YieldCircle beta requests',
+      headers: { References: THREAD_ANCHOR, 'In-Reply-To': THREAD_ANCHOR },
+      text: `${account},${email},${ts}\n`,
     }),
   }).catch((e) => new Response(String(e), { status: 599 }))
   if (!res.ok) console.error('beta request email failed', res.status, await res.text())

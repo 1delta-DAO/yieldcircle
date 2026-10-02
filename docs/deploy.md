@@ -29,6 +29,8 @@ both Production and Preview:
 |---|---|---|
 | Bindings → KV namespace | `WHITELIST` | the `WHITELIST` namespace (`23ce3e9b…`) |
 | Variables and Secrets (Secret) | `GATE_SECRET` | 32+ random characters (`openssl rand -base64 32`) |
+| Variables and Secrets (Secret, optional) | `RESEND_API_KEY` | resend.com API key — emails each `/lineup` request; without it requests are only stored |
+| Variables and Secrets (optional) | `NOTIFY_EMAIL` | where requests are mailed; defaults to `achim@1delta.io`. Resend's `onboarding@resend.dev` sender only delivers to the Resend account's own address, so sign up with this one (or verify a domain) |
 | Variables and Secrets (optional) | `GATE_OFF` | `1` opens the app to everyone — the end of the beta |
 
 Without the binding or the secret every page answers *"Beta gate is not

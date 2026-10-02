@@ -4,7 +4,7 @@
 //   node scripts/whitelist.mjs add --file wave1.txt [--source wave1] one address per line
 //   node scripts/whitelist.mjs remove 0xabc…
 //   node scripts/whitelist.mjs list                                 whitelisted wallets
-//   node scripts/whitelist.mjs waitlist                             wallets that asked to join
+//   node scripts/whitelist.mjs waitlist                             requests from /lineup: address, email, when
 //   node scripts/whitelist.mjs promote 100                          whitelist the 100 oldest waitlist entries
 //
 // Keys are always lower-cased: the gate looks up `wl:<lowercase address>`.
@@ -33,7 +33,15 @@ const addresses = (list) => {
   return [...new Set(out)]
 }
 
-const keys = (prefix) => JSON.parse(wrangler('key', 'list', '--prefix', prefix)).map((k) => k.name)
+const entries = (prefix) => JSON.parse(wrangler('key', 'list', '--prefix', prefix))
+const keys = (prefix) => entries(prefix).map((k) => k.name)
+const pending = () => {
+  const listed = new Set(keys('wl:').map((k) => k.slice(3)))
+  return entries('wait:')
+    .map((k) => ({ a: k.name.slice(5), email: k.metadata?.email ?? '', ts: k.metadata?.ts ?? '' }))
+    .filter((x) => !listed.has(x.a))
+    .sort((x, y) => x.ts.localeCompare(y.ts))
+}
 
 const put = (list, source) => {
   const ts = new Date().toISOString()
@@ -60,18 +68,13 @@ switch (cmd) {
   case 'list':
     console.log(keys('wl:').map((k) => k.slice(3)).join('\n'))
     break
-  case 'waitlist': {
-    const listed = new Set(keys('wl:').map((k) => k.slice(3)))
-    console.log(keys('wait:').map((k) => k.slice(5)).filter((a) => !listed.has(a)).join('\n'))
+  case 'waitlist':
+    console.log(pending().map((x) => `${x.a}  ${x.email}  ${x.ts}`).join('\n'))
     break
-  }
   case 'promote': {
     const n = Number(rest[0])
     if (!(n > 0)) { console.error('usage: promote <count>'); process.exit(1) }
-    const listed = new Set(keys('wl:').map((k) => k.slice(3)))
-    const waiting = keys('wait:').map((k) => k.slice(5)).filter((a) => !listed.has(a))
-    const dated = waiting.map((a) => ({ a, ts: JSON.parse(wrangler('key', 'get', `wait:${a}`) || '{}').ts ?? '' }))
-    const next = dated.sort((x, y) => x.ts.localeCompare(y.ts)).slice(0, n).map((x) => x.a)
+    const next = pending().slice(0, n).map((x) => x.a)
     if (next.length) put(next, 'waitlist')
     else console.log('waitlist is empty')
     break

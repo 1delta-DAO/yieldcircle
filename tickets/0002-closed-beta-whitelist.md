@@ -136,9 +136,11 @@ og-image, and the page shares itself.
 [`docs/deploy.md`](../docs/deploy.md): the `WHITELIST` binding and
 `GATE_SECRET` on the Pages project.
 
-**Built (2026-10-02):** task 1 and 3, plus a lean task 2 — the gate page
-records an unlisted wallet as `wait:<address>` in the same KV (no D1, no
-position number yet) and offers a Share-on-X button. The gate page uses an
+**Built (2026-10-02):** task 1 and 3, plus a lean task 2 — `/lineup`, a
+public request page: wallet + email, both in the signed message, stored as
+`wait:<address>` in the same KV with the email in its metadata (no D1, no
+position number yet), one notification email per new request via Resend, and
+a Share-on-X button. The gate page uses an
 injected wallet only (the app bundle, WalletConnect included, is what the gate
 withholds), so phones use a wallet's in-app browser.
 

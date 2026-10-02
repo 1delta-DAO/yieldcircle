@@ -1,5 +1,5 @@
 import React from 'react'
-import { GROUPS, deskOf, nameOf, whatIs, type DeskKind, type GroupId } from '../model/assets'
+import { GROUPS, nameOf, type Group, type GroupId } from '../model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
 import { GroupIcon, Sk, Tok, amt, pct, usd } from './bits'
@@ -7,19 +7,37 @@ import type { AssetBook } from '../model/positions'
 import type { Strategy } from '../model/strategies'
 import { BACKEND_BASE_URL } from '../config/backend'
 import { ChainChip } from './ChainPicker'
+import { useRateHistory } from '../sdk/queries'
+import { steadyRate, type HistoryGet } from '../model/rateHistory'
+import { Avg30 } from './Spark'
 
 /**
- * Earn: what you can hold, and what it can earn — every group, every asset,
- * the best a row pays and how many strategies are behind it. Tap one for its
- * strategies and the ticket.
+ * Earn: a digest, not an index. Four group tiles (your money there, the best rate, how many
+ * strategies), then the reader's own assets and what each could earn, then the best desk per
+ * row across all groups. The full per-desk listing lives on each group's page, one tap away.
  *
- * It was "Explore", which was half this and half a balance sheet. The
- * balances moved to the chip in the top-right of the header (`Positions`),
- * because they are the reader's own and belong on every page, not on one.
+ * It was the whole catalogue on one page — every desk of every group, banded by whose credit
+ * ("Issued dollars", "Yield desks") — which after the regrouping ran to ~70 rows and four screens
+ * of scrolling on a phone. The bands went with the big table; a group page's chips are the desk
+ * index now, and a digest row carries its group as a small tag instead.
  */
 export function Earn() {
   const b = useBook()
-  const byGroup = (g: GroupId) => b.books.filter((x) => x.group === g)
+  // the whole menu's 30-day history (shared cache: the group pages and the
+  // ticket read the same answers), once the catalogue has settled
+  const get = useRateHistory(b.all, !b.isFetching)
+  // ranked on the STEADY rate: a desk whose best row is a one-night spike is
+  // ranked by what that row has paid over the month, not by tonight
+  const rank = (s: Strategy) => steadyRate(s, get)
+  // the best strategy per desk row, and how many sit behind it
+  const bestBy = new Map<string, Strategy>(); const countBy = new Map<string, number>()
+  for (const s of b.all) {
+    countBy.set(s.asset, (countBy.get(s.asset) ?? 0) + 1)
+    const cur = bestBy.get(s.asset); if (!cur || rank(s) > rank(cur)) bestBy.set(s.asset, s)
+  }
+  // top desks the reader does NOT hold (the held ones lead their own section above)
+  const held = new Set(b.books.map((x) => x.asset))
+  const top = [...bestBy.values()].filter((s) => !held.has(s.asset)).sort((x, y) => rank(y) - rank(x)).slice(0, 6)
   return (
     <>
       <div className="feed-h earn-h">
@@ -28,90 +46,72 @@ export function Earn() {
         <span className="sp" />
         <ChainChip />
       </div>
-      <nav className="pchips" aria-label="Asset groups">
-        {GROUPS.map((g) => (
-          <a key={g.id} className="pchip" href={`#/${g.id}`}>
-            <GroupIcon id={g.id} color={g.color} size={15} />{g.id === 'MORE' ? 'More' : g.id}
-          </a>
-        ))}
-      </nav>
       {b.errors.length > 0 && !b.anyData && <div className="err">The listing could not be loaded from <b>{new URL(BACKEND_BASE_URL).host}</b>: {b.errors[0].message}{/portal\.1delta\.io/.test(BACKEND_BASE_URL) && <><br /><span className="t70">This build is on the public, per-IP rate-limited endpoint. Set <code>VITE_BACKEND_BASE_URL</code> for the build (on Cloudflare Pages: an environment variable for Production <i>and</i> Preview, then retry the deployment; Vite bakes it in at build time).</span></>}</div>}
-      {GROUPS.map((g) => <GroupBlock key={g.id} gid={g.id} strategies={b.all.filter((s) => s.group === g.id)} books={byGroup(g.id)} loading={b.isLoading} hasAccount={!!b.account} />)}
-      <section className="sec"><div className="note"><b>Live.</b> Rates and sizes come from the 1delta API (plain deposits from the earn listing, loops from the pair optimizer), filtered to base assets, low-to-medium risk and real size. Every list says underneath it how many rows those floors are holding back, and Filters in your profile menu (top left) move them. A loop is opened in one flash-funded transaction.</div></section>
+      <nav className="tiles" aria-label="Asset groups" style={{ marginTop: 16 }}>
+        {GROUPS.map((g) => <GroupTile key={g.id} g={g} strategies={b.all.filter((s) => s.group === g.id)} books={b.books.filter((x) => x.group === g.id)} loading={b.isLoading} rank={rank} get={get} />)}
+      </nav>
+      {b.books.length > 0 && (
+        <section className="sec">
+          <div className="sec-h"><h2>Your money</h2><span className="sub">what each asset could earn</span></div>
+          <div className="card"><table className="tbl slim"><tbody>
+            {b.books.map((x) => <BookRow key={x.asset} x={x} best={bestBy.get(x.asset)} get={get} />)}
+          </tbody></table></div>
+        </section>
+      )}
+      <section className="sec">
+        <div className="sec-h"><h2>Best rates</h2><span className="sub">the top desk of every group’s listing</span></div>
+        <div className="card"><table className="tbl slim"><tbody>
+          {b.isLoading && !top.length && [0, 1, 2, 3].map((i) => <tr key={i}><td><Sk w={140} /></td><td className="r"><Sk w={90} /></td><td /></tr>)}
+          {top.map((s) => <TopRow key={s.asset} s={s} n={countBy.get(s.asset) ?? 0} get={get} />)}
+        </tbody></table></div>
+      </section>
+      <section className="sec"><div className="note"><b>Live.</b> Rates and sizes come from the 1delta API (plain deposits from the earn listing, loops from the pair optimizer), filtered to base assets, low-to-medium risk and real size. Each group’s page lists every desk and strategy, and says how many rows the floors are holding back; Filters in your profile menu (top left) move them. A loop is opened in one flash-funded transaction.</div></section>
     </>
   )
 }
 
-/**
- * The dollar, ether and bitcoin groups are read by DESK — whose credit — in bands: the coin
- * itself (ether), what an institution or exchange issues, what a protocol issues, and what no
- * desk is named for. A loop sits on its collateral's desk: what it borrows is a rate, not an
- * exposure. `More` has no bands.
- */
-type Band = { kind: DeskKind; title: string; tip: string }
-const UNNAMED: Band = { kind: 'unknown', title: 'Issuer not named', tip: 'Tokens the token lists name no issuer for. Each stands for itself.' }
-const BANDS: Partial<Record<GroupId, Band[]>> = {
-  USD: [
-    { kind: 'issued', title: 'Issued dollars', tip: 'Fiat-backed coins: a deposit here lends that coin out.' },
-    { kind: 'yield', title: 'Yield desks', tip: 'Protocols’ dollars. A loop sits here by what it posts as collateral — the dollar it borrows is a rate, not an exposure.' },
-    UNNAMED,
-  ],
-  ETH: [
-    { kind: 'plain', title: 'Ether', tip: 'ETH and WETH: nobody’s liability.' },
-    { kind: 'yield', title: 'Staking & restaking', tip: 'Protocols’ staked ether. A loop sits here by what it posts as collateral — the WETH it borrows is a rate, not an exposure.' },
-    { kind: 'issued', title: 'Exchange-staked', tip: 'Ether staked through an exchange (Coinbase, Binance).' },
-    UNNAMED,
-  ],
-  BTC: [
-    { kind: 'issued', title: 'Custodied bitcoin', tip: 'Bitcoin held by a custodian or exchange and issued on-chain against it.' },
-    { kind: 'yield', title: 'Protocol bitcoin', tip: 'Bridged, staked or restaked bitcoin issued by a protocol.' },
-    UNNAMED,
-  ],
-}
-const bandOf = (a: string): DeskKind => deskOf(a)?.kind ?? 'unknown'
-/** The tokens a desk row actually offers, most strategies first: `USDe, sUSDe, PT-sUSDE +3`. */
-function membersOf(os: Strategy[], max = 3): string {
-  const n = new Map<string, number>()
-  // one entry per ticker, however a list cases it (`wBETH`, `WBETH`): the first spelling seen wins
-  const spelt = new Map<string, string>()
-  for (const o of os) {
-    const t = (o.kind === 'simple' ? (o.source === 'staking' || o.source === 'savings' ? o.holds : o.assetSymbol) : o.holds).replace(/^(PT-[A-Za-z0-9]+)-.*$/, '$1')
-    const k = t.toUpperCase(); if (!spelt.has(k) || /[a-z]/.test(t)) spelt.set(k, t); n.set(k, (n.get(k) ?? 0) + 1)
-  }
-  const ranked = [...n].sort((x, y) => y[1] - x[1]).map(([k]) => spelt.get(k)!)
-  return ranked.slice(0, max).join(', ') + (ranked.length > max ? ` +${ranked.length - max}` : '')
+/** One group: your money in it, the best it pays, and the door to its full listing. */
+function GroupTile({ g, strategies, books, loading, rank, get }: { g: Group; strategies: Strategy[]; books: AssetBook[]; loading: boolean; rank: (s: Strategy) => number; get: HistoryGet }) {
+  const total = books.reduce((a, x) => a + x.totalUsd, 0)
+  const best = strategies.length ? strategies.reduce((m, s) => (rank(s) > rank(m) ? s : m)) : null
+  const busy = loading && !strategies.length
+  return (
+    <a className="tile" href={`#/${g.id}`}>
+      <div className="h"><GroupIcon id={g.id} color={g.color} size={22} /><span className="n">{g.id === 'MORE' ? 'More' : g.name}</span></div>
+      <div className={`v${total ? '' : ' t40'}`}>{busy ? <Sk w={64} h={15} /> : total ? usd(total) : '—'}</div>
+      <div className="ft">
+        <span>{best ? <><span className="t50">up to </span><b className="ok">{pct(best.rate)}</b><Avg30 s={best} get={get} prefix=" · 30d " /></> : busy ? <Sk w={70} /> : <span className="t40">—</span>}</span>
+        <small>{busy ? '…' : `${strategies.length} strateg${strategies.length === 1 ? 'y' : 'ies'} ›`}</small>
+      </div>
+    </a>
+  )
 }
 
-function GroupBlock({ gid, strategies, books, loading, hasAccount }: { gid: GroupId; strategies: Strategy[]; books: AssetBook[]; loading: boolean; hasAccount: boolean }) {
-  const g = GROUPS.find((x) => x.id === gid)!
-  const bands = BANDS[gid]
-  const banded = !!bands
-  const assets = [...new Set([...strategies.map((s) => s.asset), ...books.map((b) => b.asset)])]
-  const rows = assets.map((a) => {
-    const os = strategies.filter((s) => s.asset === a)
-    const best = os.length ? os.reduce((m, o) => (o.rate > m.rate ? o : m)) : null
-    const b = books.find((x) => x.asset === a)
-    const venues = new Set(os.map((o) => o.venue.split(' · ')[0])).size
-    return { a, os, best, b, venues, band: bands ? Math.max(0, bands.findIndex((x) => x.kind === bandOf(a))) : 0 }
-  }).filter((r) => r.os.length || r.b).sort((x, y) => x.band - y.band || (y.b?.totalUsd ?? 0) - (x.b?.totalUsd ?? 0) || (y.best?.rate ?? 0) - (x.best?.rate ?? 0))
-  if (!rows.length && !loading) return null
-  const total = books.reduce((a, b) => a + b.totalUsd, 0), idle = books.reduce((a, b) => a + b.idleUsd, 0)
+/** An asset the reader holds: the balance as it stands, and the best rate waiting for it. */
+function BookRow({ x, best, get }: { x: AssetBook; best: Strategy | undefined; get: HistoryGet }) {
   return (
-    <section className="sec grp" id={`g-${gid}`}>
-      <div className="gh"><GroupIcon id={g.id} color={g.color} size={16} /><span className="n">{g.name}</span><span className="sub">{total ? `${usd(total)}${idle ? ` · ${usd(idle)} idle` : ''}` : g.desc}</span><span className="sp" /><a className="more" href={`#/${gid}`}>{loading && !strategies.length ? '…' : `${strategies.length} strateg${strategies.length === 1 ? 'y' : 'ies'} ›`}</a></div>
-      <div className="card"><table className="tbl slim"><tbody>
-        {loading && !rows.length && [0, 1, 2].map((i) => <tr key={i}><td><Sk w={120} /></td><td className="what"><Sk w={220} /></td><td className="r"><Sk w={90} /></td><td /></tr>)}
-        {rows.map(({ a, os, best, b, venues, band }, i) => (<React.Fragment key={a}>
-          {bands && band !== rows[i - 1]?.band && <tr className="band"><td colSpan={hasAccount ? 5 : 4} title={bands[band].tip}>{bands[band].title}</td></tr>}
-          <tr onClick={() => go(gid, { u: a, k: best?.kind })}>
-            <td><div className="nm"><Tok sym={a} />{nameOf(a)}</div></td>
-            <td className="what">{banded && os.length ? membersOf(os) : whatIs(a)}{venues ? <span className="t40"> · {venues} venue{venues > 1 ? 's' : ''}</span> : ''}</td>
-            {hasAccount && <td className={`r ${b ? '' : 't40'}`}>{b ? <>{amt(a, (b.idle?.amount ?? 0) + (b.idle?.price ? b.atWorkUsd / b.idle.price : 0), b.totalUsd)}{b.atWorkUsd ? <small className="ok">{pct(b.blended)} on {Math.round(b.atWorkUsd / b.totalUsd * 100)}%</small> : <small className="t40">idle</small>}</> : '—'}</td>}
-            <td className="r upto">{best ? <><span className="t50">up to</span> <span className={best.rate >= 3 ? 'ok' : ''}>{pct(best.rate)}</span><small>{best.kind === 'loop' ? `${best.rec}× loop` : 'deposit'}<span className="hide-m"> · {os.length} strateg{os.length !== 1 ? 'ies' : 'y'}</span></small></> : <span className="t40">—</span>}</td>
-            <td className="r t40" style={{ width: 20 }}>›</td>
-          </tr>
-        </React.Fragment>))}
-      </tbody></table></div>
-    </section>
+    <tr onClick={() => go(x.group, { u: x.asset, k: best?.kind })}>
+      <td><div className="nm"><Tok sym={x.asset} />{nameOf(x.asset)}<GroupTag gid={x.group} className="hide-m" /></div></td>
+      <td className="r">{amt(x.asset, (x.idle?.amount ?? 0) + (x.idle?.price ? x.atWorkUsd / x.idle.price : 0), x.totalUsd)}{x.atWorkUsd ? <small className="ok">{pct(x.blended)} on {Math.round(x.atWorkUsd / x.totalUsd * 100)}%</small> : <small className="t40">idle</small>}</td>
+      <td className="r upto">{best ? <><span className="t50">up to</span> <span className={best.rate >= 3 ? 'ok' : ''}>{pct(best.rate)}</span><small>{best.kind === 'loop' ? `${best.rec}× loop` : 'deposit'}<Avg30 s={best} get={get} prefix=" · 30d " /></small></> : <span className="t40">—</span>}</td>
+      <td className="r t40" style={{ width: 20 }}>›</td>
+    </tr>
   )
+}
+
+/** A desk worth a look: its best strategy, tagged with the group it sits in. */
+function TopRow({ s, n, get }: { s: Strategy; n: number; get: HistoryGet }) {
+  return (
+    <tr onClick={() => go(s.group, { u: s.asset, k: s.kind })}>
+      <td><div className="nm"><Tok sym={s.asset} />{nameOf(s.asset)}<GroupTag gid={s.group} /></div></td>
+      <td className="r upto"><span className="t50">up to</span> <span className={s.rate >= 3 ? 'ok' : ''}>{pct(s.rate)}</span><small>{s.kind === 'loop' ? `${s.rec}× loop` : 'deposit'}<Avg30 s={s} get={get} prefix=" · 30d " /><span className="hide-m"> · {n} strateg{n !== 1 ? 'ies' : 'y'}</span></small></td>
+      <td className="r t40" style={{ width: 20 }}>›</td>
+    </tr>
+  )
+}
+
+/** Which group a row belongs to, said quietly — the row itself is the desk. */
+function GroupTag({ gid, className }: { gid: GroupId; className?: string }) {
+  const g = GROUPS.find((x) => x.id === gid)!
+  return <span className={`gtag${className ? ` ${className}` : ''}`}><i style={{ background: g.color }} />{gid === 'MORE' ? 'More' : gid}</span>
 }

@@ -57,6 +57,7 @@ that sometimes answer un-enveloped or with `ok` instead of `success`
 | Function | Endpoint | Used by | Notes |
 |---|---|---|---|
 | `fetchEarn` | `GET /v1/data/earn` | `useCatalog` → deposit rows (lending markets + vaults) | `chainIds` CSV; `terms: 'digest'` (not `none`, not `full`); pages only while a page is full; worker-api's cron pre-warms these exact params — don't change them casually. The one source for vaults and lending — there is no separate `/v1/data/vaults` fetch. A vault is named from the row's `curator`/`brand`/`name` (unnamed vaults arrive as `USDC · 0x5b8b`; the tail is stripped); `shareToken` is null on vault rows today, so the share symbol falls back to the build-time token map. Missing identity is fixed in the earn row, not with a second fetch. |
+| `fetchRateHistory` | `POST /v1/data/earn/rate-history` | `useRateHistory` (over `sdk/rateHistoryStore.ts`) → the 30-day line in AssetPage's rate and Earning cells, the ticket's "Last 30 days" block, `30d x%` on the Earn digest, Hot cards, the market header and search; and `steadyRate`, which those lists RANK by | body `{ uids }` (≤ 1000 per request, chunked; a deposit's `earnUid`, a loop's `marketLongUid` + `marketShortUid`). A per-UID cache shared by every surface: only uids not held (or older than 30 min) are queued, and everything asked in one tick goes out as ONE request — a page with list + ticket + header costs one call (origin rebuilds hourly, worker caches 10 min). A failed read backs off 5 min and leaves rows without a line. Points are bps, one time-weighted mean per UTC day; base and rewards apart so the line can be drawn with or without them; a loop nets its legs per day in `model/rateHistory.ts`. |
 | `fetchOptimizerPairs` | `GET /v1/data/lending/pairs/optimize` | `useCatalog` → loop rows (`optimizerPages`) | `chainId` for one chain, `chainIds` for several; archetypes = tag filters; asked with no risk cap / liquidity floor (floors are applied client-side in `model/visibility.ts`) |
 | `fetchIrm` | `GET /v1/data/lending/irm` | `useIrm` | **max 8 uids** per call (`IRM_MAX_BATCH`) — 10 returns 500 |
 | `fetchChains` | `GET /v1/data/chains` | `chainsQuery`, `ChainMark` | names + logos |
@@ -108,6 +109,10 @@ from token-lists) for an API without them. Rules:
 - Group with `model/desk.ts` (`keyOfToken`, `usdKey`), never by symbol.
 - Don't trust `props.stablecoin` / `denomination: 'USD'` alone: token-lists
   also stamps it by bare ticker. `isUsd` needs desks.json or a named desk.
+- A fund share's money is `props.rwa.denomination` (token-lists sets it only
+  where verified on-chain — Nest's vaults on Plume, whose accountants are
+  struck in USDC / pUSD). A floating NAV in that money, not a peg; without it
+  an nOPAL/pUSD loop is a `price bet`.
 - `GET /v1/data/earn/desks` (facet: desk → members, deposit/loop counts,
   rates in percent) and `issuerMatch=credit` exist upstream; the app does not
   call them yet.
@@ -129,6 +134,7 @@ Those come from `/v1/data/earn/positions` (live). `accountPositions` is for
 | Discovery | `trending` `/trending`, `hot` `/hot`, `protocols` `/protocols`, `issuers` `/issuers`, `leaderboard` `/leaderboard` (may 404 → caller falls back) | `useTrending`, `useHot`, `useProtocols`, `useIssuers`; board in `ui/Board.tsx` |
 | Vaults / desks | `vaultsAt` `/vaults`, `curators`, `curator`, `curatorAllocation`, `curatorTxs`, `curatorHolders` `/curators/…`, `curatorsByAccount` `/curators/by-account` | `useVaultsAt`, `useCurator*` |
 | Assets | `assets` `/assets`, `asset` `/assets/:group`, `assetHistory`, `assetHolders` (group is case-significant, always `encodeURIComponent`) | `useAssetBook`, `useAsset`, `useAssetHistory`, `useAssetHolders` |
+| Search | `find` `/find?q=&kinds=&per=` (one ranked answer per category, capped counts, `best`, `remote: 'pending'` = ask again in ~1.5 s), `findCatalog` `/find/catalog` (the browse kinds whole, ETag'd, searched in the browser with `search/rank.ts` — a copy of pos-indexer's `search.ts`, `pnpm search-rank` checks it), `findClick` `POST /find/click` `{ docId }` | in `ui/Search.tsx` (catalog cached in localStorage) |
 | Risk | `stress` `/stress?markets=` | `useStress` |
 | Health | `health` `/health` | `useIndexHealth` |
 | Balances | `indexBalances` → `POST /balances/:account/query` `{ assets: { [chainId]: address[] } }` | `useBalancesPerChain` in **`sdk/queries.ts`** |

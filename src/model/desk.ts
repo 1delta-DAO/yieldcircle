@@ -31,7 +31,7 @@ export interface DeskToken {
   issuerExposures?: IssuerLike[] | null
   /** the money, upper-case (`USD`, `ETH`), when the API says it */
   denomination?: string | null
-  props?: { issuer?: IssuerLike | null; issuerExposures?: IssuerLike[] | null; stablecoin?: { base?: string }; savings?: { base?: string; underlying?: string }; lst?: { asset?: string }; denomination?: string; pendle?: unknown; spectra?: unknown; exponent?: unknown; receipt?: unknown }
+  props?: { issuer?: IssuerLike | null; issuerExposures?: IssuerLike[] | null; stablecoin?: { base?: string }; savings?: { base?: string; underlying?: string }; lst?: { asset?: string }; denomination?: string; rwa?: { denomination?: string }; pendle?: unknown; spectra?: unknown; exponent?: unknown; receipt?: unknown }
 }
 
 const TABLE: Record<DeskGroup, Record<string, string>> = { USD: DESKS.tokens as Record<string, string>, ETH: DESKS.eth as Record<string, string>, BTC: DESKS.btc as Record<string, string> }
@@ -84,8 +84,9 @@ export function moneyOf(t: DeskToken): DeskGroup | undefined {
   // with a desk named for the token
   if (den === 'USD') return creditDesk(t, 'USD') ? 'USD' : undefined
   const p = t.props
-  // `denomination` is sometimes a TICKER (`USDC` on Plume's USDC), so only a money counts
-  const own = [p?.lst?.asset, p?.denomination, p?.savings?.base].map((x) => x?.toUpperCase()).find((x) => !!x && MONIES.has(x))
+  // `denomination` is sometimes a TICKER (`USDC` on Plume's USDC), so only a money counts. A fund
+  // share names the money its NAV is in (`rwa.denomination`: nOPAL is $1.10 of pUSD, not a peg)
+  const own = [p?.lst?.asset, p?.denomination, p?.savings?.base, p?.rwa?.denomination].map((x) => x?.toUpperCase()).find((x) => !!x && MONIES.has(x))
   if (own) return own as DeskGroup
   if (p?.lst?.asset || p?.savings?.base) return undefined
   // `stablecoin` alone is not enough: token-lists also stamped it by bare ticker, which made

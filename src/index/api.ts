@@ -417,3 +417,58 @@ export async function indexBalances(account: string, assets: Record<string, stri
   if (!r.ok) throw new Error(j.error || `/balances → ${r.status}`)
   return j
 }
+
+/**
+ * One search over everything the index names (pos-indexer tickets/0053 → docs/search.md).
+ *
+ * `find` answers wallets, vaults, curators, protocols, assets, markets and issuers in ONE ranked
+ * request, grouped by kind with a count per kind (capped: `count >= 100` reads "99+"). `remote:
+ * 'pending'` = the index is asking Blockscout about this name right now; ask once more in a second.
+ * `findCatalog` is the browse kinds whole (protocols, named desks, vaults ≥ $10k, the asset book,
+ * issuers) for the box to search in the browser on every keystroke; `findClick` counts what was
+ * opened (a doc id, nothing else) — a small popularity prior.
+ */
+export type FindKind = 'wallet' | 'vault' | 'curator' | 'protocol' | 'asset' | 'market' | 'issuer'
+export interface FindHit {
+  docId: string
+  kind: FindKind
+  key: string
+  title: string
+  subtitle: string | null
+  icon: string | null
+  chainIds: string[]
+  weightUsd: number
+  flags: Record<string, unknown>
+  /** the term that answered as its source spells it, and the CLAIM it is (seed / tag / primary / signed / x / …) */
+  match: { term: string; source: string; exact: boolean; typo: boolean }
+  score: number
+}
+export interface FindAnswer {
+  q: string
+  type: 'empty' | 'address' | 'tx' | 'uid' | 'text'
+  best: FindHit | null
+  groups: { kind: FindKind; count: number; hits: FindHit[] }[]
+  fuzzy: boolean
+  remote: 'off' | 'cached' | 'asked' | 'pending' | 'throttled'
+  ms: number
+}
+export interface FindCatalogDoc {
+  kind: FindKind
+  key: string
+  title: string
+  subtitle: string | null
+  icon: string | null
+  chainIds: string[]
+  weightUsd: number
+  flags: Record<string, unknown>
+  /** [term as spelled, its claim, is the doc's own name]; the title is implied */
+  terms: [string, string, boolean][]
+}
+export const find = (p: { q: string; kinds?: string; chainIds?: string; per?: number }, signal?: AbortSignal) =>
+  get<FindAnswer>('/find', p, signal)
+export const findCatalog = () => get<{ generation: string; docs: FindCatalogDoc[] }>('/find/catalog')
+export function findClick(docId: string): void {
+  void fetch(`${INDEX_BASE_URL}/find/click`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ docId }), keepalive: true,
+  }).catch(() => {})
+}

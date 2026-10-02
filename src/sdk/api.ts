@@ -4,6 +4,7 @@
  * (collateral / debt); the API's in/out naming is translated here and nowhere else.
  */
 import { apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } from '../vendor/allocator/http'
+import type { RateHistoryResponse } from '../model/rateHistory'
 import type { ApiTx, EarnPositionsResponse, EarnResponse, IrmResponse, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
 
 // ---------------------------------------------------------------- deposits (supply side)
@@ -66,6 +67,17 @@ export function fetchIrm(marketUids: string[]) {
 // instant fallback, so a slow or failed logo never leaves a blank disc.
 export function fetchChains() {
   return apiFetch<{ items: { chainId: string; name: string; logoURI?: string }[] }>('/v1/data/chains')
+}
+
+/**
+ * 30 days of daily rate points for many rows at once — the sparkline and the
+ * 30-day mean on each list row (see `model/rateHistory.ts`). POST, because a
+ * page of loops names two Morpho-length uids per row; worker-api caches the
+ * answer per uid SET for ten minutes (the origin rebuilds it hourly). The
+ * origin takes 1000 uids a call, far above one list.
+ */
+export function fetchRateHistory(uids: string[]) {
+  return apiFetchLoose<RateHistoryResponse>('/v1/data/earn/rate-history', { body: { uids } })
 }
 
 // ---------------------------------------------------------------- loops

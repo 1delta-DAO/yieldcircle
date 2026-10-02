@@ -70,6 +70,14 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .tile .kv .v{font-family:var(--mono);font-size:16px}
 .tile .cnt{position:absolute;top:12px;right:14px;font-family:var(--mono);font-size:11px;color:var(--tx40)}
 .tile .pos b{color:var(--tx);font-weight:500}
+/* the Earn group tiles: your money, the best rate, the door to the full listing */
+.tile .v{font-family:var(--mono);font-size:17px}
+.tile .ft{margin-top:auto;display:flex;flex-direction:column;gap:2px;font-size:12px;line-height:1.35}
+.tile .ft b{font-family:var(--mono);font-weight:500;font-size:13.5px}
+.tile .ft small{font-family:var(--mono);font-size:11px;color:var(--tx40)}
+/* which group a digest row sits in — a quiet tag, never louder than the desk's name */
+.gtag{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line2);border-radius:999px;padding:1px 7px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx50);flex:none}
+.gtag i{width:6px;height:6px;border-radius:50%}
 
 .grp{margin-top:22px;scroll-margin-top:60px}
 .gh{display:flex;align-items:center;gap:10px;min-height:36px;margin-bottom:8px;padding:0 4px}
@@ -918,6 +926,41 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .sr-t small{font-size:11.5px;color:var(--tx50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sr-ic{width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--b400);color:var(--tx70);font-size:12px}
 .sr-none{padding:12px 10px;font-size:12.5px;color:var(--tx50);line-height:1.5}
+/* results by category (pos-indexer tickets/0053): a chip row with counts, a header per section, one number per row */
+.search .s-clear{position:absolute;right:8px;width:24px;height:24px;border-radius:50%;color:var(--tx50);font-size:16px;line-height:1;display:grid;place-items:center}
+.search .s-clear:hover{color:var(--tx);background:var(--b300)}
+.search input{padding-right:34px}
+.sbox{display:flex;flex-direction:column;min-height:0}
+.s-chips{display:flex;gap:6px;padding:8px 8px 7px;border-bottom:1px solid var(--line2);overflow-x:auto;scrollbar-width:none;flex:none}
+.s-chips::-webkit-scrollbar{display:none}
+.s-chip{display:inline-flex;align-items:center;gap:5px;flex:none;height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--line2);font-size:12px;color:var(--tx70);white-space:nowrap}
+.s-chip:hover{color:var(--tx);border-color:var(--tx40)}
+.s-chip[aria-selected="true"]{color:var(--primary-ink);background:var(--primary);border-color:var(--primary)}
+.s-chip .s-n{font-family:var(--mono);font-size:10.5px;opacity:.7}
+.s-sec{display:flex;align-items:center;justify-content:space-between;padding:8px 9px 3px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;color:var(--tx40)}
+.s-sec:first-child{padding-top:3px}
+.s-more{font-size:11px;letter-spacing:0;text-transform:none;font-weight:500;color:var(--primary)}
+.sr-icon{flex:none;display:grid;place-items:center;width:24px;height:24px}
+.sr-icon .tok,.sr-icon .chr,.sr-img{border-radius:50%}
+.sr-img{width:24px;height:24px;object-fit:cover;background:#111}
+.sr-logo img,.sr-logo .plogo{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--b400);font-style:normal;font-size:10px;color:var(--tx50)}
+.sr-t{flex:1 1 auto}
+.sr-t b mark{background:none;color:inherit;font-weight:650}
+.sr-t small{display:flex;align-items:center;gap:6px}
+.sr-claim{display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--b400);color:var(--tx50);font-size:10px;font-weight:500;line-height:16px;vertical-align:1px;text-transform:lowercase}
+.sr-addr{font-family:var(--mono);font-size:10.5px}
+.sr-chains{display:inline-flex;align-items:center;gap:2px}
+.sr-m{flex:none;margin-left:auto;padding-left:8px;font-family:var(--mono);font-size:12px;color:var(--tx70);white-space:nowrap;text-align:right}
+.sr-m small{color:var(--tx40);font-size:10.5px}
+.sr-note{padding:8px 10px 6px;font-size:11.5px;color:var(--tx40)}
+@media (max-width:767.98px){
+  /* a phone gets a sheet under the bar, not a floating card */
+  .pop:has(> .sbox){top:60px!important;left:0!important;right:0;bottom:0;width:100%!important;border-radius:0;border-width:1px 0 0}
+  .pop:has(> .sbox) .sbox{height:100%}
+  .pop:has(> .sbox) .sresults{max-height:none;flex:1 1 auto}
+  .sr{min-height:52px}
+  .sr-m small{display:none}
+}
 
 .statchip,.moneychip{display:flex;flex-direction:column;justify-content:center;align-items:flex-end;flex:none;min-height:36px;padding:0 10px;border-radius:var(--r);line-height:1.15;white-space:nowrap}
 .statchip b,.moneychip b{font-family:var(--mono);font-size:13.5px;font-weight:500;color:var(--tx)}
@@ -1510,3 +1553,43 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 /* the US Dollar group's bands (issued dollars · yield desks · issuer not named) */
 .tbl.slim tr.band td{height:auto;padding:10px 16px 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx50);cursor:default;border-top:1px solid var(--line-soft)}
 .tbl.slim tr.band:first-child td{border-top:0}
+
+/* 30-day rate line beside a list rate (ui/Spark.tsx): the line + "30d x%" sit
+   left of the number, the number keeps its column edge. Spike = today's rate is
+   well above the month's mean, so the mean is what turns amber. */
+.rate-row{display:inline-flex;align-items:center;justify-content:flex-end;gap:10px}
+.trend{display:inline-flex;flex-direction:column;align-items:flex-end;gap:1px;width:76px;color:var(--tx50)}
+/* fixed widths so the lines and the numbers form columns down the list */
+.rate-row > span:last-child{min-width:54px;text-align:right}
+.trend .trend-avg{font-size:10.5px;line-height:1;color:var(--tx40);white-space:nowrap}
+.trend.spike .trend-avg{color:var(--warning)}
+.spark{display:block;overflow:visible}
+.spark-line{fill:none;stroke:currentColor;stroke-width:1.4;stroke-linejoin:round;stroke-linecap:round}
+.spark-avg{stroke:currentColor;stroke-width:1;stroke-dasharray:2 2;opacity:.45}
+.spark-dot{fill:currentColor}
+.rw-toggle{margin-left:8px;padding:1px 6px;border:1px solid var(--line, #2a2f36);border-radius:999px;background:none;color:var(--tx40);font:inherit;font-size:10.5px;font-weight:500;text-transform:none;letter-spacing:0;cursor:pointer;vertical-align:middle}
+.rw-toggle[aria-pressed="true"]{color:var(--tx70)}
+/* the column makes room for the line on a desktop; on a phone (82px) the line
+   goes and the 30-day mean drops under the number */
+.tbl.strat-t col.c-rate{width:200px}
+.tbl.strat-t col.c-earn{width:200px}
+@media (max-width:640px){
+  .tbl.strat-t col.c-rate{width:82px}
+  .tbl.strat-t col.c-earn{width:100px}
+  .trend .spark,.tbl .rw-toggle{display:none}
+  .rate-row{flex-direction:column-reverse;align-items:flex-end;gap:2px}
+  .trend{width:auto}
+  .rate-row > span:last-child{min-width:0}
+}
+
+/* the 30-day mean as words (ui/Spark.tsx Avg30): Earn digest, Hot, market header, search */
+.avg30{color:var(--tx40);font-family:var(--mono);font-size:inherit;white-space:nowrap}
+.avg30.spike{color:var(--warning)}
+.hc-rate .hc-avg{display:block;font-size:10.5px;text-align:right;line-height:1.1}
+/* the ticket's history block */
+.rhist{display:flex;flex-direction:column;gap:6px}
+.rhist-h{display:flex;align-items:center;justify-content:space-between}
+.rhist-h .rw-toggle{margin-left:0}
+.rhist-chart{width:100%;height:64px;color:var(--primary,#4fb3d9)}
+.rhist-n{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px}
+.rhist-note{font-size:12px}

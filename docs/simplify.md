@@ -21,8 +21,15 @@ front ends people call "simple" handle the same screen, and what we take.
 Three rules fall out of that:
 
 1. **One number per row.** The list decides *which*; the ticket decides *how
-   much* and *how levered*. Sparklines, size, exit mode, liquidity, buffer and
-   30-day averages are ticket material, not list material.
+   much* and *how levered*. Size, exit mode, liquidity and buffer are ticket
+   material, not list material. **Exception (2026-10-02, owner's call):** the
+   30-day line and its mean sit beside the rate — they are not a second number
+   to pick by but the rate's own credibility: a list sorted by rate otherwise
+   ranks a one-night spike above a month of steady yield. A loop's line is the
+   position's yield on equity at the Balanced tier, netted per day from its
+   two legs (`model/rateHistory.ts`), never either leg's rate. Lists and the
+   Earn digest RANK by `steadyRate` — today's rate, or the 30-day mean when
+   today's is a spike — while still showing today's number.
 2. **Progressive disclosure, not parallel sections.** No one shows two tables
    at once. The split (deposit vs loop, simple vs pro) is a toggle, and one
    side is the default.
@@ -39,7 +46,7 @@ Three rules fall out of that:
 | six curated cards | an **"our pick"** tag on the curated rows, which sort first | the cards repeated the list with more words; a tag keeps the editorial signal at zero cost |
 | two tables, Simple and Advanced, always both visible | one list with a **Deposits / Loops** toggle; Deposits is the default | rule 2; the split stays explicit and the loop side is one tap away |
 | 8 / 9 columns | **4 columns**: strategy (name + one plain line), rate, risk, yours | rule 1; every removed column is already in the ticket (exit, size, liquidity, buffer, sensitivity, health) |
-| sparkline + 30-day average per row | dropped from the list | history explains a rate, it does not pick one; the ticket can get a small chart later |
+| sparkline + 30-day average per row | dropped from the list, then **back** (2026-10-02) as one quiet line + `30d x%` in the rate cell, amber when today's rate is a spike against it | a sorted rate with no history rewards spikes; the line costs one request per list (`/v1/data/earn/rate-history`) and no column |
 | "n strategies" copy in the header | count on the toggle | one place |
 
 The ticket does not change: it was already the place where the size, exit,

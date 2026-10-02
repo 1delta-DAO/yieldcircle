@@ -63,11 +63,12 @@ for (const chain of offered) {
     return null
   }
   // the money: a dollar by the (guarded) stablecoin flag or savings base; ether / bitcoin by the
-  // LST's asset or the canonical `denomination` (WETH, WBTC, cbBTC — never a ticker like `USDC`)
+  // LST's asset or the canonical `denomination` (WETH, WBTC, cbBTC — never a ticker like `USDC`);
+  // a fund share by the money its NAV is struck in (`rwa.denomination`: Nest's vaults on Plume)
   const MONEY = new Set(['USD', 'ETH', 'BTC'])
   const denomOf = (t, depth = 0) => {
     const p = t.props ?? {}
-    const m = [trusted(t, chain) ? p.stablecoin?.base : undefined, p.savings?.base, p.lst?.asset, p.denomination].find((x) => x && MONEY.has(String(x).toUpperCase()))
+    const m = [trusted(t, chain) ? p.stablecoin?.base : undefined, p.savings?.base, p.lst?.asset, p.denomination, p.rwa?.denomination].find((x) => x && MONEY.has(String(x).toUpperCase()))
     if (m) return String(m).toUpperCase()
     const u = depth < 3 ? underOf(p) : undefined
     return u ? denomOf(u, depth + 1) : undefined

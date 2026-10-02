@@ -19,7 +19,8 @@ import { Rate } from './Rate'
 import { Ago, FollowButton, Impaired, Money, Who, describeBundle } from './social-bits'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { Thread } from './Thread'
-import { chainLabel } from '../sdk/queries'
+import { chainLabel, useRateHistory } from '../sdk/queries'
+import { Avg30 } from './Spark'
 import { indexChainLabel, subjectOf } from '../index/types'
 import type { MarketExposure, TxBundle } from '../index/types'
 import { Flows, primaryLeg } from './Feed'
@@ -37,6 +38,7 @@ export function Market({ uid }: { uid: string }) {
   const flow = useMarketFlow(uid, 24 * 30)
   const menu = useMenu()
   const s = menu.forUid(uid)
+  const histGet = useRateHistory(React.useMemo(() => (s ? [s] : []), [s?.id]))
   const parts = parseUid(uid)
   const { profile } = useProfiles((holders.data?.holders ?? []).map((h) => h.account))
   /** the ledger's own witness for this market — a fact, kept apart from the claims */
@@ -99,7 +101,7 @@ export function Market({ uid }: { uid: string }) {
         <div>
           <h1>{name}</h1>
           <div className="sub">
-            {lender}{chainId ? ` · ${indexChainLabel(chainId, chainLabel)}` : ''}{s ? ` · in the menu at ${pct(s.rate)}` : ''}
+            {lender}{chainId ? ` · ${indexChainLabel(chainId, chainLabel)}` : ''}{s ? <> · in the menu at {pct(s.rate)}<Avg30 s={s} get={histGet} prefix=" · 30d " /></> : ''}
             {m.data?.collateralSymbol && (
               <span className="mk-coll">
                 {' · against '}

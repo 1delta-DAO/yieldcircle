@@ -5,7 +5,9 @@ import type { LoopStrategy, LoopTerm, SimpleStrategy, Strategy } from '../model/
 import type { LoopActions } from '../sdk/types'
 import { nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
 import { earnDeposit, earnWithdraw, loopClose, loopOpen, ZERO } from '../sdk/api'
-import { chainLabel, useCloseQuote, useIrm, useLoopPayAssets, useLoopQuote } from '../sdk/queries'
+import { chainLabel, useCloseQuote, useIrm, useLoopPayAssets, useLoopQuote, useRateHistory } from '../sdk/queries'
+import { seriesFor } from '../model/rateHistory'
+import { RateHistoryPanel, useSparkRewards } from './Spark'
 import { useApp, type Mode } from '../state/AppState'
 import { useSticky } from '../state/sticky'
 import { DecimalInput, Info, KindPill, LegsPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
@@ -241,10 +243,24 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
         <div className="c"><span className="k">Liquidity</span><span className={`v ${s.liquidityUsd != null && s.tvlUsd > 0 && s.liquidityUsd < s.tvlUsd * 0.05 ? 'warn' : ''}`}>{s.liquidityUsd != null ? usdShort(s.liquidityUsd) : '—'}</span>
           <span className="s">{s.utilization != null ? `${Math.round(s.utilization * 100)}% lent out` : s.liquidityUsd != null ? 'can leave now' : 'not reported'}</span></div>
       </div></div>
+      <HistorySec s={s} now={s.rate} />
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={i === 0 && s.risk >= 2 ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
       <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} />
     </>
   )
+}
+
+/**
+ * What this rate has been over the month, under the headline that quotes it
+ * today — the one place with room for the whole line. A loop's line is drawn at
+ * the ticket's own leverage, so it moves with the tier and the slider. Absent
+ * (no section at all) when the history has nothing for the row.
+ */
+function HistorySec({ s, L, now }: { s: Strategy; L?: number; now: number }) {
+  const get = useRateHistory(React.useMemo(() => [s], [s.id]))
+  const [withRewards] = useSparkRewards()
+  if (!seriesFor(s, get, withRewards, L)) return null
+  return <div className="tsec"><RateHistoryPanel s={s} get={get} L={L} now={now} /></div>
 }
 
 /**
@@ -385,6 +401,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
         <div className="liqbar"><i style={{ ['--x' as string]: `${Math.min(98, Math.max(2, drop / 0.25 * 100))}%` }} /></div>
         <div className="liqcap"><span>0% buffer</span><span>{drop < 0.03 ? 'very tight' : drop < 0.06 ? 'tight' : drop < 0.12 ? 'comfortable' : 'wide'}</span><span>25%</span></div>
       </div>
+      {!term && <HistorySec s={s} L={L} now={net} />}
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">
         {overLiquidity && <li className="w"><i /><span>This borrows {usd(D)} of {s.debt}, more than the {usdShort(s.borrowLiquidityUsd)} the market has free: the rate is at the top of its curve and the transaction may not go through.</span></li>}
         {term ? <>

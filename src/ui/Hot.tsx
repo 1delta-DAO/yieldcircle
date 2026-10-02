@@ -38,6 +38,8 @@ import { chainLabel } from '../sdk/queries'
 import { indexChainLabel } from '../index/types'
 import type { Strategy } from '../model/strategies'
 import { useSticky } from '../state/sticky'
+import { useRateHistory } from '../sdk/queries'
+import { Avg30 } from './Spark'
 
 type Win = '1h' | '6h' | '24h' | '7d'
 const WINDOWS: Win[] = ['1h', '6h', '24h', '7d']
@@ -137,6 +139,8 @@ function HotCard({ m, s, peak, comments, rating }: {
   /** what wallets said about it — counts only; the verdict lives on the market page */
   rating?: ReturnType<ReturnType<typeof useRatingCounts>['ratingOf']>
 }) {
+  // the card's rate with its month beside it; every card's ask lands in one request
+  const get = useRateHistory(React.useMemo(() => (s ? [s] : []), [s?.id]))
   const parts = m.marketUid.split(':')
   const chainId = parts[1]
   const open = () => (s ? go(s.group, { u: s.asset, s: s.id, k: s.kind }) : (location.hash = marketHref(m.marketUid)))
@@ -165,7 +169,7 @@ function HotCard({ m, s, peak, comments, rating }: {
               ? `${m.lenderName} · not in the menu`
               : 'not in the menu'}</small>
         </div>
-        {s && <span className="hc-rate">{pct(s.rate)}</span>}
+        {s && <span className="hc-rate">{pct(s.rate)}<Avg30 s={s} get={get} className="hc-avg" /></span>}
         <ChainCorner chainId={chainId} />
       </div>
 

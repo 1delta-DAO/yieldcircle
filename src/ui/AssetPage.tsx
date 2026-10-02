@@ -13,6 +13,9 @@ import { Comments } from './social-bits'
 import { marketHref } from '../state/AppState'
 import { HiddenBar } from './Hidden'
 import { HIDES, hideDetail, letIn } from '../model/visibility'
+import { useRateHistory } from '../sdk/queries'
+import { isSpike, seriesFor, steadyRate } from '../model/rateHistory'
+import { RateTrend, useSparkRewards } from './Spark'
 
 /** One list, one number per row. The list decides which; the ticket decides how much and how levered. */
 export function AssetPage({ group, route }: { group: Group; route: Route }) {
@@ -28,7 +31,17 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const kind: 'simple' | 'loop' = sel ? sel.kind : offMenu ? offMenu.kind : route.k ?? 'simple'
   const all = inGroup.filter((s) => u === 'all' || s.asset === u)
   const picks = React.useMemo(() => markPicks(inGroup), [inGroup.length])
-  const list = all.filter((s) => s.kind === kind).sort((x, y) => (Number(picks.has(y.id)) - Number(picks.has(x.id))) || y.rate - x.rate)
+  // the 30-day line on every row, in ONE request: a rate on a list is a claim
+  // about the future, and the line says whether it is what this has paid or a
+  // spike. Asked for every row of this kind (and the held positions'), once the
+  // catalogue has settled — the shared cache answers the ticket and the rest
+  const ofKind = React.useMemo(() => all.filter((s) => s.kind === kind), [all, kind])
+  const get = useRateHistory(ofKind, !b.isFetching)
+  const [withRewards, setWithRewards] = useSparkRewards()
+  // ranked on the STEADY rate: a row whose rate today is a spike against its own
+  // month sorts by the month, so one hot night does not lead the list
+  const steady = React.useMemo(() => new Map(ofKind.map((s) => [s.id, steadyRate(s, get, withRewards)])), [ofKind, get, withRewards])
+  const list = [...ofKind].sort((x, y) => (Number(picks.has(y.id)) - Number(picks.has(x.id))) || (steady.get(y.id) ?? y.rate) - (steady.get(x.id) ?? x.rate))
   const nS = all.filter((s) => s.kind === 'simple').length, nL = all.filter((s) => s.kind === 'loop').length
   // the rows a floor is holding back, scoped exactly as the list is
   const heldBack = b.hidden.filter((s) => s.group === group.id && (u === 'all' || s.asset === u) && s.kind === kind)
@@ -46,6 +59,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const commentsOn = (x: Strategy) => { const u = uidOf(x); return u ? counts.count('market', u) : 0 }
   const running: { h: Holding; s: Strategy | null }[] = b.holdings.filter((h) => !h.directional && h.group === group.id && (u === 'all' || h.asset === u)).sort((x, y) => y.valueUsd - x.valueUsd)
     .map((h) => ({ h, s: inGroup.find((s) => matches(s, h)) ?? b.hidden.find((s) => s.group === group.id && matches(s, h)) ?? null }))
+  // the held positions' strategies may be of the other kind than the list shows
+  useRateHistory(React.useMemo(() => running.flatMap((r) => (r.s ? [r.s] : [])), [running.map((r) => r.s?.id).join(',')]), !b.isFetching)
   // what an off-menu row can still do: a loop can always be unwound; a deposit needs the earn uid to withdraw through
   const canManage = (h: Holding) => h.kind === 'loop' ? !!h.collateralUid && !!h.debtUid : !!h.earnUid
   const ticketOpen = !!sel || !!offMenu
@@ -75,7 +90,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                     <td><div className="nm">{s ? (s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />) : <Tok sym={h.symbol} logo={h.logo} />}<span><b>{h.label.split(' · ')[0]}</b> <span className="t50">· {h.venue}</span></span><KindPill kind={h.kind} /><LegsPill others={h.others} /></div>
                       <small className="hide-m">{chainLabel(h.chainId)}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}{h.kind === 'loop' && h.debtSymbol ? ` · owes ${amt(h.debtSymbol, h.debtAmount ?? 0)}` : ''}</small></td>
                     <td className="r"><span>{usd(h.valueUsd)}</span><small>{h.kind === 'loop' ? 'equity' : num(h.amount, h.amount >= 100 ? 0 : 3)}</small></td>
-                    <td className="r"><span className={total != null && total >= 0 ? 'ok' : total != null ? 'bad' : ''}>{total != null ? pct(total) : '—'}</span>{rewards > 0.05 ? <small className="hide-m">incl. {pct(rewards)} rewards</small> : null}<small>{usd(h.valueUsd * (total ?? 0) / 100)}/yr</small></td>
+                    <td className="r">{(() => { const ser = s ? seriesFor(s, get, withRewards, h.kind === 'loop' && h.leverage && h.leverage > 1 ? h.leverage : undefined) : null; return <span className="rate-row">{ser && <RateTrend ser={ser} now={s!.rate} spike={isSpike(s!.rate, ser)} />}<span className={total != null && total >= 0 ? 'ok' : total != null ? 'bad' : ''}>{total != null ? pct(total) : '—'}</span></span> })()}{rewards > 0.05 ? <small className="hide-m">incl. {pct(rewards)} rewards</small> : null}<small>{usd(h.valueUsd * (total ?? 0) / 100)}/yr</small></td>
                     <td className="r hide-m hide-t">{h.health != null ? <span className={h.health < 1.1 ? 'bad' : h.health < 1.25 ? 'warn' : 'ok'}>{h.health.toFixed(2)}</span> : <span className="t40">—</span>}</td>
                     <td className="r hide-m hide-t" onClick={(e) => e.stopPropagation()}>{s ? <span className="acts"><button className="btn sm" onClick={() => open('add')}>Add</button><button className="btn sm" onClick={() => open(h.kind === 'loop' ? 'manage' : 'reduce')}>{h.kind === 'loop' ? 'Manage' : 'Withdraw'}</button></span> : can ? <span className="acts"><button className="btn sm" title="Not in the menu: this position can be reduced or closed here, not added to" onClick={openOff}>{h.kind === 'loop' ? 'Manage' : 'Withdraw'}</button></span> : <span className="t40" style={{ fontSize: 12 }}>not in the menu</span>}</td>
                     <td className="r t40" style={{ width: 20 }}>{s || can ? '›' : ''}</td>
@@ -92,7 +107,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
             ) : list.length ? (
               <table className="tbl strat-t">
                 <colgroup><col /><col className="c-rate" /><col className="c-tail" /></colgroup>
-                <thead><tr><th>{kind === 'simple' ? 'Deposit' : 'Loop'}</th><th className="r">{kind === 'simple' ? 'APY' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier: earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}</th><th /></tr></thead>
+                <thead><tr><th>{kind === 'simple' ? 'Deposit' : 'Loop'}</th><th className="r">{kind === 'simple' ? 'APY' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier: earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}<button className="rw-toggle" aria-pressed={withRewards} title={withRewards ? 'The 30-day line includes reward streams — click to show the rate without them' : 'The 30-day line excludes reward streams — click to include them'} onClick={() => setWithRewards(!withRewards)}>{withRewards ? '+rewards' : 'no rewards'}</button></th><th /></tr></thead>
                 <tbody>{list.map((s) => { const h = held(s); const pick = picks.has(s.id); return (
                   <tr key={s.id} aria-selected={sel?.id === s.id} onClick={() => go(group.id, { u, s: s.id, k: s.kind })}>
                     <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}<WhyIn s={s} /></div>
@@ -102,7 +117,9 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                           than the part it truncates. */}
                       <small>{u === 'all' ? `${nameOf(s.asset)} · ` : ''}{s.kind === 'loop' && s.instrument ? `via ${s.instrument} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${s.exitWord.toLowerCase()}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.source}` : ''}{s.tvlUsd > 0 && <> · <Size s={s} /></>}</small></td>
                     {/* the rate, on its own: nothing else in this cell to read past */}
-                    <td className="r"><span className={s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}>{pct(s.rate)}</span>{s.kind === 'simple' && s.rewards > 0.05 ? <small className="hide-m">incl. {pct(s.rewards)} rewards</small> : null}</td>
+                    <td className="r">{(() => { const ser = seriesFor(s, get, withRewards); const spike = isSpike(s.rate, ser); return (<>
+                      <span className="rate-row">{ser && <RateTrend ser={ser} now={s.rate} spike={spike} />}<span className={s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}>{pct(s.rate)}</span></span>
+                      {s.kind === 'simple' && s.rewards > 0.05 ? <small className="hide-m">incl. {pct(s.rewards)} rewards</small> : null}</>) })()}</td>
                     {/* a bubble on a row nobody has posted on is furniture, so it
                         only appears once there is something to open */}
                     <td className="r tail">
@@ -199,3 +216,4 @@ function RiskWord({ s }: { s: Strategy }) {
 }
 
 export { KindPill }
+

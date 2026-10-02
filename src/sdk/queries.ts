@@ -9,6 +9,8 @@ import { indexBalances } from '../index/api'
 import type { IndexBalanceItem } from '../index/types'
 import { useLiveChains } from './liveBalances'
 import { toRaw } from '../model/leverage'
+import { historyUids, type HistoryGet } from '../model/rateHistory'
+import { useHistoryFor } from './rateHistoryStore'
 
 const HOUR = 3600_000
 /**
@@ -414,6 +416,17 @@ export function useIrm(marketUid: string | null | undefined, enabled = true) {
       return r.items?.find((x) => x.marketUid === marketUid) ?? null
     },
   })
+}
+
+/**
+ * The 30-day rate history of `rows` (a loop contributes both legs), as a lookup
+ * over the shared per-uid cache (`rateHistoryStore.ts`): only uids not already
+ * held are fetched, every surface asking at once costs one request. `settled`
+ * holds the ask back while a list is still growing as chain buckets land.
+ */
+export function useRateHistory(rows: Strategy[], settled = true): HistoryGet {
+  const uids = useMemo(() => [...new Set(rows.flatMap(historyUids))].sort(), [rows])
+  return useHistoryFor(uids, settled)
 }
 
 function useDebounced<T>(v: T, ms: number): T { const [d, setD] = useState(v); useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t) }, [v, ms]); return d }

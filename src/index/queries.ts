@@ -1,5 +1,5 @@
 import { useQueries, useQuery } from '@tanstack/react-query'
-import { isEvmAddr, normAddr } from '../model/address'
+import { isEvmAddr, isSolAddr, normAddr } from '../model/address'
 import * as api from './api'
 import type { RecentQuery } from './api'
 import type { TxBundle } from './types'
@@ -191,8 +191,8 @@ export function useCuratorHolders(id: string | undefined, limit = 12) {
  * rendering as a whale with a generated name.
  */
 export function useCuratorsByAccount(addresses: string[]) {
-  // desks are an EVM-index fact; a base58 address in the CSV 400s the whole batch
-  const want = [...new Set(addresses.map((a) => normAddr(a)).filter((a) => isEvmAddr(a)))].sort()
+  // `0x` goes to the EVM index and base58 (verbatim, never lower-cased) to the Solana one — `api.curatorsByAccount` splits the batch
+  const want = [...new Set(addresses.map((a) => normAddr(a)).filter((a) => isEvmAddr(a) || isSolAddr(a)))].sort()
   const q = useQuery({
     enabled: want.length > 0,
     queryKey: ['curators-by-account', want.join(',')],

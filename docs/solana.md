@@ -112,9 +112,21 @@ behaviour is byte-for-byte unchanged.
   - Pulse, the Feed tabs, Wallet (other wallets: positions, events);
   - Market (header, events, holders, flow);
   - Token pages (Solana members of a group).
+- The filter facets fan out like the feed (pos-indexer tickets/0056 W9):
+  `protocols()` / `issuers()` / `curators()` ask both indexes when the scope
+  includes Solana and merge by the global key (protocols: chains unioned,
+  rows / wallets / markets summed; issuers: rows / via / markets summed,
+  wallets max; curators: the richer row, `aumUsd` / `nVaults` summed).
+  `curatorsByAccount()` sends base58 addresses (verbatim) to the Solana
+  index. A curator page goes to the index that knows the id
+  (`cand:solana:<base58>` → Solana; a slug → EVM, then Solana). A
+  `curator=cand:solana:…` filter skips the EVM index on the feed and Hot.
+  `following` counts from both indexes are summed (null only when neither
+  answers one). Until the Solana routes deploy they 404 and the client is
+  EVM-only, silently.
 - Pages that stay EVM-only until their routes exist on Solana:
-  - Board / earners, curators, `/assets` history;
-  - `/stress`, `/find`, issuer, protocol and curator filters.
+  - Board / earners, `/assets` history;
+  - `/stress`, `/find`.
 
   On Solana these show "not on Solana yet" in words, never an empty state.
 
@@ -180,6 +192,7 @@ Solana, and each action route answering `chainType: 'svm'`.
 | 6 | `/markets/:uid`, `/holders`, `/flow` | **done 2026-10-02**; a uid the book has not listed answers from the ledger with `inBook: false`. Was: `MarketRow` (404 when unknown), camelCase `Holder`, `flow?bucket=day` with `side` | Market, ticket holders |
 | 7 | `/health` | **done 2026-10-02**: `chains: ["solana"]`; it still answers 503 when a program stalls. Was: `{ok, chains}`. Keep its 503 off the client path (the client throws on 503). | `useIndexHealth` |
 | 8 | social | ed25519 identities; VM-aware `ADDR` | F |
+| 9 | `/protocols`, `/issuers`, `/curators[/:id[/allocation\|/events\|/holders]]`, `/curators/by-account` (base58), real `following` for `follower=` | **in progress** (pos-indexer tickets/0056 W8); the client fans out and merges already and degrades to EVM-only on a 404 | protocol / issuer / curator filters, curator pages, Following |
 
 Items 2–6 are one piece of work in `apps/sol-indexer/src/api/server.ts`. Port
 `bundleTransactions` / `netPositions` from `packages/position-store`, or share

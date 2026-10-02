@@ -13,8 +13,12 @@
  *   - the feed, Hot and trending FAN OUT to both when the chain scope spans
  *     both VMs ("all chains" means both indexes, not "omit chainIds"), and
  *     merge by time or by rank;
- *   - everything else (board, curators, assets, stress, find, balances) is
- *     EVM-only until those routes exist on Solana.
+ *   - the filter facets (`/protocols`, `/issuers`, `/curators`,
+ *     `/curators/by-account`) fan out the same way and merge by key; the
+ *     Solana side answering 404 (not deployed yet) costs its chips only;
+ *   - a curator's own page goes to the index that knows the id;
+ *   - everything else (board, assets, stress, find, balances) is EVM-only
+ *     until those routes exist on Solana.
  *
  * The Solana index must answer the EVM index's shapes — this file does NOT
  * adapt them (plan decision 2). A route of it that still answers its old
@@ -64,6 +68,19 @@ function splitScope(chainIds?: string | null): { evm: string | undefined | null;
 const safeTxs = (j: { txs?: unknown; following?: Following | null } | null): { txs: TxBundle[]; following: Following | null } =>
   j && Array.isArray(j.txs) ? (j as { txs: TxBundle[]; following: Following | null }) : { txs: [], following: j?.following ?? null }
 const EMPTY_TXS = { txs: [] as TxBundle[], following: null }
+/** Both indexes resolve the follow graph on their own ledger; the counts add. Null only when neither answered one. */
+const sumFollowing = (a: Following | null | undefined, b: Following | null | undefined): Following | null =>
+  !a ? (b ?? null) : !b ? a : { source: a.source ?? b.source, accounts: (a.accounts ?? 0) + (b.accounts ?? 0), markets: (a.markets ?? 0) + (b.markets ?? 0) }
+/** A curator id that only one index can know: `cand:solana:<base58>` is Solana's, `cand:<evm chain>:0x…` the EVM one's. */
+const solCurator = (id: string | undefined) => !!id && id.startsWith('cand:solana:')
+const evmCandidate = (id: string | undefined) => !!id && id.startsWith('cand:') && !solCurator(id)
+/** `splitScope`, narrowed by a curator filter that names a desk only one index has — the other would answer an empty page anyway. */
+function feedScope(chainIds: string | null | undefined, curator: string | undefined) {
+  const sc = splitScope(chainIds)
+  if (solCurator(curator)) sc.evm = null
+  if (evmCandidate(curator)) sc.sol = false
+  return sc
+}
 /** newest first; both lists are already sorted so this is one pass of interleaving */
 const byTime = (a: TxBundle[], b: TxBundle[], limit?: number) =>
   [...a, ...b].sort((x, y) => Date.parse(y.blockTs) - Date.parse(x.blockTs)).slice(0, limit)
@@ -93,7 +110,7 @@ export interface RecentQuery extends Params {
 }
 /** The feed, from both indexes when the scope spans both VMs, merged by time. */
 export async function recentTxs(q: RecentQuery, signal?: AbortSignal): Promise<{ txs: TxBundle[]; following: Following | null }> {
-  const { evm, sol } = splitScope(q.chainIds)
+  const { evm, sol } = feedScope(q.chainIds, q.curator)
   const ask = (base: string, chainIds: string | undefined) =>
     get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, chainIds, group: 'tx' }, signal, base)
   const [e, s] = await Promise.all([
@@ -104,7 +121,7 @@ export async function recentTxs(q: RecentQuery, signal?: AbortSignal): Promise<{
   ])
   if (!s) return e ?? EMPTY_TXS
   if (!e) return { txs: s.txs.slice(0, limitOf(q)), following: s.following }
-  return { txs: byTime(e.txs, s.txs, limitOf(q)), following: e.following }
+  return { txs: byTime(e.txs, s.txs, limitOf(q)), following: sumFollowing(e.following, s.following) }
 }
 const limitOf = (q: { limit?: number }) => (q.limit == null ? undefined : Number(q.limit))
 /** What the menu feed answers: `outside` counts the moves a client-side filter dropped (the fallback only). */
@@ -129,7 +146,7 @@ const FALLBACK_SCAN = 200
  * EVM one.
  */
 export async function recentTxsIn(q: RecentQuery, uids: string[], signal?: AbortSignal): Promise<MenuFeed> {
-  const { evm, sol } = splitScope(q.chainIds)
+  const { evm, sol } = feedScope(q.chainIds, q.curator)
   const one = async (base: string, chainIds: string | undefined, set: string[]): Promise<MenuFeed> => {
     if (!set.length) return EMPTY_TXS
     if (!postUnsupported.get(base)) {
@@ -156,10 +173,10 @@ export async function recentTxsIn(q: RecentQuery, uids: string[], signal?: Abort
   if (!s) return e ?? EMPTY_TXS
   if (!e) return s
   const outside = e.outside != null || s.outside != null ? (e.outside ?? 0) + (s.outside ?? 0) : undefined
-  return { txs: byTime(e.txs, s.txs, limitOf(q)), following: e.following, outside }
+  return { txs: byTime(e.txs, s.txs, limitOf(q)), following: sumFollowing(e.following, s.following), outside }
 }
 export async function recentEvents(q: RecentQuery, signal?: AbortSignal): Promise<{ events: LedgerEvent[]; following: Following | null }> {
-  const { evm, sol } = splitScope(q.chainIds)
+  const { evm, sol } = feedScope(q.chainIds, q.curator)
   const ask = (base: string, chainIds: string | undefined) =>
     get<{ events: LedgerEvent[]; following: Following | null }>('/events/recent', { ...q, chainIds }, signal, base)
   const safe = (j: { events?: unknown; following?: Following | null } | null) =>
@@ -171,7 +188,7 @@ export async function recentEvents(q: RecentQuery, signal?: AbortSignal): Promis
   if (!s) return e ?? safe(null)
   if (!e) return s
   const events = [...e.events, ...s.events].sort((x, y) => Date.parse(y.blockTs) - Date.parse(x.blockTs)).slice(0, limitOf(q))
-  return { events, following: e.following }
+  return { events, following: sumFollowing(e.following, s.following) }
 }
 
 export const accountTxs = async (account: string, p: { chainId?: string; limit?: number } = {}) => {
@@ -346,7 +363,7 @@ export interface HotMarket {
 }
 export async function hot(p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; issuers?: string; issuerMatch?: IssuerMatch; curator?: string; assetGroups?: string; limit?: number } = {}): Promise<{ window: string; hours: number; method: string; markets: HotMarket[] }> {
   type Hot = { window: string; hours: number; method: string; markets: HotMarket[] }
-  const { evm, sol } = splitScope(p.chainIds ?? p.chainId)
+  const { evm, sol } = feedScope(p.chainIds ?? p.chainId, p.curator)
   const ask = (base: string, chainIds: string | undefined) => get<Hot>('/hot', { ...p, chainId: undefined, chainIds }, undefined, base)
   const safe = (j: Hot | null) => (j && Array.isArray(j.markets) ? j : null)
   const [e, s] = await Promise.all([
@@ -380,8 +397,36 @@ export interface ProtocolFacet {
   wallets: number
   markets: number
 }
-export const protocols = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainIds?: string; limit?: number } = {}) =>
-  get<{ window: string; hours: number; protocols: ProtocolFacet[] }>('/protocols', p)
+type FacetQuery = { window?: '1h' | '6h' | '24h' | '7d'; chainIds?: string; limit?: number }
+/**
+ * Ask both indexes for a facet when the scope spans both VMs. The EVM side
+ * throws as before; the Solana side reads as `null` when it is down, 404s
+ * (route not deployed yet) or answers another shape — EVM-only, silently.
+ */
+async function fanFacet<T>(path: string, p: { chainIds?: string }, ok: (j: T | null) => boolean): Promise<[T | null, T | null]> {
+  const { evm, sol } = splitScope(p.chainIds)
+  return Promise.all([
+    evm !== null ? get<T>(path, { ...p, chainIds: evm }) : Promise.resolve(null),
+    sol ? get<T>(path, { ...p, chainIds: undefined }, undefined, SOL_INDEX_BASE_URL).then((j) => (ok(j) ? j : null)).catch(() => null) : Promise.resolve(null),
+  ])
+}
+const union = (a: string[] = [], b: string[] = []) => [...new Set([...a, ...b])]
+
+export async function protocols(p: FacetQuery = {}): Promise<{ window: string; hours: number; protocols: ProtocolFacet[] }> {
+  type R = { window: string; hours: number; protocols: ProtocolFacet[] }
+  const [e, s] = await fanFacet<R>('/protocols', p, (j) => !!j && Array.isArray(j.protocols))
+  if (!e || !s) return e ?? s ?? { window: p.window ?? '7d', hours: 0, protocols: [] }
+  // keys are global (`AAVE_V3`, `KAMINO`): one that both answer is one chip
+  const by = new Map<string, ProtocolFacet>()
+  for (const f of [...e.protocols, ...s.protocols]) {
+    const cur = by.get(f.protocol)
+    by.set(f.protocol, !cur ? f : {
+      ...cur, name: cur.name ?? f.name, logoUri: cur.logoUri ?? f.logoUri, chains: union(cur.chains, f.chains),
+      rows: cur.rows + f.rows, wallets: cur.wallets + f.wallets, markets: cur.markets + f.markets,
+    })
+  }
+  return { ...e, protocols: [...by.values()].sort((a, b) => b.rows - a.rows).slice(0, p.limit) }
+}
 
 /**
  * The desks worth offering as a filter — the mirror of `/protocols`, and the
@@ -402,8 +447,22 @@ export interface IssuerFacet {
   markets: number
   chains: string[]
 }
-export const issuers = (p: { window?: '1h' | '6h' | '24h' | '7d'; chainIds?: string; limit?: number } = {}) =>
-  get<{ window: string; hours: number; issuers: IssuerFacet[] }>('/issuers', p)
+export async function issuers(p: FacetQuery = {}): Promise<{ window: string; hours: number; issuers: IssuerFacet[] }> {
+  type R = { window: string; hours: number; issuers: IssuerFacet[] }
+  const [e, s] = await fanFacet<R>('/issuers', p, (j) => !!j && Array.isArray(j.issuers))
+  if (!e || !s) return e ?? s ?? { window: p.window ?? '7d', hours: 0, issuers: [] }
+  // a desk slug (`circle`) is the same desk on both VMs; rows / via / markets
+  // are disjoint ledgers and add, wallets may be one person twice, so bounded
+  const by = new Map<string, IssuerFacet>()
+  for (const f of [...e.issuers, ...s.issuers]) {
+    const cur = by.get(f.issuer)
+    by.set(f.issuer, !cur ? f : {
+      ...cur, name: cur.name || f.name, chains: union(cur.chains, f.chains),
+      rows: cur.rows + f.rows, via: cur.via + f.via, markets: cur.markets + f.markets, wallets: Math.max(cur.wallets, f.wallets),
+    })
+  }
+  return { ...e, issuers: [...by.values()].sort((a, b) => b.rows - a.rows).slice(0, p.limit) }
+}
 
 /**
  * Curators — WHO decides where a curated vault's money goes.
@@ -519,21 +578,81 @@ export interface AccountCurator {
   aumUsd: number | null
 }
 
-export const curators = (p: { win?: string; limit?: number; chainIds?: string } = {}) =>
-  get<{ win: string; curators: CuratorRow[] }>('/curators', p)
+/** How much a row says: the richer of two rows for one desk is kept, its counts summed with the other's. */
+const filled = (c: CuratorRow) => Object.values(c).filter((v) => v != null).length + (c.name ? 2 : 0) + (c.candidate ? 0 : 1)
+const addNull = (a: number | null | undefined, b: number | null | undefined) => (a == null && b == null ? (a ?? b) : (a ?? 0) + (b ?? 0))
+export async function curators(p: { win?: string; limit?: number; chainIds?: string } = {}): Promise<{ win: string; curators: CuratorRow[] }> {
+  type R = { win: string; curators: CuratorRow[] }
+  const [e, s] = await fanFacet<R>('/curators', p, (j) => !!j && Array.isArray(j.curators))
+  if (!e || !s) return e ?? s ?? { win: p.win ?? '30d', curators: [] }
+  const by = new Map<string, CuratorRow>()
+  for (const c of [...e.curators, ...s.curators]) {
+    const cur = by.get(c.curatorId)
+    if (!cur) { by.set(c.curatorId, c); continue }
+    const [rich, other] = filled(c) > filled(cur) ? [c, cur] : [cur, c]
+    const chains = rich.chains || other.chains ? union(rich.chains, other.chains) : undefined
+    by.set(c.curatorId, {
+      ...rich,
+      aumUsd: addNull(rich.aumUsd, other.aumUsd),
+      nVaults: addNull(rich.nVaults, other.nVaults) ?? undefined,
+      ...(chains ? { chains, nChains: chains.length } : {}),
+    })
+  }
+  // the book is ranked by AUM; a desk with none read sinks, in its index's order
+  const list = [...by.values()].sort((a, b) => (b.aumUsd ?? -1) - (a.aumUsd ?? -1))
+  return { ...e, curators: p.limit ? list.slice(0, p.limit) : list }
+}
+/**
+ * One desk's page, from the index that knows it: a Solana candidate goes
+ * straight there, an EVM candidate only to the EVM index, and a slug is
+ * asked of the EVM index first and of the Solana one when that refuses it
+ * (the EVM error is the one reported if both do).
+ */
+async function curatorGet<T>(id: string, sub: string, p: Params = {}, ok: (j: T) => boolean = () => true): Promise<T> {
+  const path = `/curators/${encodeURIComponent(id)}${sub}`
+  if (solCurator(id)) return get<T>(path, p, undefined, SOL_INDEX_BASE_URL)
+  try {
+    return await get<T>(path, p)
+  } catch (err) {
+    if (evmCandidate(id)) throw err
+    const j = await get<T>(path, p, undefined, SOL_INDEX_BASE_URL).catch(() => null)
+    if (j && ok(j)) return j
+    throw err
+  }
+}
 export const curator = (id: string, win = '30d') =>
-  get<CuratorProfile>(`/curators/${encodeURIComponent(id)}`, { win })
+  curatorGet<CuratorProfile>(id, '', { win }, (j) => !!j.curatorId)
 export const curatorAllocation = (id: string) =>
-  get<CuratorAllocation>(`/curators/${encodeURIComponent(id)}/allocation`)
-export const curatorTxs = (id: string, limit = 50) =>
-  get<{ curatorId: string; vaults: number; txs: TxBundle[] }>(`/curators/${encodeURIComponent(id)}/events`, { limit })
-export const curatorHolders = (id: string, limit = 20) =>
-  get<{ curatorId: string; holders: { account: string; amountUsd: number; vaults: number; since: string | null; accountKind?: AccountKind; accountLabel?: string | null }[]; impaired?: ImpairedCount }>(
-    `/curators/${encodeURIComponent(id)}/holders`, { limit },
+  curatorGet<CuratorAllocation>(id, '/allocation', {}, (j) => Array.isArray(j.markets))
+export const curatorTxs = async (id: string, limit = 50) => {
+  const j = await curatorGet<{ curatorId: string; vaults: number; txs: TxBundle[] }>(id, '/events', { limit }, (j) => Array.isArray(j.txs))
+  return Array.isArray(j.txs) ? j : { curatorId: id, vaults: 0, txs: [] }
+}
+export const curatorHolders = async (id: string, limit = 20) => {
+  const j = await curatorGet<{ curatorId: string; holders: { account: string; amountUsd: number; vaults: number; since: string | null; accountKind?: AccountKind; accountLabel?: string | null }[]; impaired?: ImpairedCount }>(
+    id, '/holders', { limit }, (j) => Array.isArray(j.holders),
   )
-/** Batch: which of these addresses are desks. What lets a row know it is looking at a manager, not a whale. */
-export const curatorsByAccount = (addresses: string[]) =>
-  get<{ curators: Record<string, AccountCurator> }>('/curators/by-account', { addresses: addresses.join(',') })
+  return Array.isArray(j.holders) ? j : { curatorId: id, holders: [] }
+}
+/**
+ * Batch: which of these addresses are desks. What lets a row know it is looking at a manager, not a whale.
+ * `0x` addresses go to the EVM index, base58 ones (kept verbatim) to the Solana index — a base58 address
+ * in the EVM index's CSV 400s the whole batch. The Solana side failing costs its entries only.
+ */
+export async function curatorsByAccount(addresses: string[]): Promise<{ curators: Record<string, AccountCurator> }> {
+  type R = { curators: Record<string, AccountCurator> }
+  const evm = addresses.filter((a) => !isSolAddr(a))
+  const sol = addresses.filter((a) => isSolAddr(a))
+  const [e, s] = await Promise.all([
+    evm.length ? get<R>('/curators/by-account', { addresses: evm.join(',') }) : Promise.resolve(null),
+    sol.length
+      ? get<R>('/curators/by-account', { addresses: sol.join(',') }, undefined, SOL_INDEX_BASE_URL).then((j) => (j && j.curators && typeof j.curators === 'object' ? j : null)).catch(() => null)
+      : Promise.resolve(null),
+  ])
+  if (!s) return e ?? { curators: {} }
+  if (!e) return s
+  return { ...e, curators: { ...e.curators, ...s.curators } }
+}
 
 /**
  * The ledger's own witness (pos-indexer tickets/0012 §9): what the index can

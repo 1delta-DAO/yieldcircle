@@ -57,6 +57,21 @@ export function useFollowers(account: string | undefined) {
   return useQuery({ enabled: !!account && isEvmAddr(normAddr(account)), queryKey: ['followers', normAddr(account)], queryFn: () => api.followers(account!), staleTime: MIN })
 }
 
+/**
+ * The wallet-link cluster of an address (docs/wallet-links.md): its primary
+ * and every linked member. Answers the address itself, alone, when nothing
+ * is linked — so callers never branch on "has links".
+ */
+export function useWalletLinks(account: string | undefined) {
+  return useQuery({
+    enabled: !!account && api.SOCIAL_LINKS_READY,
+    queryKey: ['wallet-links', normAddr(account)],
+    queryFn: () => api.walletLinks(account!),
+    staleTime: 5 * MIN,
+    retry: false,
+  })
+}
+
 /** Who the connected wallet follows — the feed's scope and every Follow button's state. */
 export function useMyFollows(account: string | undefined) {
   const q = useQuery({
@@ -125,6 +140,7 @@ export function useSocialRefresh() {
     thread: (kind: SubjectKind, key: string) => { void qc.invalidateQueries({ queryKey: ['thread', kind, key] }); void qc.invalidateQueries({ queryKey: ['counts'] }) },
     follows: (account?: string) => { void qc.invalidateQueries({ queryKey: ['follows', normAddr(account)] }); void qc.invalidateQueries({ queryKey: ['followers'] }); void qc.invalidateQueries({ queryKey: ['feed1'] }) },
     profile: (account?: string) => { void qc.invalidateQueries({ queryKey: ['profile', normAddr(account)] }); void qc.invalidateQueries({ queryKey: ['profiles'] }) },
+    links: () => { void qc.invalidateQueries({ queryKey: ['wallet-links'] }); void qc.invalidateQueries({ queryKey: ['profiles'] }); void qc.invalidateQueries({ queryKey: ['profile'] }) },
     ratings: (kind: api.RatingSubjectKind, key: string) => { void qc.invalidateQueries({ queryKey: ['ratings', kind, key] }); void qc.invalidateQueries({ queryKey: ['rating-counts'] }) },
   }
 }

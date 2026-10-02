@@ -20,6 +20,8 @@ export interface Profile {
   updatedAt?: string
   /** X handle, once the link worker has verified it (social.x_links) */
   xHandle?: string | null
+  /** set when this account is a linked member and the profile shown is its PRIMARY's (docs/wallet-links.md) */
+  resolvedFrom?: string | null
   /**
    * Badges the index minted, not self-claimed. The service answers
    * `{tag, evidence}[]`; `normaliseProfile` flattens it to the tag names, and

@@ -146,6 +146,15 @@ a Share-on-X button. The gate page uses an
 injected wallet only (the app bundle, WalletConnect included, is what the gate
 withholds), so phones use a wallet's in-app browser.
 
+**Revised 2026-10-02, narrative:** the visitor never hears "whitelist" — the
+story is a **waitlist in two layers**. Connect a wallet and it is either
+*whitelisted* (sign, you're in), *waitlisted* (`wait:` exists — the overlay
+says "You're on the waitlist, access soon" plus Share-on-X, instead of asking
+for the email again), or invited to join the waitlist (email + signature).
+`/gate/check` now reports both layers (`listed`, `waitlisted`). "Whitelist"
+survives only as the internal/admin term: KV keys, `scripts/whitelist.mjs`,
+and the bindings.
+
 ## Tasks
 
 1. ✅ `functions/_middleware.ts` + `gate/page.ts` + cookie HMAC.

@@ -8,7 +8,7 @@
  * never has to switch to leave a comment.
  */
 import { useAccount, useSignTypedData } from 'wagmi'
-import { base58Encode } from '../model/address'
+import { base58Encode, isSolAddr } from '../model/address'
 import { solSignMessage } from '../wallet/solana'
 import * as api from './api'
 import type { RatingSubjectKind } from './api'
@@ -64,6 +64,21 @@ export const TYPES = {
     { name: 'author', type: 'address' },
     { name: 'nonce', type: 'string' },
     { name: 'action', type: 'string' },
+    { name: 'signedAt', type: 'uint256' },
+  ],
+  /**
+   * One half of a wallet link (docs/wallet-links.md): "this other address
+   * and I are one person", signed by BOTH sides and matched on the nonce.
+   * A base58 author signs the same fields ed25519 over the canonical JSON
+   * (`signSolanaEnvelope` below). Additive, like every type before it.
+   */
+  WalletLink: [
+    { name: 'author', type: 'address' },
+    { name: 'other', type: 'string' },
+    { name: 'otherVm', type: 'string' },
+    { name: 'role', type: 'string' },
+    { name: 'action', type: 'string' },
+    { name: 'nonce', type: 'string' },
     { name: 'signedAt', type: 'uint256' },
   ],
   /**
@@ -185,6 +200,36 @@ export function useSocialWrite() {
      * caller hands it over.
      */
     xLink: (linkNonce: string, action: 'link' | 'unlink'): Promise<Envelope> => sign('XLink', { nonce: linkNonce, action }),
+    /**
+     * Link another wallet to THIS one's profile (docs/wallet-links.md): the
+     * connected EVM wallet signs the primary half, the member — a Solana
+     * address in v1, the one wallet the app can hold beside wagmi's — signs
+     * its own half ed25519, same nonce, each naming the other. Both are
+     * posted together; the service refuses anything mismatched in words.
+     */
+    linkWallet: async (member: string): Promise<api.WalletLinks> => {
+      if (!address) throw new Error('connect the wallet that owns the profile first')
+      // the member half is signed by the member's own key; the one non-wagmi
+      // wallet this app holds is the Solana one, so that is what v1 can link
+      if (!isSolAddr(member)) throw new Error('only a Solana wallet can be linked from this app today')
+      const n = nonce()
+      const primary = await sign('WalletLink', { other: member, otherVm: 'svm', role: 'primary', action: 'link', nonce: n })
+      const memberHalf = await signSolanaEnvelope('WalletLink', {
+        author: member, other: address.toLowerCase(), otherVm: 'evm', role: 'member', action: 'link', nonce: n, signedAt: now(),
+      })
+      return api.postWalletLink(primary, memberHalf)
+    },
+    /** Unlink is one-sided: whichever of the two keys is at hand withdraws the claim. */
+    unlinkWallet: async (member: string, primary: string): Promise<{ ok: boolean }> => {
+      if (address && address.toLowerCase() === primary) {
+        const half = await sign('WalletLink', { other: member, otherVm: isSolAddr(member) ? 'svm' : 'evm', role: 'primary', action: 'unlink', nonce: nonce() })
+        return api.postWalletUnlink(half)
+      }
+      const half = await signSolanaEnvelope('WalletLink', {
+        author: member, other: primary, otherVm: 'evm', role: 'member', action: 'unlink', nonce: nonce(), signedAt: now(),
+      })
+      return api.postWalletUnlink(half)
+    },
   }
 }
 export type SocialWriter = ReturnType<typeof useSocialWrite>

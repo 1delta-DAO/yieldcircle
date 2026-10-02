@@ -2,6 +2,9 @@
  * The closed-beta OVERLAY. The app always loads and renders — the middleware
  * injects this frosted layer on top of the HTML for visitors without a beta
  * cookie: the live product stays visible behind it, nothing is walled off.
+ * The story the visitor hears is a WAITLIST in two layers: connect, and the
+ * wallet is either whitelisted (sign, you're in), already waitlisted (you're
+ * in line, access soon), or invited to join the waitlist (email + signature).
  * Plain injected-wallet (EIP-1193) only: on a phone without one, the page
  * says to open the link in a wallet's browser.
  */
@@ -10,7 +13,7 @@
 export const message = (address: string, issued: string, email?: string) =>
   email === undefined
     ? `YieldCircle beta access\n\nAddress: ${address.toLowerCase()}\nIssued: ${issued}`
-    : `YieldCircle beta request\n\nAddress: ${address.toLowerCase()}\nEmail: ${email}\nIssued: ${issued}`
+    : `YieldCircle waitlist\n\nAddress: ${address.toLowerCase()}\nEmail: ${email}\nIssued: ${issued}`
 
 export const overlay = () => `
 <div id="yc-gate">
@@ -36,8 +39,8 @@ export const overlay = () => `
 </style>
 <div class="card">
   <div class="tag">Closed beta</div>
-  <h1 id="yc-title">Whitelist only, for now</h1>
-  <p id="yc-sub">Everything you see is live. Connect a whitelisted wallet to use it &mdash; or get in line and we&rsquo;ll email you when you&rsquo;re in.</p>
+  <h1 id="yc-title">Join the waitlist</h1>
+  <p id="yc-sub">Everything you see is live. Access opens in waves down the waitlist &mdash; connect your wallet to join it, or to walk in if it&rsquo;s your turn.</p>
   <div class="row" id="yc-row">
     <input id="yc-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" hidden />
     <button id="yc-go">Connect wallet</button>
@@ -76,7 +79,7 @@ export const overlay = () => `
       return eth.request({ method: 'eth_requestAccounts' }).then(function (a) {
         address = a[0];
         return fetch('/gate/check?address=' + address).then(function (r) { return r.json(); });
-      }).then(function (out) { return out.listed ? enter() : lineup(); });
+      }).then(function (out) { return out.listed ? enter() : out.waitlisted ? waiting() : lineup(); });
     }).catch(function (e) {
       status(e && e.message ? e.message : String(e), true);
       btn.disabled = false;
@@ -92,11 +95,19 @@ export const overlay = () => `
   }
 
   function lineup() {
-    $('yc-sub').textContent = address.slice(0, 6) + '\\u2026' + address.slice(-4) + ' isn\\u2019t whitelisted yet. Leave an email and we\\u2019ll tell you the moment it is.';
+    $('yc-sub').textContent = address.slice(0, 6) + '\\u2026' + address.slice(-4) + ' isn\\u2019t on the waitlist yet. Leave an email, sign, and you\\u2019re in line.';
     $('yc-email').hidden = false;
-    btn.textContent = 'Request access';
+    btn.textContent = 'Join the waitlist';
     btn.disabled = false;
     status('');
+  }
+
+  function waiting(email) {
+    $('yc-title').textContent = 'You\\u2019re on the waitlist';
+    $('yc-sub').textContent = (email ? 'We\\u2019ll email ' + email : 'This wallet is in line. We\\u2019ll email you') + ' the moment access reaches it \\u2014 it opens in waves.';
+    var text = encodeURIComponent('On the YieldCircle waitlist \\u{1F440} ' + location.origin);
+    $('yc-row').innerHTML = '<a class="btn" target="_blank" rel="noopener" href="https://x.com/intent/post?text=' + text + '">Share on X</a>';
+    status(address);
   }
 
   function request() {
@@ -107,13 +118,7 @@ export const overlay = () => `
     status('Sign to prove the wallet is yours \\u2014 free, no transaction.');
     return sign(T_REQUEST.replace('__a__', address.toLowerCase()).replace('__i__', issued).replace('__e__', email)).then(function (signature) {
       return post('/gate/request', { address: address, issued: issued, signature: signature, email: email });
-    }).then(function () {
-      $('yc-title').textContent = 'You\\u2019re in line';
-      $('yc-sub').textContent = 'We\\u2019ll email ' + email + ' when this wallet is whitelisted.';
-      var text = encodeURIComponent('In line for the YieldCircle closed beta \\u{1F440} ' + location.origin);
-      $('yc-row').innerHTML = '<a class="btn" target="_blank" rel="noopener" href="https://x.com/intent/post?text=' + text + '">Share on X</a>';
-      status(address);
-    });
+    }).then(function () { waiting(email); });
   }
 })();
 </script>

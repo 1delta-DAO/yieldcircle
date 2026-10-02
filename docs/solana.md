@@ -173,12 +173,12 @@ Solana, and each action route answering `chainType: 'svm'`.
 | # | Route | Needed shape (the EVM index's) | Used by |
 | --- | --- | --- | --- |
 | 1 | public host | **done 2026-10-02**: https://sol-positions.1delta.io (CORS reflects the origin; `/ingest/*` is 404 at the edge) | everything in C |
-| 2 | every route | camelCase rows, named arrays (`txs` / `events` / `positions` / `holders` / `flow`), `chainId: 'solana'` on every row, no `ok` envelope | `index/types.ts` as is |
-| 3 | `/events/recent`, `/accounts/:a/events`, `/markets/:uid/events` | `group=tx` → `TxBundle` (legs, `subject`, `kinds`, `lenders`, `netUsd`, `volumeUsd`); `chainIds`, `protocols`, `accounts`, `markets`, `follower`; `POST { inMarkets }` | Feed, Pulse, Alerts, Wallet, Market |
-| 4 | `/positions/:account` | `positions` + `groups` + `totals` + `asOf`; `aprNow`, `usdStatus`, `valueStatus`, `lenderName` / `lenderLogo`, `assetGroup` | Wallet (other wallets) |
-| 5 | `/hot` | **markets**, ranked like EVM's (`heat`, `pVolume`, `pEvents`, `nWallets`, …). Today it ranks accounts. | Hot |
-| 6 | `/markets/:uid`, `/holders`, `/flow` | `MarketRow` (404 when unknown), camelCase `Holder`, `flow?bucket=day` with `side` | Market, ticket holders |
-| 7 | `/health` | `{ok, chains}`. Keep its 503 off the client path (the client throws on 503). | `useIndexHealth` |
+| 2 | every route | **done 2026-10-02**: every product route; the old rows moved to `/raw/*`. Was: camelCase rows, named arrays (`txs` / `events` / `positions` / `holders` / `flow`), `chainId: 'solana'` on every row, no `ok` envelope | `index/types.ts` as is |
+| 3 | `/events/recent`, `/accounts/:a/events`, `/markets/:uid/events` | **done 2026-10-02**: `TxBundle` folding is the EVM fold (ported); `POST {inMarkets}` works; `follower` / `issuers` / `curator` answer an EMPTY page (no follow graph or desk table on the Solana side). Was: `group=tx` → `TxBundle` (legs, `subject`, `kinds`, `lenders`, `netUsd`, `volumeUsd`); `chainIds`, `protocols`, `accounts`, `markets`, `follower`; `POST { inMarkets }` | Feed, Pulse, Alerts, Wallet, Market |
+| 4 | `/positions/:account` | **done 2026-10-02**, except `groups` (no netting yet; the app falls back to one group per leg) and `intrinsicApr`. Was: `positions` + `groups` + `totals` + `asOf`; `aprNow`, `usdStatus`, `valueStatus`, `lenderName` / `lenderLogo`, `assetGroup` | Wallet (other wallets) |
+| 5 | `/hot` | **done 2026-10-02**: same method, its own percentile population. Was: **markets**, ranked like EVM's (`heat`, `pVolume`, `pEvents`, `nWallets`, …). Today it ranks accounts. | Hot |
+| 6 | `/markets/:uid`, `/holders`, `/flow` | **done 2026-10-02**; a uid the book has not listed answers from the ledger with `inBook: false`. Was: `MarketRow` (404 when unknown), camelCase `Holder`, `flow?bucket=day` with `side` | Market, ticket holders |
+| 7 | `/health` | **done 2026-10-02**: `chains: ["solana"]`; it still answers 503 when a program stalls. Was: `{ok, chains}`. Keep its 503 off the client path (the client throws on 503). | `useIndexHealth` |
 | 8 | social | ed25519 identities; VM-aware `ADDR` | F |
 
 Items 2–6 are one piece of work in `apps/sol-indexer/src/api/server.ts`. Port

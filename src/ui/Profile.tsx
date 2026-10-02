@@ -15,8 +15,11 @@ import React from 'react'
 import { useAccount } from 'wagmi'
 import { ACCESSORIES, BACKDROPS, CREATURES, Character, EYES, GATED, LAYERS, MOUTHS, PALETTES, MAX_PICTURE_URL, formatSpec, parseSpec, pictureUrl, specOf, unearned, type Spec } from '../identity/character'
 import { autoName, shortAddr } from '../identity/name'
-import { useProfile, useSocialRefresh } from '../social/queries'
+import { SOCIAL_LINKS_READY } from '../social/api'
+import { useProfile, useSocialRefresh, useWalletLinks } from '../social/queries'
 import { useSocialWrite } from '../social/sign'
+import { useApp } from '../state/AppState'
+import { ChainMark } from './ChainMark'
 import { XLink } from './XLink'
 import { Badges } from './social-bits'
 
@@ -157,7 +160,71 @@ export function ProfilePage() {
           <div className="sec-h"><h2>X</h2><span className="sub">optional, and revocable from either side</span></div>
           <XLink account={addr} linked={saved?.xHandle ?? null} />
         </section>
+
+        {SOCIAL_LINKS_READY && (
+          <section className="card pad">
+            <div className="sec-h"><h2>Linked wallets</h2><span className="sub">one profile across your addresses — both keys sign, either can unlink</span></div>
+            <LinkedWallets account={addr} />
+          </section>
+        )}
       </div>
+    </>
+  )
+}
+
+/**
+ * The wallet-link section (docs/wallet-links.md): the cluster as rows, and
+ * the add flow — two signatures, the profile wallet's then the Solana
+ * wallet's, posted together. v1 links the ONE wallet the app can hold
+ * beside wagmi's (the Solana one); a second EVM wallet means reconnecting
+ * mid-flow, which is a worse ceremony than this feature deserves yet.
+ */
+function LinkedWallets({ account }: { account: string }) {
+  const links = useWalletLinks(account)
+  const { solSigner } = useApp()
+  const { linkWallet, unlinkWallet } = useSocialWrite()
+  const refresh = useSocialRefresh()
+  const [busy, setBusy] = React.useState<string | null>(null)
+  const [err, setErr] = React.useState<string | null>(null)
+  const run = async (label: string, f: () => Promise<unknown>) => {
+    setBusy(label); setErr(null)
+    try { await f(); refresh.links() }
+    catch (e) { const m = (e as Error).message; setErr(/rejected|denied/i.test(m) ? 'signature rejected' : m) }
+    finally { setBusy(null) }
+  }
+  const members = links.data?.members ?? []
+  const linkedAlready = !!solSigner && members.some((m) => m.account === solSigner)
+  return (
+    <>
+      {members.length > 0 ? (
+        <ul className="txlist" aria-label="Linked wallets">
+          {members.map((m) => (
+            <li key={m.account} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ChainMark chainId={m.vm === 'svm' ? 'solana' : '1'} size={15} />
+              <a className="mono" href={`#/w/${m.account}`}>{shortAddr(m.account)}</a>
+              <span className="sp" />
+              <button className="btn sm" disabled={!!busy} onClick={() => void run(m.account, () => unlinkWallet(m.account, links.data!.primary))}>
+                {busy === m.account ? 'Signing…' : 'Unlink'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="foot" style={{ marginTop: 0 }}>No linked wallets yet.</p>
+      )}
+      {solSigner && !linkedAlready && (
+        <div className="actions" style={{ marginTop: 10 }}>
+          <button className="btn pri" disabled={!!busy} onClick={() => void run('add', () => linkWallet(solSigner))}>
+            {busy === 'add' ? 'Signing…' : `Link ${shortAddr(solSigner)} (Solana)`}
+          </button>
+        </div>
+      )}
+      {!solSigner && <p className="foot">Connect a Solana wallet in the wallet sheet, then link it here.</p>}
+      {err && <div className="err" style={{ marginTop: 8 }}>{err}</div>}
+      <p className="foot" style={{ marginTop: 8 }}>
+        Linking is public: it ties these wallets' histories together for everyone, and unlinking later
+        does not undo what others saw. Two signatures — one from each wallet — and no gas.
+      </p>
     </>
   )
 }

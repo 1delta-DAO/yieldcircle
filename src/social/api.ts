@@ -49,9 +49,10 @@ export const profile = async (account: string): Promise<ProfileResponse> => {
 export async function profiles(accounts: string[]): Promise<Record<string, Profile | null>> {
   // the service verifies 0x authors only (ADDR regex server-side): a base58
   // account in the batch would 400 the WHOLE request and cost every EVM
-  // profile on the page, so Solana wallets resolve to null until social
-  // accepts ed25519 identities (docs/solana.md §F)
-  const want = [...new Set(accounts.map((a) => normAddr(a)))].filter((a) => /^0x[0-9a-f]{40}$/.test(a))
+  // profile on the page, so Solana wallets resolve to null — until the
+  // deployed service is VM-aware (SOCIAL_LINKS_READY); then they ride along
+  // and come back wearing their primary's profile (docs/wallet-links.md §6)
+  const want = [...new Set(accounts.map((a) => normAddr(a)))].filter((a) => SOCIAL_LINKS_READY || /^0x[0-9a-f]{40}$/.test(a))
   if (!want.length) return {}
   try {
     const r = await call<{ profiles: Record<string, Profile | null> }>('/profiles', post('/profiles', { accounts: want }))
@@ -207,3 +208,26 @@ export const positionKey = (x: { chainId: string; account: string; marketUid: st
 export const marketKey = (uid: string) => uid
 /** hex lowered, base58 verbatim (docs/solana.md §F: the key choice is agreed with social before the first Solana thread) */
 export const walletKey = (a: string) => normAddr(a)
+
+// ---------------------------------------------------------------- wallet links (docs/wallet-links.md)
+/**
+ * Flip when the deployed social service knows `/wallet-link` (pos-indexer
+ * `packages/social`, landed there 2026-10-02 — this waits on its DEPLOY).
+ * Gates the Profile section, the cluster-aware `isMe`, and base58 accounts
+ * in the profile batch; off, the service would 400/404 each of them.
+ */
+export const SOCIAL_LINKS_READY = false
+
+export interface WalletLinks {
+  primary: string
+  members: { account: string; vm: 'evm' | 'svm'; linkedAt: string }[]
+}
+/** The cluster from any of its addresses; an unlinked address answers itself, alone. */
+export const walletLinks = (account: string) =>
+  call<WalletLinks>(`/wallet-links/${encodeURIComponent(normAddr(account))}`)
+/** Both halves of a link — the service matches them on the nonce and refuses mismatches in words. */
+export const postWalletLink = (primary: unknown, member: unknown) =>
+  call<WalletLinks>('/wallet-link', post('/wallet-link', { primary, member }))
+/** One half, either role: consent withdrawn by either party ends the claim. */
+export const postWalletUnlink = (half: unknown) =>
+  call<{ ok: boolean }>('/wallet-link', post('/wallet-link', { half }))

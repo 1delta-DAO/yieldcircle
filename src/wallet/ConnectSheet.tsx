@@ -5,6 +5,7 @@ import { useApp } from '../state/AppState'
 import { useModalChrome } from '../ui/useModalChrome'
 import { readTouch } from '../ui/useViewport'
 import { isAddr } from '../model/address'
+import { SOCIAL_LINKS_READY } from '../social/api'
 import { useSolWallet } from './solana'
 import { useConnectFlow, type ConnectFlow } from './useConnectFlow'
 import { forgetWallet } from './deeplink'
@@ -94,8 +95,16 @@ function SolanaSection() {
         <p className="foot" style={{ margin: 0 }}>No Solana wallet in this browser. Phantom, Solflare or Backpack appear here once installed — or open this page in the wallet app's own browser.</p>
       )}
       {sol.error && <p className="err" style={{ margin: '6px 0 0' }}>{sol.error}</p>}
+      <LinkHint hasSol={!!sol.account} />
     </div>
   )
+}
+
+/** One quiet, opt-in line when both VMs are connected and not yet linked — never a modal (docs/wallet-links.md). */
+function LinkHint({ hasSol }: { hasSol: boolean }) {
+  const { isConnected: evmConnected } = useAccount()
+  if (!SOCIAL_LINKS_READY || !hasSol || !evmConnected) return null
+  return <p className="foot" style={{ marginTop: 6 }}>These two wallets can share one profile — <a href="#/me">link them</a>.</p>
 }
 
 /** After the hand-off: the browser stays on this screen while the wallet is in front. */

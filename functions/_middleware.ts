@@ -4,9 +4,14 @@
  * into the HTML for visitors without a valid beta cookie. Assets, data and the
  * bundle itself pass through untouched; only the HTML document is modified.
  *
+ * The narrative is a WAITLIST, in two layers: a wallet is *waitlisted*
+ * (`wait:` — the overlay says it is in line, access soon) or *whitelisted*
+ * (`wl:` — sign in and the app is yours). "Whitelist" stays the internal and
+ * admin term; the visitor only ever hears "waitlist".
+ *
  * Bindings (Pages → Settings → Bindings / Variables, Production AND Preview):
  *   WHITELIST       KV namespace — `wl:<lowercase address>` = whitelisted,
- *                   `wait:<lowercase address>` = requested (email in metadata)
+ *                   `wait:<lowercase address>` = waitlisted (email in metadata)
  *   GATE_SECRET     Secret — HMAC key for the cookie; rotating it logs everyone out
  *   RESEND_API_KEY  Secret, optional — emails each new request to NOTIFY_EMAIL
  *   NOTIFY_EMAIL    optional, where requests are mailed (default below)
@@ -64,11 +69,13 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
   return new Response(body, { status: res.status, headers })
 }
 
-/** GET /gate/check?address=0x… — is this address whitelisted? (membership is not a secret) */
+/** GET /gate/check?address=0x… — whitelisted, waitlisted, or neither (membership is not a secret) */
 async function check(url: URL, env: Gated): Promise<Response> {
   const address = url.searchParams.get('address') ?? ''
   if (!isAddress(address)) return json({ error: 'bad address' }, 400)
-  return json({ listed: !!(await env.WHITELIST.get(`wl:${address.toLowerCase()}`)) })
+  const account = address.toLowerCase()
+  if (await env.WHITELIST.get(`wl:${account}`)) return json({ listed: true })
+  return json({ listed: false, waitlisted: !!(await env.WHITELIST.get(`wait:${account}`)) })
 }
 
 /** Both POSTs: prove the address, then let it in — or, for a request, put it in line. */

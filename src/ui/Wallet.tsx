@@ -12,7 +12,7 @@ import React from 'react'
 import { useAccount } from 'wagmi'
 import { marketHref, useApp, walletHref } from '../state/AppState'
 import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
-import { useFollowers, useProfile, useProfiles } from '../social/queries'
+import { useFollowers, useProfile, useProfiles, useWalletLinks } from '../social/queries'
 import { AutoTag, Badges, FollowButton, Impaired, Money, Who, Ago, describeBundle, tokens } from './social-bits'
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
@@ -28,9 +28,13 @@ import { TokLink } from './TokenPage'
 export function Wallet({ addr }: { addr: string }) {
   const { address } = useAccount()
   const { solSigner } = useApp()
-  // "me" is per VM: the EVM signer OR the Solana one — the hard rule (never
-  // the index for the connected user's positions) holds on both
+  // "me" is per VM — the EVM signer OR the Solana one — and, once wallet
+  // links resolve (docs/wallet-links.md §6 phase 2), any address linked to
+  // either. The hard rule (never the index for the connected user's
+  // positions) holds across the whole cluster.
+  const cluster = useWalletLinks(normAddr(address) ?? solSigner).data
   const isMe = normAddr(address) === addr || (!!solSigner && solSigner === addr)
+    || (!!cluster && (cluster.primary === addr || cluster.members.some((m) => m.account === addr)))
   const p = useProfile(addr)
   const profile = p.data?.profile ?? null
   const followers = useFollowers(addr)

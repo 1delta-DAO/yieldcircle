@@ -1,96 +1,58 @@
-# Deploy — the git-linked Cloudflare Pages project
+# Deploy — two Cloudflare Workers, git-linked
 
-The dashboard settings, field by field. **Both `wrangler.toml` files are
-gitignored** (the x-link one holds plaintext secrets), so the git-linked build
-never sees them: everything below — build settings, variables, bindings — is
-configured in the dashboard UI. The local tomls serve the manual
-`pnpm deploy` path and local `wrangler` commands only.
+Both are standard Workers Builds projects: each has a committed
+`wrangler.toml` with no secrets, Cloudflare builds on push, and secrets live
+in the dashboard. Create each with Workers & Pages → Create → **Workers** →
+Import a repository → this repo. The project name **must equal** the `name`
+in its `wrangler.toml`.
 
-> A direct-upload Pages project cannot be converted to git integration. Create
-> a **new** project: Workers & Pages → Create → Pages → Connect to Git. To keep
-> the name `yieldcircle`, delete the old direct-upload project first; otherwise
-> pick another name and move the custom domain after the first green build.
+## 1 · The app — `yieldcircle`
 
-## Build configuration
+A Worker serving `dist/` as static assets ([`wrangler.toml`](../wrangler.toml)).
 
-| field | value |
+| Settings → Build | value |
 |---|---|
-| Git repository | this repo |
-| Production branch | `main` |
-| Framework preset | None |
-| Build command | `node scripts/menu-seed.mjs && pnpm build` |
-| Build output directory | `dist` |
 | Root directory | `/` |
+| Build command | `pnpm build` |
+| Deploy command | `npx wrangler deploy` |
 
-pnpm is detected from the lockfile. `menu-seed.mjs` keeps the checked-in seed
-on any failure, so it can never fail a build. Git builds build **committed**
-code only.
-
-## Variables and Secrets
-
-Set every variable under **both Production and Preview** — `VITE_*` is baked
-into the bundle at build time (`scripts/check-env.mjs`; the git-build guard for
-the WC id is in `vite.config.ts`).
-
-| name | type | value |
-|---|---|---|
-| `NODE_VERSION` | plaintext | `22` |
-| `VITE_WC_PROJECT_ID` | plaintext | the Reown (WalletConnect) project id — without it phones cannot connect |
-| `VITE_BACKEND_BASE_URL` | plaintext | `https://allocator.api.1delta.io`, or the proxy |
-| `VITE_INDEX_BASE_URL` | plaintext | optional — defaults to `https://positions.1delta.io` |
-| `VITE_SOCIAL_BASE_URL` | plaintext | optional — defaults to `https://social.1delta.io` |
-| `VITE_XLINK_URL` | plaintext | optional — the x-link worker; absent = free X-post path only |
-| `GATE_SECRET` | **Secret** | 32+ random bytes; HMAC key for the beta-gate cookie and invite codes (only once `functions/` ships — tickets/0002) |
-
-## Bindings (beta gate, tickets/0002)
-
-Added **manually in the UI**: Pages project → Settings → Bindings, under both
-Production and Preview. The KV namespace exists; D1 is still to create
-(`npx wrangler d1 create yieldcircle-waitlist`):
-
-| binding name | type | resource |
-|---|---|---|
-| `WHITELIST` | KV namespace | the beta whitelist, `wl:<address>` — id `23ce3e9b23224ce09a4cd4f486480870` |
-| `WAITLIST` | D1 database | `yieldcircle-waitlist` — pending |
-
-The local (gitignored) `wrangler.toml` mirrors the same bindings so manual
-deploys and `wrangler kv` commands agree with the UI — keep the two in sync by
-hand.
-
-A `functions/` directory at the repo root is compiled automatically on every
-git build, branch previews included — previews are gated too.
-
-## The x-link worker (`worker/x-link`) — manual deploy
-
-A separate Worker whose `wrangler.toml` is **gitignored** (it carries the
-secrets as plain vars), so it cannot be git-linked — a git build would find no
-config. Deploy it from a machine that has the local file:
-
-```bash
-cd worker/x-link
-npx wrangler kv namespace create XLINK      # once; id → [[kv_namespaces]]
-npx wrangler deploy
-```
-
-Values to fill in the local toml before deploying:
-
-| var | value |
+| Build variables (baked into the bundle) | value |
 |---|---|
-| `X_CLIENT_ID` | the X developer app's client id |
-| `X_CLIENT_SECRET` | the X app's client secret — plain var by deliberate choice |
+| `VITE_BACKEND_BASE_URL` | `https://allocator.api.1delta.io`, or the proxy — the default is the public endpoint, ~10 req / 15 min |
+| `VITE_WC_PROJECT_ID` | Reown project id — optional; without it phones cannot connect (the build warns, never fails) |
+| `VITE_XLINK_URL` | the x-link worker's URL — optional |
+
+`VITE_INDEX_BASE_URL` / `VITE_SOCIAL_BASE_URL` default to production; leave
+them unset. Changing a build variable needs a rebuild to take effect.
+
+Locally: `pnpm deploy` (= menu-seed + build + `wrangler deploy`), or
+`pnpm deploy:preview` for a preview version that does not take traffic.
+
+## 2 · The x-link worker — `yieldcircle-xlink` (optional)
+
+[`worker/x-link/wrangler.toml`](../worker/x-link/wrangler.toml) carries the
+plain vars and the `XLINK` KV binding. Without this worker the app uses the
+free X-post link path.
+
+| Settings → Build | value |
+|---|---|
+| Root directory | `worker/x-link` |
+| Build command | *(empty)* |
+| Deploy command | `npx wrangler deploy` |
+
+| Settings → Variables and Secrets (type **Secret**) | value |
+|---|---|
+| `X_CLIENT_SECRET` | the X app's client secret |
 | `XLINK_SECRET` | the same value the social service holds |
-| `SOCIAL_URL` | `https://social.1delta.io` |
-| `REDIRECT_URI` | the worker's deployed URL + `/callback` — deploy once to learn the `workers.dev` subdomain, set it, redeploy; register the same URI in the X app |
-| `ALLOWED_ORIGIN` | the app's production origin (keep `*` only in dev) |
 
-Optional — without this worker the app uses the free X-post link path and
-never mentions OAuth.
+Secrets survive deploys — wrangler never touches them. In the toml, fill
+`X_CLIENT_ID` and set `REDIRECT_URI` to the worker URL + `/callback` (register
+the same in the X app). For `wrangler dev`, the secrets go in the gitignored
+`worker/x-link/.dev.vars`.
 
-Finally, point the Pages project's `VITE_XLINK_URL` at the worker's URL (both
-environments) so the app offers the OAuth path.
+## The beta gate (tickets/0002)
 
-## The manual path
-
-`pnpm deploy` / `pnpm deploy:preview` (direct upload) remain the escape hatch
-while both projects exist; they read the same `wrangler.toml`. Retire them once
-the git project owns the domain.
+Lands in the app worker itself: a `main` script with
+`assets.run_worker_first = true` and the `WHITELIST` KV binding — the lines are
+already in the root `wrangler.toml`, commented. Plus `GATE_SECRET` as a Secret
+on the `yieldcircle` project.

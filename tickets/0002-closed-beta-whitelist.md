@@ -2,10 +2,10 @@
 
 - status: open
 - created: 2026-10-02
-- area: `functions/` (new, Cloudflare Pages Functions), `src/ui/` (one gate
+- area: `gate/` (new, the app worker's `main` script), `src/ui/` (one gate
   screen), `scripts/whitelist.mjs` (new), `pos-indexer` (one badge row)
-- depends on: nothing new. The app already deploys to Cloudflare Pages
-  (`pnpm deploy`), already operates a Worker + KV (`worker/x-link`), already
+- depends on: nothing new. The app already deploys as a Cloudflare Worker with
+  static assets (`docs/deploy.md`), already operates a Worker + KV (`worker/x-link`), already
   signs EIP-712 (`src/social/sign.ts`), and the free X-post verification
   mechanic already shipped in `pos-indexer` (`packages/social/src/xVerify.ts`).
 
@@ -29,10 +29,10 @@ design** (CORS `*`, no keys) and shared with other consumers. So:
    emails, no OAuth, no sessions to invent. Proving you own a whitelisted
    address is one signature, and every piece needed for that — connect flow,
    signing, signature recovery with viem — is already in the stack.
-3. **The gate goes at the edge, in the same deploy.** Cloudflare Pages
-   supports Functions: a `functions/` directory in this repo, shipped by the
-   same `wrangler pages deploy`, with KV/D1 bindings. A `_middleware.ts` there
-   runs in front of **every** request, static assets included — so a
+3. **The gate goes at the edge, in the same deploy.** The app is a Worker
+   serving `dist/` as static assets; give it a `main` script with
+   `assets.run_worker_first = true` and KV/D1 bindings, and that script runs
+   in front of **every** request, static assets included — so a
    non-whitelisted visitor never receives the app bundle at all. That is a
    real gate, unlike a client-side check that anyone opens devtools around
    (and someone *would*, in a quote-tweet, on launch day).
@@ -49,13 +49,14 @@ is an address, plus a vendor).
 ### Tier 1 — the gate (ship first, ~1–2 days)
 
 ```
-functions/
-  _middleware.ts     no valid cookie → serve the waitlist page; let
-                     /gate/*, the waitlist assets and og images through
-  gate/verify.ts     POST { address, signature } of "YieldCircle beta <nonce>"
+gate/                the app worker's `main`, routing by path:
+  index.ts           no valid cookie → serve the waitlist page; let
+                     /gate/*, the waitlist assets and og images through;
+                     otherwise env.ASSETS.fetch(request)
+  verify.ts          POST { address, signature } of "YieldCircle beta <nonce>"
                      → recover signer (viem runs in workers) → KV wl:<addr>
                      exists → Set-Cookie: HMAC-signed `addr.exp`, HttpOnly
-  gate/join.ts       POST { address, signature, ref? } → D1 waitlist row
+  join.ts            POST { address, signature, ref? } → D1 waitlist row
                      → { position, total }
 ```
 
@@ -129,23 +130,19 @@ og-image, and the page shares itself.
   is treated as such. The costly signals (signature, X post, invite from a
   member) are the numbers that matter.
 - **No accounts, no emails, no sessions beyond one HMAC cookie.** The day the
-  beta opens, delete `functions/` and the app is exactly what it was.
+  beta opens, drop `main` from `wrangler.toml` and the app is exactly what it
+  was.
 
 ## Deploying
 
-The dashboard configuration for the git-linked Pages project lives in
-[`docs/deploy.md`](../docs/deploy.md). Both `wrangler.toml` files are
-gitignored (the x-link one holds secrets as plain vars), so the git build is
-configured entirely in the UI — build settings, variables and the gate
-bindings; the local tomls serve manual `wrangler` commands only.
+[`docs/deploy.md`](../docs/deploy.md). The gate's `main`, `run_worker_first`
+and `WHITELIST` binding are already in the root `wrangler.toml`, commented;
+`GATE_SECRET` is a Secret on the `yieldcircle` project.
 
 ## Tasks
 
-1. `functions/_middleware.ts` + `gate/verify.ts` + cookie HMAC; KV binding.
-   Verify once that `wrangler pages deploy dist` picks up `functions/` from
-   the repo root with bindings configured on the Pages project — the x-link
-   worker is the fallback shape if Pages Functions fight back (same code, one
-   extra deploy, middleware becomes a fetch to it… avoid unless forced).
+1. `gate/index.ts` + `verify.ts` + cookie HMAC; uncomment the gate lines in
+   `wrangler.toml`.
 2. Waitlist screen (gate mode of the SPA or one static page) + `gate/join.ts`
    + D1 table + position number.
 3. `scripts/whitelist.mjs` — add / promote / export.

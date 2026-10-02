@@ -3,9 +3,8 @@
  *
  * Without a project id the app ships `connectors: [injected()]`, which on a
  * plain mobile browser means NO way to connect at all — the product is
- * unreachable from a phone. `scripts/check-env.mjs` and the production guard in
- * `vite.config.ts` exist so that can never be deployed again by accident; this
- * module is what the UI branches on so the failure is at least legible.
+ * unreachable from a phone. `vite.config.ts` warns at build time; this module
+ * is what the UI branches on so the failure is at least legible.
  */
 export const WC_PROJECT_ID = (import.meta.env.VITE_WC_PROJECT_ID as string | undefined)?.trim() || undefined
 export const HAS_WC = !!WC_PROJECT_ID

@@ -5,8 +5,11 @@
 - area: `src/model/uid.ts`, `src/wallet/*`, `src/ui/useLadder.ts`,
   `src/sdk/*`, `src/index/*`, `src/config/backend.ts`, `src/social/sign.ts`
 - depends on: worker-api serving Solana (`lending-sdks-sol/UNIFIED_API_PLAN.md`),
-  the Solana position index (`lending-sdks-sol/packages/indexer`,
-  `SOLANA_POSITION_INDEX_PLAN.md`)
+  the Solana position index (now `pos-indexer/apps/sol-indexer`, in production
+  since 2026-10-02)
+- **plan: [docs/solana.md](../docs/solana.md)** (2026-10-02). It supersedes the
+  "what exists" table and the order below: verified backend state, the
+  shapes pos-indexer owes, and workstreams A–F.
 
 ## Goal
 

@@ -16,14 +16,15 @@ A Worker serving `dist/` as static assets ([`wrangler.toml`](../wrangler.toml)).
 | Build command | `pnpm build` |
 | Deploy command | `npx wrangler deploy` |
 
-| Build variables (baked into the bundle) | value |
-|---|---|
-| `VITE_BACKEND_BASE_URL` | `https://allocator.api.1delta.io`, or the proxy — the default is the public endpoint, ~10 req / 15 min |
-| `VITE_WC_PROJECT_ID` | Reown project id — optional; without it phones cannot connect (the build warns, never fails) |
-| `VITE_XLINK_URL` | the x-link worker's URL — optional |
+**No variable is required** — the API, index, social and site URLs all
+default to production. Two optional build variables:
 
-`VITE_INDEX_BASE_URL` / `VITE_SOCIAL_BASE_URL` default to production; leave
-them unset. Changing a build variable needs a rebuild to take effect.
+| Build variable | value |
+|---|---|
+| `VITE_WC_PROJECT_ID` | Reown project id — without it phones cannot connect a wallet (the build warns) |
+| `VITE_XLINK_URL` | the x-link worker's URL, only if that worker is deployed |
+
+A build variable takes effect on the next build.
 
 Locally: `pnpm deploy` (= menu-seed + build + `wrangler deploy`), or
 `pnpm deploy:preview` for a preview version that does not take traffic.

@@ -1,6 +1,6 @@
-const DEFAULT_BASE_URL = 'https://portal.1delta.io'
+const DEFAULT_BASE_URL = 'https://allocator.api.1delta.io'
 
-/** Base backend URL, e.g. https://portal.1delta.io */
+/** Base backend URL. Override only for a proxy or a local worker-api. */
 export const BACKEND_BASE_URL =
   (import.meta.env.VITE_BACKEND_BASE_URL as string | undefined) ?? DEFAULT_BASE_URL
 

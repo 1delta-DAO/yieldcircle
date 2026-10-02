@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// index.html's canonical / og tags need an absolute origin, or share cards break.
+process.env.VITE_SITE_URL ||= 'https://yieldcircle.io'
+
 /**
  * Warns, never fails: without `VITE_WC_PROJECT_ID` the build ships
  * `connectors: [injected()]` and a phone browser cannot connect a wallet.

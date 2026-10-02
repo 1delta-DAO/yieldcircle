@@ -248,73 +248,12 @@ brand/gen.py               the mark (an open turn of yield), the YIELD·CIRCLE l
 docs/simplify.md           why the asset page is one list with a toggle
 ```
 
-## Deploy (Cloudflare Pages)
+## Deploy (Cloudflare Workers)
 
-Static Vite build, no server, no secrets in the bundle (the API base URL is
-public). Hash routing, so no `_redirects` rule is needed.
-
-**From your machine (wrangler)**
-```bash
-npx wrangler login                                                   # once
-npx wrangler pages project create yieldcircle --production-branch main   # once
-VITE_BACKEND_BASE_URL=https://allocator.api.1delta.io pnpm deploy    # build + upload
-pnpm deploy:preview                                                  # a preview-branch URL
-```
-
-**Git integration (Pages builds on push)**: Cloudflare dashboard → Workers &
-Pages → Create → Pages → connect `1delta-DAO/yieldcircle`, then:
-
-| Setting | Value |
-|---|---|
-| Production branch | `main` |
-| Framework preset | None (or Vite) |
-| Build command | `VITE_SITE_URL=${VITE_SITE_URL:-$CF_PAGES_URL} pnpm build` |
-| Build output directory | `dist` |
-| Root directory | `/` |
-| Environment variable | `VITE_BACKEND_BASE_URL=https://allocator.api.1delta.io` |
-| Environment variable | `VITE_SITE_URL=https://yieldcircle.io` — **Production only** |
-| Environment variable | `NODE_VERSION=22` |
-
-`VITE_SITE_URL` is only read by four `<head>` tags — canonical, `og:url`,
-`og:image`, `twitter:image` — so the app runs without it. It does not
-*degrade* without it though: Vite leaves the literal `%VITE_SITE_URL%` in the
-HTML, which makes `og:image` a relative path, and a relative OG image means
-**no preview card when anyone shares a link**. On a social app that is the
-one piece of metadata worth getting right. The build command above is why
-it is written that way: production uses the variable, and every preview
-deployment falls back to its own `CF_PAGES_URL`, so a branch build is never
-shipped with a broken card.
-
-**Set it under Production only.** With a custom domain on top, `pages.dev`
-keeps serving the same site, and the canonical tag is what tells a crawler
-which of the two counts — so production must claim `https://yieldcircle.io`.
-A preview that claimed the same thing would be telling Google that the
-preview *is* the production page; leaving the variable unset on Preview makes
-each one name itself instead. Attach the domain before setting it, or the
-first build points its canonical and OG image at a host that does not resolve
-yet.
-
-Nothing else in the app is host-dependent: neither API has an origin
-allowlist to update (both send `CORS *`), WalletConnect's metadata reads
-`location.origin`, and `og.png` is served from the site root.
-
-The social layer needs **no variables**: `VITE_INDEX_BASE_URL` and
-`VITE_SOCIAL_BASE_URL` already default to `https://positions.1delta.io` and
-`https://social.1delta.io`, and both send `CORS *`. Set them only to point a
-build at a local stack. `VITE_XLINK_URL` is likewise optional — without it,
-linking an X account uses the free post-proof route, which needs nothing.
-
-Pages installs with pnpm when it sees `pnpm-lock.yaml` (this lockfile is v9,
-so it wants pnpm 9+; if the build image picks an older one, add
-`PNPM_VERSION=9`). Optional:
-`VITE_WC_PROJECT_ID` for WalletConnect on phones.
-
-**`VITE_*` variables are baked in at build time.** Set them under *both*
-Production and Preview before the first build; a variable added afterwards
-only takes effect on the next deployment (Deployments → ⋯ → Retry deployment,
-or push a commit). If the app shows "The listing could not be loaded from
-portal.1delta.io: Too many requests", the build ran without the variable and
-is on the public, per-IP rate-limited endpoint.
+A Worker serving the static Vite build; git-linked, builds on push. Settings
+are in [`docs/deploy.md`](docs/deploy.md). No variable is required: the API,
+index and social URLs and the site URL all default to production. Optional:
+`VITE_WC_PROJECT_ID` (WalletConnect on phones), `VITE_XLINK_URL`.
 
 ## Known gaps
 

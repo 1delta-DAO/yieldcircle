@@ -5,7 +5,7 @@ has **no backend of its own**; it reads three services:
 
 | Service | Base URL (env) | Default | What for | Client code |
 |---|---|---|---|---|
-| **1delta API** (worker-api / "allocator") | `VITE_BACKEND_BASE_URL` | `https://portal.1delta.io` | catalogue, the connected user's positions + balances, every transaction built | `src/vendor/allocator/http.ts` → `src/sdk/api.ts` → `src/sdk/queries.ts` |
+| **1delta API** (worker-api / "allocator") | `VITE_BACKEND_BASE_URL` | `https://allocator.api.1delta.io` | catalogue, the connected user's positions + balances, every transaction built | `src/vendor/allocator/http.ts` → `src/sdk/api.ts` → `src/sdk/queries.ts` |
 | **Position index** (`pos-indexer`) | `VITE_INDEX_BASE_URL` | `https://positions.1delta.io` | other wallets, feed, markets, hot/trending, board, curators, assets, idle-balance snapshots | `src/index/api.ts` → `src/index/queries.ts` |
 | **Social service** (`pos-indexer/packages/social`) | `VITE_SOCIAL_BASE_URL` | `https://social.1delta.io` | threads, profiles, follows, ratings (EIP-712 signed writes) | `src/social/api.ts` → `src/social/queries.ts` (see [`social.md`](social.md)) |
 
@@ -36,7 +36,7 @@ Rules:
 - **Every 1delta request goes through `vendor/allocator/http.ts`.** It owns the
   envelope, `ApiError`, and the shared rate-limit gate (one 429 pauses *all*
   requests until `retryAfter`). Never add a key there or in `apiHeaders()` —
-  it ships in the bundle; production points `VITE_BACKEND_BASE_URL` at a proxy.
+  it ships in the bundle; a keyed setup points `VITE_BACKEND_BASE_URL` at a proxy.
 - **Translate wire names once**, in `api.ts`. Callers speak *collateral / debt*;
   the API's `marketUidIn` / `marketUidOut` flip meaning between open and close
   (see below) and must not leak further.
@@ -88,9 +88,9 @@ tx is final and the answer has *changed*.
 
 ### Rate limits and request budget
 
-- `portal.1delta.io` (public default) is ~10 requests / 15 min per IP.
-  `allocator.api.1delta.io` (what `.env` uses) carries credits. The Earn page
-  shows a hint when a build is on the public endpoint.
+- `allocator.api.1delta.io` (the default) carries credits.
+  `portal.1delta.io` (public) is ~10 requests / 15 min per IP; the Earn page
+  shows a hint when a build is pointed at it.
 - `chainBuckets()` groups chains: `1, 8453, 42161, 56, 43114` alone, every
   other chain in one bundled request. New multi-chain queries should use it.
 - Filters that are cheap to apply client-side stay out of the request (so they

@@ -46,7 +46,7 @@ export function Earn() {
         <span className="sp" />
         <ChainChip />
       </div>
-      {b.errors.length > 0 && !b.anyData && <div className="err">The listing could not be loaded from <b>{new URL(BACKEND_BASE_URL).host}</b>: {b.errors[0].message}{/portal\.1delta\.io/.test(BACKEND_BASE_URL) && <><br /><span className="t70">This build is on the public, per-IP rate-limited endpoint. Set <code>VITE_BACKEND_BASE_URL</code> for the build (on Cloudflare Pages: an environment variable for Production <i>and</i> Preview, then retry the deployment; Vite bakes it in at build time).</span></>}</div>}
+      {b.errors.length > 0 && !b.anyData && <div className="err">The listing could not be loaded from <b>{new URL(BACKEND_BASE_URL).host}</b>: {b.errors[0].message}{/portal\.1delta\.io/.test(BACKEND_BASE_URL) && <><br /><span className="t70">This build is on the public, per-IP rate-limited endpoint. Unset <code>VITE_BACKEND_BASE_URL</code> to use the credited default, then rebuild.</span></>}</div>}
       <nav className="tiles" aria-label="Asset groups" style={{ marginTop: 16 }}>
         {GROUPS.map((g) => <GroupTile key={g.id} g={g} strategies={b.all.filter((s) => s.group === g.id)} books={b.books.filter((x) => x.group === g.id)} loading={b.isLoading} rank={rank} get={get} />)}
       </nav>

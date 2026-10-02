@@ -25,6 +25,8 @@ export interface ChainInfo {
   id: string; name: string; short: string; color: string; explorer: string; explorerName: string
   /** the explorer's address path where it is not `/address/` (Solscan says `/account/`) */
   accountPath?: string
+  /** a logo for a chain `/v1/data/chains` does not list (Solana); the directory's wins when it has one */
+  logo?: string
 }
 export const CHAIN_INFO: Record<string, ChainInfo> = {
   '1': { id: '1', name: 'Ethereum', short: 'ETH', color: '#627eea', explorer: 'https://etherscan.io', explorerName: 'Etherscan' },
@@ -49,7 +51,8 @@ export const CHAIN_INFO: Record<string, ChainInfo> = {
   '988': { id: '988', name: 'Stable', short: 'STBL', color: '#64748b', explorer: 'https://stablescan.xyz', explorerName: 'Stablescan' },
   '98866': { id: '98866', name: 'Plume', short: 'PLUME', color: '#64748b', explorer: 'https://explorer.plume.org', explorerName: 'Plume Explorer' },
   // the one non-EVM chain. Solscan's paths differ: a wallet is /account/, a transaction /tx/.
-  'solana': { id: 'solana', name: 'Solana', short: 'SOL', color: '#9945ff', explorer: 'https://solscan.io', explorerName: 'Solscan', accountPath: '/account/' },
+  'solana': { id: 'solana', name: 'Solana', short: 'SOL', color: '#9945ff', explorer: 'https://solscan.io', explorerName: 'Solscan', accountPath: '/account/',
+    logo: 'https://raw.githubusercontent.com/1delta-DAO/chains/main/solana.webp' },
 }
 
 /** the ids `Glyph` draws; the rest wear their own letters */
@@ -124,9 +127,10 @@ export function ChainMark({ chainId, size = 16, title }: { chainId: string; size
   const [imgFailed, setImgFailed] = React.useState(false)
   const c = chainInfo(chainId)
   const name = title ?? c?.name ?? meta?.name ?? chainId
-  if (meta?.logo && !imgFailed)
+  const logo = meta?.logo ?? c?.logo
+  if (logo && !imgFailed)
     return (
-      <img className="chainmark" src={meta.logo} alt="" role="img" aria-label={name} title={name}
+      <img className="chainmark" src={logo} alt="" role="img" aria-label={name} title={name}
         width={size} height={size} style={{ width: size, height: size }} loading="lazy"
         onError={() => setImgFailed(true)} />
     )

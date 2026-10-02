@@ -390,13 +390,14 @@ export function useBalancesPerChain(account: string | undefined, chains: { chain
   })
 }
 /**
- * `/v1/data/earn/positions` for `solana` (UNIFIED_API_PLAN §4.2): checked
- * 2026-10-02, a base58 account still answers `INVALID_PARAM`. Flip this when
- * worker-api serves it — everything downstream (useBook, txTrace re-reads) is
- * already VM-aware. Until then a Solana wallet's own book is simply absent;
- * the hard rule (never the index for the connected user) holds either way.
+ * `/v1/data/earn/positions` for `solana` (UNIFIED_API_PLAN §4.2, phase 5c):
+ * worker-api serves a base58 account since 2026-10-02 — the lending half
+ * through `/lending/user-positions`' Solana branch, the vault half from the
+ * owner's share-token balances (jl tokens, eUSX / strcUSX, Huma PST, LSTs,
+ * Exponent PTs). Not served there: Loopscale vault LP and exit requests in
+ * flight. The hard rule (never the index for the connected user) holds.
  */
-export const SOL_POSITIONS_READY = false
+export const SOL_POSITIONS_READY = true
 /**
  * Positions, in the same buckets as the catalogue: the big chains alone, the
  * rest in one request. One request for every chain was the slowest answer on

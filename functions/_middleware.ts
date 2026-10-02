@@ -1,8 +1,8 @@
 /**
- * The closed-beta gate (tickets/0002). Runs in front of EVERY request on the
- * Pages project, static assets included: without a valid beta cookie a visitor
- * gets the gate page, never the app bundle. `/lineup` is public: the page
- * where a wallet asks to be whitelisted, with an email address.
+ * The closed-beta gate (tickets/0002) — an OVERLAY, never a wall. The app is
+ * always served and renders behind a frosted layer that the middleware injects
+ * into the HTML for visitors without a valid beta cookie. Assets, data and the
+ * bundle itself pass through untouched; only the HTML document is modified.
  *
  * Bindings (Pages → Settings → Bindings / Variables, Production AND Preview):
  *   WHITELIST       KV namespace — `wl:<lowercase address>` = whitelisted,
@@ -11,9 +11,12 @@
  *   RESEND_API_KEY  Secret, optional — emails each new request to NOTIFY_EMAIL
  *   NOTIFY_EMAIL    optional, where requests are mailed (default below)
  *   GATE_OFF        optional, "1" opens the app to everyone (the end of the beta)
+ *
+ * Unconfigured (missing binding or secret) the gate is OFF and the app serves
+ * normally — a misconfiguration must never take the site down.
  */
 import { recoverMessageAddress, isAddress, isHex } from 'viem'
-import { gatePage, lineupPage, message } from '../gate/page'
+import { overlay, message } from '../gate/page'
 
 interface KV {
   get(key: string): Promise<string | null>
@@ -35,28 +38,37 @@ const COOKIE_DAYS = 30
 const SIGNATURE_MAX_AGE_MS = 10 * 60_000
 const NOTIFY_EMAIL = 'achim@1delta.io'
 const THREAD_ANCHOR = '<beta-requests@yieldcircle.io>'
-// Served without a cookie: share cards, icons and the manifest must work for
-// a link posted on X, which is the point of the waitlist.
-const PUBLIC = /^\/(og\.png|favicon[\w.-]*|apple-touch-icon\.png|icon-[\w.-]+\.png|site\.webmanifest|robots\.txt|logo[\w.-]*\.svg|mark-plain\.svg)$/
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/
 
 export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise<Response> => {
-  if (env.GATE_OFF === '1') return next()
+  const configured = !!(env.WHITELIST && env.GATE_SECRET) && env.GATE_OFF !== '1'
   const url = new URL(request.url)
-  if (PUBLIC.test(url.pathname)) return next()
-  if (!env.WHITELIST || !env.GATE_SECRET) {
-    const missing = [!env.WHITELIST && 'the WHITELIST KV binding', !env.GATE_SECRET && 'the GATE_SECRET secret'].filter(Boolean)
-    return new Response(`Beta gate is not configured: missing ${missing.join(' and ')}.`, { status: 503 })
+  if (configured) {
+    const gated = env as Gated
+    if (request.method === 'POST' && url.pathname === '/gate/verify') return verify(request, gated, null, waitUntil)
+    if (request.method === 'POST' && url.pathname === '/gate/request') return verify(request, gated, 'request', waitUntil)
+    if (request.method === 'GET' && url.pathname === '/gate/check') return check(url, gated)
   }
-  const gated = env as Gated
 
-  if (request.method === 'POST' && url.pathname === '/gate/verify') return verify(request, gated, null, waitUntil)
-  if (request.method === 'POST' && url.pathname === '/gate/request') return verify(request, gated, 'request', waitUntil)
-  if (url.pathname === '/lineup' || url.pathname === '/lineup/') return html(lineupPage(url.origin))
+  const res = await next()
+  if (!configured) return res
+  // Only the HTML document gets the overlay; every asset passes through untouched.
+  if (request.method !== 'GET' || !(res.headers.get('content-type') ?? '').includes('text/html')) return res
+  const holder = await readCookie(request.headers.get('cookie'), env.GATE_SECRET!).catch(() => null)
+  if (holder) return res
 
-  const holder = await readCookie(request.headers.get('cookie'), env.GATE_SECRET).catch(() => null)
-  if (holder) return next()
-  return html(gatePage(url.origin))
+  const body = (await res.text()).replace('</body>', `${overlay()}</body>`)
+  const headers = new Headers(res.headers)
+  headers.set('cache-control', 'no-store')
+  headers.delete('content-length')
+  return new Response(body, { status: res.status, headers })
+}
+
+/** GET /gate/check?address=0x… — is this address whitelisted? (membership is not a secret) */
+async function check(url: URL, env: Gated): Promise<Response> {
+  const address = url.searchParams.get('address') ?? ''
+  if (!isAddress(address)) return json({ error: 'bad address' }, 400)
+  return json({ listed: !!(await env.WHITELIST.get(`wl:${address.toLowerCase()}`)) })
 }
 
 /** Both POSTs: prove the address, then let it in — or, for a request, put it in line. */
@@ -128,9 +140,6 @@ async function hmac(secret: string, data: string): Promise<string> {
   const sig = new Uint8Array(await crypto.subtle.sign('HMAC', await hmacKey(secret), new TextEncoder().encode(data)))
   return btoa(String.fromCharCode(...sig)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
-
-const html = (body: string) =>
-  new Response(body, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } })
 
 const json = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...headers } })

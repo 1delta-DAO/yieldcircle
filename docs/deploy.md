@@ -33,8 +33,9 @@ both Production and Preview:
 | Variables and Secrets (optional) | `NOTIFY_EMAIL` | where requests are mailed; defaults to `achim@1delta.io`. Resend's `onboarding@resend.dev` sender only delivers to the Resend account's own address, so sign up with this one (or verify a domain) |
 | Variables and Secrets (optional) | `GATE_OFF` | `1` opens the app to everyone — the end of the beta |
 
-Without the binding or the secret every page answers *"Beta gate is not
-configured"* (fails closed). Manage the list with `pnpm whitelist`
+The gate is an **overlay**: the app always loads and stays visible behind a
+frosted layer; only the HTML document is touched. Missing binding or secret =
+gate **off**, app open (a misconfiguration never takes the site down). Manage the list with `pnpm whitelist`
 (`add`, `remove`, `list`, `waitlist`, `promote N` — see
 `scripts/whitelist.mjs`).
 

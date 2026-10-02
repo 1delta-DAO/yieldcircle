@@ -29,11 +29,13 @@ design** (CORS `*`, no keys) and shared with other consumers. So:
    address is one signature, and every piece needed for that — connect flow,
    signing, signature recovery with viem — is already in the stack.
 3. **The gate goes at the edge, in the same deploy.** The app is a Pages
-   project; a root `functions/_middleware.ts` runs in front of **every**
-   request, static assets included — so a
-   non-whitelisted visitor never receives the app bundle at all. That is a
-   real gate, unlike a client-side check that anyone opens devtools around
-   (and someone *would*, in a quote-tweet, on launch day).
+   project; a root `functions/_middleware.ts` runs in front of every request.
+   **Revised 2026-10-02, product call: the gate is an overlay, not a wall.**
+   The app serves and renders for everyone — the middleware injects a frosted
+   layer over the HTML that says whitelist-only and hosts the connect /
+   request flow. The live product behind glass is the better teaser, at the
+   price that the gate is cosmetic for anyone who edits the DOM; acceptable,
+   since the data is public anyway and acting still needs a wallet.
 
 The rejected alternatives, for the record: **client-side-only gate** (hours of
 work, but publicly bypassable — fatal for a gated launch); **Cloudflare

@@ -44,7 +44,10 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
   if (env.GATE_OFF === '1') return next()
   const url = new URL(request.url)
   if (PUBLIC.test(url.pathname)) return next()
-  if (!env.WHITELIST || !env.GATE_SECRET) return new Response('Beta gate is not configured.', { status: 503 })
+  if (!env.WHITELIST || !env.GATE_SECRET) {
+    const missing = [!env.WHITELIST && 'the WHITELIST KV binding', !env.GATE_SECRET && 'the GATE_SECRET secret'].filter(Boolean)
+    return new Response(`Beta gate is not configured: missing ${missing.join(' and ')}.`, { status: 503 })
+  }
   const gated = env as Gated
 
   if (request.method === 'POST' && url.pathname === '/gate/verify') return verify(request, gated, null, waitUntil)

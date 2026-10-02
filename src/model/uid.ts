@@ -27,8 +27,8 @@ import type { Strategy } from './strategies'
  * `<lender>:<chainId>:<ref>` — the index's shape, ported (never imported).
  * The ref is lower-cased only on EVM chain ids: hex is case-insignificant,
  * base58 is not — a lowered Solana ref is a DIFFERENT key, and would orphan
- * the market's threads and holders (lending-sdks-sol `marketUid.ts` does the
- * same).
+ * the market's threads and holders (lending-sdks `margin-fetcher-sol`
+ * `marketUid.ts` does the same).
  */
 export function createMarketUid(chainId: string, lender: string, ref: string): string | null {
   if (!chainId || !lender || !ref) return null

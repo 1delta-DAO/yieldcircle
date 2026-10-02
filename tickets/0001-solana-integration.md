@@ -3,12 +3,12 @@
 - status: in progress — the client side of workstreams A–F landed 2026-10-02
   (uids/addresses, the `solana` chain, two-index routing, wallet-standard +
   svm ladder + signature watcher, composer gating). Still open here:
-  - flip `SOL_POSITIONS_READY` (`sdk/queries.ts`) when worker-api serves
-    `/v1/data/earn/positions` for base58 (§4.2) — the book, withdraw/manage
-    flows AND the ticket's Solana action buttons activate with it (deposit
-    already builds server-side — verified 2026-10-02, Kamino USDC answers one
-    `chainType: 'svm'` step — but a deposit the app cannot read back is gated
-    on purpose);
+  - ~~flip `SOL_POSITIONS_READY`~~ — flipped 2026-10-02: worker-api's
+    `/v1/data/earn/positions` serves a base58 account (lending legs + vault
+    shares from the wallet's token balances; Loopscale LP and exit requests in
+    flight are not served yet). Live once that worker-api change is deployed;
+    the book, withdraw/manage flows and the Solana action buttons activate
+    with it;
   - Solana rows in feed/Hot/holders appear once pos-indexer item 2 (EVM
     shapes on sol-positions) ships — the client already fans out and reads
     a non-matching shape as empty;
@@ -21,7 +21,7 @@
 - created: 2026-10-01
 - area: `src/model/uid.ts`, `src/wallet/*`, `src/ui/useLadder.ts`,
   `src/sdk/*`, `src/index/*`, `src/config/backend.ts`, `src/social/sign.ts`
-- depends on: worker-api serving Solana (`lending-sdks-sol/UNIFIED_API_PLAN.md`),
+- depends on: worker-api serving Solana (`lending-sdks/UNIFIED_API_PLAN.md`),
   the Solana position index (now `pos-indexer/apps/sol-indexer`, in production
   since 2026-10-02)
 - **plan: [docs/solana.md](../docs/solana.md)** (2026-10-02). It supersedes the
@@ -43,15 +43,15 @@ EVM chains.
 | --- | --- |
 | Solana market rows (`/v1/data/earn`, `/lending/pairs/optimize`) | the rows are built (`@1delta/sol-lending`) and served by yield-tracer's shared tables; worker-api passes them through once `solana` is in its chain list — verify on `allocator.api.1delta.io` with `chainIds=solana` before starting |
 | Actions | worker-api has `isSvmChainId` branches in the lending handlers (`v1/actions/lending/*`) returning the `chainType: 'svm'` envelope (`v1/envelope.ts`); earn deposit / withdraw and loops on Solana: check each route — not all are wired |
-| The connected user's positions | `/v1/data/earn/positions` for `solana` (UNIFIED_API_PLAN §4.2, waits for a keyed RPC on the worker) |
-| Other wallets, feed, markets, holders | the Solana position index (`lending-sdks-sol/packages/indexer`, `:8790`): `/events/recent`, `/positions/:a`, `/accounts/:a/events`, `/markets/:uid[/events\|/holders\|/flow]`, `/trending`, `/hot`, `/health` — pos-indexer's route NAMES, but a separate service until it merges into pos-indexer (plan §8), and its rows are a subset of pos-indexer's fields |
+| The connected user's positions | `/v1/data/earn/positions` for `solana` (UNIFIED_API_PLAN §4.2) — served since 2026-10-02 |
+| Other wallets, feed, markets, holders | the Solana position index (`pos-indexer/apps/sol-indexer`, `:8790`, https://sol-positions.1delta.io): `/events/recent`, `/positions/:a`, `/accounts/:a/events`, `/markets/:uid[/events\|/holders\|/flow]`, `/trending`, `/hot`, `/health` — pos-indexer's route NAMES, but a separate service until it merges into pos-indexer (plan §8), and its rows are a subset of pos-indexer's fields |
 
 ## What breaks in this app (each is a task)
 
 1. **Market uids are lower-cased.** `model/uid.ts` `createMarketUid` does
    `ref.toLowerCase()`; base58 is case-significant, so every Solana uid
    becomes a different key (social threads, holders, the feed's Copy). Lower
-   only on EVM chain ids, as `lending-sdks-sol/packages/lending/src/utils/marketUid.ts`
+   only on EVM chain ids, as `lending-sdks/packages/margin-fetcher-sol/src/utils/marketUid.ts`
    does. Same for `assetAddress?.toLowerCase()` in `model/positions.ts`
    (lines 76, 126, 229) and the vault check in `sdk/txTrace.ts:294`.
 2. **Addresses are assumed `0x…{40}`.** `ui/GetAsset.tsx:210`, `txTrace.ts:294`,
@@ -65,7 +65,7 @@ EVM chains.
    `useSendTransaction`. An svm step is a serialized v0 message
    (`chainType: 'svm'`): the wallet signs + sends it (`signAndSendTransaction`),
    and **a Solana transaction expires in ~60–90 s** — on expiry re-call the
-   action endpoint, never retry the blob (lending-sdks-sol AGENTS.md).
+   action endpoint, never retry the blob (lending-sdks `SOLANA_RULES.md`).
    `txTrace` needs a Solana confirmation path (`getSignatureStatuses`) to know
    when to re-read.
 5. **Chains.** `solana` is a string chain id with no EVM chain object: chain

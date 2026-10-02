@@ -1,0 +1,17 @@
+name = "yieldcircle-xlink"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# Secrets are NOT here: X_CLIENT_SECRET and XLINK_SECRET are set in the
+# dashboard (Settings → Variables and Secrets, type Secret), and in a
+# gitignored .dev.vars for `wrangler dev`.
+[vars]
+X_CLIENT_ID = ""
+SOCIAL_URL = "https://social.1delta.io"
+REDIRECT_URI = "https://yieldcircle-xlink.<subdomain>.workers.dev/callback"
+# The app's origin, so only it may call /challenge and /begin. "*" in dev.
+ALLOWED_ORIGIN = "*"
+
+[[kv_namespaces]]
+binding = "XLINK"
+id = ""

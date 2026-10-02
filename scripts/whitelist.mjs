@@ -5,7 +5,11 @@
 //   node scripts/whitelist.mjs remove 0xabc…
 //   node scripts/whitelist.mjs list                                 whitelisted wallets
 //   node scripts/whitelist.mjs waitlist                             requests from /lineup as CSV: address,email,when
+//   node scripts/whitelist.mjs wait 0xabc… [--email you@x.y]        waitlist addresses by hand (same write as the gate)
 //   node scripts/whitelist.mjs promote 100                          whitelist the 100 oldest waitlist entries
+//
+// Both layers in one go (the wait: row is kept for the record; wl: wins):
+//   node scripts/whitelist.mjs wait 0xabc… --email you@x.y && node scripts/whitelist.mjs add 0xabc…
 //
 // Keys are always lower-cased: the gate looks up `wl:<lowercase address>`.
 import { execFileSync } from 'node:child_process'
@@ -43,12 +47,16 @@ const pending = () => {
     .sort((x, y) => x.ts.localeCompare(y.ts))
 }
 
-const put = (list, source) => {
-  const ts = new Date().toISOString()
+const bulk = (rows) => {
   const dir = mkdtempSync(join(tmpdir(), 'wl-'))
   const file = join(dir, 'bulk.json')
-  writeFileSync(file, JSON.stringify(list.map((a) => ({ key: `wl:${a}`, value: JSON.stringify({ source, ts }) }))))
+  writeFileSync(file, JSON.stringify(rows))
   wrangler('bulk', 'put', file)
+}
+
+const put = (list, source) => {
+  const ts = new Date().toISOString()
+  bulk(list.map((a) => ({ key: `wl:${a}`, value: JSON.stringify({ source, ts }) })))
   console.log(`whitelisted ${list.length}`)
 }
 
@@ -71,6 +79,15 @@ switch (cmd) {
   case 'waitlist':
     console.log(pending().map((x) => `${x.a},${x.email},${x.ts}`).join('\n'))
     break
+  case 'wait': {
+    const email = flag('email') ?? ''
+    const list = addresses(rest)
+    if (!list.length) { console.error('no addresses given'); process.exit(1) }
+    const ts = new Date().toISOString()
+    bulk(list.map((a) => ({ key: `wait:${a}`, value: JSON.stringify({ ts, email }), metadata: { ts, email } })))
+    console.log(`waitlisted ${list.length}`)
+    break
+  }
   case 'promote': {
     const n = Number(rest[0])
     if (!(n > 0)) { console.error('usage: promote <count>'); process.exit(1) }
@@ -80,6 +97,6 @@ switch (cmd) {
     break
   }
   default:
-    console.error('usage: whitelist.mjs add|remove|list|waitlist|promote — see the header of this file')
+    console.error('usage: whitelist.mjs add|remove|list|waitlist|wait|promote — see the header of this file')
     process.exit(1)
 }

@@ -36,7 +36,7 @@ both Production and Preview:
 The gate is an **overlay**: the app always loads and stays visible behind a
 frosted layer; only the HTML document is touched. Missing binding or secret =
 gate **off**, app open (a misconfiguration never takes the site down). Manage the list with `pnpm whitelist`
-(`add`, `remove`, `list`, `waitlist`, `promote N` — see
+(`add`, `remove`, `list`, `waitlist`, `wait`, `promote N` — see
 `scripts/whitelist.mjs`).
 
 Locally: `pnpm deploy` / `pnpm deploy:preview` (direct upload of `dist`).

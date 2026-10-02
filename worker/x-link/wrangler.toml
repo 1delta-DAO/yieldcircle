@@ -8,9 +8,9 @@ compatibility_date = "2026-09-01"
 [vars]
 X_CLIENT_ID = ""
 SOCIAL_URL = "https://social.1delta.io"
-REDIRECT_URI = "https://yieldcircle-xlink.<subdomain>.workers.dev/callback"
+REDIRECT_URI = "https://xlink.yieldcircle.io/callback"
 # The app's origin, so only it may call /challenge and /begin. "*" in dev.
-ALLOWED_ORIGIN = "*"
+ALLOWED_ORIGIN = "https://yieldcircle.io"
 
 [[kv_namespaces]]
 binding = "XLINK"

@@ -3,9 +3,9 @@
  * that rank is made of, or — before they are on it — who is following them.
  * Both are social facts, which is the half of this app a balance cannot say.
  *
- * The rank is the wallet's best position on the board the Board tab opens on
- * (the $/day earners board, pos-indexer tickets/0036). A wallet outside the
- * first hundred rows has no rank here rather than an estimated one.
+ * The rank is the wallet's place on the Wallets board by $/day (pos-indexer
+ * tickets/0057): its whole book, not one position. A wallet outside the
+ * first hundred has no rank here rather than an estimated one.
  */
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -17,8 +17,10 @@ import { normAddr } from '../model/address'
 export function useMyStats(account: string | undefined) {
   const board = useQuery({
     enabled: !!account,
+    // the wallet board, as pre-warmed by the index (`EARNERS_PREWARM_URLS`):
+    // a reader's standing is their whole wallet, not one position
     queryKey: ['earners-me'],
-    queryFn: () => idx.earners({ sort: 'perDay', limit: 100 }),
+    queryFn: () => idx.walletEarners({ sort: 'perDay', people: true, limit: 100 }),
     staleTime: 5 * 60_000,
     retry: false,
   })

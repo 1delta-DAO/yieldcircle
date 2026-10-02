@@ -1602,3 +1602,5 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .pill.flag.bad{border-color:var(--error);color:var(--error)}
 .row.board .mono{cursor:pointer}
 .row.board .mono:hover{text-decoration:underline}
+/* the previous rows stay while a toggle refetches (pos-indexer tickets/0057) */
+.card.refetching{opacity:.55;transition:opacity .15s}

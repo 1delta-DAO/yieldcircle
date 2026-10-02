@@ -265,12 +265,13 @@ export async function trending(p: { window?: '1h' | '24h' | '7d'; chainId?: stri
   return { window: e.window, markets: [...e.markets, ...s.markets] }
 }
 /**
- * The earners board (pos-indexer tickets/0036): what POSITIONS earn now —
- * `netPositions`' carry on equity at today's rates, next to the realized 7 d
- * figure the ledger proved. One row per netted position, not per wallet: the
- * old realized board ranked whole wallets by size and the top was allocator
- * plumbing at 1.00× leverage. Answers 404 on a deploy whose `position-carry`
- * job has not run; the caller says so rather than showing an empty board.
+ * The earners board (pos-indexer tickets/0036, 0057): what POSITIONS earn now
+ * — `netPositions`' carry on equity at today's rates — and, with
+ * `by: 'wallet'`, what whole WALLETS earn: Σ annual / Σ equity, i.e. every
+ * position's APR weighted by its NAV. Each position row also carries its
+ * wallet's total (`wallet`), so a 100 % loop inside a $1 m wallet earning 25 %
+ * says so on the row. Answers 404 on a deploy whose `position-carry` job has
+ * not run; the caller says so rather than showing an empty board.
  */
 export interface EarnerLeg {
   marketUid: string
@@ -285,6 +286,14 @@ export interface EarnerLeg {
   assetGroup: string | null
   valueStatus?: string | null
   faceUsd?: number | null
+}
+/** A wallet's total beside one of its positions: the preset's figure. */
+export interface WalletTotal {
+  navUsd: number
+  netAprPct: number | null
+  apr24hPct: number | null
+  positions: number
+  exact: boolean
 }
 export interface EarnerRow {
   key: string
@@ -307,25 +316,73 @@ export interface EarnerRow {
   risk: string[]
   riskDetail: Record<string, unknown> | null
   legs: EarnerLeg[]
-  /** the proven number beside the promised one: `units × Δindex` over 7 d, all positions */
-  realized7dUsd: number | null
+  wallet: WalletTotal | null
   accountKind?: AccountKind
   accountLabel?: string | null
   accountLabelSource?: string | null
 }
-export interface EarnersResponse {
+export interface WalletEarnerRow {
+  account: string
+  chains: string[]
+  nPositions: number
+  /** the positions this figure counts — all of them, or the plain ones under the default preset */
+  nCounted: number
+  navUsd: number
+  annualUsd: number | null
+  perDayUsd: number | null
+  /** Σ annual / Σ equity: each position's APR weighted by its NAV */
+  netAprPct: number | null
+  apr24hPct: number | null
+  exact: boolean
+  /** equity behind positions the preset leaves out of the figure */
+  flaggedNavUsd: number
+  risk: string[]
+  topKey: string | null
+  best: { key: string; aprPct: number | null; marketName: string | null } | null
+  /** realized POOL yield over 7 d — a token's own appreciation (PT, LST, savings) is in its price, not here */
+  poolRealized7dUsd: number | null
+  accountKind?: AccountKind
+  accountLabel?: string | null
+  accountLabelSource?: string | null
+}
+interface EarnersEnvelope {
   sort: string
   window: string
   direction: string
   exclude: string[]
-  /** what the default preset hid, per flag — one row may count under several */
+  /** positions: what the preset hid, per flag. wallets: wallets whose figure leaves out a position with that flag */
   hidden: Record<string, number>
   ratingFlags: { status: 'ok' | 'stale' | 'unavailable'; computedAt: string | null; nSubjects: number | null }
   computedAt: string | null
-  rows: EarnerRow[]
 }
-export const earners = (p: { sort?: 'perDay' | 'apr'; preset?: 'all'; people?: boolean; chainIds?: string; protocols?: string; assetGroups?: string; limit?: number } = {}) =>
-  get<EarnersResponse>('/earners', { ...p, people: p.people ? '1' : undefined })
+export interface EarnersResponse extends EarnersEnvelope { by: 'position'; rows: EarnerRow[] }
+export interface WalletEarnersResponse extends EarnersEnvelope { by: 'wallet'; rows: WalletEarnerRow[] }
+export interface EarnersQuery {
+  sort?: 'perDay' | 'apr'
+  preset?: 'all'
+  people?: boolean
+  chainIds?: string
+  limit?: number
+}
+/**
+ * The URL is the server's cache key, and the index PRE-WARMS the app's default
+ * board URLs after every tick (pos-indexer `EARNERS_PREWARM_URLS`) — so the
+ * parameters are written in ONE fixed order: by, sort, preset, people,
+ * chainIds, limit. Reordering them here silently turns every pre-warmed hit
+ * into a cold query.
+ */
+const earnersParams = (by: 'wallet' | undefined, p: EarnersQuery): Params => ({
+  by,
+  sort: p.sort,
+  preset: p.preset,
+  people: p.people ? '1' : undefined,
+  chainIds: p.chainIds,
+  limit: p.limit,
+})
+export const earners = (p: EarnersQuery = {}) =>
+  get<EarnersResponse>('/earners', earnersParams(undefined, p))
+export const walletEarners = (p: EarnersQuery = {}) =>
+  get<WalletEarnersResponse>('/earners', earnersParams('wallet', p))
 
 /**
  * What is HOT: the markets people are acting in, ranked on frequency AND size

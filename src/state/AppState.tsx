@@ -15,7 +15,7 @@ import { readFeedLink } from './feedLink'
  *   #/USD?u=USDC&s=<id>&k=loop   asset page + ticket
  *   #/w/0x…                  a wallet
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
- *   #/board                  the earners board (?t=day|apr)
+ *   #/board                  the earners board (?t=day|apr&by=wallet)
  *   #/me                     profile editor
  *   #/alerts                 what happened while you were away
  *   #/t                      the asset book (every token the index lends)
@@ -45,6 +45,8 @@ export interface Route {
   token?: string
   /** feed tab / board window — a plain `?t=` so a link carries it */
   t?: string
+  /** the board's unit: a position, or a whole wallet (`?by=wallet`) */
+  by?: string
   /** who is being copied, when the ticket was opened from a feed card */
   copy?: string
 }
@@ -63,6 +65,7 @@ export function parseRoute(hash = location.hash): Route {
     k: p.get('k') === 'loop' ? ('loop' as const) : p.get('k') === 'simple' ? ('simple' as const) : undefined,
     m: m === 'reduce' || m === 'close' || m === 'manage' ? (m as Mode) : m === 'add' ? ('add' as Mode) : undefined,
     t: p.get('t') ?? undefined,
+    by: p.get('by') ?? undefined,
     copy: p.get('copy') ?? undefined,
   }
   const head = seg[0]

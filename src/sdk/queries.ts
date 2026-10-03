@@ -257,12 +257,23 @@ export function useCatalog(chainIds: string[]) {
     // market on the same venue, kept out by `dedupe` and then handed back by the
     // `+` as a duplicate
     const shown = new Set([...simple, ...loopRowsOut].map(rowKey))
+    /**
+     * The rows the per-asset cap dropped. The menu never shows them — the cap
+     * keeps the 30 highest rates per asset, which is right for browsing — but
+     * a ticket must still OPEN one: a profile's Copy button copies what that
+     * wallet holds, and a blue-chip vault at 4 % is exactly what a rate-ranked
+     * cap cuts first (pos-indexer tickets/0057 §F). Never rendered as a list.
+     */
+    const overflow: Strategy[] = [
+      ...dedupe(simpleShow).filter((r) => !shown.has(rowKey(r))),
+      ...dedupe(loopShow).filter((r) => !shown.has(rowKey(r))),
+    ]
     const hidden: HiddenRow[] = [
       ...capPerAsset(dedupe(simpleHide.filter((r) => !shown.has(rowKey(r)))), 25),
       ...capPerAsset(dedupe(loopHide.filter((r) => !shown.has(rowKey(r)))), 25),
     ]
     const structural = mergeStructural([...earnSorted, ...loops.map((q) => q.data)].flatMap((d) => (d ? [{ structural: d.structural, kind: d.kind }] : [])))
-    return { simple, loops: loopRowsOut, hidden, structural, addresses }
+    return { simple, loops: loopRowsOut, hidden, overflow, structural, addresses }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [earnSorted, stamp, st])
   // A chain is SETTLED once every request covering it has answered (or failed):

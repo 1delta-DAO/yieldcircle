@@ -58,6 +58,27 @@ function Flags({ risk, detail }: { risk: string[]; detail?: Record<string, unkno
   )
 }
 
+/**
+ * The ACCOUNT beside the position (pos-indexer tickets/0057 §E): the whole
+ * wallet's net APR — every position's APR weighted by its share of NAV — and
+ * how big a slice of that account this position is. A 101.9 % row that is
+ * 1.3 % of a 14.3 % account says both, in the same row.
+ */
+function AccountCell({ r }: { r: idx.EarnerRow }) {
+  const w = r.wallet
+  if (!w) return <span className="v hide-m acct t40">—<small>account</small></span>
+  const apr = w.apr24hPct ?? w.netAprPct
+  const share = w.navUsd > 0 ? Math.min(1, Math.max(0, r.equityUsd / w.navUsd)) : null
+  const whole = w.positions <= 1 || (share != null && share > 0.995)
+  return (
+    <span className="v hide-m acct"
+      title={`The whole account: ${w.positions} position${w.positions === 1 ? '' : 's'} on ${usdShort(w.navUsd)} — Σ yearly carry ÷ Σ net value, each position's APR weighted by its share.${w.exact ? '' : ' A floor: a position has no rate yet.'}`}>
+      <span className={apr == null ? 't40' : apr >= 0 ? 'ok' : 'warn'}>{apr == null ? '—' : `${w.exact ? '' : '≈ '}${pct(apr)}`}</span>
+      <small>{whole ? 'the whole account' : share != null ? `${pct(share * 100, 1)} of ${usdShort(w.navUsd)}` : `on ${usdShort(w.navUsd)}`}</small>
+    </span>
+  )
+}
+
 interface BoardKey {
   by: By
   sort: Sort
@@ -219,12 +240,9 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
                     <Flags risk={r.risk} detail={r.riskDetail} />
                     <span className="v ok hide-m" title={r.exact ? 'every leg carries a price and a rate' : 'a leg has no rate or price: this is a floor, not a guess'}>
                       {r.exact ? '' : '≈ '}{pct(r.netAprPct)}
-                      <small title={wl ? `the whole wallet: ${wl.positions} position${wl.positions === 1 ? '' : 's'}, Σ yearly carry ÷ Σ NAV` : undefined}>
-                        {wl && wl.positions > 1
-                          ? <>wallet {pct(wl.apr24hPct ?? wl.netAprPct)} on {usdShort(wl.navUsd)}</>
-                          : r.apr24hPct != null ? `${pct(r.apr24hPct)} 24h` : 'net APR'}
-                      </small>
+                      <small>{r.apr24hPct != null ? `${pct(r.apr24hPct)} 24h` : 'position APR'}</small>
                     </span>
+                    <AccountCell r={r} />
                     <span className="v"><Money usd={r.perDayUsd} /><small>a day</small></span>
                     <span onClick={(e) => e.preventDefault()}><FollowButton kind="wallet" target={r.account} small /></span>
                   </a>

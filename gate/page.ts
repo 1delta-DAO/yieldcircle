@@ -5,8 +5,10 @@
  * The story the visitor hears is a WAITLIST in two layers: connect, and the
  * wallet is either whitelisted (sign, you're in), already waitlisted (you're
  * in line, access soon), or invited to join the waitlist (email + signature).
- * Plain injected-wallet (EIP-1193) only: on a phone without one, the page
- * says to open the link in a wallet's browser.
+ * An injected wallet (EIP-1193) is used directly; without one the overlay
+ * borrows the app's WalletConnect sheet (`src/wallet/GateBridge.tsx`), and
+ * only a build without WalletConnect falls back to "open in your wallet's
+ * browser".
  */
 
 /** The messages both sides build; the middleware recovers the signer from them. */
@@ -56,40 +58,94 @@ export const overlay = () => `
   var eth = window.ethereum;
   var address = null;
   var btn = $('yc-go');
-
-  if (!eth) {
-    btn.textContent = 'Copy link';
-    btn.onclick = function () { navigator.clipboard && navigator.clipboard.writeText(location.origin).then(function () { status('Link copied.'); }); };
-    status('No wallet in this browser. Open this page in your wallet app\\u2019s browser (MetaMask, Rabby, Coinbase Wallet\\u2026), or on a desktop with a wallet extension.');
-    return;
-  }
+  var gate = $('yc-gate');
 
   var toHex = function (s) { var b = new TextEncoder().encode(s), o = '0x', i = 0; for (; i < b.length; i++) o += b[i].toString(16).padStart(2, '0'); return o; };
-  var sign = function (msg) { return eth.request({ method: 'personal_sign', params: [toHex(msg), address] }); };
+  /*
+   * Two wallets behind one shape. An injected provider (extension, a wallet's
+   * own browser) is spoken to directly. Without one, the app's connect sheet
+   * does it (src/wallet/GateBridge.tsx: WalletConnect deep links on a phone, a
+   * QR code on a desktop) — the overlay steps aside while that sheet is up.
+   * A remote wallet signs on a TAP (\`tap\`): bringing the wallet app forward is
+   * a navigation, and iOS only allows one while the gesture is live.
+   */
+  var injected = eth && {
+    tap: false,
+    connect: function () { return eth.request({ method: 'eth_requestAccounts' }).then(function (a) { return a[0]; }); },
+    sign: function (msg) { return eth.request({ method: 'personal_sign', params: [toHex(msg), address] }); },
+  };
+  var bridged = function (yc) {
+    return {
+      tap: true,
+      connect: function () {
+        gate.style.display = 'none';
+        var back = function () { gate.style.display = ''; };
+        return yc.connect().then(function (a) { back(); return a; }, function (e) { back(); throw e; });
+      },
+      sign: function (msg) { return yc.sign(msg); },
+    };
+  };
+  // the bundle registers \`ycGate\` once React has mounted, a beat after this script runs
+  var wallet = function () {
+    if (injected) return Promise.resolve(injected);
+    return new Promise(function (resolve) {
+      var t0 = Date.now();
+      (function poll() {
+        if (window.ycGate) resolve(bridged(window.ycGate));
+        else if (Date.now() - t0 > 5000) resolve(null);
+        else setTimeout(poll, 100);
+      })();
+    });
+  };
+  var w = null;
   var post = function (path, body) {
     return fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (out) { if (!r.ok) throw new Error(out.error || 'failed'); return out; }); });
   };
 
+  // what the next tap does; each step is called synchronously from the click, so a sign keeps the gesture
+  var next = start;
   btn.onclick = function () {
     btn.disabled = true;
-    Promise.resolve().then(function () {
-      if (address) return request();
-      status('Waiting for the wallet\\u2026');
-      return eth.request({ method: 'eth_requestAccounts' }).then(function (a) {
-        address = a[0];
-        return fetch('/gate/check?address=' + address).then(function (r) { return r.json(); });
-      }).then(function (out) { return out.listed ? enter() : out.waitlisted ? waiting() : lineup(); });
-    }).catch(function (e) {
-      status(e && e.message ? e.message : String(e), true);
+    var p;
+    try { p = Promise.resolve(next()); } catch (e) { p = Promise.reject(e); }
+    p.catch(function (e) {
+      status(e && (e.shortMessage || e.message) ? (e.shortMessage || e.message) : String(e), true);
       btn.disabled = false;
     });
   };
 
+  function start() {
+    status('Waiting for the wallet\\u2026');
+    return wallet().then(function (got) {
+      if (!got) return none();
+      w = got;
+      return w.connect().then(function (a) {
+        address = a;
+        return fetch('/gate/check?address=' + address).then(function (r) { return r.json(); });
+      }).then(function (out) { return out.listed ? (w.tap ? ready() : enter()) : out.waitlisted ? waiting() : lineup(); });
+    });
+  }
+
+  /** No injected wallet and no WalletConnect on this build: the wallet's own browser is the way in. */
+  function none() {
+    var here = location.host + location.pathname + location.search;
+    $('yc-row').innerHTML = '<a class="btn" href="https://metamask.app.link/dapp/' + here + '">Open in MetaMask</a>';
+    status('No wallet in this browser. Open this page in your wallet app\\u2019s browser (MetaMask, Rabby, Coinbase Wallet\\u2026), or on a desktop with a wallet extension.');
+  }
+
+  function ready() {
+    $('yc-sub').textContent = address.slice(0, 6) + '\\u2026' + address.slice(-4) + ' is on the list. One signature and you\\u2019re in.';
+    btn.textContent = 'Sign to enter';
+    btn.disabled = false;
+    status('');
+    next = enter;
+  }
+
   function enter() {
     var issued = new Date().toISOString();
     status('Sign to enter \\u2014 free, no transaction.');
-    return sign(T_VERIFY.replace('__a__', address.toLowerCase()).replace('__i__', issued)).then(function (signature) {
+    return w.sign(T_VERIFY.replace('__a__', address.toLowerCase()).replace('__i__', issued)).then(function (signature) {
       return post('/gate/verify', { address: address, issued: issued, signature: signature });
     }).then(function () { status('You\\u2019re in.'); location.reload(); });
   }
@@ -100,6 +156,7 @@ export const overlay = () => `
     btn.textContent = 'Join the waitlist';
     btn.disabled = false;
     status('');
+    next = request;
   }
 
   function waiting(email) {
@@ -116,7 +173,7 @@ export const overlay = () => `
     if (!email || !el.checkValidity()) { status('Enter a valid email address.', true); btn.disabled = false; el.focus(); return; }
     var issued = new Date().toISOString();
     status('Sign to prove the wallet is yours \\u2014 free, no transaction.');
-    return sign(T_REQUEST.replace('__a__', address.toLowerCase()).replace('__i__', issued).replace('__e__', email)).then(function (signature) {
+    return w.sign(T_REQUEST.replace('__a__', address.toLowerCase()).replace('__i__', issued).replace('__e__', email)).then(function (signature) {
       return post('/gate/request', { address: address, issued: issued, signature: signature, email: email });
     }).then(function () { waiting(email); });
   }

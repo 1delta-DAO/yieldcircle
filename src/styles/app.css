@@ -786,7 +786,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .wc-bio{margin:2px 0 0;font-size:13.5px;line-height:1.5;color:var(--tx70);max-width:62ch}
 .wc-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px}
 .wc-a{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
-.wstats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:12px}
+.wstats{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin-top:12px}
 .wstat{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);padding:12px 14px;display:flex;flex-direction:column;gap:3px;min-width:0}
 .wstat .k{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx50);font-weight:600}
 .wstat .v{font-family:var(--mono);font-size:21px;line-height:1.1}
@@ -1054,7 +1054,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 }
 @media (max-width:1000px){
   .mgrid{grid-template-columns:minmax(0,1fr)}
-  .wstats{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .wstats{grid-template-columns:repeat(4,minmax(0,1fr))}
   .vaultc-n{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:640px){
@@ -1604,3 +1604,8 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .row.board .mono:hover{text-decoration:underline}
 /* the previous rows stay while a toggle refetches (pos-indexer tickets/0057) */
 .card.refetching{opacity:.55;transition:opacity .15s}
+
+/* the account beside the position on the board (pos-indexer tickets/0057 §E) */
+.row.board .v.acct{min-width:104px;padding-left:10px;border-left:1px solid var(--line-soft)}
+/* Copy on a profile's position row (tickets: pos-indexer 0057 §F) */
+.strat-t .copyb{padding:3px 10px;font-size:12px}

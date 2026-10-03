@@ -36,7 +36,7 @@ interface Base {
   venue: string
   venueKey: string
   logo?: string
-  /** headline %: APY for a deposit, net at the suggested leverage for a loop */
+  /** headline %: APR for a deposit, net at the suggested leverage for a loop */
   rate: number
   risk: Risk
   riskLabel: string

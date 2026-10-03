@@ -228,7 +228,15 @@ export interface PositionsResponse {
   identity?: AccountIdentity | null
   positions: IndexPosition[]
   groups?: PositionGroup[]
-  totals: { depositsUsd: number; debtUsd: number; navUsd: number; impaired?: number; impairedFaceUsd?: number }
+  totals: {
+    depositsUsd: number; debtUsd: number; navUsd: number; impaired?: number; impairedFaceUsd?: number
+    /** the ACCOUNT's net APR: Σ annual / Σ equity over `groups` (pos-indexer tickets/0057 §E); absent on an older index */
+    annualUsd?: number | null
+    netAprPct?: number | null
+    /** share of NAV whose positions carry a rate; below 1 the APR is a floor */
+    ratedShare?: number
+    aprExact?: boolean
+  }
   asOf: { oldest: string } | null
 }
 

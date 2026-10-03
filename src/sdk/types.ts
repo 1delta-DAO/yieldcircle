@@ -172,7 +172,7 @@ export interface IrmPoint { utilization: number; borrowRate: number; depositRate
  * 21 points at 5 % steps, plus where the market sits on it at this block.
  *
  * It is the only endpoint that answers **why** a rate is what it is: the
- * headline APY is a single number that moves for reasons the listing never
+ * headline APR is a single number that moves for reasons the listing never
  * states, and the curve says the reason out loud — how much room is left
  * before the kink, and how violently the rate moves past it.
  *

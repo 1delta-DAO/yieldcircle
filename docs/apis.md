@@ -13,6 +13,12 @@ has **no backend of its own**; it reads three services:
 All base URLs are resolved in `src/config/backend.ts`. Vite bakes them in at
 **build** time.
 
+**Rates are APR, and the UI says APR.** Every backend rate (`depositApr*`,
+`borrowApr*`, `rewardApr*`, `aprTotal`, `intrinsicYield`, the index's `apr*`)
+is a nominal, simple APR in percent, so legs add: base + rewards + intrinsic,
+and a loop's net is `dep·L − bor·(L−1)`. APYs would not add. Label every rate
+"APR" (or "net yield"); never "APY", and never compound one for display.
+
 ## The layering (keep it)
 
 ```

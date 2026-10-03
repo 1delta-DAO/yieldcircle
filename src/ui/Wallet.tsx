@@ -9,15 +9,19 @@
  * and points at that chip for the live numbers.
  */
 import React from 'react'
+import { accountCarry } from '../model/accountCarry'
+import { useMenu, type Menu } from './useMenu'
+import { parseUid, uidOf } from '../model/uid'
+import type { Strategy } from '../model/strategies'
 import { useAccount } from 'wagmi'
-import { marketHref, useApp, walletHref } from '../state/AppState'
+import { go, marketHref, useApp, walletHref } from '../state/AppState'
 import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
 import { useFollowers, useProfile, useProfiles, useWalletLinks } from '../social/queries'
 import { AutoTag, Badges, FollowButton, Impaired, Money, Who, Ago, describeBundle, tokens } from './social-bits'
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
-import { normAddr } from '../model/address'
+import { isEvmChain, normAddr } from '../model/address'
 import { AddrExplorers, CopyButton, Sk, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
@@ -63,6 +67,9 @@ export function Wallet({ addr }: { addr: string }) {
   const cut = !allChains && !one
   const inScope = React.useCallback((id: string) => allChains || chainIds.includes(id), [allChains, chainIds])
   const pos = useIndexPositions(isMe ? undefined : addr, one)
+  // the app's menu, joined by market: what on this profile can be copied
+  const menu = useMenu()
+  const copyOf = useCopyable(menu)
   const flows = useAccountFlows(addr, 30, one)
   const txsQ = useAccountTxs(addr, one, cut ? 200 : 40)
   const rows = React.useMemo(() => (pos.data?.positions ?? []).filter((r) => inScope(r.chainId)), [pos.data, inScope])
@@ -74,6 +81,27 @@ export function Wallet({ addr }: { addr: string }) {
       : rows.reduce((t, r) => t + (r.amountUsd ?? 0) * (r.side === 'borrow' ? -1 : 1), 0)
   // positions in markets that cannot pay them (tickets/0037): out of `nav`, named here
   const nImpaired = rows.filter((r) => r.valueStatus === 'impaired').length
+  /**
+   * What the whole account earns (pos-indexer tickets/0057 §E): Σ annual / Σ
+   * equity — each position's APR weighted by its share of NAV, so a small
+   * high-APR position cannot pass for the account. The index's figure for
+   * the whole account; recomputed here only for a chain cut (or an index
+   * that predates it), over the same positions the table lists.
+   */
+  const carry = React.useMemo(() => {
+    const t = pos.data?.totals
+    const gs = groupsOrLegs(rows, groups)
+    const own = accountCarry(gs)
+    const c = !cut && t && t.netAprPct !== undefined
+      ? { ...own, annualUsd: t.annualUsd ?? null, netAprPct: t.netAprPct ?? null, ratedShare: t.ratedShare ?? own.ratedShare, exact: t.aprExact ?? own.exact }
+      : own
+    // the position a reader would otherwise read the wallet by: the best rate
+    // on positive equity, named with how small a slice of the account it is
+    const best = gs
+      .filter((g) => g.equityUsd > 0 && g.netAprPct != null)
+      .reduce<PositionGroup | null>((a, g) => (a == null || g.netAprPct! > a.netAprPct! ? g : a), null)
+    return { ...c, best, bestShare: best && c.navUsd > 0 ? best.equityUsd / c.navUsd : null }
+  }, [pos.data, rows, groups, cut])
   const txList = React.useMemo(() => (txsQ.data?.txs ?? []).filter((t) => inScope(t.chainId)).slice(0, 40).map((t) => ownLegs(t, addr)), [txsQ.data, inScope, addr])
   /**
    * What the index calls this address. The responses the page already loads
@@ -154,6 +182,8 @@ export function Wallet({ addr }: { addr: string }) {
 
       <div className="wstats">
         <Stat k="Net value" v={isMe ? '—' : usd(nav)} s={isMe ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={!isMe && pos.isLoading} />
+        <Stat k="Net APR" v={isMe ? '—' : carry.netAprPct == null ? '—' : <span className={carry.netAprPct >= 0 ? 'ok' : 'warn'}>{carry.exact ? '' : '≈ '}{pct(carry.netAprPct)}</span>}
+          s={isMe ? 'on the live path' : <AccountAprNote c={carry} />} loading={!isMe && pos.isLoading} />
         <Stat k="Deposited · 30d" v={usdShort(f?.depositedUsd)} s={f ? `net ${usdShort(f.depositedUsd - f.withdrawnUsd)} in` : ''} loading={flows.isLoading} />
         <Stat k="Withdrawn · 30d" v={usdShort(f?.withdrawnUsd)} s="supply taken out" loading={flows.isLoading} />
         <Stat k="Borrowed · 30d" v={usdShort(f?.borrowedUsd)} s={f ? `net ${usdShort(f.borrowedUsd - f.repaidUsd)} drawn` : ''} loading={flows.isLoading} />
@@ -169,7 +199,7 @@ export function Wallet({ addr }: { addr: string }) {
           <div className="card">
             {pos.isLoading && <div className="empty"><Sk w={220} /></div>}
             {!pos.isLoading && !rows.length && <div className="empty">The index has no open position for this wallet on {allChains ? 'the chains it follows' : chainLabelFor()}.</div>}
-            {rows.length > 0 && <Book rows={rows} groups={groups} />}
+            {rows.length > 0 && <Book rows={rows} groups={groups} navUsd={carry.navUsd} copyOf={copyOf} who={addr} />}
           </div>
         )}
       </section>
@@ -239,7 +269,7 @@ function VaultCard({ v }: { v: VaultRow }) {
         </span>
       </div>
       <div className="vaultc-n">
-        <Stat k="Deposit APY" v={rate == null ? <span className="t40">—</span> : <span className="ok">{pct(rate)}</span>}
+        <Stat k="Deposit APR" v={rate == null ? <span className="t40">—</span> : <span className="ok">{pct(rate)}</span>}
           s={rate == null ? 'nobody publishes one' : 'what a depositor earns'} />
         <Stat k="TVL" v={usdShort(v.tvlUsd)} s="the whole vault" />
         <Stat k="Holders" v={v.holders.toLocaleString('en-US')}
@@ -259,29 +289,112 @@ function VaultCard({ v }: { v: VaultRow }) {
  * states the equity and the rate ON that equity; the legs stay, one tap down,
  * because the ledger holds legs and a market page joins to them.
  */
-function Book({ rows, groups }: { rows: IndexPosition[]; groups?: PositionGroup[] }) {
+/**
+ * What on this page the reader can COPY: a position the app's own menu can
+ * open as the same strategy. Two shapes only, both matched on the exact
+ * markets, never on a resemblance:
+ *
+ *   - a plain deposit — one supply leg, no debt — whose market the menu
+ *     lists as a simple strategy;
+ *   - a looped pair — one collateral asset against one debt asset — whose
+ *     collateral AND debt markets are exactly one loop's long and short leg.
+ *
+ * A cross-margin basket, a lone debt, collateral posted with no loop, or a
+ * market the menu does not list gets no button: the row still opens the
+ * market. Uids are compared as stored, then case-folded on EVM chains,
+ * where the ref is hex and its case carries nothing.
+ */
+function useCopyable(menu: Menu) {
+  return React.useMemo(() => {
+    const simple = new Map<string, Strategy>()
+    const loop = new Map<string, Strategy>()
+    const fold = (u: string) => (isEvmChain(parseUid(u)?.chainId ?? '') ? u.toLowerCase() : u)
+    // everything a ticket can open (AssetPage resolves `s=` against all three):
+    // the shown rows, the ones a floor holds back behind the menu's `+`, and
+    // the ones the per-asset cap dropped from view
+    for (const st of [...menu.all, ...menu.hidden, ...menu.overflow] as Strategy[]) {
+      if (st.kind === 'loop') {
+        loop.set(`${st.marketLongUid}|${st.marketShortUid}`, st)
+        loop.set(`${fold(st.marketLongUid)}|${fold(st.marketShortUid)}`, st)
+      } else {
+        const u = uidOf(st)
+        if (u) {
+          simple.set(u, st)
+          simple.set(fold(u), st)
+        }
+      }
+    }
+    return (legs: IndexPosition[]): Strategy | null => {
+      const coll = legs.filter((l) => l.side !== 'borrow')
+      const debt = legs.filter((l) => l.side === 'borrow')
+      if (coll.length === 1 && debt.length === 0 && coll[0].side !== 'collateral')
+        return simple.get(coll[0].marketUid) ?? simple.get(fold(coll[0].marketUid)) ?? null
+      if (coll.length === 1 && debt.length === 1) {
+        const k = `${coll[0].marketUid}|${debt[0].marketUid}`
+        return loop.get(k) ?? loop.get(`${fold(coll[0].marketUid)}|${fold(debt[0].marketUid)}`) ?? null
+      }
+      return null
+    }
+  }, [menu.all, menu.hidden, menu.overflow])
+}
+
+/** The ticket for that strategy, opened as a copy of `who`'s position — the feed's "Copy this", from a profile. */
+function CopyPositionButton({ st, who, lev }: { st: Strategy; who: string; lev?: number | null }) {
+  return (
+    <button
+      type="button"
+      className="btn sm pri copyb"
+      title={`Open ${st.kind === 'loop' ? 'this loop' : 'this deposit'} as a ticket${lev && lev > 1.05 ? ` — they run it at ${lev.toFixed(1)}×, you choose your own` : ''}`}
+      onClick={(e) => {
+        e.stopPropagation()
+        go(st.group, { u: st.asset, s: st.id, k: st.kind, copy: who })
+      }}
+    >
+      Copy
+    </button>
+  )
+}
+
+/**
+ * The positions to show and to sum: the index's `groups`, or — on an older
+ * index that answers none — one position per leg, which is exactly what this
+ * page showed before and never a blank table. A leg's carry is its value at
+ * its own effective rate (a debt's sign makes it a cost).
+ */
+function groupsOrLegs(rows: IndexPosition[], groups?: PositionGroup[]): PositionGroup[] {
+  if (groups?.length) return groups
+  return rows.map((r) => {
+    const equity = (r.side === 'borrow' ? -1 : 1) * (r.amountUsd ?? 0)
+    const rate = r.aprEffective ?? r.aprNow
+    return {
+      key: `${r.marketUid}|${r.side}|${r.posId}`, chainId: r.chainId, account: r.account, posId: r.posId,
+      riskKey: r.marketUid, lenderKey: r.lenderKey, marketUids: [r.marketUid],
+      supplyUsd: r.side === 'borrow' ? 0 : r.amountUsd ?? 0, debtUsd: r.side === 'borrow' ? r.amountUsd ?? 0 : 0,
+      equityUsd: equity, leverage: null,
+      annualUsd: rate == null || r.amountUsd == null ? null : (equity * rate) / 100,
+      netAprPct: rate, blend: 'none', reason: null, exact: rate != null && r.amountUsd != null, unpriced: 0,
+      legs: [{ marketUid: r.marketUid, side: r.side, posId: r.posId }],
+    }
+  })
+}
+
+/** "0.3 % of NAV" — how much of the account one position is; nothing when the account has no positive NAV */
+const navShare = (equityUsd: number, navUsd: number | null | undefined) =>
+  navUsd != null && navUsd > 0 ? ` · ${pct((Math.abs(equityUsd) / navUsd) * 100, 1)} of NAV` : ''
+
+function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; groups?: PositionGroup[]; navUsd?: number | null; copyOf?: (legs: IndexPosition[]) => Strategy | null; who: string }) {
   const byLeg = new Map(rows.map((r) => [`${r.marketUid}|${r.side}|${r.posId}`, r]))
-  // no `groups` (an older index) → every leg is its own position, which is
-  // exactly what this page showed before and never a blank table
-  const gs: PositionGroup[] = groups?.length
-    ? groups
-    : rows.map((r) => ({
-        key: `${r.marketUid}|${r.side}|${r.posId}`, chainId: r.chainId, account: r.account, posId: r.posId,
-        riskKey: r.marketUid, lenderKey: r.lenderKey, marketUids: [r.marketUid],
-        supplyUsd: r.side === 'borrow' ? 0 : r.amountUsd ?? 0, debtUsd: r.side === 'borrow' ? r.amountUsd ?? 0 : 0,
-        equityUsd: (r.side === 'borrow' ? -1 : 1) * (r.amountUsd ?? 0), leverage: null, annualUsd: null,
-        netAprPct: r.aprEffective ?? r.aprNow, blend: 'none', reason: null, exact: true, unpriced: 0,
-        legs: [{ marketUid: r.marketUid, side: r.side, posId: r.posId }],
-      }))
+  const gs = groupsOrLegs(rows, groups)
   return (
     <table className="tbl strat-t">
-      <colgroup><col /><col style={{ width: 110 }} /><col className="hide-m" style={{ width: 90 }} /><col style={{ width: 28 }} /></colgroup>
+      <colgroup><col /><col style={{ width: 110 }} /><col className="hide-m" style={{ width: 90 }} /><col style={{ width: copyOf ? 74 : 28 }} /></colgroup>
       <thead><tr><th>Position</th><th className="r">Value</th><th className="r hide-m">Rate</th><th /></tr></thead>
       <tbody>
         {gs.map((g) => {
           const found = g.legs.map((l) => byLeg.get(`${l.marketUid}|${l.side}|${l.posId}`)).filter((r): r is IndexPosition => !!r)
           if (found.length === 0) return null
-          if (found.length === 1) return <LegRow key={g.key} r={found[0]} />
+          const st = copyOf?.(found) ?? null
+          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={st ? <CopyPositionButton st={st} who={who} /> : undefined} />
           const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
           return <React.Fragment key={g.key}>
             <tr className="grp" onClick={() => { location.hash = marketHref(lead.marketUid) }}>
@@ -297,9 +410,9 @@ function Book({ rows, groups }: { rows: IndexPosition[]; groups?: PositionGroup[
                   {s.debt.length > 0 && <> over {usdShort(g.debtUsd)} of debt{s.debtSyms.length > 1 ? ` in ${s.debtSyms.join(', ')}` : ''}</>}
                 </small>
               </td>
-              <td className="r"><b>{usd(g.equityUsd)}</b><small>equity</small></td>
+              <td className="r"><b>{usd(g.equityUsd)}</b><small>equity{navShare(g.equityUsd, navUsd)}</small></td>
               <td className="r hide-m"><NetRate g={g} /></td>
-              <td className="r t40">›</td>
+              <td className="r t40">{st ? <CopyPositionButton st={st} who={who} lev={g.leverage} /> : '›'}</td>
             </tr>
             {legs.map((r) => <LegRow key={`${r.marketUid}:${r.side}:${r.posId}`} r={r} sub />)}
           </React.Fragment>
@@ -358,7 +471,7 @@ function NetRate({ g }: { g: PositionGroup }) {
  * and 4.68 % from inside syrupUSDT, and only one of those numbers was ever
  * on this page.
  */
-function LegRow({ r, sub }: { r: IndexPosition; sub?: boolean }) {
+function LegRow({ r, sub, share = '', copy }: { r: IndexPosition; sub?: boolean; share?: string; copy?: React.ReactNode }) {
   const rate = r.aprEffective ?? r.aprNow
   const why = r.intrinsicApr != null
     ? `${pct(r.intrinsicApr)} the token itself${r.intrinsicSource === 'asset' ? ' (from the asset, not this market)' : ''} + ${pct(r.aprNow ?? 0)} the pool`
@@ -373,10 +486,31 @@ function LegRow({ r, sub }: { r: IndexPosition; sub?: boolean }) {
         </div>
         <small className="hide-m">{indexChainLabel(r.chainId, chainLabel)}{r.accrual?.exact ? ' · accrual exact' : r.accrual ? ' · accrual ≈' : ''}</small>
       </td>
-      <td className="r">{r.valueStatus === 'impaired' ? <Impaired x={r} /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}<small>{r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}</small></td>
+      <td className="r">{r.valueStatus === 'impaired' ? <Impaired x={r} /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}<small>{r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}{share}</small></td>
       <td className="r hide-m">{rate != null ? <span className={r.side === 'borrow' ? 'warn' : 'ok'} title={why}>{pct(rate)}</span> : <span className="t40">—</span>}</td>
-      <td className="r t40">›</td>
+      <td className="r t40">{copy ?? '›'}</td>
     </tr>
+  )
+}
+
+/**
+ * Under the account's APR: what it is in dollars, how much of the account it
+ * covers, and — when the best position is a small slice far above the
+ * account — that slice, named, because that is the number a reader would
+ * otherwise take for the wallet's.
+ */
+function AccountAprNote({ c }: { c: ReturnType<typeof accountCarry> & { best: PositionGroup | null; bestShare: number | null } }) {
+  if (c.netAprPct == null) return <>{c.positions ? 'no rate on these positions yet' : 'no position'}</>
+  const unrated = 1 - c.ratedShare
+  const lopsided =
+    c.best?.netAprPct != null && c.bestShare != null && c.bestShare < 0.25 &&
+    c.best.netAprPct > 2 * Math.max(c.netAprPct, 0.5)
+  return (
+    <span title="Σ yearly carry ÷ Σ equity: every position's net APR weighted by its share of the account's net value">
+      ≈ {usdShort(c.annualUsd)}/yr on the whole account
+      {unrated > 0.005 && <span className="t40"> · {pct(unrated * 100, 0)} of NAV has no rate yet</span>}
+      {lopsided && <span className="t40"> · best {pct(c.best!.netAprPct)} is {pct(c.bestShare! * 100, 1)} of NAV</span>}
+    </span>
   )
 }
 

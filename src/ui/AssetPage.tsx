@@ -16,6 +16,7 @@ import { HIDES, hideDetail, letIn } from '../model/visibility'
 import { useRateHistory } from '../sdk/queries'
 import { isSpike, seriesFor, steadyRate } from '../model/rateHistory'
 import { RateTrend, useSparkRewards } from './Spark'
+import { useViewport } from './useViewport'
 
 /** One list, one number per row. The list decides which; the ticket decides how much and how levered. */
 export function AssetPage({ group, route }: { group: Group; route: Route }) {
@@ -39,6 +40,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const ofKind = React.useMemo(() => all.filter((s) => s.kind === kind), [all, kind])
   const get = useRateHistory(ofKind, !b.isFetching)
   const [withRewards, setWithRewards] = useSparkRewards()
+  const phone = useViewport() === 'phone'
   // ranked on the STEADY rate: a row whose rate today is a spike against its own
   // month sorts by the month, so one hot night does not lead the list
   const steady = React.useMemo(() => new Map(ofKind.map((s) => [s.id, steadyRate(s, get, withRewards)])), [ofKind, get, withRewards])
@@ -102,7 +104,31 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
             <div className="seg kind"><button aria-pressed={kind === 'simple'} onClick={() => go(group.id, { u, k: 'simple' })}>Deposits <span className="c">{nS}</span></button><button aria-pressed={kind === 'loop'} onClick={() => go(group.id, { u, k: 'loop' })}>Loops <span className="c">{nL}</span></button></div>
             <span className="hint">{kind === 'simple' ? 'Hold one token that grows. No debt, nothing to liquidate.' : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
           </div>
-          <div className="card">
+          {phone && (list.length || b.isLoading) ? (
+            /* a phone gets cards, two abreast: a table row at 357px had to fit
+               name, venue, chain, risk, exit terms, size and a rate on one line
+               and clipped most of it. A card gives each its own line. */
+            <div className="scards">
+              {b.isLoading && !list.length ? [0, 1, 2, 3].map((i) => <div key={i} className="scard"><Sk w={90} /><Sk w={60} /><Sk w={110} /></div>)
+                : list.map((s) => { const h = held(s); const pick = picks.has(s.id); const ser = seriesFor(s, get, withRewards); const n = commentsOn(s); return (
+                <div key={s.id} className="scard" role="button" tabIndex={0} aria-selected={sel?.id === s.id} onClick={() => go(group.id, { u, s: s.id, k: s.kind })} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(group.id, { u, s: s.id, k: s.kind }) } }}>
+                  <div className="sc-top">
+                    {s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}
+                    <b>{s.holds}</b>
+                    {pick && <span className="pick-star" title="our pick">★</span>}
+                    {n > 0 && <Comments n={n} onClick={() => { const x = uidOf(s); if (x) location.hash = marketHref(x) }} />}
+                  </div>
+                  <span className="sc-via">{s.kind === 'simple' ? s.via : `borrow ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span>
+                  <span className={`sc-rate ${s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}`}>{pct(s.rate)}</span>
+                  {ser ? <span className="sc-trend"><RateTrend ser={ser} now={s.rate} spike={isSpike(s.rate, ser)} /></span> : null}
+                  <span className="sc-meta sc-wrap">{u === 'all' ? `${nameOf(s.asset)} · ` : ''}{chainLabel(s.chainId)}</span>
+                  <span className="sc-meta"><RiskWord s={s} /></span>
+                  <span className="sc-meta">{s.kind === 'simple' ? exitTerms(s).short : s.instrument ? `via ${s.instrument}` : ''}</span>
+                  {(s.tvlUsd > 0 || s.kind === 'loop') && <span className="sc-meta"><Size s={s} /></span>}
+                  {(h || letIn(s)) && <span className="sc-pills">{h && <span className="pill run">running</span>}<WhyIn s={s} /></span>}
+                </div>) })}
+            </div>
+          ) : <div className="card">
             {b.isLoading && !list.length ? (
               <table className="tbl strat-t"><tbody>{[0, 1, 2, 3].map((i) => <tr key={i}><td><Sk w={200} /></td><td className="r"><Sk w={60} /></td><td className="hide-m"><Sk w={60} /></td><td /></tr>)}</tbody></table>
             ) : list.length ? (
@@ -130,7 +156,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                   </tr>) })}</tbody>
               </table>
             ) : <div className="empty">No {kind === 'simple' ? 'plain deposit' : 'loop'} for this filter{b.errors.length ? ` (${b.errors[0].message})` : ''}{heldBack.length ? ` — ${heldBack.length} held back by the floors below` : ''}.</div>}
-          </div>
+          </div>}
           <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />
         </div>
         <aside className={ticketOpen ? '' : 'closed'} id="aside">

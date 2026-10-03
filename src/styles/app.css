@@ -828,7 +828,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .rank{font-family:var(--mono);font-size:12px;color:var(--tx40);text-align:right;width:22px;flex:none}
 .rank.lead{color:var(--primary);font-weight:600}
 .row.wrow .v{font-family:var(--mono);font-size:14px;text-align:right;line-height:1.2;flex:none;white-space:nowrap}
-.row.wrow .v small{display:block;font-size:10px;color:var(--tx40)}
+.row.wrow .v small{display:block;font-size:10px;color:var(--tx50);letter-spacing:.01em}
 
 /* ---------- market ---------- */
 .mhdr{display:flex;align-items:center;gap:14px;margin:6px 0 12px;flex-wrap:wrap}
@@ -1066,6 +1066,12 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
   .tape-row.alert .verb,.tape-row.alert .tr-m{display:none}
   .row.wrow{gap:8px}
   .row.wrow .follow{display:none}
+  .row.wrow .v{font-size:13px}
+  .row.wrow .v small{max-width:112px;overflow:hidden;text-overflow:ellipsis}
+  /* flags squeeze the name on a phone; keep only the one that must never vanish */
+  .row.board .flags{max-width:70px}
+  .row.board .flags .pill.flag{display:none}
+  .row.board .flags .pill.flag.bad{display:inline-flex}
   .fcard{padding:12px 13px}
   .fc-t{margin:0 -13px;padding:0 13px}
   .fc-g + .fc-t{margin-top:10px}
@@ -1595,6 +1601,10 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .rhist-note{font-size:12px}
 
 /* ---- the earners board (pos-indexer tickets/0036) */
+/* the inverse of .hide-m: a cell that exists only on a phone */
+.only-m{display:none!important}
+@media (max-width:640px){ .only-m{display:revert!important} }
+.row.board .v.apr{min-width:88px}
 .linklike{background:none;border:0;padding:0;font:inherit;color:var(--primary);cursor:pointer}
 .linklike:hover{text-decoration:underline}
 .note.warn{border-color:rgba(226,163,58,.6);color:var(--warning)}

@@ -39,7 +39,7 @@ export function StatsChip({ account }: { account: string }) {
   const s = useMyStats(account)
   if (s.rank == null && !s.followers) return null
   return (
-    <a className="statchip" href="#/board" title={s.rank != null ? `#${s.rank} on the board` : 'The board'}>
+    <a className="statchip" href={s.rank != null ? '#/board?t=day&by=wallet' : '#/board'} title={s.rank != null ? `#${s.rank} on the board` : 'The board'}>
       {s.rank != null ? (
         <><b>#{s.rank}</b><small>{usdShort(s.perDay)}/day</small></>
       ) : (
@@ -54,7 +54,7 @@ export function MyStats({ account }: { account: string }) {
   const s = useMyStats(account)
   return (
     <div className="mystats">
-      <a href="#/board"><b>{s.rank != null ? `#${s.rank}` : '—'}</b><small>{s.rank != null ? `${usdShort(s.perDay)}/day on the board` : 'not on the board'}</small></a>
+      <a href={s.rank != null ? '#/board?t=day&by=wallet' : '#/board'}><b>{s.rank != null ? `#${s.rank}` : '—'}</b><small>{s.rank != null ? `${usdShort(s.perDay)}/day on the board` : 'not on the board'}</small></a>
       <a href={`#/w/${normAddr(account)}`}><b>{s.followers ?? '—'}</b><small>follower{s.followers === 1 ? '' : 's'}</small></a>
     </div>
   )

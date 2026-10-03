@@ -79,6 +79,27 @@ function AccountCell({ r }: { r: idx.EarnerRow }) {
   )
 }
 
+/**
+ * On a phone the row has room for one value cell, so it carries BOTH metrics:
+ * the sorted-by one is the big number, the other is the caption. The desktop
+ * cells keep `hide-m`; this one is `only-m`.
+ */
+function MobileV({ sort, apr, exact, perDay }: { sort: Sort; apr: number | null; exact: boolean; perDay: number | null }) {
+  return sort === 'apr'
+    ? (
+      <span className={`v only-m${apr != null && apr < 0 ? ' warn' : ' ok'}`}>
+        {apr == null ? '—' : <>{exact ? '' : '≈ '}{pct(apr)}</>}
+        <small><Money usd={perDay} /> a day</small>
+      </span>
+    )
+    : (
+      <span className="v only-m">
+        <Money usd={perDay} />
+        <small>{apr == null ? '—' : `${exact ? '' : '≈ '}${pct(apr)}`} APR</small>
+      </span>
+    )
+}
+
 interface BoardKey {
   by: By
   sort: Sort
@@ -111,7 +132,7 @@ function boardQuery(k: BoardKey) {
 
 export function Board({ window: w, by: b }: { window?: string; by?: string }) {
   const { chainIds, allChains } = useApp()
-  const sort: Sort = w === 'apr' ? 'apr' : 'perDay'
+  const sort: Sort = w === 'day' ? 'perDay' : 'apr'
   const by: By = b === 'wallet' ? 'wallet' : 'position'
   const [showAll, setShowAll] = React.useState(false)
   const [contracts, setContracts] = React.useState(false)
@@ -146,7 +167,7 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
   const flags = data?.ratingFlags
   const { profile } = useProfiles(accounts)
   const nav = (p: { t?: Sort; by?: By }) =>
-    go('board', { t: (p.t ?? sort) === 'apr' ? 'apr' : 'day', by: (p.by ?? by) === 'wallet' ? 'wallet' : undefined })
+    go('board', { t: (p.t ?? sort) === 'perDay' ? 'day' : undefined, by: (p.by ?? by) === 'wallet' ? 'wallet' : undefined })
 
   return (
     <>
@@ -159,8 +180,8 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
           <button aria-pressed={by === 'wallet'} onClick={() => nav({ by: 'wallet' })} title="one row per wallet: its net APR across every position, weighted by NAV">Wallets</button>
         </div>
         <div className="seg">
-          <button aria-pressed={sort === 'perDay'} onClick={() => nav({ t: 'perDay' })} title="most dollars a day at today’s rates">$/day</button>
           <button aria-pressed={sort === 'apr'} onClick={() => nav({ t: 'apr' })} title={by === 'wallet' ? 'highest net APR — exact wallets over $10k NAV only' : 'highest net APR — exact positions over $10k equity only'}>APR</button>
+          <button aria-pressed={sort === 'perDay'} onClick={() => nav({ t: 'perDay' })} title="most dollars a day at today’s rates">$/day</button>
         </div>
       </div>
 
@@ -212,12 +233,13 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
                       </>
                     } />
                   <span className="sp" />
-                  <span className="v ok hide-m" title={r.exact ? 'every counted position carries a price and a rate' : 'a position has no rate or price: this is a floor, not a guess'}>
+                  <span className="v ok apr hide-m" title={r.exact ? 'every counted position carries a price and a rate' : 'a position has no rate or price: this is a floor, not a guess'}>
                     {r.exact ? '' : '≈ '}{pct(r.apr24hPct ?? r.netAprPct)}<small>wallet APR</small>
                   </span>
-                  <span className="v" title={r.poolRealized7dUsd != null ? `pool yield realized over 7 days: ${usdShort(r.poolRealized7dUsd)} — a token's own appreciation (PT, LST, savings) is in its price, not in this figure` : undefined}>
+                  <span className="v hide-m" title={r.poolRealized7dUsd != null ? `pool yield realized over 7 days: ${usdShort(r.poolRealized7dUsd)} — a token's own appreciation (PT, LST, savings) is in its price, not in this figure` : undefined}>
                     <Money usd={r.perDayUsd} /><small>a day</small>
                   </span>
+                  <MobileV sort={sort} apr={r.apr24hPct ?? r.netAprPct} exact={r.exact} perDay={r.perDayUsd} />
                   <span onClick={(e) => e.preventDefault()}><FollowButton kind="wallet" target={r.account} small /></span>
                 </a>
               ))
@@ -238,12 +260,13 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
                       } />
                     <span className="sp" />
                     <Flags risk={r.risk} detail={r.riskDetail} />
-                    <span className="v ok hide-m" title={r.exact ? 'every leg carries a price and a rate' : 'a leg has no rate or price: this is a floor, not a guess'}>
+                    <span className="v ok apr hide-m" title={r.exact ? 'every leg carries a price and a rate' : 'a leg has no rate or price: this is a floor, not a guess'}>
                       {r.exact ? '' : '≈ '}{pct(r.netAprPct)}
                       <small>{r.apr24hPct != null ? `${pct(r.apr24hPct)} 24h` : 'position APR'}</small>
                     </span>
                     <AccountCell r={r} />
-                    <span className="v"><Money usd={r.perDayUsd} /><small>a day</small></span>
+                    <span className="v hide-m"><Money usd={r.perDayUsd} /><small>a day</small></span>
+                    <MobileV sort={sort} apr={r.netAprPct} exact={r.exact} perDay={r.perDayUsd} />
                     <span onClick={(e) => e.preventDefault()}><FollowButton kind="wallet" target={r.account} small /></span>
                   </a>
                 )

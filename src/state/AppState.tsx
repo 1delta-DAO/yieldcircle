@@ -15,7 +15,7 @@ import { readFeedLink } from './feedLink'
  *   #/USD?u=USDC&s=<id>&k=loop   asset page + ticket
  *   #/w/0x…                  a wallet
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
- *   #/board                  the earners board (?t=day|apr&by=wallet)
+ *   #/board                  the earners board (apr by default; ?t=day for $/day, &by=wallet)
  *   #/me                     profile editor
  *   #/alerts                 what happened while you were away
  *   #/t                      the asset book (every token the index lends)

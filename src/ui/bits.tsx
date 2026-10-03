@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
 import { assetLogo, colorOf, short, unitOf } from '../model/assets'
 import { ChainMark, addressUrl, chainInfo, txUrl } from './ChainMark'
-import type { Risk } from '../model/strategies'
+import { maturityClock, type Risk } from '../model/strategies'
 
 export const pct = (x: number | null | undefined, d = 2) => (x == null || !Number.isFinite(x) ? '—' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%')
 export const usd = (x: number | null | undefined) => {
@@ -145,16 +145,30 @@ const FAMILY: [RegExp, string][] = [
   [/^AAVE_V3_HORIZON/i, 'aave_v3_horizon'], [/^AAVE_V3_PRIME|^AAVE_V3_LIDO/i, 'aave_v3_prime'], [/^AAVE_V3/i, 'aave_v3'], [/^AAVE_V4/i, 'aave_v4'], [/^AAVE_V2/i, 'aave_v2'],
   [/^vault\.morpho(_blue)?$/i, 'morpho.svg'], [/^MORPHO_BLUE/i, 'morpho_blue'], [/^MORPHO_MIDNIGHT/i, 'morpho_midnight'], [/^FLUID|^vault\.fluid$/i, 'fluid'], [/^LLAMALEND/i, 'llamalend'],
   [/^COMPOUND_V3/i, 'compound_v3'], [/^COMPOUND_V2/i, 'compound_v2'], [/^EULER|^vault\.euler-earn$/i, 'euler_v2'], [/^DOLOMITE/i, 'dolomite'], [/^SPARK/i, 'spark'],
-  [/^LISTA|^vault\.lista/i, 'lista'], [/^VENUS/i, 'venus'], [/^SILO|^vault\.silo$/i, 'silo'], [/^GEARBOX/i, 'gearbox_v3'], [/^RESUPPLY/i, 'resupply'], [/^FRAXLEND/i, 'fraxlend'], [/^INVERSE/i, 'inverse'],
+  [/^LISTA|^vault\.lista/i, 'lista'], [/^VENUS/i, 'venus'], [/^SILO|^vault\.silo$/i, 'silo'], [/^GEARBOX|^vault\.gearbox$/i, 'gearbox_v3'], [/^RESUPPLY/i, 'resupply'], [/^FRAXLEND/i, 'fraxlend'], [/^INVERSE/i, 'inverse'],
   [/^LIQUITY_V2/i, 'liquity_v2'], [/^vault\.pendle$/i, 'aggregator/pendle'],
+  // Solana: the lending families and their vault products. PROJECT_0's `_0` is part of the
+  // name, which the instance-tail strip below would eat (→ `project.webp`, which does not exist).
+  [/^KAMINO|^vault\.kamino/i, 'kamino'], [/^JUPITER_LEND|^vault\.jupiter-lend$/i, 'jupiter_lend'], [/^LOOPSCALE|^vault\.loopscale$/i, 'loopscale'],
+  [/^PROJECT_0/i, 'project_0'], [/^SAVE(_|$)/i, 'save'], [/^vault\.exponent$/i, 'exponent'],
+  // vault platforms: the platform's mark, not the curator's (a Lagoon vault run by 9Summits is still a Lagoon vault)
+  [/^vault\.lagoon$/i, 'lagoon'], [/^vault\.upshift$/i, 'upshift'], [/^vault\.gmx$/i, 'gmx'], [/^vault\.hypercore$/i, 'hyperliquid'], [/^vault\.spectra$/i, 'spectra'],
   [/^CURVANCE/i, 'curvance'], [/^FLYING_TULIP/i, 'flying_tulip'], [/^FRANKENCOIN/i, 'frankencoin'], [/^CAPY_FI/i, 'capy_fi'], [/^AVALON/i, 'avalon'], [/^EXACTLY/i, 'exactly'], [/^XLEND/i, 'xlend'],
 ]
+/**
+ * `vault.savings` / `vault.lst` are categories, not platforms: each row is its issuer's own
+ * product (Spark's sUSDS, Lido's stETH), so the issuer — the row's brand, slugged: `Rocket Pool`
+ * → `lender/rocket_pool.webp` — is the mark to try.
+ */
+const BY_BRAND = /^vault\.(savings|lst)$/i
 /** Candidate venue icons, most specific first; the badge walks them on load error and gives up quietly. */
-export function venueIconUrls(key: string): string[] {
+export function venueIconUrls(key: string, brand?: string): string[] {
   const f = FAMILY.find(([re]) => re.test(key))?.[1]
   // the instance tail: 40–64 hex on EVM, a 32–44 char base58 pubkey (here already lower-cased) on Solana, a bare number
   const base = key.toLowerCase().replace(/(_[0-9a-f]{40,64}|_[a-z0-9]{32,44}|_\d+)+$/, '').replace(/_main$/, '')
-  return [...new Set([f, base.startsWith('vault.') ? undefined : base].filter((n): n is string => !!n))].map(iconUrl)
+  // `Native` is the token held as itself (USDC, an Ondo stock): no issuer behind a product, no mark
+  const issuer = brand && brand !== 'Native' && BY_BRAND.test(key) ? brand.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') : undefined
+  return [...new Set([f, issuer, base.startsWith('vault.') ? undefined : base].filter((n): n is string => !!n))].map(iconUrl)
 }
 /** A PROTOCOL's mark (a filter chip, not a row): the generic family icon first, the index's instance logo only after it. */
 export function protocolIconUrls(key: string, logoUri?: string | null): string[] {
@@ -169,9 +183,9 @@ export function ProtocolLogo({ urls, name }: { urls: string[]; name: string }) {
 }
 /** A small venue badge on the corner of a mark: the lender's icon where the icon set has one, else the brand's first letters. */
 export function VenueBadge({ venueKey, brand }: { venueKey: string; brand: string }) {
-  const urls = React.useMemo(() => venueIconUrls(venueKey), [venueKey])
+  const urls = React.useMemo(() => venueIconUrls(venueKey, brand), [venueKey, brand])
   const [i, setI] = React.useState(0)
-  React.useEffect(() => setI(0), [venueKey])
+  React.useEffect(() => setI(0), [venueKey, brand])
   if (i < urls.length) return <img className="badge" src={urls[i]} alt="" aria-hidden onError={() => setI((n) => n + 1)} title={brand} />
   return <i className="badge txt" style={{ background: colorOf(brand) }} title={brand} aria-hidden>{brand.replace(/[^A-Za-z0-9]/g, '').slice(0, 2)}</i>
 }
@@ -264,4 +278,10 @@ export function Sk({ w = 80, h = 12 }: { w?: number | string; h?: number }) { re
 const GROUP_GLYPH: Record<string, string> = { USD: '$', ETH: 'Ξ', BTC: '₿', MORE: '+' }
 export function GroupIcon({ id, color, size = 20 }: { id: string; color: string; size?: number }) {
   return <i className="ic gic" style={{ width: size, height: size, fontSize: size * 0.56, color, borderColor: `${color}66`, background: `linear-gradient(${color}1a, ${color}1a), #0b0b0b` }} aria-hidden>{GROUP_GLYPH[id] ?? id[0]}</i>
+}
+
+/** ` · matures 17 Dec 2026 · 75d` on a held PT's meta line; amber once it is due or past (it then earns nothing). */
+export function MaturityNote({ t }: { t: number }) {
+  const c = maturityClock(t)
+  return <> · <span className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span></>
 }

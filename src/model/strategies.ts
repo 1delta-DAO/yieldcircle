@@ -200,6 +200,32 @@ const EXIT_WORD: Record<string, string> = { instant: 'Any time', 'instant-capped
 const DAY = 86400
 /** `17 Dec 2026` */
 export const dateOf = (t: number) => new Date(t * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+const MON: Record<string, number> = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 }
+/**
+ * A Pendle PT's maturity from its symbol, `PT-USD3-17DEC2026` → 17 Dec 2026
+ * 00:00 UTC, which is when Pendle expires every PT. For a position the index
+ * or the positions route names only by token: neither carries the expiry on
+ * the position row, and the catalogue's `maturity` only exists for a PT it lists.
+ */
+export function ptMaturityOf(symbol: string | null | undefined): number | undefined {
+  const m = /^PT-.+-(\d{1,2})([A-Z]{3})(\d{4})$/.exec(symbol ?? '')
+  if (!m || MON[m[2]] == null) return undefined
+  return Date.UTC(+m[3], MON[m[2]], +m[1]) / 1000
+}
+/**
+ * A held PT's clock, for a position row: the date, and once it is near or past,
+ * that the money has to move — a matured PT earns nothing until it is redeemed
+ * or rolled into the next maturity.
+ */
+export function maturityClock(t: number, now = Date.now() / 1000): { text: string; title: string; due: boolean } {
+  const days = Math.ceil((t - now) / DAY)
+  if (days <= 0) return { text: `matured ${dateOf(t)} · redeem or roll`, title: 'Past maturity the PT redeems 1:1 for the underlying and earns nothing more: redeem it, or roll into a later maturity.', due: true }
+  return {
+    text: `matures ${dateOf(t)} · ${days}d`,
+    title: `Redeems 1:1 for the underlying on ${dateOf(t)}; the rate is locked until then. After it, the position earns nothing until it is redeemed or rolled.`,
+    due: days <= 14,
+  }
+}
 /** `7 days`, `~1 day`, `18 h` — a cooldown is a whole number of days nearly always; the `~` says when it is not */
 export const spanOf = (secs: number) => {
   if (secs < DAY) return `${Math.max(1, Math.round(secs / 3600))} h`

@@ -9,7 +9,7 @@ import { baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
 import { deskKey, keyOfToken, moneyOf } from './desk'
 import { decToRaw } from './leverage'
 import { marketTag } from './market'
-import { venueLabel } from './strategies'
+import { ptMaturityOf, venueLabel } from './strategies'
 
 export interface Holding {
   key: string
@@ -58,6 +58,8 @@ export interface Holding {
   others?: { side: 'collateral' | 'debt'; symbol: string; amount: number; usd: number }[]
   /** the held token's address — what a withdraw pays out unless it is asked for the native coin */
   assetAddress?: string
+  /** a Pendle PT's maturity (unix s), from its symbol — the positions route carries no expiry */
+  maturity?: number
 }
 /**
  * Vault rows name themselves from the positions route's own `name`/`brand`,
@@ -74,7 +76,7 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
       const brand = p.brand ?? p.venue
       const own = (p.name ?? '').replace(/\s*·\s*0x[0-9a-f]{4,}$/i, '').trim()
       out.push({ key: p.positionUid, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${own || p.asset.symbol || asset} · ${brand}`, venue: brand, valueUsd: p.suppliedUsd, apr: p.apr ?? p.rate?.total, earnUid: p.earnUid, logo: p.logoURI,
-        amount: parseFloat(p.assets) || 0, amountRaw: rawOf(p.assets, p.asset.decimals), symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18, assetAddress: normAddr(p.asset.address) })
+        amount: parseFloat(p.assets) || 0, amountRaw: rawOf(p.assets, p.asset.decimals), symbol: p.asset.symbol ?? asset, decimals: p.asset.decimals ?? 18, assetAddress: normAddr(p.asset.address), maturity: ptMaturityOf(p.asset.symbol) })
       continue
     }
     // `Morpho sUSDS-USDT 97`: the positions route names the MARKET where the catalogue names the

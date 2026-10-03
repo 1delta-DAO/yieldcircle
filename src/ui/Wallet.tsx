@@ -12,7 +12,7 @@ import React from 'react'
 import { accountCarry } from '../model/accountCarry'
 import { useMenu, type Menu } from './useMenu'
 import { parseUid, uidOf } from '../model/uid'
-import type { Strategy } from '../model/strategies'
+import { ptMaturityOf, type Strategy } from '../model/strategies'
 import { useAccount } from 'wagmi'
 import { go, marketHref, useApp, walletHref } from '../state/AppState'
 import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
@@ -22,7 +22,7 @@ import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
 import { isEvmChain, normAddr } from '../model/address'
-import { AddrExplorers, CopyButton, Sk, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
+import { AddrExplorers, CopyButton, MaturityNote, Sk, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
 import { chainLabel } from '../sdk/queries'
@@ -394,7 +394,7 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
           const found = g.legs.map((l) => byLeg.get(`${l.marketUid}|${l.side}|${l.posId}`)).filter((r): r is IndexPosition => !!r)
           if (found.length === 0) return null
           const st = copyOf?.(found) ?? null
-          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={st ? <CopyPositionButton st={st} who={who} /> : undefined} />
+          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={st ? <CopyPositionButton st={st} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} />
           const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
           return <React.Fragment key={g.key}>
             <tr className="grp" onClick={() => { location.hash = marketHref(lead.marketUid) }}>
@@ -471,8 +471,9 @@ function NetRate({ g }: { g: PositionGroup }) {
  * and 4.68 % from inside syrupUSDT, and only one of those numbers was ever
  * on this page.
  */
-function LegRow({ r, sub, share = '', copy }: { r: IndexPosition; sub?: boolean; share?: string; copy?: React.ReactNode }) {
+function LegRow({ r, sub, share = '', copy, maturity }: { r: IndexPosition; sub?: boolean; share?: string; copy?: React.ReactNode; maturity?: number }) {
   const rate = r.aprEffective ?? r.aprNow
+  const pt = maturity ?? ptMaturityOf(r.symbol)
   const why = r.intrinsicApr != null
     ? `${pct(r.intrinsicApr)} the token itself${r.intrinsicSource === 'asset' ? ' (from the asset, not this market)' : ''} + ${pct(r.aprNow ?? 0)} the pool`
     : 'the pool’s own rate; nobody publishes a yield for this token'
@@ -484,7 +485,10 @@ function LegRow({ r, sub, share = '', copy }: { r: IndexPosition; sub?: boolean;
           <span>{sub && <span className="t40">└ </span>}<b>{r.marketName ?? r.symbol}</b> <span className="t50">· {r.lenderName ?? r.lenderKey}</span></span>
           {r.side === 'borrow' && <span className="pill k-borrow">debt</span>}
         </div>
-        <small className="hide-m">{indexChainLabel(r.chainId, chainLabel)}{r.accrual?.exact ? ' · accrual exact' : r.accrual ? ' · accrual ≈' : ''}</small>
+        <small className="hide-m">{indexChainLabel(r.chainId, chainLabel)}{pt
+          // a PT's units never grow (its value does, toward par), so the index's accrual reads 0 — the maturity is what to show
+          ? <MaturityNote t={pt} />
+          : r.accrual?.exact ? ' · accrual exact' : r.accrual ? ' · accrual ≈' : ''}</small>
       </td>
       <td className="r">{r.valueStatus === 'impaired' ? <Impaired x={r} /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}<small>{r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}{share}</small></td>
       <td className="r hide-m">{rate != null ? <span className={r.side === 'borrow' ? 'warn' : 'ok'} title={why}>{pct(rate)}</span> : <span className="t40">—</span>}</td>

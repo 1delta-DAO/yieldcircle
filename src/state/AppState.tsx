@@ -25,7 +25,7 @@ import { readFeedLink } from './feedLink'
  * `#/feed` is the home (the feed moved onto it) and `#/explore` is `#/earn`.
  */
 export type Mode = 'add' | 'reduce' | 'close' | 'manage'
-export type View = 'home' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token'
+export type View = 'home' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'landing'
 export interface Route {
   view: View
   group?: string
@@ -70,6 +70,8 @@ export function parseRoute(hash = location.hash): Route {
   }
   const head = seg[0]
   if (head === 'earn' || head === 'explore') return { view: 'earn', ...base }
+  // the pitch deck (docs/solana.md submission) — deep link only, no button leads here
+  if (head === 'landing') return { view: 'landing', ...base }
   if (head === 'board') return { view: 'board', ...base }
   if (head === 'me') return { view: 'me', ...base }
   if (head === 'alerts') return { view: 'alerts', ...base }

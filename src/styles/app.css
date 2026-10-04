@@ -1667,3 +1667,21 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .ps-pend li.bad a{color:var(--error)}
 .ps-pend .x{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:var(--r);background:none;color:var(--tx40);font-size:16px;cursor:pointer}
 .ps-pend .x:hover{color:var(--tx);background:var(--b300)}
+
+/* ---------- #/landing — the two-slide pitch lander (demo video only; src/ui/Landing.tsx) ---------- */
+.land{height:100dvh;overflow-y:auto;scroll-snap-type:y mandatory;background:var(--bg)}
+.land-slide{position:relative;min-height:100dvh;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:48px var(--gutter);text-align:center;overflow:hidden}
+.land-hero h1{font-size:clamp(34px,6vw,64px);line-height:1.06;letter-spacing:-.02em;max-width:14em;margin:0}
+.land-grad{background:linear-gradient(90deg,var(--brand-b),var(--brand-a));-webkit-background-clip:text;background-clip:text;color:transparent}
+.land-sub{font-size:clamp(15px,2vw,19px);line-height:1.5;color:var(--tx70);max-width:34em;margin:0}
+.land-glow{position:absolute;inset:auto;top:-30%;left:50%;transform:translateX(-50%);width:min(900px,120vw);aspect-ratio:2/1;background:radial-gradient(ellipse at center,rgba(47,211,232,.16),transparent 65%);pointer-events:none}
+.land-hint{position:absolute;bottom:28px;color:var(--tx40);animation:land-bob 1.8s ease-in-out infinite}
+@keyframes land-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+.land-cols{display:grid;grid-template-columns:1fr 1fr;gap:40px;max-width:980px;width:100%;text-align:left}
+.land-cols>div{display:flex;flex-direction:column;gap:14px}
+.land-pts{display:flex;flex-direction:column;gap:12px}
+.land-pt{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.land-pt b{font-size:15.5px;letter-spacing:-.01em}
+.land-pt span{font-size:13.5px;line-height:1.5;color:var(--tx70)}
+.land-cta{min-height:48px;padding:0 26px;font-size:15px;border-radius:999px}
+@media (max-width:760px){.land-cols{grid-template-columns:1fr;gap:24px}}

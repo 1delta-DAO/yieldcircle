@@ -9,12 +9,14 @@ import { TokenPage, TokenBook } from './ui/TokenPage'
 import { Board } from './ui/Board'
 import { ProfilePage } from './ui/Profile'
 import { Alerts } from './ui/Alerts'
+import { Landing } from './ui/Landing'
 import { useRoute } from './state/AppState'
 import { GROUPS } from './model/assets'
 
 export default function App() {
   const r = useRoute()
   const group = GROUPS.find((g) => g.id === r.group)
+  if (r.view === 'landing') return <Landing /> // full-bleed, no Shell — a pitch, not a page of the app
   return (
     <Shell>
       {r.view === 'wallet' && r.addr ? <Wallet key={r.addr} addr={r.addr} />

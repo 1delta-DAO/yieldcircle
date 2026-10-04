@@ -80,8 +80,17 @@ export const hasLanded = (t: Trace | undefined) => !!t && ['included', 'final', 
 const FINAL_CONFIRMATIONS: Record<string, number> = { '1': 2, '56': 2, '137': 3, '143': 2 }
 const SLOW_MS = 3 * 60_000
 const DROP_MS = 60 * 60_000
-/** ≈ 60 s of positions re-reads before giving up on seeing the change (the list refreshes on its own later). */
+/** ≈ 60 s of re-reads before giving up on seeing the change (the list refreshes on its own later). */
 const SYNC_WAITS = [0, 2_000, 3_000, 5_000, 8_000, 12_000, 15_000, 15_000]
+/**
+ * The schedule for a NARROW positions re-read (one lender / vault, ~0.6 s against ~7 s for a whole
+ * Solana sweep, measured 2026-10-04). The lag to cover is the API's own indexer: Jupiter Lend
+ * answers the old book for ~15–30 s after a confirmed transaction, and the old schedule's
+ * 12–15 s gaps fell exactly in that window — the change was there at ~20 s and shown at ~33 s.
+ * A cheap read can afford to knock every 2–3 s instead, so the position shows the moment the API
+ * has it; ≈ 90 s in all before giving up.
+ */
+const NARROW_SYNC_WAITS = [0, 2_000, 2_000, 2_000, 3_000, 3_000, 3_000, 3_000, 3_000, 3_000, 4_000, 4_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000]
 const BRIDGE_POLL_MS = 10_000
 const BRIDGE_TERMINAL = new Set(['DONE', 'FAILED', 'TRANSFER_REFUNDED', 'INVALID'])
 const KEEP = 20, KEEP_MS = 24 * 3600_000
@@ -282,7 +291,7 @@ async function sync(id: string) {
   const scope = scopeOf(t.touches ?? [])
   const done = (note?: string) => { if (qc) balancesChanged(qc, t.chainId); patch(id, { phase: 'settled', doneAt: Date.now(), note }) }
   if (!qc || !qc.getQueriesData(bucket(t.account, t.chainId)).length) return done()
-  for (const wait of SYNC_WAITS) {
+  for (const wait of scope ? NARROW_SYNC_WAITS : SYNC_WAITS) {
     await sleep(wait)
     const r = await readScope(t.account, t.chainId, scope)
     if (!r) continue

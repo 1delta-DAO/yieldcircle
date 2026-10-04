@@ -9,6 +9,7 @@ import { normAddr } from '../model/address'
 import { Character, unearned, specFor } from '../identity/character'
 import { AUTO_TITLE, labelFor, shortAddr } from '../identity/name'
 import { useMyFollows, useSocialRefresh } from '../social/queries'
+import { entryKey, useBatchSupported, usePending } from '../social/pending'
 import { useSocialWrite } from '../social/sign'
 import type { Profile } from '../social/types'
 import type { AccountKind, TxBundle, UsdStatus } from '../index/types'
@@ -279,22 +280,30 @@ export function FollowButton({ kind, target, small, label, quiet }: {
 }) {
   const { account, follow } = useSocialWrite()
   const f = useMyFollows(account)
+  const pending = usePending()
+  const batched = useBatchSupported()
   const refresh = useSocialRefresh()
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
   const on = f.isFollowing(kind, target)
+  const queued = f.isPending(kind, target)
   const mine = kind === 'wallet' && account && normAddr(target) === account
   if (mine) return null
   const go = async (e: React.MouseEvent) => {
     e.stopPropagation(); e.preventDefault()
     if (!account) { setErr('connect a wallet to follow'); return }
+    // no wallet prompt: the follow joins the pending queue, signed later with
+    // everything else from the profile sheet (docs/social.md §17)
+    if (batched) { pending.stageFollow(kind, target, !on, f.serverFollowing(kind, target)); return }
     setBusy(true); setErr(null)
     try { await follow(kind, target, !on); refresh.follows(account) }
     catch (x) { setErr((x as Error).message.slice(0, 80)) }
     finally { setBusy(false) }
   }
+  const fault = err ?? pending.queue.errors[entryKey(kind, target)]
   return (
-    <button className={`btn ${small ? 'sm' : ''} ${on || quiet ? '' : 'pri'} follow`} onClick={go} disabled={busy} title={err ?? undefined}>
+    <button className={`btn ${small ? 'sm' : ''} ${on || quiet ? '' : 'pri'} follow${queued ? ' queued' : ''}`} onClick={go} disabled={busy}
+      title={fault ?? (queued ? 'Not signed yet — apply it from your profile, top left' : undefined)}>
       {busy ? '…' : on ? 'Following' : label ?? 'Follow'}
     </button>
   )

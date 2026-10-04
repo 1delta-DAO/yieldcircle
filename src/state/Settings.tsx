@@ -32,6 +32,15 @@ export interface Settings {
   showNegative: boolean
   /** ask the optimizer with the DEBT tag only, so untagged collateral is found too */
   wideNet: boolean
+  /**
+   * The swap slippage a loop's open, leverage step and close are built with, in bp. Not a filter
+   * (it is left out of `widened`): a TRADING preference. Low by default because every loop the menu
+   * builds is a same-denomination carry — an LST against its own coin, a savings dollar against a
+   * dollar — so the pair barely moves between the quote and the block, and on Solana whatever the
+   * swap fills above its guaranteed minimum (≤ this) lands idle in the wallet instead of in the
+   * position (lending-sdks SOLANA_LOOP_DUST.md). The cost of going too low is a revert, never a loss.
+   */
+  loopSlippageBp: number
 }
 
 /** `maxRate` with the cap taken off — a number, so the whole thing still serialises. */
@@ -46,7 +55,13 @@ export const DEFAULTS: Settings = {
   showRateBets: false,
   showNegative: false,
   wideNet: false,
+  loopSlippageBp: 10,
 }
+
+/** The keys that decide what the menu SHOWS — what `widened` / `isCurated` count. */
+export const FILTER_KEYS = (Object.keys({
+  minTvlUsd: 0, minBorrowLiquidityUsd: 0, maxRisk: 0, minRate: 0, maxRate: 0, showRateBets: 0, showNegative: 0, wideNet: 0,
+}) as (keyof Settings)[])
 
 /** Everything the API will serve, with only the structural gates left standing. */
 export const WIDE_OPEN: Settings = {
@@ -58,6 +73,7 @@ export const WIDE_OPEN: Settings = {
   showRateBets: true,
   showNegative: true,
   wideNet: true,
+  loopSlippageBp: DEFAULTS.loopSlippageBp,
 }
 
 const LS = 'yieldcircle.settings'
@@ -77,6 +93,7 @@ function read(): Settings {
       showRateBets: boolOr(p.showRateBets, DEFAULTS.showRateBets),
       showNegative: boolOr(p.showNegative, DEFAULTS.showNegative),
       wideNet: boolOr(p.wideNet, DEFAULTS.wideNet),
+      loopSlippageBp: Math.min(100, Math.max(1, numOr(p.loopSlippageBp, DEFAULTS.loopSlippageBp))),
     }
   } catch { return DEFAULTS }
 }
@@ -101,11 +118,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       return next
     })
   }, [])
+  // Reset puts the FILTERS back; the slippage is a trading preference and survives it
   const reset = React.useCallback(() => {
-    setSt(DEFAULTS)
-    try { localStorage.removeItem(LS) } catch { /* private mode */ }
+    setSt((cur) => {
+      const next = { ...DEFAULTS, loopSlippageBp: cur.loopSlippageBp }
+      try { localStorage.setItem(LS, JSON.stringify(next)) } catch { /* private mode */ }
+      return next
+    })
   }, [])
-  const widened = (Object.keys(DEFAULTS) as (keyof Settings)[]).filter((k) => st[k] !== DEFAULTS[k]).length
+  const widened = FILTER_KEYS.filter((k) => st[k] !== DEFAULTS[k]).length
   return <Ctx.Provider value={{ st, set, reset, isDefault: widened === 0, widened }}>{children}</Ctx.Provider>
 }
 export const useSettings = () => { const c = React.useContext(Ctx); if (!c) throw new Error('SettingsProvider missing'); return c }

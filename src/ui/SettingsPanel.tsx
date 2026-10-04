@@ -11,7 +11,7 @@
  * now, beside the chains: both are settings of the reader, not of a page.
  */
 import React from 'react'
-import { DEFAULTS, NO_CAP, useSettings, type Settings } from '../state/Settings'
+import { DEFAULTS, FILTER_KEYS, NO_CAP, useSettings, type Settings } from '../state/Settings'
 
 const MONEY = (x: number) => (x === 0 ? 'Any' : x >= 1e6 ? `$${x / 1e6}m+` : `$${x / 1e3}k+`)
 
@@ -43,6 +43,12 @@ export function SettingsPanel() {
         label="Extreme rates" sub="under 0.01 % and over 25 % — idle markets and spikes" />
       <Check on={st.wideNet} onChange={(v) => set({ wideNet: v })}
         label="Wider pair search" sub="ask the optimizer without collateral tags — finds untagged collateral (sUSDp, syzUSD), costs a request per chain" />
+
+      <div className="sm-h" style={{ marginTop: 14 }}><b>Trading</b></div>
+      <Row label="Loop slippage" note="open, lever, close">
+        <Seg value={st.loopSlippageBp} onPick={(v) => set({ loopSlippageBp: v })} opts={[5, 10, 30, 50]} fmt={(v) => `${v / 100}%`} />
+      </Row>
+      <p className="sm-p">A loop pairs an asset with its own denomination (an LST with its coin, a savings dollar with a dollar), so the price barely moves between the quote and the block. Tight is cheaper: on Solana what the swap fills above its minimum stays idle in your wallet. Too tight only means a reverted transaction, never a worse fill.</p>
     </div>
   )
 }
@@ -72,4 +78,4 @@ function Check({ on, onChange, label, sub }: { on: boolean; onChange: (v: boolea
 }
 
 /** Whether anything at all has been widened — the word the lists use for their own state. */
-export const isCurated = (st: Settings) => (Object.keys(DEFAULTS) as (keyof Settings)[]).every((k) => st[k] === DEFAULTS[k])
+export const isCurated = (st: Settings) => FILTER_KEYS.every((k) => st[k] === DEFAULTS[k])

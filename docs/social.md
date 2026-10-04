@@ -57,7 +57,8 @@ POST /counts   {subjects:[…]}    up to 1000 subjects in one call → 💬 badg
 GET  /threads?limit=             recent threads anywhere
 GET  /profiles/:account          profile + who they follow
 GET  /follows/:account  /followers/:account
-POST /write                      one endpoint; EIP-712 Message | Profile | Reaction | Follow | Delete
+POST /write                      one endpoint; EIP-712 Message | Profile | Reaction | Follow | Delete | Batch (§17)
+GET  /handle/:h?account=         is the handle free for this wallet (asked while typing)
 GET  /typed-data                 the domain + types, so a client never hardcodes them
 ```
 
@@ -881,3 +882,84 @@ in a curator registry we read"*, and most desks are not — 188 of the 233 the
 index knows are unnamed candidates, including some of the largest vaults in
 the book. The page says that in words. A red shield on most of the universe
 would make a registry we do not run into a gatekeeper.
+
+---
+
+## 17 · Pending changes — one signature for many edits
+
+*Built 2026-10-04.* Following five wallets used to cost five wallet prompts, and
+every profile save one more. Now follows and profile edits wait in a queue and
+are signed together when the user chooses.
+
+**What the user sees.** Follow → the button reads *Following* straight away,
+with a dashed outline and a "not signed yet" tooltip. No prompt. Profile
+editor → **Save** queues the edit; **Save and sign now** signs the whole queue
+at once. Anything queued puts an amber dot on the face, top left: a dot and
+not a count, so it doesn't look like the red alerts badge in the other corner.
+The profile sheet behind the face ends with **Pending changes**. Each entry
+there can be dropped with ×, and one **Sign & apply** button signs them all.
+The Feed's *Following* tab is filtered by the service, so queued follows
+don't show there yet, and the tab says so.
+
+**Why one batch signature and not a session key.** A session key, held by the
+browser and authorised once, would also remove the prompts. It would also
+break the rule this layer is built on: every stored write is signed by its
+author and anyone can check that. And it would leave a signing key in
+`localStorage`, open to any XSS. A batch keeps the rule. The wallet prompt
+still lists every follow and every profile field, and it works unchanged for
+Safes (EIP-1271) and for Solana's canonical-JSON ed25519 signing.
+
+**The type** (additive: the struct hashes of Message, Profile and Follow are
+pinned in `test/typedData.test.ts`):
+
+```
+FollowOp  { targetKind, target, action }
+ProfileOp { handle, displayName, bio, avatarUrl, tags[], visibility }
+Batch     { author, follows: FollowOp[], profile: ProfileOp[] /* 0 or 1 */, nonce, signedAt }
+```
+
+**Service** (`packages/social`: `ops.ts`, `db.applyBatch`, migration `0054`)
+- Single writes and batches share one rule set: `checkFollow` and
+  `checkProfile` in `ops.ts`.
+- **All or nothing.** The service checks every op first. A refusal is
+  `400`/`409 { error: 'batch rejected', errors: [{ at: 'follows[3]' | 'profile[0].handle', error }] }`
+  and nothing is written. A good batch is applied in one transaction.
+- Limits: at most 50 follows and one profile per batch, no target twice. A
+  batch counts as one write against the rate limit.
+- `social.batches` stores the envelope once, with `(author, nonce)` unique, so
+  the same batch posted twice is applied once and answers `duplicate: true`.
+  Each follow row it creates keeps the batch's signature and a `batch_id`. The
+  profile row's `typed_data` is the batch envelope. Every row stays
+  re-verifiable.
+- `GET /handle/:h?account=` lets the editor say "handle taken" while the user
+  types, instead of after they have signed.
+
+**App** (`src/social/pending.ts`)
+- **What the queue holds.** Intents, not signatures. Nothing is signed until
+  apply, so the service's 10-minute `signedAt` window never applies to a queue
+  that is days old. Each entry is the state the user wants (`follow` /
+  `unfollow`), not a toggle, so applying it twice, or after a stale read, is
+  harmless. Asking for what the service already has removes the entry: follow
+  then unfollow nets to nothing.
+- **Where it lives.** `localStorage`, under `yc.pending.v1.<signer>`. It
+  survives a reload and a wallet switch, and tabs share it. In view-as mode
+  there is no queue.
+- **On refusal.** The queue is kept whole and each failing entry shows the
+  service's reason. A rejected signature leaves the queue as it was. Entries
+  staged while the wallet was open were not in what was signed, so they stay
+  queued.
+- **Rollout in either order.** The app reads `/typed-data`. If the service has
+  no `Batch` yet, Follow and Save sign immediately, as before.
+- **Still signed immediately:** comments, deletes, reactions, ratings, X link
+  and wallet links. Comments and ratings are public statements and should land
+  at once. Reactions could join a later version as `reactions: ReactionOp[]`,
+  which is also an additive change.
+
+**Tests.** `packages/social`: `test/ops.test.ts`, the `Batch` cases in
+`envelope.test.ts`, the pinned digests in `typedData.test.ts`, and
+`scripts/e2e-batch.mjs` against a local stack. That script covers apply,
+replay, all-or-nothing, handle taken, `/handle`, and unfollow inside a batch.
+
+**Still to check by hand:** how MetaMask, Rabby, Coinbase Wallet and Ledger
+display nested struct arrays. Ledger may fall back to blind-signing a hash.
+Also check a Safe signing a `Batch` through the 1271 path.

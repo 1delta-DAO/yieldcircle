@@ -8,10 +8,17 @@ import { SOCIAL_BASE_URL } from '../config/backend'
 import { normAddr } from '../model/address'
 import type { Follow, Follower, Profile, ProfileResponse, SubjectKind, Thread, ThreadSummary, TypedData } from './types'
 
+/** Where in a `Batch` an op failed, in the message's own words: `follows[3]`, `profile[0].handle`. */
+export interface OpError { at: string; error: string }
+/** A refused request. A rejected batch says which ops, so the queue can mark them. */
+export class SocialError extends Error {
+  constructor(message: string, readonly status: number, readonly errors?: OpError[]) { super(message) }
+}
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(SOCIAL_BASE_URL + path, init)
-  const j = (await r.json().catch(() => ({}))) as T & { error?: string }
-  if (!r.ok) throw new Error(j.error || `${path} → ${r.status}`)
+  const j = (await r.json().catch(() => ({}))) as T & { error?: string; errors?: OpError[] }
+  if (!r.ok) throw new SocialError(j.error || `${path} → ${r.status}`, r.status, j.errors)
   return j
 }
 const post = (path: string, body: unknown) =>
@@ -189,6 +196,15 @@ export const ratingsBy = (account: string, limit = 50) =>
   )
 
 export interface WriteResult { ok?: boolean; id?: number | null; duplicate?: boolean; authorStake?: number | null; profile?: Profile | null; follows?: Follow[] }
+/**
+ * Can `account` take this handle — another wallet's profile or ENS name may
+ * hold it. Asked while the user types: a profile edit waits in the pending
+ * queue, so a refusal found only at signing time would cost a signature.
+ */
+export const handleCheck = (handle: string, account?: string) =>
+  call<{ handle: string; available: boolean; reason?: string }>(
+    `/handle/${encodeURIComponent(handle)}${account ? `?account=${account}` : ''}`,
+  )
 export const write = (primaryType: string, message: Record<string, unknown>, signature: string) =>
   call<WriteResult>('/write', post('/write', { primaryType, message, signature }))
 

@@ -28,6 +28,7 @@ sdk/api.ts                 one function per 1delta endpoint; wire names translat
 index/api.ts               one function per index endpoint (own tiny `get`, no envelope)
 sdk/queries.ts             React Query hooks for the 1delta API (+ the index balance POST)
 index/queries.ts           React Query hooks for the index
+social/sign.ts             every signed social write; social/pending.ts queues follows + profile edits for ONE Batch signature
 model/*.ts                 pure functions turning responses into Strategy / Holding / uid
 ui/*                       components; call hooks, not fetch
 ```
@@ -40,6 +41,11 @@ Rules:
   functions directly inside their own `useQuery`; `GetAsset` and `Ticket` call
   `sdk/api` action builders imperatively. Follow that only for the same kind
   of one-off.)
+- **Follows and profile edits are queued, not signed on the spot**
+  (`social/pending.ts`, [`social.md`](social.md) §17). Read follow state
+  through `useMyFollows`, which lays the queue over the service's answer;
+  stage with `usePending()`. Comments, reactions, ratings, deletes and links
+  still sign immediately.
 - **Every 1delta request goes through `vendor/allocator/http.ts`.** It owns the
   envelope, `ApiError`, and the shared rate-limit gate (one 429 pauses *all*
   requests until `retryAfter`). Never add a key there or in `apiHeaders()` —

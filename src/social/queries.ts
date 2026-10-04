@@ -1,7 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import React from 'react'
 import { isEvmAddr, normAddr } from '../model/address'
 import * as api from './api'
-import type { Profile, SubjectKind } from './types'
+import { entryKey, useQueue, type TargetKind } from './pending'
+import type { Follow, Profile, SubjectKind } from './types'
 
 const MIN = 60_000
 
@@ -53,6 +55,19 @@ export function useProfiles(accounts: string[]) {
   return { profile: (a: string): Profile | null => map[normAddr(a)] ?? null, isLoading: q.isLoading }
 }
 
+/** Is the handle free for this wallet — asked a moment after typing stops, never for the one already held. */
+export function useHandleCheck(handle: string, account: string | undefined, current: string | null) {
+  const [h, setH] = React.useState(handle)
+  React.useEffect(() => { const t = setTimeout(() => setH(handle), 400); return () => clearTimeout(t) }, [handle])
+  return useQuery({
+    enabled: !!account && /^[a-z0-9_]{3,20}$/.test(h) && h !== current,
+    queryKey: ['handle', h, account],
+    queryFn: () => api.handleCheck(h, account),
+    staleTime: 30_000,
+    retry: false,
+  })
+}
+
 export function useFollowers(account: string | undefined) {
   return useQuery({ enabled: !!account && isEvmAddr(normAddr(account)), queryKey: ['followers', normAddr(account)], queryFn: () => api.followers(account!), staleTime: MIN })
 }
@@ -72,7 +87,12 @@ export function useWalletLinks(account: string | undefined) {
   })
 }
 
-/** Who the connected wallet follows — the feed's scope and every Follow button's state. */
+/**
+ * Who the connected wallet follows — the feed's scope and every Follow
+ * button's state. The pending queue (`pending.ts`) is laid over the service's
+ * answer, so a follow shows at once everywhere, before it is signed;
+ * `isPending` tells the two apart and `serverFollowing` is the signed truth.
+ */
 export function useMyFollows(account: string | undefined) {
   const q = useQuery({
     enabled: !!account,
@@ -80,7 +100,17 @@ export function useMyFollows(account: string | undefined) {
     queryFn: () => api.follows(account!),
     staleTime: 30_000,
   })
-  const follows = q.data?.follows ?? []
+  const queue = useQueue(account)
+  const signed = q.data?.follows ?? []
+  const pend = new Map(queue.follows.map((f) => [entryKey(f.targetKind, f.target), f]))
+  const follows: (Follow & { pending?: boolean })[] = [
+    ...signed.filter((f) => pend.get(entryKey(f.targetKind, f.target))?.action !== 'unfollow'),
+    ...queue.follows
+      .filter((p) => p.action === 'follow' && !signed.some((f) => entryKey(f.targetKind, f.target) === entryKey(p.targetKind, p.target)))
+      .map((p) => ({ targetKind: p.targetKind, target: p.target, pending: true })),
+  ]
+  const serverFollowing = (kind: TargetKind, target: string) =>
+    signed.some((f) => entryKey(f.targetKind, f.target) === entryKey(kind, target))
   return {
     follows,
     wallets: follows.filter((f) => f.targetKind === 'wallet').map((f) => normAddr(f.target)),
@@ -88,8 +118,14 @@ export function useMyFollows(account: string | undefined) {
     markets: follows.filter((f) => f.targetKind === 'market').map((f) => f.target),
     /** a desk the feed expands to its vault addresses (pos-indexer tickets/0013 §8.4) */
     curators: follows.filter((f) => f.targetKind === 'curator').map((f) => f.target),
-    isFollowing: (kind: 'wallet' | 'market' | 'curator', target: string) =>
-      follows.some((f) => f.targetKind === kind && (kind === 'wallet' ? normAddr(f.target) === normAddr(target) : f.target === target)),
+    isFollowing: (kind: TargetKind, target: string) => {
+      const p = pend.get(entryKey(kind, target))
+      return p ? p.action === 'follow' : serverFollowing(kind, target)
+    },
+    serverFollowing,
+    isPending: (kind: TargetKind, target: string) => pend.has(entryKey(kind, target)),
+    /** follows queued but not signed — the feed's Following tab cannot show them yet */
+    pendingCount: queue.follows.length,
     isLoading: q.isLoading,
   }
 }

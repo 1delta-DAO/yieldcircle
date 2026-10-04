@@ -8,8 +8,10 @@
  * go; they are about you, so they live together, one tap from anywhere.
  */
 import React from 'react'
-import { useApp, walletHref } from '../state/AppState'
-import { useProfile } from '../social/queries'
+import { marketHref, useApp, walletHref } from '../state/AppState'
+import { useProfile, useProfiles } from '../social/queries'
+import { entryKey, usePending } from '../social/pending'
+import { labelFor } from '../identity/name'
 import { ConnectButton } from '../wallet/ConnectButton'
 import { Who } from './social-bits'
 import { ChainList } from './ChainPicker'
@@ -46,6 +48,7 @@ export function ProfileSheet() {
 
       <Fold label="Chains" state={allChains ? 'All chains' : chainLabelFor()} on={!allChains}><ChainList /></Fold>
       <Fold label="Filters" state={widened ? `${widened} widened` : 'Curated'} on={widened > 0}><SettingsPanel /></Fold>
+      {signer && <PendingChanges />}
     </div>
   )
 }
@@ -69,4 +72,56 @@ function Fold({ label, state, on, children }: { label: string; state: string; on
 function AlertsLink() {
   const n = useUnseen()
   return <a href="#/alerts">Alerts{n > 0 && <i className="ndot inline">{n > 9 ? '9+' : n}</i>}<span className="sp" />›</a>
+}
+
+/**
+ * What is waiting for a signature (docs/social.md §17): follows and a profile
+ * edit made without a wallet prompt. One button signs them all as one batch;
+ * the service applies all of it or none, and marks what it refused.
+ */
+function PendingChanges() {
+  const pending = usePending()
+  const { queue: q, count } = pending
+  const names = useProfiles(q.follows.filter((f) => f.targetKind === 'wallet').map((f) => f.target))
+  if (!count) return null
+  const what = [
+    q.follows.length && `${q.follows.length} follow${q.follows.length === 1 ? '' : 's'}`,
+    q.profile && 'profile',
+  ].filter(Boolean).join(' · ')
+  return (
+    <section className="ps-pend" aria-label="Pending changes">
+      <div className="ps-pend-h"><b>Pending changes</b><span className="sp" /><span className="t50">{what}</span></div>
+      <ul>
+        {q.profile && (
+          <li className={q.errors.profile ? 'bad' : undefined}>
+            <a href="#/me">Profile edit</a>
+            {q.errors.profile && <small>{q.errors.profile}</small>}
+            <span className="sp" />
+            <button className="x" onClick={pending.dropProfile} aria-label="Discard the profile edit">×</button>
+          </li>
+        )}
+        {q.follows.map((f) => {
+          const k = entryKey(f.targetKind, f.target)
+          const label = f.targetKind === 'wallet' ? labelFor(f.target, names.profile(f.target)).label
+            : f.targetKind === 'market' ? f.target.split(':')[0]
+            : f.target
+          const href = f.targetKind === 'wallet' ? walletHref(f.target) : f.targetKind === 'market' ? marketHref(f.target) : `#/c/${encodeURIComponent(f.target)}`
+          return (
+            <li key={k} className={q.errors[k] ? 'bad' : undefined}>
+              <span className={f.action === 'follow' ? 'ok' : 'warn'}>{f.action === 'follow' ? 'Follow' : 'Unfollow'}</span>
+              <a href={href}>{label}</a>
+              {q.errors[k] && <small>{q.errors[k]}</small>}
+              <span className="sp" />
+              <button className="x" onClick={() => pending.dropFollow(f.targetKind, f.target)} aria-label={`Drop ${f.action} ${label}`}>×</button>
+            </li>
+          )
+        })}
+      </ul>
+      {q.errors.batch && <div className="err">{q.errors.batch}</div>}
+      <button className="btn pri wide" disabled={pending.applying} onClick={() => void pending.apply()}>
+        {pending.applying ? 'Signing…' : `Sign & apply ${count === 1 ? 'it' : `all ${count}`}`}
+      </button>
+      <p className="foot">One signature for all of it. Until then, only you see these.</p>
+    </section>
+  )
 }

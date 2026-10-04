@@ -16,12 +16,20 @@ import { useAccount } from 'wagmi'
 import { ACCESSORIES, BACKDROPS, CREATURES, Character, EYES, GATED, LAYERS, MOUTHS, PALETTES, MAX_PICTURE_URL, formatSpec, parseSpec, pictureUrl, specOf, unearned, type Spec } from '../identity/character'
 import { autoName, shortAddr } from '../identity/name'
 import { SOCIAL_LINKS_READY } from '../social/api'
-import { useProfile, useSocialRefresh, useWalletLinks } from '../social/queries'
-import { useSocialWrite } from '../social/sign'
+import { useBatchSupported, usePending } from '../social/pending'
+import { useHandleCheck, useProfile, useSocialRefresh, useWalletLinks } from '../social/queries'
+import { useSocialWrite, type ProfileOp } from '../social/sign'
+import type { Profile } from '../social/types'
 import { useApp } from '../state/AppState'
 import { ChainMark } from './ChainMark'
 import { XLink } from './XLink'
 import { Badges } from './social-bits'
+
+/** A signed profile in the shape it is signed in, so a draft can be compared with it. */
+const opOf = (p: Profile | null): ProfileOp | null => p && {
+  handle: p.handle ?? '', displayName: p.displayName ?? '', bio: p.bio ?? '', avatarUrl: p.avatarUrl ?? '',
+  tags: p.tags ?? [], visibility: p.visibility === 'unlisted' ? 'unlisted' : 'public',
+}
 
 const COUNTS: Record<keyof Spec, number> = { b: BACKDROPS.length, c: CREATURES.length, e: EYES.length, m: MOUTHS.length, a: ACCESSORIES.length, p: PALETTES.length }
 
@@ -32,6 +40,9 @@ export function ProfilePage() {
   const saved = p.data?.profile ?? null
   const { profile: write } = useSocialWrite()
   const refresh = useSocialRefresh()
+  const pending = usePending()
+  const batched = useBatchSupported()
+  const draft = pending.queue.profile
 
   const [spec, setSpec] = React.useState<Spec | null>(null)
   const [mode, setMode] = React.useState<'character' | 'picture'>('character')
@@ -43,21 +54,29 @@ export function ProfilePage() {
   const [unlisted, setUnlisted] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
-  const [ok, setOk] = React.useState(false)
+  const [ok, setOk] = React.useState<string | null>(null)
 
+  /** Put a profile into the fields: the pending draft when there is one, else what is signed. */
+  const fill = React.useCallback((src: ProfileOp | null) => {
+    if (!addr) return
+    setSpec(parseSpec(src?.avatarUrl) ?? specOf(addr))
+    const isPic = !!pictureUrl(src?.avatarUrl)
+    setMode(isPic ? 'picture' : 'character'); setPic(isPic ? src!.avatarUrl : '')
+    setHandle(src?.handle ?? '')
+    setDisplayName(src?.displayName ?? '')
+    setBio(src?.bio ?? '')
+    setTags((src?.tags ?? []).join(', '))
+    setUnlisted(src?.visibility === 'unlisted')
+  }, [addr])
+  const savedOp = React.useMemo(() => opOf(saved), [saved])
   // load once the server has answered; a field the user has touched is never overwritten
   const loaded = React.useRef(false)
   React.useEffect(() => {
     if (loaded.current || !p.data || !addr) return
     loaded.current = true
-    setSpec(parseSpec(saved?.avatarUrl) ?? specOf(addr))
-    if (pictureUrl(saved?.avatarUrl)) { setMode('picture'); setPic(saved!.avatarUrl!) }
-    setHandle(saved?.handle ?? '')
-    setDisplayName(saved?.displayName ?? '')
-    setBio(saved?.bio ?? '')
-    setTags((saved?.tags ?? []).join(', '))
-    setUnlisted(saved?.visibility === 'unlisted')
-  }, [p.data, addr, saved])
+    fill(draft ?? savedOp)
+  }, [p.data, addr, draft, savedOp, fill])
+  const handleQ = useHandleCheck(handle, addr, saved?.handle ?? null)
 
   if (!addr) return <div className="note">Connect a wallet to make a profile. The wallet <b>is</b> the account — there is nothing else to sign up for.</div>
   const s = spec ?? specOf(addr)
@@ -65,24 +84,46 @@ export function ProfilePage() {
   const claims = unearned(s, earned)
   const picOk = pictureUrl(pic) != null
 
+  const op = (): ProfileOp => ({
+    handle: handle.trim().toLowerCase(),
+    displayName: displayName.trim(),
+    bio: bio.trim(),
+    avatarUrl: mode === 'picture' ? pic.trim() : formatSpec(s),
+    tags: tags.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 5),
+    visibility: unlisted ? 'unlisted' : 'public',
+  })
+  const check = () => {
+    if (mode === 'picture' && !picOk) { setErr('the picture needs an https:// or ipfs:// link'); return false }
+    if (handleQ.data && !handleQ.data.available) { setErr(handleQ.data.reason ?? 'that handle is not available'); return false }
+    setErr(null); setOk(null)
+    return true
+  }
+  /** Into the pending queue — no wallet prompt (docs/social.md §17). */
+  const stage = () => {
+    if (!check()) return
+    pending.stageProfile(op(), savedOp)
+    setOk('Nothing changed from what is signed.')
+  }
+  /** The queue, this edit included, in one signature now. */
+  const signNow = async () => {
+    if (!check()) return
+    pending.stageProfile(op(), savedOp)
+    if (await pending.apply()) setOk('Signed and stored — re-checkable by anyone.')
+  }
+  /** The service predates `Batch`: sign this edit on its own, as before. */
   const save = async () => {
-    if (mode === 'picture' && !picOk) { setErr('the picture needs an https:// or ipfs:// link'); return }
-    setBusy(true); setErr(null); setOk(false)
+    if (!check()) return
+    setBusy(true)
     try {
-      await write({
-        handle: handle.trim().toLowerCase(),
-        displayName: displayName.trim(),
-        bio: bio.trim(),
-        avatarUrl: mode === 'picture' ? pic.trim() : formatSpec(s),
-        tags: tags.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 5),
-        visibility: unlisted ? 'unlisted' : 'public',
-      })
-      refresh.profile(addr); setOk(true)
+      await write(op())
+      refresh.profile(addr); setOk('Saved. One signature, stored with it, re-checkable by anyone.')
     } catch (e) {
       const msg = (e as Error).message
       setErr(/rejected|denied/i.test(msg) ? 'signature rejected' : msg)
     } finally { setBusy(false) }
   }
+  const queueErr = pending.queue.errors.profile ?? pending.queue.errors.batch
+  const others = pending.count - (draft ? 1 : 0)
 
   return (
     <>
@@ -135,7 +176,9 @@ export function ProfilePage() {
           <div className="sec-h"><h2>Name</h2><span className="sub">without one you are “{autoName(addr)}”</span></div>
           <label className="field"><span className="lbl">Handle</span>
             <div className="amt sm"><span className="u">@</span><input value={handle} onChange={(e) => setHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase())} placeholder="3–20 chars, a–z 0–9 _" maxLength={20} /></div>
-            <span className="foot">Taken handles and other wallets’ ENS names are refused by the server.</span>
+            <span className={`foot${handleQ.data && !handleQ.data.available ? ' warn' : ''}`}>
+              {handleQ.data && !handleQ.data.available ? handleQ.data.reason : handleQ.data?.available ? 'Available.' : 'Taken handles and other wallets’ ENS names are refused.'}
+            </span>
           </label>
           <label className="field"><span className="lbl">Display name</span>
             <div className="amt sm"><input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={40} placeholder={autoName(addr)} /></div>
@@ -148,12 +191,34 @@ export function ProfilePage() {
             <span className="foot">Up to five, self-declared — they are shown apart from the earned ones.</span>
           </label>
           <label className="check"><input type="checkbox" checked={unlisted} onChange={(e) => setUnlisted(e.target.checked)} /> <span>Unlisted — keep me off the board and out of discovery. <span className="t40">The chain stays public either way; this is about appearing as a person.</span></span></label>
-          <div className="actions">
-            <button className="btn pri wide" disabled={busy} onClick={() => void save()}>{busy ? 'Signing…' : 'Sign and save'}</button>
-          </div>
-          {err && <div className="err">{err}</div>}
-          {ok && <p className="foot ok">Saved. One signature, stored with it, re-checkable by anyone.</p>}
-          <p className="foot">{shortAddr(addr)} signs this. There is no password and no session to lose.</p>
+          {batched ? (
+            <>
+              <div className="actions">
+                <button className="btn pri wide" disabled={pending.applying} onClick={stage}>Save</button>
+                <button className="btn wide" disabled={pending.applying} onClick={() => void signNow()}>
+                  {pending.applying ? 'Signing…' : others > 0 ? `Save and sign all ${others + 1} now` : 'Save and sign now'}
+                </button>
+              </div>
+              {err && <div className="err">{err}</div>}
+              {!err && queueErr && <div className="err">{queueErr}</div>}
+              {draft ? (
+                <p className="foot pend">
+                  Saved, not signed yet — nobody else sees it until you sign. Your face, top left, has a dot until then.{' '}
+                  <button className="linkish" onClick={() => { pending.dropProfile(); fill(savedOp); setOk(null) }}>Discard</button>
+                </p>
+              ) : ok && <p className="foot ok">{ok}</p>}
+              <p className="foot">{shortAddr(addr)} signs your changes together, in one signature, whenever you choose. There is no password and no session to lose.</p>
+            </>
+          ) : (
+            <>
+              <div className="actions">
+                <button className="btn pri wide" disabled={busy} onClick={() => void save()}>{busy ? 'Signing…' : 'Sign and save'}</button>
+              </div>
+              {err && <div className="err">{err}</div>}
+              {ok && <p className="foot ok">{ok}</p>}
+              <p className="foot">{shortAddr(addr)} signs this. There is no password and no session to lose.</p>
+            </>
+          )}
         </section>
 
         <section className="card pad">

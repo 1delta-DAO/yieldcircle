@@ -376,6 +376,14 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
             .
           </div>
         )}
+      {tab === "following" && account && follows.pendingCount > 0 && (
+        <div className="note sm">
+          {follows.pendingCount} follow change{follows.pendingCount === 1 ? " is" : "s are"}{" "}
+          not signed yet, so this feed does not reflect{" "}
+          {follows.pendingCount === 1 ? "it" : "them"} — sign from your face,
+          top left.
+        </div>
+      )}
       {feed.error && (
         <div className="err">
           The index could not be read: {(feed.error as Error).message}

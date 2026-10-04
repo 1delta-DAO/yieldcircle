@@ -97,8 +97,36 @@ export const TYPES = {
     { name: 'nonce', type: 'string' },
     { name: 'signedAt', type: 'uint256' },
   ],
+  /**
+   * The pending queue, signed once (docs/social.md §17): follows and at most
+   * one profile edit. The ops are `Follow` / `Profile` minus the envelope
+   * fields, which the batch carries once; the service applies all or none.
+   */
+  FollowOp: [
+    { name: 'targetKind', type: 'string' },
+    { name: 'target', type: 'string' },
+    { name: 'action', type: 'string' },
+  ],
+  ProfileOp: [
+    { name: 'handle', type: 'string' },
+    { name: 'displayName', type: 'string' },
+    { name: 'bio', type: 'string' },
+    { name: 'avatarUrl', type: 'string' },
+    { name: 'tags', type: 'string[]' },
+    { name: 'visibility', type: 'string' },
+  ],
+  Batch: [
+    { name: 'author', type: 'address' },
+    { name: 'follows', type: 'FollowOp[]' },
+    { name: 'profile', type: 'ProfileOp[]' },
+    { name: 'nonce', type: 'string' },
+    { name: 'signedAt', type: 'uint256' },
+  ],
 } as const
-export type PrimaryType = keyof typeof TYPES
+/** The op structs are only ever nested inside a `Batch`, never signed alone. */
+export type PrimaryType = Exclude<keyof typeof TYPES, 'FollowOp' | 'ProfileOp'>
+export type FollowOp = { targetKind: 'wallet' | 'market' | 'curator'; target: string; action: 'follow' | 'unfollow' }
+export type ProfileOp = { handle: string; displayName: string; bio: string; avatarUrl: string; tags: string[]; visibility: 'public' | 'unlisted' }
 
 const nonce = () => {
   const b = new Uint8Array(12)
@@ -191,8 +219,10 @@ export function useSocialWrite() {
         note: o.note ?? '',
       }),
     remove: (messageId: number) => send('Delete', { messageId }),
-    profile: (p: { handle: string; displayName: string; bio: string; avatarUrl: string; tags: string[]; visibility: 'public' | 'unlisted' }) =>
-      send('Profile', p),
+    profile: (p: ProfileOp) => send('Profile', p),
+    /** The pending queue in one signature (`social/pending.ts` builds it). */
+    batch: (follows: FollowOp[], profile: ProfileOp | null) =>
+      send('Batch', { follows, profile: profile ? [profile] : [] }),
     /**
      * The wallet half of linking an X account. It is NOT posted to `/write`:
      * the social service only stores the link once it also has the X identity,

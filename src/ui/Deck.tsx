@@ -196,7 +196,7 @@ export function Deck() {
         <div className="deck-ask">
           <div className="deck-ask-num">
             <i>Raising</i>
-            <b>$500k</b>
+            <b>$250-500k</b>
           </div>
           <div className="deck-ask-uses">
             <i>Use of funds</i>
@@ -206,6 +206,7 @@ export function Deck() {
               <span>Chain &amp; protocol expansion</span>
               <span>Mobile app</span>
             </div>
+            <p>Plus a token sale via MetaDAO to fund user and KOL incentives.</p>
           </div>
         </div>
         <a className="btn pri land-cta" href="#/">

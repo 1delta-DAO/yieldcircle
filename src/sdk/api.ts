@@ -113,7 +113,7 @@ export function fetchOptimizerPairs(q: OptimizerQuery): Promise<OptimizerRespons
 // a transaction (or a bridge landing) would otherwise be handed the balance from before it.
 export async function fetchTokenBalances(account: string, chainId: string, assets: string[], fresh = false) {
   const r = await apiFetch<{ items: TokenBalance[]; native?: TokenBalance }>('/v1/data/token/balances', { params: { chainId, account, assets: assets.length ? assets.join(',') : undefined }, ...(fresh ? { cache: 'no-store' as const } : {}) })
-  // Solana answers the gas coin as its own `native` row (`address: 'native'`, 9 decimals) beside
+  // Solana answers the gas coin as its own `native` row (the System Program id `1111…1111`, 9 decimals) beside
   // `items`; EVM carries it inside `items` at the zero address. One shape for every caller.
   const items = r.native && !r.items.some((b) => isNativeAddress(b.address)) ? [...r.items, r.native] : r.items
   return { ...r, items }

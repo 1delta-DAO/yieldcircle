@@ -1015,6 +1015,11 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .ps-head .who .wn b{font-size:16px}
 .ps-p{margin:0;font-size:13px;line-height:1.5;color:var(--tx70)}
 .ps-wallet .btn{width:100%;min-height:44px}
+.ps-wallet .btn:has(.wl){padding:10px 14px;height:auto}
+.wl{display:flex;flex-direction:column;gap:6px;width:100%}
+.wl-row{display:flex;align-items:center;gap:10px}
+.wl-row .lbl{min-width:52px;text-align:left}
+.dot.off{background:none;box-shadow:none;border:1px solid var(--tx50)}
 .ps-links{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .ps-links a{display:flex;align-items:center;min-height:48px;padding:0 14px;font-size:14px;color:var(--tx70);border-top:1px solid var(--line)}
 .ps-links a:first-child{border-top:0}

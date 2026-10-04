@@ -306,11 +306,22 @@ function split<T extends Strategy>(rows: T[], st: Settings): { show: T[]; hide: 
  * the Solana route answers the native row unasked), then the catalogue's,
  * sorted so the key is stable. Base58 keeps its case.
  */
-const balanceAssets = (addresses: string[], chainId?: string) =>
-  [...new Set([...(isSvmChain(chainId) ? [] : ['0x0000000000000000000000000000000000000000']), ...addresses.filter(Boolean).map((a) => normAddr(a))])].sort().slice(0, 60)
+const balanceAssets = (addresses: string[], chainId?: string) => {
+  const all = [...new Set([...(isSvmChain(chainId) ? [] : ['0x0000000000000000000000000000000000000000']), ...addresses.filter(Boolean).map((a) => normAddr(a))])].sort()
+  // the 60 cap is an EVM bound (`eth_call` cannot enumerate; the route caps `assets`). On Solana the
+  // list is only a FILTER over the owner's own token accounts, and a sorted base58 cut dropped every
+  // mint past the 60th — wSOL and every lower-case mint (mSOL, …) on a 94-mint catalogue.
+  return isSvmChain(chainId) ? all : all.slice(0, 60)
+}
 /** Can this account sign / hold on this chain? One account per VM (docs/solana.md §5). */
 const accountFits = (account: string | undefined, chainId: string) =>
   !!account && (isSvmChain(chainId) ? isSolAddr(account) : isEvmAddr(account))
+/**
+ * The account per VM. `useApp().account` is ONE address — the EVM wallet when both are connected —
+ * so passing it alone read nothing on Solana for a user holding both wallets.
+ */
+export interface VmAccounts { evm?: string; sol?: string }
+export const accountOn = (a: VmAccounts, chainId: string): string | undefined => (isSvmChain(chainId) ? a.sol : a.evm)
 /** Idle balances: one request per chain for the addresses the catalogue knows (native always at the zero address). */
 export function useBalances(account: string | undefined, chainId: string, addresses: string[]) {
   const assets = balanceAssets(addresses, chainId)
@@ -343,11 +354,12 @@ function fromIndex(i: IndexBalanceItem): TokenBalance | null {
  * Still one live read per chain, sent once that chain's catalogue has SETTLED (its list is final);
  * `placeholderData` keeps the last answer on screen while a key changes.
  */
-export function useBalancesPerChain(account: string | undefined, chains: { chainId: string; addresses: string[]; ready: boolean }[]) {
+export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: string; addresses: string[]; ready: boolean }[]) {
   const live = useLiveChains()
+  const account = accounts.evm
   // a chain whose VM the account cannot hold on reads nothing: an EVM wallet
   // has no Solana balances and the routes reject the address shape
-  const settled = chains.filter((c) => c.ready && accountFits(account, c.chainId))
+  const settled = chains.filter((c) => c.ready && accountFits(accountOn(accounts, c.chainId), c.chainId))
   // the index's balance POST is the EVM index's; Solana reads live only
   const asked = Object.fromEntries(settled.filter((c) => isEvmChain(c.chainId)).map((c) => [c.chainId, balanceAssets(c.addresses, c.chainId)]))
   const idx = useQuery({
@@ -360,7 +372,8 @@ export function useBalancesPerChain(account: string | undefined, chains: { chain
     placeholderData: keepPreviousData,
   })
   const plans = chains.map(({ chainId, addresses, ready }) => {
-    const fits = accountFits(account, chainId)
+    const acct = accountOn(accounts, chainId)
+    const fits = accountFits(acct, chainId)
     const all = fits ? balanceAssets(addresses, chainId) : []
     const c = idx.data?.chains.find((x) => x.chainId === chainId)
     const fromIdx = !!c && c.state === 'complete' && !live.has(chainId) && !idx.isError
@@ -370,15 +383,15 @@ export function useBalancesPerChain(account: string | undefined, chains: { chain
     // wait for the index's answer before reading live (one request instead of fifteen); while a
     // new key is in flight, the previous answer decides for the chains it already carries.
     // Solana is never in the POST, so it never waits on it.
-    const decided = ready && (!account || !fits || isSvmChain(chainId) || idx.isError || (!!idx.data && (!idx.isPlaceholderData || !!c)))
-    return { chainId, ready, fromIdx, indexItems, liveAssets: [...liveAssets].sort(), decided }
+    const decided = ready && (!acct || !fits || isSvmChain(chainId) || idx.isError || (!!idx.data && (!idx.isPlaceholderData || !!c)))
+    return { chainId, acct, ready, fromIdx, indexItems, liveAssets: [...liveAssets].sort(), decided }
   })
   const liveQs = useQueries({
     queries: plans.map((p) => ({
-      enabled: !!account && p.decided && p.liveAssets.length > 0,
-      queryKey: ['balances', account, p.chainId, p.liveAssets.join(',')],
+      enabled: !!p.acct && p.decided && p.liveAssets.length > 0,
+      queryKey: ['balances', p.acct, p.chainId, p.liveAssets.join(',')],
       // a chain read live is read for the chain's truth: never the browser's 15 s copy
-      queryFn: () => fetchTokenBalances(account!, p.chainId, p.liveAssets, live.has(p.chainId)),
+      queryFn: () => fetchTokenBalances(p.acct!, p.chainId, p.liveAssets, live.has(p.chainId)),
       staleTime: 30_000,
       placeholderData: keepPreviousData,
     })),
@@ -393,7 +406,7 @@ export function useBalancesPerChain(account: string | undefined, chains: { chain
     const done = p.decided && (!needLive || !!q.data || q.isError)
     return {
       data: done || p.indexItems.length ? { items } : undefined,
-      isLoading: !!account && p.ready && !done,
+      isLoading: !!p.acct && p.ready && !done,
       isFetched: done,
       fetchStatus: (idx.fetchStatus === 'fetching' || q.fetchStatus === 'fetching' ? 'fetching' : 'idle') as 'fetching' | 'idle',
       source: p.fromIdx ? (needLive ? 'index+live' : 'index') : 'live',
@@ -415,15 +428,18 @@ export const SOL_POSITIONS_READY = true
  * the page (a single slow chain held up all of them); fifteen would spend the
  * rate limit. Buckets land as they come, so the big chains show first.
  */
-export function useEarnPositions(account: string | undefined, chainIds: string[]) {
-  // one account per VM: an EVM account is asked about the EVM chains only, a
-  // Solana one about `solana` only — the route rejects the other shape.
-  const fit = chainIds.filter((id) => accountFits(account, id) && (isEvmChain(id) || SOL_POSITIONS_READY))
+export function useEarnPositions(accounts: VmAccounts, chainIds: string[]) {
+  // one account per VM: the EVM account is asked about the EVM chains, the
+  // Solana one about `solana` — the route rejects the other shape. Separate
+  // buckets per VM, since one request carries one account.
+  const evm = chainIds.filter((id) => isEvmChain(id) && accountFits(accounts.evm, id))
+  const sol = SOL_POSITIONS_READY ? chainIds.filter((id) => isSvmChain(id) && accountFits(accounts.sol, id)) : []
+  const reqs = [...chainBuckets(evm).map((ids) => ({ account: accounts.evm!, ids })), ...(sol.length ? [{ account: accounts.sol!, ids: sol }] : [])]
   const qs = useQueries({
-    queries: chainBuckets(fit).map((ids) => ({
+    queries: reqs.map(({ account, ids }) => ({
       enabled: !!account && ids.length > 0,
       queryKey: ['earn-positions', account, ids.join(',')],
-      queryFn: () => fetchEarnPositions(account!, ids),
+      queryFn: () => fetchEarnPositions(account, ids),
       staleTime: 60_000,
     })),
   })

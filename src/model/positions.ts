@@ -136,8 +136,8 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
 
 /** One idle balance: one TOKEN on one chain (native ETH and WETH are two entries with the same base `asset`). */
 export interface Idle { asset: string; symbol: string; amount: number; usd: number; address: string; decimals: number; price: number; chainId: string }
-/** Solana's balances route spells the native row's address `native` (there is no zero address on SVM). */
-export const isNativeAddress = (a: string) => /^0x0{40}$/i.test(a) || /^0xe{40}$/i.test(a) || a === 'native'
+/** Solana's balances route spells the native row's address as the System Program id since 2026-10 (`native` before; both accepted). */
+export const isNativeAddress = (a: string) => /^0x0{40}$/i.test(a) || /^0xe{40}$/i.test(a) || a === 'native' || a === '11111111111111111111111111111111'
 /**
  * What the native coin of a chain IS. It used to be "BNB on 56, ETH
  * everywhere else", which was true until Avalanche was offered and then said

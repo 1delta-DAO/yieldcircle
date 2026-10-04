@@ -228,12 +228,14 @@ async function solStep(id: string) {
   if (t.phase === 'pending') {
     const slow = setTimeout(() => { if (get(id)?.phase === 'pending') patch(id, { note: 'Taking longer than usual. Solana transactions expire after ~90 seconds; if this one does, start the action again.' }) }, Math.max(0, SLOW_MS - (Date.now() - t.at)))
     try {
-      for (;;) {
-        const st = await getSignatureStatus(t.hash).catch(() => null)
+      for (let fails = 0; ;) {
+        // a failed read is not "not seen yet": say so, rather than count the seconds up in silence
+        const st = await getSignatureStatus(t.hash).then((v) => { fails = 0; return v }, () => { fails++; return null })
+        if (fails === 5 && get(id)!.phase === 'pending') patch(id, { note: 'Cannot reach a Solana node to check it. Your wallet shows whether it landed; this keeps trying.' })
         if (st) {
           if (st.err) { patch(id, { phase: 'reverted', block: st.slot, doneAt: Date.now(), err: 'The transaction failed on chain; only the fee was spent.' }); return }
           if (st.confirmationStatus === 'confirmed' || st.confirmationStatus === 'finalized') { patch(id, { phase: 'final', block: st.slot, conf: 1, note: undefined }); break }
-          if (get(id)!.phase === 'pending') patch(id, { phase: 'included', block: st.slot, conf: 1 })
+          if (get(id)!.phase === 'pending') patch(id, { phase: 'included', block: st.slot, conf: 1, note: undefined })
         } else if (t.lastValidHeight) {
           const h = await getBlockHeight().catch(() => null)
           if (h != null && h > t.lastValidHeight) { patch(id, { phase: 'dropped', doneAt: Date.now(), err: 'It expired before it landed (a Solana transaction lives ~90 seconds). Start the action again for a fresh one.' }); return }

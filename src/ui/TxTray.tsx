@@ -20,7 +20,7 @@ import { TxLink } from './bits'
 const LINGER_MS = 8_000
 
 /** A second hand while something is moving: the "sent 14 s ago" counts up. */
-function useNow(on: boolean) {
+export function useNow(on: boolean) {
   const [now, setNow] = React.useState(Date.now)
   React.useEffect(() => { if (!on) return; setNow(Date.now()); const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t) }, [on])
   return now

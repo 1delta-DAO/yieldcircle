@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchTokenBalances, spotSwapQuote, xchainSwapQuote, ZERO, type SwapQuoteActions, type SwapQuoteData } from '../sdk/api'
 import { CHAINS, chainLabel } from '../sdk/queries'
 import { hasLanded, isDone, isOk, traceTx, useTrace } from '../sdk/txTrace'
-import { Spin, TxTrack, phaseWords } from './TxTray'
+import { Spin, TxTrack, phaseWords, useNow } from './TxTray'
 import type { ApiEnvelope } from '../vendor/allocator/http'
 import { useApp } from '../state/AppState'
 import { isRemote, openWallet } from '../wallet/deeplink'
@@ -103,6 +103,8 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   // settled = final on the source chain (and, across chains, the bridge says DONE); the tracer has
   // already re-read both chains' balances by then
   const sentTr = useTrace(sent?.hash)
+  // the status line's "sent 14s ago" counts up while it is in flight
+  const now = useNow(!!sentTr && !isDone(sentTr))
   const arrived = sentTr?.phase === 'settled'
   const lost = !!sentTr && isDone(sentTr) && !isOk(sentTr)
   React.useEffect(() => { if (approveTr && isDone(approveTr) && !isOk(approveTr)) { setErr(approveTr.err ?? 'The approval did not go through.'); setPendingApprove(undefined) } }, [approveTr?.phase])
@@ -193,7 +195,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
                 <div className="qline">
                   {arrived ? (sentTr!.note ? <span className="warn">{sentTr!.note}</span> : <span className="ok">Received. Your {target.symbol} balance is refreshed; go ahead with the strategy.</span>)
                     : lost ? <span className="bad">{phaseWords(sentTr!).head}: {sentTr!.err ?? 'it did not go through'}</span>
-                    : <span className="t70">{sentTr ? <><Spin sm /> {phaseWords(sentTr).head}{phaseWords(sentTr).detail ? <span className="t50"> · {phaseWords(sentTr).detail}</span> : null}</> : cross ? 'Bridging…' : 'Swapping…'}</span>}
+                    : <span className="t70">{sentTr ? <><Spin sm /> {phaseWords(sentTr, now).head}{phaseWords(sentTr, now).detail ? <span className="t50"> · {phaseWords(sentTr, now).detail}</span> : null}</> : cross ? 'Bridging…' : 'Swapping…'}</span>}
                   {sentTr && !lost && <TxTrack t={sentTr} />}
                 </div>
               ) : (

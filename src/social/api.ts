@@ -211,12 +211,12 @@ export const walletKey = (a: string) => normAddr(a)
 
 // ---------------------------------------------------------------- wallet links (docs/wallet-links.md)
 /**
- * Flip when the deployed social service knows `/wallet-link` (pos-indexer
- * `packages/social`, landed there 2026-10-02 — this waits on its DEPLOY).
- * Gates the Profile section, the cluster-aware `isMe`, and base58 accounts
- * in the profile batch; off, the service would 400/404 each of them.
+ * On since 2026-10-04: the deployed social service answers `/wallet-link`,
+ * `/wallet-links/:a`, `WalletLink` in `/typed-data` and base58 accounts in
+ * the profile batch. Gates the Profile section, the cluster-aware `isMe`,
+ * and base58 accounts in the profile batch — flip back off if it regresses.
  */
-export const SOCIAL_LINKS_READY = false
+export const SOCIAL_LINKS_READY = true
 
 export interface WalletLinks {
   primary: string

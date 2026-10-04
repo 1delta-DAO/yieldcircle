@@ -5,8 +5,9 @@
  */
 import { apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } from '../vendor/allocator/http'
 import { isNativeAddress } from '../model/positions'
+import { isSvmChain } from '../model/address'
 import type { RateHistoryResponse } from '../model/rateHistory'
-import type { ApiTx, EarnPositionsResponse, EarnResponse, IrmResponse, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
+import type { ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmResponse, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
 
 // ---------------------------------------------------------------- deposits (supply side)
 // `terms: 'digest'` — NOT 'none'. The digest is where the row's own prose lives:
@@ -125,11 +126,26 @@ export async function fetchTokenBalances(account: string, chainId: string, asset
  * ~3.7 s for the whole chain. `fresh` bypasses the browser's copy of the `max-age=15` answer.
  */
 export interface PositionsScope { venueKind?: 'lending' | 'vault'; lenders?: string[]; vaults?: string[] }
-export function fetchEarnPositions(account: string, chainIds: string[], only: PositionsScope = {}, fresh = false) {
-  return apiFetchLoose<EarnPositionsResponse>('/v1/data/earn/positions', {
+export async function fetchEarnPositions(account: string, chainIds: string[], only: PositionsScope = {}, fresh = false) {
+  const r = await apiFetchLoose<EarnPositionsResponse>('/v1/data/earn/positions', {
     params: { chainIds: chainIds.join(','), account, venueKind: only.venueKind, lenders: only.lenders?.join(','), vaults: only.vaults?.join(',') },
     ...(fresh ? { cache: 'no-store' as const } : {}),
   })
+  return { ...r, items: r.items.map(restoreSolCase) }
+}
+/**
+ * The route lower-cases every asset address, base58 included (seen 2026-10-04: `asset.address:
+ * "susdai6y3gxys…"` beside the uid's `sUSDai6Y3Gxys…`). On Solana case IS the address, so the
+ * token misses everything keyed by it — a sUSDai loop filed under MORE instead of the USDai desk,
+ * absent from its asset page. Until the route keeps case, each address is put back from the uid it
+ * came with (`<venue>:solana:<ref>`), when that ref is the same string apart from case.
+ */
+function restoreSolCase<P extends EarnPositionsResponse['items'][number]>(p: P): P {
+  if (!isSvmChain(p.chainId)) return p
+  const fix = (a: string | undefined, uid: string | undefined) => { const ref = uid?.split(':')[2]; return a && ref && a !== ref && a.toLowerCase() === ref.toLowerCase() ? ref : a }
+  const leg = (l: EarnPositionLeg) => ({ ...l, asset: { ...l.asset, address: fix(l.asset.address, l.marketUid) ?? l.asset.address } })
+  if (p.venueKind === 'vault') return { ...p, vault: fix(p.vault, p.earnUid) ?? p.vault }
+  return { ...p, legs: p.legs.map(leg), subAccounts: p.subAccounts.map((a) => ({ ...a, legs: a.legs.map(leg) })) }
 }
 
 // ---------------------------------------------------------------- actions

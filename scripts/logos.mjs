@@ -103,22 +103,44 @@ const natives = [...literalBody(positions, 'const NATIVE:').matchAll(/(?:'([^']+
   .map((m) => [m[1] ?? m[2], m[3].toUpperCase()])
 let byGroup = {}
 try { byGroup = JSON.parse(readFileSync(join(root, 'logos.json'), 'utf8')) } catch { /* group index optional */ }
+// where each chain keeps its gas row: the zero address on EVM, `111…1` on Solana
+let nativeCurrencies = {}
+try { nativeCurrencies = JSON.parse(readFileSync(join(root, 'native-currencies.json'), 'utf8')) } catch { /* zero address only */ }
 const nativeIcon = {}
+/**
+ * A gas coin's wrappers and staking tokens (WRAPPER values naming it) live on its chain, so that
+ * chain's list is asked first: the ticker index answered JupSOL, bSOL, dfdvSOL and raSOL with
+ * the Wormhole-bridged SOL mark, the same picture as SOL itself. Only for a chain whose gas row
+ * is not at the zero address (Solana): the ticker index is built from the EVM lists and already
+ * agrees with them there, so WHYPE or WMON are left to it.
+ */
+const homeIcon = {}
 for (const [chainId, sym] of natives) {
   let list
   try { list = JSON.parse(readFileSync(join(root, `${chainId}.json`), 'utf8')).list } catch { continue }
-  const row = Object.entries(list).find(([a]) => /^0x0+$/i.test(a))?.[1]
-  const uri = row?.assetGroup ? byGroup[row.assetGroup] : undefined
-  if (uri && index[sym] && uri !== index[sym]) nativeIcon[sym] = uri
+  const nc = nativeCurrencies[chainId]
+  const at = (addr) => Object.entries(list).find(([a]) => a.toLowerCase() === addr.toLowerCase())?.[1]
+  const row = nc?.address ? at(nc.address) : Object.entries(list).find(([a]) => /^0x0+$/i.test(a))?.[1]
+  // Solana's group (`Wrapped SOL::SOL::solana`) has no entry in the group index: the row's own icon is the coin's
+  const uri = (row?.assetGroup ? byGroup[row.assetGroup] : undefined) ?? row?.logoURI
+  if (uri && uri !== index[sym]) nativeIcon[sym] = uri
+  const wrappedRow = nc?.wrapped ? at(nc.wrapped) : undefined
+  for (const [w, base] of Object.entries(wrapped)) {
+    if (base !== sym || !nc?.address) continue
+    // the wrapped gas coin draws as the coin, as WETH does as ETH
+    if (wrappedRow?.symbol?.toUpperCase() === w && uri) { homeIcon[w] = uri; continue }
+    const t = Object.values(list).find((x) => x.symbol?.toUpperCase() === w && x.logoURI)
+    if (t) homeIcon[w] = t.logoURI
+  }
 }
-if (Object.keys(nativeIcon).length) console.log(`gas coin icon taken from its asset group: ${Object.keys(nativeIcon).join(', ')}`)
+if (Object.keys(nativeIcon).length) console.log(`gas coin icon taken from its own chain: ${Object.keys(nativeIcon).join(', ')}`)
 
 const out = {}
 const missing = []
 for (const sym of [...new Set([...bases, ...deskSyms, ...Object.keys(wrapped)])]) {
   // A bridged or renamed wrapper (USDC.e, DAI.e) is folded into its base's asset group upstream,
   // so it has no ticker of its own — it draws as what it is, the base asset.
-  const uri = nativeIcon[sym] ?? deskIcon[sym] ?? index[sym] ?? index[wrapped[sym]]
+  const uri = nativeIcon[sym] ?? deskIcon[sym] ?? homeIcon[sym] ?? index[sym] ?? index[wrapped[sym]]
   if (uri) out[sym] = uri
   else missing.push(sym)
 }

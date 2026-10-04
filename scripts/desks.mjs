@@ -24,7 +24,10 @@ const root = process.argv[2] ?? process.env.TOKEN_LISTS_DIR ?? '/home/axtar/toke
 const queriesSrc = readFileSync(new URL('../src/sdk/queries.ts', import.meta.url), 'utf8')
 // the chains the app offers: `CHAINS` in src/sdk/queries.ts, read from there rather than repeated
 const chainsSrc = queriesSrc.slice(queriesSrc.indexOf('export const CHAINS'), queriesSrc.indexOf('\n]', queriesSrc.indexOf('export const CHAINS')))
-const offered = [...chainsSrc.matchAll(/id:\s*'(\d+)'/g)].map((m) => m[1])
+// every chain, `solana` included: positions and balances there are resolved through this table too
+const offered = [...chainsSrc.matchAll(/id:\s*'([^']+)'/g)].map((m) => m[1])
+/** model/address.ts `normAddr`: hex is lower-cased, base58 kept — on Solana case IS the address */
+const norm = (a) => (/^0x[0-9a-fA-F]*$/.test(a) ? a.toLowerCase() : a)
 const deskNames = {}
 const deskTokens = {}
 const ethTokens = {}
@@ -45,10 +48,10 @@ const trusted = (t, chain) => !guarded || !!t.props?.issuer || !!t.props?.issuer
 for (const chain of offered) {
   let list
   try { list = JSON.parse(readFileSync(join(root, `${chain}.json`), 'utf8')).list } catch { continue }
-  const byAddr = new Map(Object.entries(list).map(([a, t]) => [a.toLowerCase(), t]))
+  const byAddr = new Map(Object.entries(list).map(([a, t]) => [norm(a), t]))
   const underOf = (p) => {
     const u = p.pendle?.underlyingAsset ?? p.spectra?.underlyingAsset ?? p.exponent?.underlyingAsset ?? p.receipt?.underlying
-    return typeof u === 'string' ? byAddr.get(u.toLowerCase()) : undefined
+    return typeof u === 'string' ? byAddr.get(norm(u)) : undefined
   }
   // A wrapper's own `issuer` is its INSTRUMENT (Pendle on a PT), not whose credit it holds: with
   // no exposure named, the walk goes on to the underlying, and ends unattributed rather than

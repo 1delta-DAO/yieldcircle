@@ -163,13 +163,15 @@ export interface LoopOpenParams {
   payAmountRaw?: string
   /** the fixed term to borrow for — required on a Lista broker debt (`LoopStrategy.terms`), ignored elsewhere */
   termId?: string
+  /** the position a leverage step adds to (Solana: with no `payAmount` the API adjusts THIS position to `leverage`) */
+  accountId?: string
 }
 export function loopOpen(p: LoopOpenParams) {
   return apiFetchEnvelope<LoopQuoteData, LoopActions>('/v1/actions/loop/leverage', {
     params: {
       marketUidIn: p.debtMarketUid,      // API: in = debt on OPEN
       marketUidOut: p.collateralMarketUid,
-      debtAmount: p.debtAmountRaw, slippage: p.slippageBp, leverage: p.leverage, account: p.account, payAsset: p.payAsset, payAmount: p.payAmountRaw, termId: p.termId,
+      debtAmount: p.debtAmountRaw, slippage: p.slippageBp, leverage: p.leverage, account: p.account, payAsset: p.payAsset, payAmount: p.payAmountRaw, termId: p.termId, accountId: p.accountId,
     },
   })
 }
@@ -190,9 +192,10 @@ export function spotSwapQuote(p: { chainId: string; tokenIn: string; tokenOut: s
   })
 }
 /** Cross-chain swap via bridge aggregation; falls back to spot when from == to. Approvals are per bridge (`permissions[].spender`). */
-export function xchainSwapQuote(p: { fromChainId: string; toChainId: string; tokenIn: string; tokenOut: string; amountRaw: string; slippageBp: number; account?: string; order?: 'CHEAPEST' | 'FASTEST' }) {
+/** `receiver` is required whenever the two chains are different VMs (a Solana destination for an EVM sender): without it the API answers no route. */
+export function xchainSwapQuote(p: { fromChainId: string; toChainId: string; tokenIn: string; tokenOut: string; amountRaw: string; slippageBp: number; account?: string; receiver?: string; order?: 'CHEAPEST' | 'FASTEST' }) {
   return apiFetchEnvelope<SwapQuoteData, SwapQuoteActions>('/v1/actions/swap/x-chain', {
-    params: { fromChainId: p.fromChainId, toChainId: p.toChainId, tokenIn: p.tokenIn, tokenOut: p.tokenOut, amount: p.amountRaw, slippage: p.slippageBp, account: p.account, order: p.order ?? 'CHEAPEST' },
+    params: { fromChainId: p.fromChainId, toChainId: p.toChainId, tokenIn: p.tokenIn, tokenOut: p.tokenOut, amount: p.amountRaw, slippage: p.slippageBp, account: p.account, receiver: p.receiver, order: p.order ?? 'CHEAPEST' },
   })
 }
 export interface BridgeStatus { bridge: string; status: 'PENDING' | 'DONE' | 'FAILED' | 'TRANSFER_REFUNDED' | 'INVALID' | 'NOT_FOUND' | 'PARTIAL_SUCCESS'; message?: string; toHash?: string }

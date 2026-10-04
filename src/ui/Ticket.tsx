@@ -557,7 +557,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
       return stepsFrom(env.actions, closing ? `Close the loop · receive ${keep ? holds : debt}` : `Deleverage to ${num(L, 2)}×`, h.chainId)
     }
     // a pure leverage step: borrow more against what is there, no new margin
-    const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: 50, leverage: L, account: actor! })
+    const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: 50, leverage: L, account: actor!, accountId: h.accountId })
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     return stepsFrom(env.actions, `Increase to ${num(L, 2)}×`, h.chainId)
   }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid])

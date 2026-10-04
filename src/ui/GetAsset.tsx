@@ -11,7 +11,9 @@ import type { ApiEnvelope } from '../vendor/allocator/http'
 import { useApp } from '../state/AppState'
 import { isRemote, openWallet } from '../wallet/deeplink'
 import { useSwitchTo } from '../wallet/useSwitchTo'
-import { isSolAddr, normAddr } from '../model/address'
+import { base58Encode, isSolAddr, isSvmChain, normAddr } from '../model/address'
+import { isSvmTx, type AnyTx } from '../sdk/types'
+import { solSignAndSend } from '../wallet/solana'
 import { DecimalInput, Info, Popover, Tok, num, usd } from './bits'
 
 export interface Target { chainId: string; address: string; symbol: string; decimals: number; price: number; logo?: string }
@@ -31,7 +33,9 @@ export type GetTarget = Target & { have: number }
  * form was bought, so it pays with that one.
  */
 export function GetAsset({ targets, want, sources, onTarget, onClose }: { targets: GetTarget[]; want: number; sources: Idle[]; onTarget?: (t: Target) => void; onClose: () => void }) {
-  const { account } = useApp()
+  const { account, solSigner } = useApp()
+  // each side is signed / received by its own VM's wallet: a Solana leg is the Solana account, never the EVM one
+  const walletOn = (chainId: string | undefined) => (isSvmChain(chainId) ? solSigner : account)
   const [ti, setTi] = React.useState(0)
   const target = targets[Math.min(ti, targets.length - 1)]
   const need = Math.max(0, want - target.have)
@@ -53,26 +57,29 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   const [quote, setQuote] = React.useState<ApiEnvelope<SwapQuoteData, SwapQuoteActions> | null>(null)
   const [quoting, setQuoting] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
-  const [sent, setSent] = React.useState<{ hash: `0x${string}`; bridge?: string } | null>(null)
+  const [sent, setSent] = React.useState<{ hash: string; bridge?: string } | null>(null)
   const [pendingApprove, setPendingApprove] = React.useState<`0x${string}` | undefined>()
   const reqId = React.useRef(0)
   const cross = !!src && src.chainId !== target.chainId
   React.useEffect(() => {
     if (!src || !(amount > 0) || sent) { setQuote(null); return }
+    const from = walletOn(src.chainId), to = walletOn(target.chainId)
+    // a Solana leg with no Solana wallet: there is no one to send from, or to deliver to
+    if (!from || !to) { setQuote(null); setErr(`Connect a ${!from ? (isSvmChain(src.chainId) ? 'Solana' : 'EVM') : isSvmChain(target.chainId) ? 'Solana' : 'EVM'} wallet to ${!from ? 'pay from' : 'receive on'} ${chainLabel(!from ? src.chainId : target.chainId)}.`); return }
     const id = ++reqId.current
     const t = setTimeout(async () => {
       setQuoting(true); setErr(null)
       try {
         const raw = toRaw(amount, src.decimals)
         const env = cross
-          ? await xchainSwapQuote({ fromChainId: src.chainId, toChainId: target.chainId, tokenIn: src.address, tokenOut: target.address, amountRaw: raw, slippageBp: 50, account })
-          : await spotSwapQuote({ chainId: src.chainId, tokenIn: src.address, tokenOut: target.address, amountRaw: raw, slippageBp: 50, account })
+          ? await xchainSwapQuote({ fromChainId: src.chainId, toChainId: target.chainId, tokenIn: src.address, tokenOut: target.address, amountRaw: raw, slippageBp: 50, account: from, receiver: to })
+          : await spotSwapQuote({ chainId: src.chainId, tokenIn: src.address, tokenOut: target.address, amountRaw: raw, slippageBp: 50, account: from })
         if (id !== reqId.current) return
         setQuote(env); if (!env.data?.quotes?.length) setErr('No route found for this pair. Try another asset to pay with.')
       } catch (e) { if (id === reqId.current) { setQuote(null); setErr(shortErr((e as Error).message)) } } finally { if (id === reqId.current) setQuoting(false) }
     }, 600)
     return () => clearTimeout(t)
-  }, [src?.address, src?.chainId, amount, target.address, target.chainId, account, sent])
+  }, [src?.address, src?.chainId, amount, target.address, target.chainId, account, solSigner, sent])
   // the route: the API's best by default; the quote line is a button that unfolds the others, subtly
   const [sel, setSel] = React.useState(0)
   const [routesOpen, setRoutesOpen] = React.useState(false)
@@ -81,17 +88,18 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   React.useEffect(() => { setSel(0); setRoutesOpen(false) }, [quote])
   const quotes = quote?.data?.quotes ?? []
   const best = quotes[sel]
-  const tx = quote?.actions?.alternatives?.[sel]
+  const tx = quote?.actions?.alternatives?.[sel] as AnyTx | undefined
+  const srcSvm = isSvmChain(src?.chainId)
   const perms = (quote?.actions?.permissions ?? []).filter((p) => !best?.approvalTarget || !p.spender || normAddr(p.spender) === normAddr(best.approvalTarget))
   // the approval and the swap/bridge are followed by `txTrace.ts`, like every ladder step: the tray shows them too
   const approveTr = useTrace(pendingApprove)
   const approved = hasLanded(approveTr)
   // a spot quote lists the approval without flagging `approvalRequired`; trust the permission the API returned (never for native)
-  const needsApprove = perms.length > 0 && src?.address !== ZERO && !approved
+  const needsApprove = !srcSvm && perms.length > 0 && src?.address !== ZERO && !approved
   const { chainId: walletChain, address, connector } = useAccount(); const { switchTo, switching } = useSwitchTo()
   const send = useSendTransaction()
-  const wrongChain = !!src && walletChain !== Number(src.chainId)
-  const sendTx = async (t: { to: string; data: string; value: string }) => send.sendTransactionAsync({ to: t.to as `0x${string}`, data: t.data as `0x${string}`, value: BigInt(t.value || '0') })
+  const wrongChain = !!src && !srcSvm && walletChain !== Number(src.chainId)
+  const sendTx = async (t: { to: string; data: string; value?: string }) => send.sendTransactionAsync({ to: t.to as `0x${string}`, data: t.data as `0x${string}`, value: BigInt(t.value || '0') })
   // settled = final on the source chain (and, across chains, the bridge says DONE); the tracer has
   // already re-read both chains' balances by then
   const sentTr = useTrace(sent?.hash)
@@ -99,7 +107,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   const lost = !!sentTr && isDone(sentTr) && !isOk(sentTr)
   React.useEffect(() => { if (approveTr && isDone(approveTr) && !isOk(approveTr)) { setErr(approveTr.err ?? 'The approval did not go through.'); setPendingApprove(undefined) } }, [approveTr?.phase])
   const [busy, setBusy] = React.useState(false)
-  const remote = isRemote(connector?.id)
+  const remote = !srcSvm && isRemote(connector?.id)
   const go = async () => {
     if (!src || !tx) return
     setErr(null)
@@ -109,15 +117,22 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
     setBusy(true)
     try {
       if (needsApprove) {
-        const h = await sendTx(perms[0])
+        const h = await sendTx(perms[0] as { to: string; data: string; value: string })
         if (address) traceTx({ hash: h, chainId: src.chainId, account: address, title: `Approve ${src.symbol}`, moves: 'none' })
         setPendingApprove(h); return
       }
-      const h = await sendTx(tx)
+      // a Solana source signs a base64 message in the Solana wallet; anything else is {to, data, value} through wagmi
+      let h: string, lastValidHeight: number | undefined
+      if (isSvmTx(tx)) {
+        if (tx.expiresAt && Date.parse(tx.expiresAt) <= Date.now()) { setQuote(null); setErr('The quote expired before it was signed. It is being refreshed.'); return }
+        h = base58Encode(await solSignAndSend(Uint8Array.from(atob(tx.transaction), (c) => c.charCodeAt(0))))
+        lastValidHeight = tx.lastValidBlockHeight
+      } else h = await sendTx(tx)
       onTarget?.(target)
       const what = `${num(amount, 4)} ${src.symbol} → ${target.symbol}`
-      if (address) traceTx({
-        hash: h, chainId: src.chainId, account: address, moves: 'balances',
+      const signer = srcSvm ? solSigner : address
+      if (signer) traceTx({
+        hash: h, chainId: src.chainId, account: signer, moves: 'balances', lastValidHeight,
         title: cross ? `Bridge ${what}` : `Swap ${what}`, label: cross ? `${chainLabel(src.chainId)} → ${chainLabel(target.chainId)}` : `on ${chainLabel(src.chainId)}`,
         bridge: cross && best?.bridge ? { name: best.bridge, toChainId: target.chainId, tokenIn: src.address, tokenOut: target.address } : undefined,
         // "Received" means the target balance MOVED, not that the bridge said DONE
@@ -145,7 +160,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
             {[...(custom ? [custom] : []), ...opts.slice(0, 8)].map((o) => <button key={o.chainId + o.address} role="radio" aria-checked={src === o} className="src" onClick={() => choose(o)}><Tok sym={o.symbol} size={18} /><span className="s">{o.symbol}<small>{chainLabel(o.chainId)}</small></span><span className="b">{o.price > 0 ? usd(o.usd) : num(o.amount, 4)}</span></button>)}
             {!otherOpen && <button className="src other" onClick={() => setOtherOpen(true)}><span className="s">Other token<small>paste an address</small></span><span className="b">+</span></button>}
           </div>
-          {otherOpen && account && <CustomToken account={account} chainId0={src?.chainId ?? target.chainId}
+          {otherOpen && (account || solSigner) && <CustomToken walletOn={walletOn} chainId0={src?.chainId ?? target.chainId}
             onUse={(i) => { setCustom(i); choose(i) }}
             onCancel={() => { setOtherOpen(false); if (custom && src === custom) choose(null); setCustom(null) }} />}
           {src && (
@@ -204,13 +219,14 @@ const shortErr = (m: string) => (m.length > 140 ? m.slice(0, 140) + '…' : m)
  * decimals, the wallet's balance, and a price when the API has one — then offered as a source like
  * any listed balance. An address the route knows no symbol for is not a token on that chain.
  */
-function CustomToken({ account, chainId0, onUse, onCancel }: { account: string; chainId0: string; onUse: (i: Idle) => void; onCancel: () => void }) {
+function CustomToken({ walletOn, chainId0, onUse, onCancel }: { walletOn: (chainId: string) => string | undefined; chainId0: string; onUse: (i: Idle) => void; onCancel: () => void }) {
   const [chainId, setChainId] = React.useState(chainId0)
+  const account = walletOn(chainId) ?? ''
   const [raw, setRaw] = React.useState('')
   const addr = normAddr(raw.trim())
   const valid = /^0x[0-9a-f]{40}$/.test(addr) || isSolAddr(addr)
   const q = useQuery({
-    enabled: valid,
+    enabled: valid && !!account,
     queryKey: ['custom-token', chainId, addr, account],
     queryFn: () => fetchTokenBalances(account, chainId, [addr], true),
     staleTime: 30_000, retry: false,

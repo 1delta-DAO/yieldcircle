@@ -112,8 +112,8 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
     if (!src || !tx) return
     setErr(null)
     if (wrongChain) { try { await switchTo(Number(src.chainId)) } catch (e) { setErr(shortErr((e as Error).message)) } return }
-    // before the first await: iOS only follows the hand-off while the tap is live (wallet/deeplink.ts)
-    openWallet(connector?.id)
+    // before the first await: iOS only follows the hand-off while the tap is live (wallet/deeplink.ts); a Solana source signs in the Solana wallet, not the EVM one
+    if (!srcSvm) openWallet(connector?.id)
     setBusy(true)
     try {
       if (needsApprove) {

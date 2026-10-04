@@ -379,10 +379,55 @@ const earnersParams = (by: 'wallet' | undefined, p: EarnersQuery): Params => ({
   chainIds: p.chainIds,
   limit: p.limit,
 })
+/**
+ * The board over BOTH indexes (pos-indexer tickets/0036 + the Solana twin in
+ * `apps/sol-indexer/src/api/earners.ts`, the same shape): each answers its
+ * own top `limit` for the scope `splitScope` plans, and the two ranked lists
+ * merge by the key the servers sort on — $/day by `annualUsd`, APR by the 24 h
+ * figure — so the merged top `limit` is exact. `hidden` adds up. The EVM half
+ * keeps its URL byte for byte (the index pre-warms the default one); a
+ * Solana half that fails or predates `/earners` reads as no rows, never as an
+ * error over the EVM board.
+ */
+async function bothBoards<R extends { annualUsd: number | null; apr24hPct: number | null }>(
+  by: 'wallet' | undefined,
+  p: EarnersQuery,
+): Promise<EarnersEnvelope & { rows: R[] }> {
+  const { evm, sol } = splitScope(p.chainIds)
+  type Resp = EarnersEnvelope & { rows: R[] }
+  const [a, b] = await Promise.all([
+    evm !== null ? get<Resp>('/earners', earnersParams(by, { ...p, chainIds: evm })) : Promise.resolve(null),
+    sol
+      ? get<Resp>('/earners', earnersParams(by, { ...p, chainIds: undefined }), undefined, SOL_INDEX_BASE_URL).catch(() => null)
+      : Promise.resolve(null),
+  ])
+  const halves = [a, b].filter((x): x is Resp => !!x && Array.isArray(x.rows))
+  // only the Solana index in scope and it has no board yet: say so, as the EVM one would
+  if (!halves.length) throw new Error('no earners board for this chain selection yet')
+  if (halves.length === 1) return halves[0]
+  const key = (r: R) => (p.sort === 'apr' ? r.apr24hPct : r.annualUsd)
+  const rows = [...a!.rows, ...b!.rows]
+    .sort((x, y) => {
+      const kx = key(x), ky = key(y)
+      if (kx === null) return ky === null ? 0 : 1
+      if (ky === null) return -1
+      return ky - kx
+    })
+    .slice(0, p.limit ?? 50)
+  const hidden: Record<string, number> = { ...a!.hidden }
+  for (const [k, n] of Object.entries(b!.hidden)) hidden[k] = (hidden[k] ?? 0) + n
+  return {
+    ...a!,
+    rows,
+    hidden,
+    // the older of the two: the merged board is no fresher than its stalest half
+    computedAt: [a!.computedAt, b!.computedAt].filter((x): x is string => !!x).sort()[0] ?? null,
+  }
+}
 export const earners = (p: EarnersQuery = {}) =>
-  get<EarnersResponse>('/earners', earnersParams(undefined, p))
+  bothBoards<EarnerRow>(undefined, p).then((r) => ({ ...r, by: 'position' as const }))
 export const walletEarners = (p: EarnersQuery = {}) =>
-  get<WalletEarnersResponse>('/earners', earnersParams('wallet', p))
+  bothBoards<WalletEarnerRow>('wallet', p).then((r) => ({ ...r, by: 'wallet' as const }))
 
 /**
  * What is HOT: the markets people are acting in, ranked on frequency AND size

@@ -216,7 +216,7 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
         {q.isError && <div className="empty">This deploy of the index has no earners board yet — it appears the moment the position-carry job runs.</div>}
         {!q.isLoading && !q.isError && !accounts.length && (
           <div className="empty">{!allChains && chainIds.every((id) => isSvmChain(id))
-            ? 'The earners board is not on Solana yet — it ranks what the EVM index can prove.'
+            ? 'Nothing on Solana to rank with these filters.'
             : 'Nothing to rank with these filters.'}</div>
         )}
         <div className="list">

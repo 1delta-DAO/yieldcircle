@@ -1702,6 +1702,7 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .land-pt-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none;margin-top:1px}
 .land-pt-ic.prob{background:var(--b300);border:1px solid var(--line2);color:var(--tx50)}
 .land-pt-ic.sol{background:rgba(47,211,232,.1);border:1px solid rgba(47,211,232,.35);color:var(--primary)}
+.land-tag{font-style:normal;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--primary);border:1px solid var(--primary);border-radius:999px;padding:1px 7px;margin-left:8px;vertical-align:2px}
 /* the solution cards carry the brand: a gradient border and a faint inner glow */
 .land-pt.sol{border:1px solid transparent;background:
   linear-gradient(rgba(11,16,17,.92),rgba(11,16,17,.92)) padding-box,

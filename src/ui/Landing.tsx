@@ -114,6 +114,15 @@ export function Landing() {
                   <span>Any position in the feed opens as a ready-made ticket — from seeing a strategy to holding it in a single step.</span>
                 </div>
               </div>
+              <div className="land-pt sol">
+                <span className="land-pt-ic sol">
+                  <svg {...hic}><path d="M15.5 4.5l-11 11" /><circle cx="6" cy="6" r="2.1" /><circle cx="14" cy="14" r="2.1" /></svg>
+                </span>
+                <div>
+                  <b>Aligned incentives for KOLs. <i className="land-tag">building</i></b>
+                  <span>Interest-margin sharing: a KOL who refers users earns a cut of the margin on the positions they build — paid for performance, not for promotion.</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

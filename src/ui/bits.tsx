@@ -6,17 +6,21 @@ import { ChainMark, addressUrl, chainInfo, txUrl } from './ChainMark'
 import { maturityClock, type Risk } from '../model/strategies'
 
 export const pct = (x: number | null | undefined, d = 2) => (x == null || !Number.isFinite(x) ? '—' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%')
+/** One decimal while the figure is a single digit (9.44 → "9.4", 5.02 → "5"), whole from 10 on (9.97 → "10"). */
+const oneDecimal = (v: number) => (v < 9.95 ? v.toFixed(1).replace(/\.0$/, '') : Math.round(v).toLocaleString('en-US'))
 export const usd = (x: number | null | undefined) => {
   if (x == null || !Number.isFinite(x)) return '—'
-  // under a dollar keeps its cents (1 MON is $0.03, not "$0"); the sign goes before the currency and a zero has none
-  const a = Math.abs(x), body = a > 0 && a < 1 ? `$${a.toFixed(2)}` : '$' + Math.round(a).toLocaleString('en-US')
+  // under a dollar keeps its cents (1 MON is $0.03, not "$0"), a single digit keeps one decimal ($9.4 of equity,
+  // not "$9"); the sign goes before the currency and a zero has none
+  const a = Math.abs(x), body = a > 0 && a < 1 ? `$${a.toFixed(2)}` : a < 10 ? `$${oneDecimal(a)}` : '$' + Math.round(a).toLocaleString('en-US')
   return x < 0 && body !== '$0' && body !== '$0.00' ? `−${body}` : body.replace('$0.00', '$0')
 }
 export const usdShort = (x: number | null | undefined) => {
   if (x == null || !Number.isFinite(x)) return '—'
   const a = Math.abs(x)
   // under a dollar keeps its cents, as `usd` does: a $0.41 liquidation is not "$0"
-  const body = a >= 1e9 ? `$${(a / 1e9).toFixed(1)}b` : a >= 1e6 ? `$${(a / 1e6).toFixed(0)}m` : a >= 1e3 ? `$${(a / 1e3).toFixed(0)}k` : a >= 1 ? `$${a.toFixed(0)}` : a > 0 ? `$${a.toFixed(2)}`.replace('$0.00', '$0') : '$0'
+  // and a single leading digit keeps one decimal at every scale: $7.4m, $8.2k, $3.2 — "$8m" hides a fifth of it
+  const body = a >= 1e9 ? `$${(a / 1e9).toFixed(1)}b` : a >= 1e6 ? `$${oneDecimal(a / 1e6)}m` : a >= 1e3 ? `$${oneDecimal(a / 1e3)}k` : a >= 1 ? `$${oneDecimal(a)}` : a > 0 ? `$${a.toFixed(2)}`.replace('$0.00', '$0') : '$0'
   // the sign goes before the currency, and a figure that rounds to nothing has
   // no sign worth showing — a rebalance's net was reading as "$-0"
   return x < 0 && body !== '$0' ? `−${body}` : body

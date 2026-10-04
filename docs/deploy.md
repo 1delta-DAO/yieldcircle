@@ -32,6 +32,7 @@ both Production and Preview:
 | Variables and Secrets (Secret, optional) | `RESEND_API_KEY` | resend.com API key — emails each `/lineup` request; without it requests are only stored |
 | Variables and Secrets (optional) | `NOTIFY_EMAIL` | where requests are mailed; defaults to `achim@1delta.io`. Resend's `onboarding@resend.dev` sender only delivers to the Resend account's own address, so sign up with this one (or verify a domain) |
 | Variables and Secrets (optional) | `GATE_OFF` | `1` opens the app to everyone — the end of the beta |
+| Variables and Secrets (Secret, optional) | `GATE_PASS` | an access code: `https://<site>/?access=<code>` lets the holder in for 30 days without a whitelisted wallet (hackathon judges, reviewers). Change it to stop new entries; rotate `GATE_SECRET` to also log out those already in |
 
 The gate is an **overlay**: the app always loads and stays visible behind a
 frosted layer; only the HTML document is touched. Missing binding or secret =

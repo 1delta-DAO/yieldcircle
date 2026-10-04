@@ -16,6 +16,8 @@
  *   RESEND_API_KEY  Secret, optional — emails each new request to NOTIFY_EMAIL
  *   NOTIFY_EMAIL    optional, where requests are mailed (default below)
  *   GATE_OFF        optional, "1" opens the app to everyone (the end of the beta)
+ *   GATE_PASS       Secret, optional — an access code: `/?access=<code>` lets the holder in
+ *                   without a whitelisted wallet (hackathon judges, reviewers)
  *
  * Unconfigured (missing binding or secret) the gate is OFF and the app serves
  * normally — a misconfiguration must never take the site down.
@@ -34,6 +36,7 @@ interface Env {
   RESEND_API_KEY?: string
   NOTIFY_EMAIL?: string
   GATE_OFF?: string
+  GATE_PASS?: string
 }
 type Gated = Env & { WHITELIST: KV; GATE_SECRET: string }
 type Ctx = { request: Request; env: Env; next: () => Promise<Response>; waitUntil: (p: Promise<unknown>) => void }
@@ -53,6 +56,7 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
     if (request.method === 'POST' && url.pathname === '/gate/verify') return verify(request, gated, null, waitUntil)
     if (request.method === 'POST' && url.pathname === '/gate/request') return verify(request, gated, 'request', waitUntil)
     if (request.method === 'GET' && url.pathname === '/gate/check') return check(url, gated)
+    if (request.method === 'GET' && url.searchParams.has('access')) return pass(url, gated)
   }
 
   const res = await next()
@@ -106,11 +110,29 @@ async function verify(request: Request, env: Gated, mode: 'request' | null, wait
 }
 
 async function admit(account: string, env: Gated): Promise<Response> {
+  return json({ listed: true }, 200, { 'set-cookie': await cookie(account, env) })
+}
+
+/**
+ * `?access=<GATE_PASS>` — the same cookie as a whitelisted wallet, under the account `pass`, then a
+ * redirect that drops the code from the address bar (the browser keeps the `#/…` route). A wrong
+ * code just lands on the gated app.
+ */
+async function pass(url: URL, env: Gated): Promise<Response> {
+  const code = url.searchParams.get('access') ?? ''
+  url.searchParams.delete('access')
+  const headers: Record<string, string> = { location: url.pathname + url.search, 'cache-control': 'no-store' }
+  // compare MACs, not the strings, so the check takes the same time however much of the code is right
+  if (env.GATE_PASS && (await hmac(env.GATE_SECRET, code)) === (await hmac(env.GATE_SECRET, env.GATE_PASS))) {
+    headers['set-cookie'] = await cookie('pass', env)
+  }
+  return new Response(null, { status: 302, headers })
+}
+
+async function cookie(account: string, env: Gated): Promise<string> {
   const exp = Date.now() + COOKIE_DAYS * 86_400_000
   const value = `${account}.${exp}.${await hmac(env.GATE_SECRET, `${account}.${exp}`)}`
-  return json({ listed: true }, 200, {
-    'set-cookie': `${COOKIE}=${value}; Path=/; Max-Age=${COOKIE_DAYS * 86_400}; HttpOnly; Secure; SameSite=Lax`,
-  })
+  return `${COOKIE}=${value}; Path=/; Max-Age=${COOKIE_DAYS * 86_400}; HttpOnly; Secure; SameSite=Lax`
 }
 
 /** One email per new (or changed) request. A failure is logged, never shown — the request is stored either way. */

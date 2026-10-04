@@ -1677,11 +1677,35 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .land-glow{position:absolute;inset:auto;top:-30%;left:50%;transform:translateX(-50%);width:min(900px,120vw);aspect-ratio:2/1;background:radial-gradient(ellipse at center,rgba(47,211,232,.16),transparent 65%);pointer-events:none}
 .land-hint{position:absolute;bottom:28px;color:var(--tx40);animation:land-bob 1.8s ease-in-out infinite}
 @keyframes land-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
-.land-cols{display:grid;grid-template-columns:1fr 1fr;gap:40px;max-width:980px;width:100%;text-align:left}
-.land-cols>div{display:flex;flex-direction:column;gap:14px}
-.land-pts{display:flex;flex-direction:column;gap:12px}
-.land-pt{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+
+/* slide 2 — the open turns of the mark as landscape, a glow behind each column */
+.land-why{background:
+  radial-gradient(42% 34% at 22% 68%,rgba(229,83,75,.07),transparent 70%),
+  radial-gradient(42% 34% at 78% 38%,rgba(47,211,232,.1),transparent 70%),
+  var(--bg)}
+.land-rings{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.land-rings circle{fill:none;stroke:url(#lr);stroke-opacity:.14;stroke-width:1.5;stroke-dasharray:1400 500}
+.land-rings circle:nth-child(odd){stroke-opacity:.08;stroke-dasharray:900 700}
+.land-title{font-size:clamp(26px,4vw,44px);line-height:1.1;letter-spacing:-.02em;margin:0 0 6px;font-weight:600}
+.land-cols{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:36px;max-width:1020px;width:100%;text-align:left}
+.land-cols>div{display:flex;flex-direction:column;gap:16px}
+.land-h{display:flex;align-items:center;gap:12px}
+.land-h b{font-size:19px;letter-spacing:-.01em}
+.land-h-ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:none}
+.land-h.prob .land-h-ic{background:rgba(229,83,75,.12);border:1px solid rgba(229,83,75,.35);color:var(--error)}
+.land-h.sol .land-h-ic{background:linear-gradient(135deg,var(--brand-b),var(--brand-a));color:var(--primary-ink);box-shadow:0 0 22px rgba(47,211,232,.35)}
+.land-pts{display:flex;flex-direction:column;gap:14px}
+.land-pt{border:1px solid var(--line2);border-radius:14px;background:rgba(11,11,11,.82);padding:18px 20px;display:flex;gap:14px;align-items:flex-start;backdrop-filter:blur(4px)}
+.land-pt>div{display:flex;flex-direction:column;gap:6px;min-width:0}
 .land-pt b{font-size:15.5px;letter-spacing:-.01em}
-.land-pt span{font-size:13.5px;line-height:1.5;color:var(--tx70)}
-.land-cta{min-height:48px;padding:0 26px;font-size:15px;border-radius:999px}
-@media (max-width:760px){.land-cols{grid-template-columns:1fr;gap:24px}}
+.land-pt span:not(.land-pt-ic){font-size:13.5px;line-height:1.55;color:var(--tx70)}
+.land-pt-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none;margin-top:1px}
+.land-pt-ic.prob{background:var(--b300);border:1px solid var(--line2);color:var(--tx50)}
+.land-pt-ic.sol{background:rgba(47,211,232,.1);border:1px solid rgba(47,211,232,.35);color:var(--primary)}
+/* the solution cards carry the brand: a gradient border and a faint inner glow */
+.land-pt.sol{border:1px solid transparent;background:
+  linear-gradient(rgba(11,16,17,.92),rgba(11,16,17,.92)) padding-box,
+  linear-gradient(135deg,rgba(11,143,181,.65),rgba(124,233,245,.65)) border-box;
+  box-shadow:0 0 34px rgba(47,211,232,.07) inset}
+.land-cta{min-height:48px;padding:0 26px;font-size:15px;border-radius:999px;box-shadow:0 0 28px rgba(47,211,232,.3)}
+@media (max-width:760px){.land-cols{grid-template-columns:1fr;gap:24px}.land-why{padding-top:64px}}

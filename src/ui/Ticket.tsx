@@ -10,6 +10,7 @@ import { seriesFor } from '../model/rateHistory'
 import { RateHistoryPanel, useSparkRewards } from './Spark'
 import { useApp, type Mode } from '../state/AppState'
 import { useSticky } from '../state/sticky'
+import { useSettings } from '../state/Settings'
 import { DecimalInput, Info, KindPill, LegsPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
 import { Who } from './social-bits'
 import { isSvmChain, normAddr } from '../model/address'
@@ -290,6 +291,7 @@ const dayOf = (days: number) => new Date(Date.now() + days * 86400_000).toLocale
 
 function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle[]; allIdle: Idle[]; holding: Holding | null }) {
   const { account, isConnected, solSigner } = useApp()
+  const slip = useSettings().st.loopSlippageBp
   const actor = isSvmChain(s.chainId) ? solSigner : account
   const [getOpen, setGetOpen] = React.useState(false)
   const unit = unitOf(s.asset)
@@ -333,7 +335,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
   const Eh = holding && holding.valueUsd > 0 ? holding.valueUsd : 0, Lh = holding?.leverage && holding.leverage > 1 ? holding.leverage : 1
   const Lc = Eh > 0 ? (Eh * Lh + E * L) / (Eh + E) : L
   const netC = netAprAtLeverage(dep, bor, Lc), hfC = healthAt(s.liqLtv, Lc)
-  const q = useLoopQuote(s, E, L, account, 50, term?.id)
+  const q = useLoopQuote(s, E, L, account, slip, term?.id)
   const econ = q.data?.data?.economics ?? q.data?.data?.quotes?.[0]?.economics ?? null
   // the quote's carry prices a broker debt at the market's variable rate, not the term's (API gap,
   // 2026-09-29): on a fixed loop only its entry cost is kept, and the payback is this ticket's own
@@ -346,7 +348,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
   const ladder = useLadder(key, s.chainId, async () => {
     const debtTokens = s.priceShort ? D / s.priceShort : 0
     const env = await loopOpen({
-      collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: 50, leverage: L, account: actor!,
+      collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!,
       payAsset: chosen ? (chosen.role === 'native' ? ZERO : chosen.address) : undefined, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined, termId: term?.id,
     })
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
@@ -399,7 +401,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
             the curve says how close the market is to doing it. */}
         <div className="c"><span className="k">You hold</span><span className="v">{usd(C)}</span><span className="s">{s.holds} on {s.venue}</span><IrmLink uid={s.marketLongUid} side="supply" label="supply curve" rewards={s.rewardsLong} /></div>
         <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · {term ? `fixed ${pct(term.apr)} for ${term.days} days` : 'floating'} · {usdShort(s.borrowLiquidityUsd)} to borrow</span><IrmLink uid={s.marketShortUid} side="borrow" label={term ? 'rate after the term' : 'borrow curve'} rewards={s.rewardsShort} /></div>
-        <div className="c"><span className="k">Entry cost</span><span className="v">{q.isFetching && !econ ? <Sk w={60} h={14} /> : econ ? usd(econ.entryCostUsd.total) : '—'}</span><span className="s">{econ ? `${payback != null ? `earned back in ${Math.ceil(payback)} days` : 'slippage, fees, gas'}` : noRoute ? 'no route at this size' : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
+        <div className="c"><span className="k">Entry cost</span><span className="v">{q.isFetching && !econ ? <Sk w={60} h={14} /> : econ ? usd(econ.entryCostUsd.total) : '—'}</span><span className="s">{econ ? `${payback != null ? `earned back in ${Math.ceil(payback)} days` : 'slippage, fees, gas'} · max slippage ${slip / 100}%` : noRoute ? 'no route at this size' : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
         <div className="c"><span className="k">Health</span><span className={`v ${(simHf ?? hf) < 1.1 ? 'bad' : (simHf ?? hf) < 1.25 ? 'warn' : 'ok'}`}>{(simHf ?? hf).toFixed(2)}</span><span className="s">{simHf ? 'simulated by the API' : 'from the liquidation threshold'}</span></div>
       </div>
         <span className="lbl" style={{ marginTop: 14 }}>Liquidation</span>
@@ -486,6 +488,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
  */
 function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; closeFirst?: boolean }) {
   const { account, isConnected, solSigner } = useApp()
+  const slip = useSettings().st.loopSlippageBp
   const actor = isSvmChain(h.chainId) ? solSigner : account
   const holds = s?.holds ?? h.symbol, debt = s?.debt ?? h.debtSymbol ?? 'debt'
   // the book as the API reports it: equity and leverage from the position, prices only to size the legs in tokens
@@ -536,28 +539,29 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const pDebt = pD || (owed > 0 ? D / owed : 0)
   // the exact balance: a float-sized amount can overshoot it by a few wei and the swap reverts
   const allRaw = h.amountRaw ?? toRaw(h.amount, h.decimals)
-  const cq = useCloseQuote(closing && collUid && debtUid ? { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: allRaw, accountId: h.accountId, loanId: loan?.id } : null)
+  const cq = useCloseQuote(closing && collUid && debtUid ? { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: allRaw, accountId: h.accountId, loanId: loan?.id } : null, slip)
   const sale = cq.data ?? null
   const rate = sale ? sale.output / sale.input : null
   const covers = sale ? sale.output >= owed * (1 + CLOSE_INTEREST_PAD) : null
-  const tight = !!sale && covers && sale.output * (1 - 0.005) < owed
+  const tight = !!sale && covers && sale.output * (1 - slip / 10_000) < owed
   const backDebt = sale ? sale.output - owed : null
-  const sellKeep = rate ? (owed * (1 + CLOSE_KEEP_PAD)) / rate : null
+  const keepPad = closeKeepPad(slip)
+  const sellKeep = rate ? (owed * (1 + keepPad)) / rate : null
   const keepOk = sellKeep != null && sellKeep < h.amount
   const backColl = keepOk ? h.amount - sellKeep! : null
-  const leftover = owed * CLOSE_KEEP_PAD
+  const leftover = owed * keepPad
   const backUsd = !sale ? null : keep ? (keepOk ? (backColl! * rate! + leftover) * pDebt : null) : backDebt! * pDebt
   const closeBlock = !closing ? null : cq.isPending ? 'pricing' : !sale ? 'no-route' : !covers ? 'short' : keep && !keepOk ? 'keep-short' : null
   const key = [s?.id ?? h.key, 'manage', L, keep ? 'keep' : 'sell', account ?? ''].join('|')
   const ladder = useLadder(key, h.chainId, async () => {
     if (down || !s) {
       const amountRaw = closing && !keep ? allRaw : toRaw(closing ? sellKeep! : sellTok, h.decimals)
-      const env = await loopClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: 50, isAll: closing, account: actor!, accountId: h.accountId, loanId: loan?.id })
+      const env = await loopClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: slip, isAll: closing, account: actor!, accountId: h.accountId, loanId: loan?.id })
       if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
       return stepsFrom(env.actions, closing ? `Close the loop · receive ${keep ? holds : debt}` : `Deleverage to ${num(L, 2)}×`, h.chainId)
     }
     // a pure leverage step: borrow more against what is there, no new margin
-    const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: 50, leverage: L, account: actor!, accountId: h.accountId })
+    const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!, accountId: h.accountId })
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     return stepsFrom(env.actions, `Increase to ${num(L, 2)}×`, h.chainId)
   }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid])
@@ -586,7 +590,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
         {closeBlock === 'short' && otherColl.length > 0 && <div className="err" style={{ marginTop: 8 }}>A close would revert: selling your {holds} cannot repay the whole debt on its own{sale && owed > 0 ? <> (about <b>{num(owed * (1 + CLOSE_INTEREST_PAD) - sale.output, 4)} {debt}</b> short)</> : ''}. Part of what backs the debt is {legList(otherColl)}, which this close does not sell. Repay that much {debt} on {h.venue} first, or sell some of the {otherColl.map((o) => o.symbol).join(' and ')} into {debt} there.</div>}
         {closeBlock === 'short' && !otherColl.length && <div className="err" style={{ marginTop: 8 }}>A close would revert: the sale cannot repay the debt. {h.venue} values your {holds} at its own oracle ({usd(h.valueUsd)} of equity), above what it sells for right now{sale && owed > 0 ? <>, which leaves you about <b>{num(owed * (1 + CLOSE_INTEREST_PAD) - sale.output, 4)} {debt}</b> short</> : ''}. Repay that much {debt} on the venue first, or wait for {holds} to trade closer to its oracle.</div>}
         {closeBlock === 'keep-short' && <div className="err" style={{ marginTop: 8 }}>Repaying {num(owed, 4)} {debt} with a 1% margin for the fill takes ≈ {num(sellKeep!, 4)} {holds}, more than the {num(h.amount, 4)} you hold. Take the payout in {debt} instead.</div>}
-        {tight && !closeBlock && <div className="plain warn" style={{ marginTop: 6 }}>Tight: a fill at the worst the 0.5% slippage allows would not cover the debt, and the close would revert (only gas is lost).</div>}
+        {tight && !closeBlock && <div className="plain warn" style={{ marginTop: 6 }}>Tight: a fill at the worst the {slip / 100}% slippage allows would not cover the debt, and the close would revert (only gas is lost).</div>}
         {h.valueUsd <= 0 && closeBlock !== 'short' && <div className="err" style={{ marginTop: 8 }}>This loop has no equity left: the collateral is worth less than the debt, so selling it cannot repay everything. Closing may fail; add {debt} on the venue to repay first.</div>}
       </div>
       <div className="tsec"><div className="cells">
@@ -608,10 +612,11 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
 /**
  * A full close is sized off a market quote taken seconds before the block. INTEREST: the debt grows
  * and the price moves in between, so a sale that only just covers it is refused. KEEP: keeping the
- * collateral sells what repays the debt plus this margin, twice the 0.5 % slippage, and the surplus
- * comes back in the debt token.
+ * collateral sells what repays the debt plus a margin of twice the slippage (never under 0.4 %, the
+ * interest pad's double), and the surplus comes back in the debt token.
  */
-const CLOSE_INTEREST_PAD = 0.002, CLOSE_KEEP_PAD = 0.01
+const CLOSE_INTEREST_PAD = 0.002
+const closeKeepPad = (slipBp: number) => Math.max((2 * slipBp) / 10_000, 2 * CLOSE_INTEREST_PAD)
 
 type Leg = NonNullable<Holding['others']>[number]
 const legList = (ls: Leg[]) => ls.map((o) => `${num(o.amount, 4)} ${o.symbol} (${usd(o.usd)})`).join(' and ')

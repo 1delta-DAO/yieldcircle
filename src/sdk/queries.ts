@@ -511,15 +511,15 @@ export function useLoopQuote(l: LoopStrategy | null, equityUsd: number, leverage
  * prices at its redemption rate can sell for less than it owes (sMON/WMON on Euler, 2026-09-29:
  * $31 of equity on the feed, 9,207 WMON for 8,281 sMON against 9,250 owed). `null` = no route.
  */
-export function useCloseQuote(p: Omit<LoopCloseParams, 'account' | 'slippageBp' | 'isAll'> | null) {
+export function useCloseQuote(p: Omit<LoopCloseParams, 'account' | 'slippageBp' | 'isAll'> | null, slippageBp = 50) {
   return useQuery({
     enabled: !!p && p.amountRaw !== '0',
-    queryKey: ['closeq', p?.collateralMarketUid, p?.debtMarketUid, p?.amountRaw, p?.accountId ?? '', p?.loanId ?? ''],
+    queryKey: ['closeq', p?.collateralMarketUid, p?.debtMarketUid, p?.amountRaw, p?.accountId ?? '', p?.loanId ?? '', slippageBp],
     staleTime: 20_000,
     retry: false,
     // quote-only: without `account` the API sizes the sale and builds nothing
     queryFn: async () => {
-      const env = await loopClose({ ...p!, account: undefined, slippageBp: 50, isAll: true })
+      const env = await loopClose({ ...p!, account: undefined, slippageBp, isAll: true })
       const best = (env.data?.quotes ?? []).map((q) => q.deltas).filter((d) => d && (d.tradeOutput ?? 0) > 0 && (d.tradeInput ?? 0) > 0)
         .sort((a, b) => b!.tradeOutput! - a!.tradeOutput!)[0]
       return best ? { input: best.tradeInput!, output: best.tradeOutput!, via: best.aggregator, exitCostUsd: env.data?.economics?.exitCostUsd?.total } : null

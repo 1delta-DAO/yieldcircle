@@ -74,7 +74,12 @@ export function Wallet({ addr }: { addr: string }) {
   const route = useRoute()
   const closePnl = React.useCallback(() => {
     // a link inside the drawer navigates away first: only undo our own param
-    if (parseRoute().pos) go(`w/${addr}`)
+    if (!parseRoute().pos) return
+    // step back over the entry `openPnl` pushed — pushing a fresh `w/<addr>`
+    // left `?pos=` one Back away, so Back reopened the drawer. A deep link
+    // has no entry of ours behind it: drop the param in place instead.
+    if ((history.state as { pnl?: boolean } | null)?.pnl) history.back()
+    else location.replace(walletHref(addr))
   }, [addr])
   // the app's menu, joined by market: what on this profile can be copied
   const menu = useMenu()
@@ -448,10 +453,10 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
           if (found.length === 0) return null
           const c = copyOf?.(found) ?? null
           const st = c && 'st' in c ? c.st : null
-          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={c ? <CopyCell c={c} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} pnl={<PnlButton who={who} posKey={g.key} />} onOpen={() => go(`w/${who}`, { pos: g.key })} />
+          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={c ? <CopyCell c={c} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} pnl={<PnlButton who={who} posKey={g.key} />} onOpen={() => openPnl(who, g.key)} />
           const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
           return <React.Fragment key={g.key}>
-            <tr className="grp" title="value, money in and PnL since this position opened" onClick={() => go(`w/${who}`, { pos: g.key })}>
+            <tr className="grp" title="value, money in and PnL since this position opened" onClick={() => openPnl(who, g.key)}>
               <td>
                 <div className="nm">
                   <TokLink group={lead.assetGroup} sym={lead.symbol ?? '?'} logo={lead.assetLogo ?? undefined} />
@@ -526,10 +531,21 @@ function NetRate({ g }: { g: PositionGroup }) {
  * and 4.68 % from inside syrupUSDT, and only one of those numbers was ever
  * on this page.
  */
-/** Opens the position's PnL history (`?pos=`), without following the row's own market link. */
+/**
+ * Opens a position's PnL history (`?pos=`) and marks the entry that pushes, so
+ * closing the drawer can go Back to the page it opened over (`closePnl`).
+ * Setting the hash creates the entry synchronously; `useBack`'s depth stamp
+ * lands later and keeps the mark.
+ */
+function openPnl(who: string, posKey: string) {
+  go(`w/${who}`, { pos: posKey })
+  history.replaceState({ ...(history.state ?? {}), pnl: true }, '')
+}
+
+/** Opens the position's PnL history, without following the row's own market link. */
 function PnlButton({ who, posKey }: { who: string; posKey: string }) {
   return (
-    <button className="pill pnl-btn" title="value, money in and PnL since this position opened" onClick={(e) => { e.stopPropagation(); go(`w/${who}`, { pos: posKey }) }}>
+    <button className="pill pnl-btn" title="value, money in and PnL since this position opened" onClick={(e) => { e.stopPropagation(); openPnl(who, posKey) }}>
       PnL
     </button>
   )

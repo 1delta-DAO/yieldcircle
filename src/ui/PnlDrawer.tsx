@@ -28,6 +28,7 @@ const FLAG_WORDS: Record<string, string> = {
   'negative-units': 'the ledger misses a move here: walked back, the balance goes below zero (drawn at zero)',
   'dex-transfers-unseen': 'vault shares bought or sold on a DEX are not ledger rows — this record can miss them',
   'index-backfilled': 'the interest index starts later than this record: flat before its first point',
+  'index-spliced': 'the interest index had a break (two sources, or a bad sample) and was joined at it',
   'no-index': 'no interest index for this market: drawn without interest',
   snapshot: 'a row states an absolute balance and is not walked',
   'amountless-row': 'a “withdraw all” row names no amount',
@@ -252,74 +253,107 @@ function Stat({ k, v, s }: { k: string; v: React.ReactNode; s?: string }) {
 }
 
 /**
- * Value (solid) and what is in it on net (dashed), the PnL under it, and a
- * tick for every move: green in, amber out, red a liquidation. A day with no
- * price is a gap, never a straight line.
+ * The PnL so far on top — the running sum, the number the record states, drawn
+ * the way a trading app draws it: one line over a fill to zero, green when it
+ * ends up, red when down. Under it, smaller, the money it was made on: the
+ * value (solid) and what is in it on net (dashed), with a tick for every move —
+ * green in, amber out, red a liquidation. A day with no price is a gap, never
+ * a straight line.
  */
 function Chart({ s, f }: { s: PositionSeries; f: Fmt }) {
-  const W = 640, H = 220, PH = 80, padL = 8, padR = 8, padT = 10
+  const W = 640, H = 200, CH = 90, padL = 8, padR = 8
   const pts = s.points
   const [hover, setHover] = React.useState<number | null>(null)
+  const gid = React.useId().replace(/:/g, '')
   if (pts.length < 2) return <div className="empty">Not enough history to draw yet.</div>
   const t0 = Date.parse(pts[0].t), t1 = Date.parse(pts[pts.length - 1].t)
   const x = (t: number) => padL + ((t - t0) / Math.max(1, t1 - t0)) * (W - padL - padR)
+  const xi = (i: number) => x(Date.parse(pts[i].t))
+  const pnl = pts.map((p) => (p.nav == null ? null : p.pnl))
   const nav = pts.map((p) => p.nav)
   const con = pts.map((p) => p.contrib)
-  const pnl = pts.map((p) => (p.nav == null ? null : p.pnl))
-  const vals = [...nav, ...con].filter((v): v is number => v != null)
-  let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals)
-  if (hi - lo < 1e-12) hi = lo + 1
-  const y = (v: number) => padT + ((hi - v) / (hi - lo)) * (H - padT - 16)
-  const path = (vs: (number | null)[], yy: (v: number) => number, step = false) => {
-    let d = '', on = false
+  /** the line's pieces between gaps, as [index, value] runs */
+  const runs = (vs: (number | null)[]) => {
+    const out: [number, number][][] = []
+    let cur: [number, number][] | null = null
     vs.forEach((v, i) => {
-      if (v == null) { on = false; return }
-      const X = x(Date.parse(pts[i].t)).toFixed(1), Y = yy(v).toFixed(1)
-      if (!on) d += `M${X},${Y}`
-      else if (step) d += `H${X}V${Y}`
-      else d += `L${X},${Y}`
-      on = true
+      if (v == null) { cur = null; return }
+      if (!cur) out.push((cur = []))
+      cur.push([i, v])
     })
-    return d
+    return out
   }
+  const path = (vs: (number | null)[], yy: (v: number) => number, step = false) =>
+    runs(vs).map((r) => r.map(([i, v], k) => {
+      const X = xi(i).toFixed(1), Y = yy(v).toFixed(1)
+      return k === 0 ? `M${X},${Y}` : step ? `H${X}V${Y}` : `L${X},${Y}`
+    }).join('')).join('')
+  /** the same runs, each closed down to the zero line */
+  const area = (vs: (number | null)[], yy: (v: number) => number) =>
+    runs(vs).map((r) => {
+      const z = yy(0).toFixed(1)
+      return `M${xi(r[0][0]).toFixed(1)},${z}` + r.map(([i, v]) => `L${xi(i).toFixed(1)},${yy(v).toFixed(1)}`).join('') + `L${xi(r[r.length - 1][0]).toFixed(1)},${z}Z`
+    }).join('')
+
+  // top: the PnL so far
   const pv = pnl.filter((v): v is number => v != null)
-  const plo = Math.min(0, ...pv), phi = Math.max(0, ...pv, plo + 1e-12)
-  const py = (v: number) => 4 + ((phi - v) / (phi - plo)) * (PH - 8)
-  const onMove = (ev: React.MouseEvent<SVGSVGElement>) => {
+  let plo = Math.min(0, ...pv), phi = Math.max(0, ...pv)
+  if (phi - plo < 1e-12) phi = plo + 1
+  const py = (v: number) => 10 + ((phi - v) / (phi - plo)) * (H - 20)
+  const lastI = pnl.reduce<number>((b, v, i) => (v != null ? i : b), -1)
+  const dir = (pv.at(-1) ?? 0) >= 0 ? 'up' : 'down'
+
+  // bottom: the money at work
+  const cv = [...nav, ...con].filter((v): v is number => v != null)
+  let clo = Math.min(0, ...cv), chi = Math.max(0, ...cv)
+  if (chi - clo < 1e-12) chi = clo + 1
+  const cy = (v: number) => 6 + ((chi - v) / (chi - clo)) * (CH - 22)
+
+  const onMove = (ev: React.PointerEvent<SVGSVGElement>) => {
     const r = ev.currentTarget.getBoundingClientRect()
     const tx = t0 + ((ev.clientX - r.left) / r.width * W - padL) / (W - padL - padR) * (t1 - t0)
     let best = 0
     pts.forEach((p, i) => { if (Math.abs(Date.parse(p.t) - tx) < Math.abs(Date.parse(pts[best].t) - tx)) best = i })
     setHover(best)
   }
-  const hp = hover != null ? pts[hover] : null
+  const hp = pts[hover ?? (lastI >= 0 ? lastI : pts.length - 1)]
+  const hpPnl = hp.nav == null ? null : hp.pnl
+  const hoverLine = (y1: number, y2: number) => hover != null && <line className="pnl-hover" x1={xi(hover)} x2={xi(hover)} y1={y1} y2={y2} />
   return (
     <div className="pnl-chart">
-      <div className="pnl-read t70">
-        {hp ? <>
-          <span className="mono">{day(hp.t)}</span> · value <b>{f.v(hp.nav)}</b> · in it <b>{f.v(hp.contrib)}</b> · PnL <b className={hp.pnl < 0 ? 'bad' : 'ok'}>{f.sg(hp.nav == null ? null : hp.pnl)}</b>
-        </> : <span className="t40">hover the line for a day’s numbers</span>}
+      <div className="pnl-read">
+        <b className={`pnl-big ${(hpPnl ?? 0) < 0 ? 'bad' : 'ok'}`}>{f.sg(hpPnl)}</b>
+        <span className="t70"><span className="mono">{day(hp.t)}</span> · value <b>{f.v(hp.nav)}</b> · in it <b>{f.v(hp.contrib)}</b></span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg" onMouseMove={onMove} onMouseLeave={() => setHover(null)} preserveAspectRatio="none">
-        <line className="pnl-zero" x1={padL} x2={W - padR} y1={y(0)} y2={y(0)} />
-        <path className="pnl-con" d={path(con, y, true)} />
-        <path className="pnl-nav" d={path(nav, y)} />
+      <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg" onPointerMove={onMove} onPointerLeave={() => setHover(null)} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" className={`pnl-gs0 ${dir}`} />
+            <stop offset="1" className={`pnl-gs1 ${dir}`} />
+          </linearGradient>
+        </defs>
+        <path className="pnl-area" fill={`url(#${gid})`} d={area(pnl, py)} />
+        <line className="pnl-zero" x1={padL} x2={W - padR} y1={py(0)} y2={py(0)} />
+        <path className={`pnl-line ${dir}`} d={path(pnl, py)} />
+        {lastI >= 0 && hover == null && <line className={`pnl-dot ${dir}`} x1={xi(lastI)} x2={xi(lastI)} y1={py(pnl[lastI]!)} y2={py(pnl[lastI]!)} />}
+        {hover != null && pnl[hover] != null && <line className={`pnl-dot ${dir}`} x1={xi(hover)} x2={xi(hover)} y1={py(pnl[hover]!)} y2={py(pnl[hover]!)} />}
+        {hoverLine(4, H - 4)}
+      </svg>
+      <svg viewBox={`0 0 ${W} ${CH}`} className="pnl-svg pnl-p" onPointerMove={onMove} onPointerLeave={() => setHover(null)} preserveAspectRatio="none">
+        <line className="pnl-zero" x1={padL} x2={W - padR} y1={cy(0)} y2={cy(0)} />
+        <path className="pnl-con" d={path(con, cy, true)} />
+        <path className="pnl-nav" d={path(nav, cy)} />
         {s.events.map((e, i) => {
           const X = x(Date.parse(e.t))
           const c = e.flow == null ? 'liq' : e.flow > 0 ? 'in' : e.flow < 0 ? 'out' : 'liq'
-          return <line key={i} className={`pnl-tick ${c}`} x1={X} x2={X} y1={H - 14} y2={H - 4}><title>{`${e.t.slice(0, 16)} ${e.kind} ${f.vs(e.value)}`}</title></line>
+          return <line key={i} className={`pnl-tick ${c}`} x1={X} x2={X} y1={CH - 12} y2={CH - 3}><title>{`${e.t.slice(0, 16)} ${e.kind} ${f.vs(e.value)}`}</title></line>
         })}
-        {hover != null && <line className="pnl-hover" x1={x(Date.parse(pts[hover].t))} x2={x(Date.parse(pts[hover].t))} y1={padT} y2={H - 16} />}
-      </svg>
-      <svg viewBox={`0 0 ${W} ${PH}`} className="pnl-svg pnl-p" preserveAspectRatio="none" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
-        <line className="pnl-zero" x1={padL} x2={W - padR} y1={py(0)} y2={py(0)} />
-        <path className={`pnl-line ${(pv.at(-1) ?? 0) >= 0 ? 'up' : 'down'}`} d={path(pnl, py)} />
-        {hover != null && <line className="pnl-hover" x1={x(Date.parse(pts[hover].t))} x2={x(Date.parse(pts[hover].t))} y1={2} y2={PH - 2} />}
+        {hoverLine(2, CH - 14)}
       </svg>
       <div className="pnl-legend t50">
+        <span><i className={`sw pnl ${dir}`} /> PnL so far</span>
         <span><i className="sw nav" /> value</span>
         <span><i className="sw con" /> in it (value − PnL)</span>
-        <span><i className="sw pnl" /> PnL (lower)</span>
         <span><i className="sw tin" /> in</span><span><i className="sw tout" /> out</span><span><i className="sw tliq" /> liquidation</span>
         <span className="sp" /><span className="mono">{day(pts[0].t)} → {day(pts[pts.length - 1].t)}</span>
       </div>

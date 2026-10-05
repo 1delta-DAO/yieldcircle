@@ -216,7 +216,8 @@ export const accountPositions = async (account: string, p: { chainId?: string } 
 export interface SeriesPoint {
   t: string
   navUsd: number | null
-  contribUsd: number
+  /** null once a flow before it could not be priced: what was put in is unknown */
+  contribUsd: number | null
   pnlUsd: number | null
   /** in the position's own money, when every leg is one asset group */
   navAsset: number | null
@@ -233,8 +234,8 @@ export interface SeriesEvent {
   side: string
   amount: number | null
   amountUsd: number | null
-  /** + put in, − taken out, 0 = not the holder's choice (liquidation, redemption) */
-  flowUsd: number
+  /** + put in, − taken out, 0 = not the holder's choice (liquidation, redemption), null = unpriced */
+  flowUsd: number | null
 }
 export interface SeriesLeg {
   marketUid: string
@@ -246,6 +247,8 @@ export interface SeriesLeg {
   walk: 'units' | 'amount'
   indexSource: 'log' | 'cache' | 'none'
   openedInRange: boolean
+  /** no read: the leg's rows net to zero units */
+  closed?: boolean
   openResidual: number
   exact: boolean
   flags: string[]

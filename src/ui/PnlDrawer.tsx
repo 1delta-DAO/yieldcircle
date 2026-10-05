@@ -28,6 +28,8 @@ const FLAG_WORDS: Record<string, string> = {
   uncalibrated: 'the index scale could not be checked against the read',
   'no-decimals': 'token decimals unknown (18 assumed)',
   impaired: 'the market cannot pay this leg — its value is a phantom',
+  'unpriced-flow': 'a move had no price at all: what was put in, and so the PnL, is unknown from there',
+  'flow-priced-nearby': 'a move had no price in its own hour and is valued at the nearest price within two weeks',
 }
 const KIND_CLASS: Record<string, string> = {
   deposit: 'k-in', transfer_in: 'k-in', repay: 'k-in',
@@ -67,7 +69,7 @@ function Body({ s }: { s: PositionSeries }) {
 
       <div className="pnl-stats">
         <Stat k="Value now" v={usd(last?.navUsd)} />
-        <Stat k="Put in" v={usd(putIn)} s="deposits − withdrawals, borrows out, repays in" />
+        <Stat k="Put in" v={putIn == null ? 'unknown' : usd(putIn)} s={putIn == null ? 'a move had no price' : 'deposits − withdrawals, borrows out, repays in'} />
         <Stat k="PnL" v={<span className={pnl == null ? '' : pnl >= 0 ? 'ok' : 'bad'}>{signed(pnl)}</span>}
           s={putIn && pnl != null && putIn > 0 ? pct((pnl / putIn) * 100) + ' of what was put in' : undefined} />
       </div>
@@ -97,7 +99,7 @@ function Body({ s }: { s: PositionSeries }) {
               <td className="r">{l.rows}</td>
               <td>
                 <span className={l.exact ? 'ok' : 'warn'}>{l.exact ? 'exact' : 'approx'}</span>
-                <span className="t50"> · {l.openedInRange ? 'walks back to 0 ✓' : `older (${pct(l.openResidual * 100, 1)} before first row)`}</span>
+                <span className="t50"> · {l.closed ? 'closed — its moves net to zero' : l.openedInRange ? 'walks back to 0 ✓' : `older (${pct(l.openResidual * 100, 1)} before first row)`}</span>
                 {l.flags.map((f) => <div key={f} className="t50 pnl-flag">{FLAG_WORDS[f] ?? f}</div>)}
               </td>
             </tr>
@@ -125,8 +127,8 @@ function EventRow({ e, s }: { e: SeriesEvent; s: PositionSeries }) {
       <span className={`verb ${KIND_CLASS[e.kind] ?? ''}`}>{e.kind.replace('_', ' ')}</span>
       <span>{e.amount != null ? `${fmtAmt(e.amount)} ${leg?.symbol ?? ''}` : '—'}</span>
       <span className="r">{usdShort(e.amountUsd)}</span>
-      <span className={`r ${e.flowUsd > 0 ? 'ok' : e.flowUsd < 0 ? 'warn' : 't40'}`} title={e.flowUsd === 0 ? 'not a flow: the holder did not choose it' : 'money in (+) or out (−) of the position'}>
-        {e.flowUsd === 0 ? '·' : signed(e.flowUsd)}
+      <span className={`r ${e.flowUsd == null ? 'bad' : e.flowUsd > 0 ? 'ok' : e.flowUsd < 0 ? 'warn' : 't40'}`} title={e.flowUsd == null ? 'no price for this move' : e.flowUsd === 0 ? 'not a flow: the holder did not choose it' : 'money in (+) or out (−) of the position'}>
+        {e.flowUsd === null ? '?' : e.flowUsd === 0 ? '·' : signed(e.flowUsd)}
       </span>
       <TxLink chainId={s.chainId} hash={e.txHash} />
     </div>
@@ -238,7 +240,7 @@ function Chart({ s, mode }: { s: PositionSeries; mode: 'usd' | 'asset' }) {
       <div className="pnl-read t70">
         {hp ? <>
           <span className="mono">{day(hp.t)}</span> · value <b>{fmt(mode === 'usd' ? hp.navUsd : hp.navAsset)}</b>
-          {mode === 'usd' && <> · in <b>{usd(hp.contribUsd)}</b> · PnL <b className={hp.pnlUsd != null && hp.pnlUsd < 0 ? 'bad' : 'ok'}>{signed(hp.pnlUsd)}</b></>}
+          {mode === 'usd' && <> · in <b>{hp.contribUsd == null ? 'unknown' : usd(hp.contribUsd)}</b> · PnL <b className={hp.pnlUsd != null && hp.pnlUsd < 0 ? 'bad' : 'ok'}>{signed(hp.pnlUsd)}</b></>}
         </> : <span className="t40">hover the line for a day’s numbers</span>}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg" onMouseMove={onMove} onMouseLeave={() => setHover(null)} preserveAspectRatio="none">
@@ -254,7 +256,7 @@ function Chart({ s, mode }: { s: PositionSeries; mode: 'usd' | 'asset' }) {
         <path className="pnl-nav" d={navPath} />
         {s.events.map((e, i) => {
           const Xe = x(Date.parse(e.t))
-          const c = e.flowUsd > 0 ? 'in' : e.flowUsd < 0 ? 'out' : 'liq'
+          const c = e.flowUsd == null ? 'liq' : e.flowUsd > 0 ? 'in' : e.flowUsd < 0 ? 'out' : 'liq'
           return <line key={i} className={`pnl-tick ${c}`} x1={Xe} x2={Xe} y1={H - 12} y2={H - 5}><title>{`${e.t.slice(0, 16)} ${e.kind} ${usdShort(e.amountUsd)}`}</title></line>
         })}
         {hover != null && <line className="pnl-hover" x1={X[hover]} x2={X[hover]} y1={padT} y2={H - 16} />}

@@ -49,7 +49,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   // the rows a floor is holding back, scoped exactly as the list is
   const heldBack = b.hidden.filter((s) => s.group === group.id && (u === 'all' || s.asset === u) && s.kind === kind)
   const books = b.books.filter((x) => x.group === group.id && (u === 'all' || x.asset === u))
-  const idle = books.filter((x) => x.idle && x.idle.usd >= 1)
+  const idle = books.filter((x) => x.idle)
   const bestFor = (a: string) => inGroup.filter((s) => s.asset === a).sort((x, y) => y.rate - x.rate)[0]
   const bestSimpleFor = (a: string) => inGroup.filter((s) => s.asset === a && s.kind === 'simple').sort((x, y) => y.rate - x.rate)[0]
   // a loop is identified by BOTH legs: several loops on one venue share the collateral market

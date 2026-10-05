@@ -313,6 +313,8 @@ const balanceAssets = (addresses: string[], chainId?: string) => {
   // mint past the 60th — wSOL and every lower-case mint (mSOL, …) on a 94-mint catalogue.
   return isSvmChain(chainId) ? all : all.slice(0, 60)
 }
+/** The Solana balance read's whole-wallet ask: no `assets` filter (see `useBalancesPerChain`). */
+const SVM_ALL = '*'
 /** Can this account sign / hold on this chain? One account per VM (docs/solana.md §5). */
 const accountFits = (account: string | undefined, chainId: string) =>
   !!account && (isSvmChain(chainId) ? isSolAddr(account) : isEvmAddr(account))
@@ -371,10 +373,16 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
     retry: 1,
     placeholderData: keepPreviousData,
   })
-  const plans = chains.map(({ chainId, addresses, ready }) => {
+  const plans = chains.map(({ chainId, addresses, ready: catReady }) => {
     const acct = accountOn(accounts, chainId)
     const fits = accountFits(acct, chainId)
-    const all = fits ? balanceAssets(addresses, chainId) : []
+    // Solana's route lists the owner's own token accounts, so it needs no asset list — and asked
+    // without one it need not wait for the catalogue: `solana` rides the bundle of every small
+    // chain, whose optimizer pages held its balances (a loop's residual collateral) back for
+    // seconds. `idleFrom` keeps only whitelisted mints, as the catalogue filter did.
+    const svm = isSvmChain(chainId)
+    const ready = svm || catReady
+    const all = fits ? (svm ? [SVM_ALL] : balanceAssets(addresses, chainId)) : []
     const c = idx.data?.chains.find((x) => x.chainId === chainId)
     const fromIdx = !!c && c.state === 'complete' && !live.has(chainId) && !idx.isError
     const indexItems: TokenBalance[] = []
@@ -391,7 +399,7 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
       enabled: !!p.acct && p.decided && p.liveAssets.length > 0,
       queryKey: ['balances', p.acct, p.chainId, p.liveAssets.join(',')],
       // a chain read live is read for the chain's truth: never the browser's 15 s copy
-      queryFn: () => fetchTokenBalances(p.acct!, p.chainId, p.liveAssets, live.has(p.chainId)),
+      queryFn: () => fetchTokenBalances(p.acct!, p.chainId, p.liveAssets.filter((a) => a !== SVM_ALL), live.has(p.chainId)),
       staleTime: 30_000,
       placeholderData: keepPreviousData,
     })),

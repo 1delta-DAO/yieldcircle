@@ -39,7 +39,7 @@ export function Positions({ b }: { b: Book }) {
         {b.books.length > 0 && (
           <div className="pos-s mono">
             {usd(work)} at work{work ? ` at ${pct(yearly / work * 100)}` : ''}
-            {idle >= 1 && <span className="warn"> · {usd(idle)} idle</span>}
+            {idle > 0 && <span className="warn"> · {usd(idle)} idle</span>}
             {' · ≈ '}{usd(yearly)} / year
           </div>
         )}
@@ -70,7 +70,7 @@ function GroupCard({ gid, books, directional }: { gid: GroupId; books: AssetBook
       <button type="button" className="gsum-h" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <GroupIcon id={g.id} color={g.color} size={22} />
         <span className="gsum-t"><span className="t">{g.name}</span>
-          <small>{work >= 1 ? <>{pct(yearly / work * 100, 1)} on {usd(work)}</> : 'nothing at work'}{idle >= 1 && <span className="warn"> · {usd(idle)} idle</span>}</small></span>
+          <small>{work >= 1 ? <>{pct(yearly / work * 100, 1)} on {usd(work)}</> : 'nothing at work'}{idle > 0 && <span className="warn"> · {usd(idle)} idle</span>}</small></span>
         <span className="sp" />
         <span className="gsum-v">{usd(total)}{yearly >= 1 && <small className="ok">≈ {usd(yearly)}/yr</small>}</span>
         <svg className="chev" viewBox="0 0 12 12" width="12" height="12" aria-hidden><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -94,7 +94,7 @@ function GroupCard({ gid, books, directional }: { gid: GroupId; books: AssetBook
 }
 /** [icon USDC $2,499 4.1% ☾] — what you hold, what it earns, whether part is idle. Tap → the asset. */
 function AssetPill({ b }: { b: AssetBook }) {
-  const earning = b.atWorkUsd >= 1, idle = b.idleUsd >= 1
+  const earning = b.atWorkUsd >= 1, idle = b.idleUsd > 0
   const title = [`${nameOf(b.asset)} · ${whatIs(b.asset)}`,
     earning ? `${usd(b.atWorkUsd)} at work at ${pct(b.blended)}` : null,
     idle ? `${usd(b.idleUsd)} idle, earning nothing` : null].filter(Boolean).join('\n')
@@ -117,7 +117,7 @@ function AssetDetail({ b }: { b: AssetBook }) {
     <div className="xasset">
       <div className="xh"><Tok sym={b.asset} size={15} /><span className="t">{nameOf(b.asset)}</span><span className="d">{whatIs(b.asset)}</span><span className="sp" />
         <span className="m">{g.unit === '$' || !b.idle?.price ? usd(b.totalUsd) : amt(b.asset, b.idle.amount + b.atWorkUsd / b.idle.price)}</span></div>
-      {b.idle && b.idle.usd >= 1 && (
+      {b.idle && (
         <button type="button" className="xrow idle" onClick={() => go(b.group, { u: b.asset })}>
           <span className="tok xdash" aria-hidden>—</span>
           <span className="xt"><span className="n">Idle in wallet</span>

@@ -209,7 +209,12 @@ export const WRAPPED_NATIVE: Record<string, string> = {
 }
 /** Is this token the chain's wrapped gas coin — i.e. can the native coin stand in for it on a deposit or withdraw? */
 export const wrapsNative = (chainId: string, address?: string) => !!address && WRAPPED_NATIVE[chainId] === normAddr(address)
-const DUST_USD = 0.01
+/**
+ * The one floor for wallet money: under it a balance is dust (dropped by `idleFrom`), over it it is
+ * counted AND shown. Totals and rows used to disagree — totals summed every idle cent while rows
+ * hid idle under $1, so a loop's residual collateral (0.2 sUSDai) was in the chip and nowhere else.
+ */
+export const DUST_USD = 0.01
 export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
   const out: Idle[] = []
   const gasToken = GAS_TOKEN_ERC20[chainId]
@@ -253,5 +258,5 @@ export function books(allHoldings: Holding[], idle: Idle[]): AssetBook[] {
     const yearly = hs.reduce((a, h) => a + h.valueUsd * (h.apr ?? 0) / 100, 0)
     out.push({ asset, group: groupOf(asset), idle: id, idleUsd: id?.usd ?? 0, atWorkUsd: atWork, yearlyUsd: yearly, blended: atWork ? yearly / atWork * 100 : 0, totalUsd: atWork + (id?.usd ?? 0), holdings: hs })
   }
-  return out.filter((b) => b.totalUsd >= 1).sort((a, b) => b.totalUsd - a.totalUsd)
+  return out.filter((b) => b.totalUsd >= DUST_USD).sort((a, b) => b.totalUsd - a.totalUsd)
 }

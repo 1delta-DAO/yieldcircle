@@ -14,7 +14,8 @@ import { useMenu, type Menu } from './useMenu'
 import { parseUid, uidOf } from '../model/uid'
 import { ptMaturityOf, type Strategy } from '../model/strategies'
 import { useAccount } from 'wagmi'
-import { go, marketHref, useApp, walletHref } from '../state/AppState'
+import { go, marketHref, parseRoute, useApp, useRoute, walletHref } from '../state/AppState'
+import { PnlDrawer } from './PnlDrawer'
 import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
 import { useFollowers, useProfile, useProfiles, useWalletLinks } from '../social/queries'
 import { AutoTag, Badges, FollowButton, Impaired, Money, Who, Ago, describeBundle, tokens } from './social-bits'
@@ -69,6 +70,12 @@ export function Wallet({ addr }: { addr: string }) {
   const cut = !allChains && !one
   const inScope = React.useCallback((id: string) => allChains || chainIds.includes(id), [allChains, chainIds])
   const pos = useIndexPositions(isMe ? undefined : addr, one)
+  // `?pos=<group key>`: a position's PnL history is open (pos-indexer tickets/0061)
+  const route = useRoute()
+  const closePnl = React.useCallback(() => {
+    // a link inside the drawer navigates away first: only undo our own param
+    if (parseRoute().pos) go(`w/${addr}`)
+  }, [addr])
   // the app's menu, joined by market: what on this profile can be copied
   const menu = useMenu()
   const copyOf = useCopyable(menu)
@@ -204,6 +211,7 @@ export function Wallet({ addr }: { addr: string }) {
             {rows.length > 0 && <Book rows={rows} groups={groups} navUsd={carry.navUsd} copyOf={copyOf} who={addr} />}
           </div>
         )}
+        <PnlDrawer account={addr} posKey={route.pos} onClose={closePnl} />
       </section>
 
       <section className="sec">
@@ -440,7 +448,7 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
           if (found.length === 0) return null
           const c = copyOf?.(found) ?? null
           const st = c && 'st' in c ? c.st : null
-          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={c ? <CopyCell c={c} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} />
+          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={c ? <CopyCell c={c} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} pnl={<PnlButton who={who} posKey={g.key} />} />
           const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
           return <React.Fragment key={g.key}>
             <tr className="grp" onClick={() => { location.hash = marketHref(lead.marketUid) }}>
@@ -450,6 +458,7 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
                   <span><b title={s.basket ? composition(s) : undefined}>{groupLabel(s)}</b> <span className="t50">· {lead.lenderName ?? lead.lenderKey}</span></span>
                   {g.leverage != null && g.leverage > 1.05 && <span className="pill">{g.leverage.toFixed(2)}×</span>}
                   {s.basket && <span className="pill" title="several assets share this account's one health factor">cross-margin</span>}
+                  <PnlButton who={who} posKey={g.key} />
                 </div>
                 <small className="hide-m">
                   {indexChainLabel(lead.chainId, chainLabel)} · {usdShort(g.supplyUsd)} {s.debt.length ? 'collateral' : 'supplied'}{s.collSyms.length > 1 ? ` in ${s.collSyms.join(', ')}` : ''}
@@ -517,7 +526,16 @@ function NetRate({ g }: { g: PositionGroup }) {
  * and 4.68 % from inside syrupUSDT, and only one of those numbers was ever
  * on this page.
  */
-function LegRow({ r, sub, share = '', copy, maturity }: { r: IndexPosition; sub?: boolean; share?: string; copy?: React.ReactNode; maturity?: number }) {
+/** Opens the position's PnL history (`?pos=`), without following the row's own market link. */
+function PnlButton({ who, posKey }: { who: string; posKey: string }) {
+  return (
+    <button className="pill pnl-btn" title="value, money in and PnL since this position opened" onClick={(e) => { e.stopPropagation(); go(`w/${who}`, { pos: posKey }) }}>
+      PnL
+    </button>
+  )
+}
+
+function LegRow({ r, sub, share = '', copy, maturity, pnl }: { r: IndexPosition; sub?: boolean; share?: string; copy?: React.ReactNode; maturity?: number; pnl?: React.ReactNode }) {
   const rate = r.aprEffective ?? r.aprNow
   const pt = maturity ?? ptMaturityOf(r.symbol)
   const why = r.intrinsicApr != null
@@ -530,6 +548,7 @@ function LegRow({ r, sub, share = '', copy, maturity }: { r: IndexPosition; sub?
           {!sub && <TokLink group={r.assetGroup} sym={r.symbol ?? '?'} logo={r.assetLogo ?? undefined} />}
           <span>{sub && <span className="t40">└ </span>}<b>{r.marketName ?? r.symbol}</b> <span className="t50">· {r.lenderName ?? r.lenderKey}</span></span>
           {r.side === 'borrow' && <span className="pill k-borrow">debt</span>}
+          {pnl}
         </div>
         <small className="hide-m">{indexChainLabel(r.chainId, chainLabel)}{pt
           // a PT's units never grow (its value does, toward par), so the index's accrual reads 0 — the maturity is what to show

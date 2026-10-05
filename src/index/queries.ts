@@ -46,6 +46,16 @@ export function useAccountFlows(account: string | undefined, days = 30, chainId?
     retry: retry404,
   })
 }
+/** One position's PnL history (`api.positionSeries`); `key` = a `groups[].key`. */
+export function usePositionSeries(account: string | undefined, key: string | undefined) {
+  return useQuery({
+    enabled: !!account && !!key,
+    queryKey: ['pos-series', account, key],
+    queryFn: () => api.positionSeries(account!, key!),
+    staleTime: 5 * MIN,
+    retry: retry404,
+  })
+}
 export function useIndexPositions(account: string | undefined, chainId?: string) {
   return useQuery({
     enabled: !!account,

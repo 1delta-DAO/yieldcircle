@@ -206,6 +206,71 @@ export const accountPositions = async (account: string, p: { chainId?: string } 
   return Array.isArray(j.positions) ? j : { account, identity: null, positions: [], totals: { depositsUsd: 0, debtUsd: 0, navUsd: 0 }, asOf: null }
 }
 
+/**
+ * The PnL line of ONE position (pos-indexer tickets/0061, docs/pnl-series.md):
+ * every UTC midnight since it opened — or since the ledger starts — its value,
+ * the money put in by then, and the difference. `key` is a `groups[].key` of
+ * `accountPositions` (`chain|account|posId|riskKey`). History, not the live
+ * position: fine for any wallet, the connected one included.
+ */
+export interface SeriesPoint {
+  t: string
+  navUsd: number | null
+  contribUsd: number
+  pnlUsd: number | null
+  /** in the position's own money, when every leg is one asset group */
+  navAsset: number | null
+  /** per leg, in that leg's asset */
+  legs: (number | null)[]
+}
+export interface SeriesEvent {
+  t: string
+  block: number
+  txHash: string
+  /** index into `legs` */
+  leg: number
+  kind: string
+  side: string
+  amount: number | null
+  amountUsd: number | null
+  /** + put in, − taken out, 0 = not the holder's choice (liquidation, redemption) */
+  flowUsd: number
+}
+export interface SeriesLeg {
+  marketUid: string
+  side: string
+  symbol: string | null
+  assetGroup: string | null
+  lenderKey: string
+  unitKind: string
+  walk: 'units' | 'amount'
+  indexSource: 'log' | 'cache' | 'none'
+  openedInRange: boolean
+  openResidual: number
+  exact: boolean
+  flags: string[]
+  rows: number
+}
+export interface PositionSeries {
+  key: string
+  chainId: string
+  account: string
+  posId: string
+  riskKey: string
+  start: string | null
+  /** the line starts at the ledger's floor: the position is older than that */
+  since: string | null
+  exact: boolean
+  points: SeriesPoint[]
+  events: SeriesEvent[]
+  legs: SeriesLeg[]
+  unpriced: number
+  assetSymbol: string | null
+  unanchored: { marketUid: string; side: string; rows: number }[]
+}
+export const positionSeries = (account: string, key: string, from?: string) =>
+  get<PositionSeries>(`/accounts/${account}/series`, { key, ...(from ? { from } : {}) }, undefined, indexForAddr(account))
+
 export const market = (uid: string) => get<MarketRow>(`/markets/${encodeURIComponent(uid)}`, {}, undefined, indexForUid(uid))
 /**
  * A market's tape. Any filter makes it a 30-day window where `limit` counts

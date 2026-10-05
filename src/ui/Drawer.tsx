@@ -10,12 +10,14 @@ import { useModalChrome } from './useModalChrome'
  * Any navigation closes it — a link inside it is the usual way out, and a
  * drawer left open over the page it just took you to is a drawer in the way.
  */
-export function Drawer({ open, onClose, side, label, children }: {
+export function Drawer({ open, onClose, side, label, children, wide }: {
   open: boolean
   onClose: () => void
   side: 'left' | 'right'
   label: string
   children: React.ReactNode
+  /** room for a chart (the position history) */
+  wide?: boolean
 }) {
   const ref = React.useRef<HTMLDivElement>(null)
   const latest = React.useRef(onClose)
@@ -31,7 +33,7 @@ export function Drawer({ open, onClose, side, label, children }: {
   return createPortal(
     <>
       <div className="scrim drawer-scrim" onClick={close} />
-      <div ref={ref} className={`drawer ${side}`} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
+      <div ref={ref} className={`drawer ${side}${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>
         <div className="drawer-h">
           <b>{label}</b>
           <button className="x" onClick={close} aria-label="Close">

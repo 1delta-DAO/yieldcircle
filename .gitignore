@@ -8,3 +8,4 @@ wrangler.toml
 .harness
 *.tsbuildinfo
 .wrangler
+docs/producthunt

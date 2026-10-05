@@ -140,9 +140,48 @@ function Stat({ k, v, s }: { k: string; v: React.ReactNode; s?: string }) {
 }
 
 /**
- * Value (solid) and money put in (dashed) over time, the PnL band under it,
- * and a tick on the axis for every move: green in, amber out, red a
- * liquidation. A day with no price is a gap, never a straight line.
+ * Monotone cubic through one run of points (Fritsch–Carlson, what d3 calls
+ * curveMonotoneX): smooth, but never overshooting past a data point — a spike
+ * stays a spike of its own height, not a bounce above it.
+ */
+function monotone(xs: number[], ys: number[]): string {
+  const n = xs.length
+  if (n < 2) return ''
+  const m: number[] = []
+  for (let i = 0; i < n - 1; i++) m.push((ys[i + 1] - ys[i]) / Math.max(1e-9, xs[i + 1] - xs[i]))
+  const t = [m[0]]
+  for (let i = 1; i < n - 1; i++) t.push(m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2)
+  t.push(m[n - 2])
+  for (let i = 0; i < n - 1; i++) {
+    if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue }
+    const a = t[i] / m[i], b = t[i + 1] / m[i], h = Math.hypot(a, b)
+    if (h > 3) { t[i] = (3 / h) * a * m[i]; t[i + 1] = (3 / h) * b * m[i] }
+  }
+  let d = `M${xs[0].toFixed(1)},${ys[0].toFixed(1)}`
+  for (let i = 0; i < n - 1; i++) {
+    const dx = (xs[i + 1] - xs[i]) / 3
+    d += `C${(xs[i] + dx).toFixed(1)},${(ys[i] + t[i] * dx).toFixed(1)} ${(xs[i + 1] - dx).toFixed(1)},${(ys[i + 1] - t[i + 1] * dx).toFixed(1)} ${xs[i + 1].toFixed(1)},${ys[i + 1].toFixed(1)}`
+  }
+  return d
+}
+
+/** Consecutive non-null points as runs — a day without a price stays a gap in every path. */
+function runs(vs: (number | null | undefined)[], X: number[]): { xs: number[]; ys: number[] }[] {
+  const out: { xs: number[]; ys: number[] }[] = []
+  let cur: { xs: number[]; ys: number[] } | null = null
+  vs.forEach((v, i) => {
+    if (v == null) { cur = null; return }
+    if (!cur) { cur = { xs: [], ys: [] }; out.push(cur) }
+    cur.xs.push(X[i]); cur.ys.push(v)
+  })
+  return out
+}
+
+/**
+ * Value (solid, over a soft fill) and money put in (dashed) over time, the
+ * PnL band under it, and a tick on the axis for every move: green in, amber
+ * out, red a liquidation. Lines are monotone-smoothed between the daily
+ * points; a day with no price is a gap, never a straight line.
  */
 function Chart({ s, mode }: { s: PositionSeries; mode: 'usd' | 'asset' }) {
   const W = 640, H = 220, PH = 80, padL = 8, padR = 8, padT = 10
@@ -151,6 +190,7 @@ function Chart({ s, mode }: { s: PositionSeries; mode: 'usd' | 'asset' }) {
   if (pts.length < 2) return <div className="empty">Not enough history to draw yet.</div>
   const t0 = Date.parse(pts[0].t), t1 = Date.parse(pts[pts.length - 1].t)
   const x = (t: number) => padL + ((t - t0) / Math.max(1, t1 - t0)) * (W - padL - padR)
+  const X = pts.map((p) => x(Date.parse(p.t)))
   const nav = pts.map((p) => (mode === 'usd' ? p.navUsd : p.navAsset))
   const con = pts.map((p) => (mode === 'usd' ? p.contribUsd : null))
   const pnl = pts.map((p) => (mode === 'usd' ? p.pnlUsd : null))
@@ -158,30 +198,32 @@ function Chart({ s, mode }: { s: PositionSeries; mode: 'usd' | 'asset' }) {
   let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals)
   if (hi - lo < 1e-9) hi = lo + 1
   const y = (v: number) => padT + ((hi - v) / (hi - lo)) * (H - padT - 16)
-  const path = (vs: (number | null)[], step = false) => {
+  const stepPath = (vs: (number | null)[]) => {
     let d = '', on = false
     vs.forEach((v, i) => {
       if (v == null) { on = false; return }
-      const X = x(Date.parse(pts[i].t)).toFixed(1), Y = y(v).toFixed(1)
-      if (!on) d += `M${X},${Y}`
-      else if (step) d += `H${X}V${Y}`
-      else d += `L${X},${Y}`
+      const Xi = X[i].toFixed(1), Y = y(v).toFixed(1)
+      d += on ? `H${Xi}V${Y}` : `M${Xi},${Y}`
       on = true
     })
     return d
   }
+  const navRuns = runs(nav, X).map((r) => ({ ...r, ys: r.ys.map(y) }))
+  const navPath = navRuns.map((r) => monotone(r.xs, r.ys)).join('')
+  // the fill closes to the zero line, so the shade is "what the position is worth", not chart junk
+  const navArea = navRuns
+    .filter((r) => r.xs.length > 1)
+    .map((r) => `${monotone(r.xs, r.ys)}L${r.xs[r.xs.length - 1].toFixed(1)},${y(0).toFixed(1)}L${r.xs[0].toFixed(1)},${y(0).toFixed(1)}Z`)
+    .join('')
   const pv = pnl.filter((v): v is number => v != null)
   const plo = Math.min(0, ...pv), phi = Math.max(0, ...pv, plo + 1)
   const py = (v: number) => 4 + ((phi - v) / (phi - plo)) * (PH - 8)
-  const pnlPath = (() => {
-    let d = '', on = false
-    pnl.forEach((v, i) => {
-      if (v == null) { on = false; return }
-      d += `${on ? 'L' : 'M'}${x(Date.parse(pts[i].t)).toFixed(1)},${py(v).toFixed(1)}`
-      on = true
-    })
-    return d
-  })()
+  const pnlRuns = runs(pnl, X).map((r) => ({ ...r, ys: r.ys.map(py) }))
+  const pnlPath = pnlRuns.map((r) => monotone(r.xs, r.ys)).join('')
+  const pnlArea = pnlRuns
+    .filter((r) => r.xs.length > 1)
+    .map((r) => `${monotone(r.xs, r.ys)}L${r.xs[r.xs.length - 1].toFixed(1)},${py(0).toFixed(1)}L${r.xs[0].toFixed(1)},${py(0).toFixed(1)}Z`)
+    .join('')
   const onMove = (ev: React.MouseEvent<SVGSVGElement>) => {
     const r = ev.currentTarget.getBoundingClientRect()
     const tx = t0 + ((ev.clientX - r.left) / r.width * W - padL) / (W - padL - padR) * (t1 - t0)
@@ -200,21 +242,44 @@ function Chart({ s, mode }: { s: PositionSeries; mode: 'usd' | 'asset' }) {
         </> : <span className="t40">hover the line for a day’s numbers</span>}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg" onMouseMove={onMove} onMouseLeave={() => setHover(null)} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="pnl-g-nav" x1="0" y1="0" x2="0" y2="1">
+            <stop className="pnl-gs0" offset="0" />
+            <stop className="pnl-gs1" offset="1" />
+          </linearGradient>
+        </defs>
         <line className="pnl-zero" x1={padL} x2={W - padR} y1={y(0)} y2={y(0)} />
-        {mode === 'usd' && <path className="pnl-con" d={path(con, true)} />}
-        <path className="pnl-nav" d={path(nav)} />
+        <path className="pnl-area" d={navArea} fill="url(#pnl-g-nav)" />
+        {mode === 'usd' && <path className="pnl-con" d={stepPath(con)} />}
+        <path className="pnl-nav" d={navPath} />
         {s.events.map((e, i) => {
-          const X = x(Date.parse(e.t))
+          const Xe = x(Date.parse(e.t))
           const c = e.flowUsd > 0 ? 'in' : e.flowUsd < 0 ? 'out' : 'liq'
-          return <line key={i} className={`pnl-tick ${c}`} x1={X} x2={X} y1={H - 14} y2={H - 4}><title>{`${e.t.slice(0, 16)} ${e.kind} ${usdShort(e.amountUsd)}`}</title></line>
+          return <line key={i} className={`pnl-tick ${c}`} x1={Xe} x2={Xe} y1={H - 12} y2={H - 5}><title>{`${e.t.slice(0, 16)} ${e.kind} ${usdShort(e.amountUsd)}`}</title></line>
         })}
-        {hover != null && <line className="pnl-hover" x1={x(Date.parse(pts[hover].t))} x2={x(Date.parse(pts[hover].t))} y1={padT} y2={H - 16} />}
+        {hover != null && <line className="pnl-hover" x1={X[hover]} x2={X[hover]} y1={padT} y2={H - 16} />}
+        {hover != null && nav[hover] != null && (
+          // a zero-length round-capped stroke stays a circle: a <circle> would stretch into an ellipse under preserveAspectRatio="none"
+          <path className="pnl-dot" d={`M${X[hover]},${y(nav[hover]!)}h0.01`} />
+        )}
       </svg>
       {mode === 'usd' && (
         <svg viewBox={`0 0 ${W} ${PH}`} className="pnl-svg pnl-p" preserveAspectRatio="none" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+          <defs>
+            <linearGradient id="pnl-g-up" x1="0" y1="0" x2="0" y2="1">
+              <stop className="pnl-gs0 up" offset="0" />
+              <stop className="pnl-gs1 up" offset="1" />
+            </linearGradient>
+            <linearGradient id="pnl-g-down" x1="0" y1="0" x2="0" y2="1">
+              <stop className="pnl-gs1 down" offset="0" />
+              <stop className="pnl-gs0 down" offset="1" />
+            </linearGradient>
+          </defs>
           <line className="pnl-zero" x1={padL} x2={W - padR} y1={py(0)} y2={py(0)} />
+          <path className="pnl-area" d={pnlArea} fill={`url(#pnl-g-${(pv.at(-1) ?? 0) >= 0 ? 'up' : 'down'})`} />
           <path className={`pnl-line ${(pv.at(-1) ?? 0) >= 0 ? 'up' : 'down'}`} d={pnlPath} />
-          {hover != null && <line className="pnl-hover" x1={x(Date.parse(pts[hover].t))} x2={x(Date.parse(pts[hover].t))} y1={2} y2={PH - 2} />}
+          {hover != null && <line className="pnl-hover" x1={X[hover]} x2={X[hover]} y1={2} y2={PH - 2} />}
+          {hover != null && pnl[hover] != null && <path className={`pnl-dot ${pnl[hover]! >= 0 ? 'up' : 'down'}`} d={`M${X[hover]},${py(pnl[hover]!)}h0.01`} />}
         </svg>
       )}
       <div className="pnl-legend t50">

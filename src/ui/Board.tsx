@@ -247,7 +247,7 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
                 const name = r.legs[0]?.marketName ?? r.riskKey
                 const wl = r.wallet
                 return (
-                  <a key={r.key} className="row wrow board" href={`#/w/${r.account}?pos=${encodeURIComponent(r.key)}`} title="open this position’s PnL history">
+                  <a key={r.key} className="row wrow board" href={`#/w/${r.account}`} title="open this wallet — the position’s PnL history is a click on its row there">
                     <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
                     <Who account={r.account} profile={profile(r.account)} idx={r} plain
                       sub={

@@ -448,10 +448,10 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
           if (found.length === 0) return null
           const c = copyOf?.(found) ?? null
           const st = c && 'st' in c ? c.st : null
-          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={c ? <CopyCell c={c} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} pnl={<PnlButton who={who} posKey={g.key} />} />
+          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={c ? <CopyCell c={c} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} pnl={<PnlButton who={who} posKey={g.key} />} onOpen={() => go(`w/${who}`, { pos: g.key })} />
           const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
           return <React.Fragment key={g.key}>
-            <tr className="grp" onClick={() => { location.hash = marketHref(lead.marketUid) }}>
+            <tr className="grp" title="value, money in and PnL since this position opened" onClick={() => go(`w/${who}`, { pos: g.key })}>
               <td>
                 <div className="nm">
                   <TokLink group={lead.assetGroup} sym={lead.symbol ?? '?'} logo={lead.assetLogo ?? undefined} />
@@ -535,18 +535,21 @@ function PnlButton({ who, posKey }: { who: string; posKey: string }) {
   )
 }
 
-function LegRow({ r, sub, share = '', copy, maturity, pnl }: { r: IndexPosition; sub?: boolean; share?: string; copy?: React.ReactNode; maturity?: number; pnl?: React.ReactNode }) {
+function LegRow({ r, sub, share = '', copy, maturity, pnl, onOpen }: { r: IndexPosition; sub?: boolean; share?: string; copy?: React.ReactNode; maturity?: number; pnl?: React.ReactNode; onOpen?: () => void }) {
   const rate = r.aprEffective ?? r.aprNow
   const pt = maturity ?? ptMaturityOf(r.symbol)
   const why = r.intrinsicApr != null
     ? `${pct(r.intrinsicApr)} the token itself${r.intrinsicSource === 'asset' ? ' (from the asset, not this market)' : ''} + ${pct(r.aprNow ?? 0)} the pool`
     : 'the pool’s own rate; nobody publishes a yield for this token'
   return (
-    <tr className={sub ? 'leg' : undefined} onClick={() => { location.hash = marketHref(r.marketUid) }}>
+    <tr className={sub ? 'leg' : undefined} title={onOpen ? 'value, money in and PnL since this position opened' : undefined} onClick={onOpen ?? (() => { location.hash = marketHref(r.marketUid) })}>
       <td>
         <div className="nm">
           {!sub && <TokLink group={r.assetGroup} sym={r.symbol ?? '?'} logo={r.assetLogo ?? undefined} />}
-          <span>{sub && <span className="t40">└ </span>}<b>{r.marketName ?? r.symbol}</b> <span className="t50">· {r.lenderName ?? r.lenderKey}</span></span>
+          <span>{sub && <span className="t40">└ </span>}<b>{onOpen
+            // the row itself opens the PnL history now, so the market keeps its own link
+            ? <a className="mkt" href={marketHref(r.marketUid)} onClick={(e) => e.stopPropagation()}>{r.marketName ?? r.symbol}</a>
+            : r.marketName ?? r.symbol}</b> <span className="t50">· {r.lenderName ?? r.lenderKey}</span></span>
           {r.side === 'borrow' && <span className="pill k-borrow">debt</span>}
           {pnl}
         </div>

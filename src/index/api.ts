@@ -28,6 +28,7 @@
  */
 import { INDEX_BASE_URL, SOL_INDEX_BASE_URL } from '../config/backend'
 import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
+import { isSolGroup } from '../model/assetGroup'
 import type { AccountIdentity, AccountKind, AssetBookRow, IndexBalances, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, ImpairedCount, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
 
 /** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
@@ -788,13 +789,19 @@ export const stress = (markets: string[]) =>
  * bare symbol and answers with the canonical `group`.
  */
 const g = (group: string) => `/assets/${encodeURIComponent(group)}`
+/**
+ * A Solana-only key (`model/assetGroup.ts`) goes to the Solana index, which has
+ * no asset routes yet (its 404 is the page's "not on Solana yet"); every other
+ * key to the EVM index, which does not count Solana members until the two merge.
+ */
+export const indexForGroup = (group: string) => (isSolGroup(group) ? SOL_INDEX_BASE_URL : INDEX_BASE_URL)
 export const assets = (p: { chainIds?: string; q?: string; limit?: number; minUsd?: number } = {}, signal?: AbortSignal) =>
   get<{ assets: AssetBookRow[]; asOf: string | null }>('/assets', p, signal)
-export const asset = (group: string, chainIds?: string) => get<AssetDetail>(g(group), { chainIds })
+export const asset = (group: string, chainIds?: string) => get<AssetDetail>(g(group), { chainIds }, undefined, indexForGroup(group))
 export const assetHistory = (group: string, days = 90, chainIds?: string) =>
-  get<AssetHistory>(`${g(group)}/history`, { days, chainIds })
+  get<AssetHistory>(`${g(group)}/history`, { days, chainIds }, undefined, indexForGroup(group))
 export const assetHolders = (group: string, limit = 20, chainIds?: string) =>
-  get<AssetHolders>(`${g(group)}/holders`, { limit, chainIds })
+  get<AssetHolders>(`${g(group)}/holders`, { limit, chainIds }, undefined, indexForGroup(group))
 
 export const health = () => get<{ ok: boolean; chains?: string[] }>('/health')
 

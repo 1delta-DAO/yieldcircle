@@ -19,7 +19,9 @@ import { useApp, marketHref, tokenHref, walletHref } from '../state/AppState'
 import { useAsset, useAssetBook, useAssetHistory, useAssetHolders, useFeedPage } from '../index/queries'
 import type { AssetBookRow, AssetHistory, AssetMarket, AssetSlice } from '../index/types'
 import { indexChainLabel, subjectOf } from '../index/types'
-import { chainLabel } from '../sdk/queries'
+import { chainLabel, useCatalog } from '../sdk/queries'
+import { canonGroup, isSolGroup, spellingsOf } from '../model/assetGroup'
+import type { Strategy } from '../model/strategies'
 import { normAddr } from '../model/address'
 import { useCounts, useProfiles } from '../social/queries'
 import { ChainMark } from './ChainMark'
@@ -31,7 +33,7 @@ import { Rate } from './Rate'
 import { Thread } from './Thread'
 import { Flows, primaryLeg } from './Feed'
 import { Ago, Comments, ImpairedNote, Money, Who, describeBundle } from './social-bits'
-import { ProtocolLogo, Sk, Tok, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
+import { KindPill, ProtocolLogo, Sk, StratMark, Tok, Toks, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
 
 const chainName = (id: string) => indexChainLabel(id, chainLabel)
 /** utilization arrives as 0..1; a figure already in percent is passed through rather than shown ×100 */
@@ -71,7 +73,75 @@ export function TokLink({ group, sym, logo, size }: { group: string | null | und
   )
 }
 
+/**
+ * The way into an asset page that reads as one: the token's name and an arrow,
+ * where most people look, rather than a hover ring on its icon. For the
+ * surfaces that are about doing something with the token (the ticket, an
+ * Earn shelf filtered to it).
+ */
+export function AssetLink({ group, sym, logo }: { group: string | null | undefined; sym: string; logo?: string }) {
+  if (!group || group === '?') return null
+  return (
+    <a className="assetlink" href={tokenHref(group)} title={`${sym}: where it sits, who lends and borrows it, who holds it`} onClick={(e) => e.stopPropagation()}>
+      <Tok sym={sym} logo={logo} size={14} />{sym}<span className="t50"> asset page ›</span>
+    </a>
+  )
+}
+
 // ---------------------------------------------------------------- the page
+
+/** a strategy's ticket on its Earn shelf (the `go()` url, as a link) */
+function strategyHref(s: Strategy) {
+  const q = new URLSearchParams({ u: s.asset, s: s.id })
+  if (s.kind === 'loop') q.set('k', 'loop')
+  return `#/${s.group}?${q}`
+}
+
+/**
+ * Where the menu puts this token to work: the page's way into Earn, from the
+ * catalogue rather than the index, so it holds on chains the index cannot
+ * answer for yet (Solana). A loop counts when the token is its collateral.
+ */
+function EarnWith({ group, sym, max = 6 }: { group: string; sym: string; max?: number }) {
+  const { chainIds } = useApp()
+  const cat = useCatalog(chainIds)
+  const key = canonGroup(group)
+  // rows a floor holds back still open from here (the shelf resolves `s=` against them too), after the ones it shows
+  const rows = [...[...cat.simple, ...cat.loops].sort((x, y) => y.rate - x.rate), ...[...cat.hidden, ...cat.overflow].sort((x, y) => y.rate - x.rate)]
+    .filter((s, i, all) => s.assetGroup === key && all.findIndex((o) => o.id === s.id) === i)
+  // the index's totals above do not count Solana yet; the menu does
+  const solUncounted = !isSolGroup(group) && rows.some((s) => s.chainId === 'solana')
+  if (!rows.length)
+    return (
+      <section className="sec">
+        <div className="sec-h"><h2>Earn with {sym}</h2></div>
+        <div className="card pad">{cat.isLoading ? <Sk w={220} /> : <span className="t50">Nothing in the menu holds {sym} on the chains in scope.</span>}</div>
+      </section>
+    )
+  const shelf = rows[0]
+  return (
+    <section className="sec">
+      <div className="sec-h">
+        <h2>Earn with {sym}</h2>
+        <span className="sub">{rows.length} in the menu{solUncounted ? ' · the Solana ones are not in the totals above yet' : ''}</span>
+        <span className="sp" />
+        <a className="btn sm" href={`#/${shelf.group}?${new URLSearchParams({ u: shelf.asset })}`}>All on Earn ›</a>
+      </div>
+      <div className="card"><table className="tbl">
+        <tbody>{rows.slice(0, max).map((s) => (
+          <tr key={s.id} onClick={() => { location.hash = strategyHref(s) }}>
+            <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}
+              <a href={strategyHref(s)} onClick={(e) => e.stopPropagation()}><b>{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds}</b></a>
+              <span className="t50 hide-m"> · {s.kind === 'loop' ? s.venue : s.via}</span><KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} /></div>
+              <small>{chainLabel(s.chainId)}</small></td>
+            <td className="r"><span className={s.rate >= 0 ? 'ok' : 'bad'}>{pct(s.rate)}</span><small>APR{s.kind === 'loop' ? ' · levered' : ''}</small></td>
+            <td className="r t40" style={{ width: 20 }}>›</td>
+          </tr>
+        ))}</tbody>
+      </table></div>
+    </section>
+  )
+}
 
 type SliceMode = 'protocol' | 'chain' | 'borrowed' | 'collateral'
 const SLICE_MODES: { id: SliceMode; label: string; note: string }[] = [
@@ -87,7 +157,8 @@ export function TokenPage({ group }: { group: string }) {
   const a = useAsset(group, chainsParam)
   const hist = useAssetHistory(group, 90, chainsParam)
   const holders = useAssetHolders(group, 20, chainsParam)
-  const feed = useFeedPage({ assetGroups: group, chainIds: chainsParam }, 30)
+  // the tape files a Solana token under its chain-local key, the page under the cross-chain one: ask for both
+  const feed = useFeedPage({ assetGroups: spellingsOf(group).join(','), chainIds: chainsParam }, 30)
   const { profile } = useProfiles((holders.data?.holders ?? []).map((h) => h.account))
   const counts = useCounts([{ kind: 'asset', key: group }])
   const [mode, setMode] = React.useState<SliceMode>('protocol')
@@ -100,7 +171,8 @@ export function TokenPage({ group }: { group: string }) {
 
   // the server resolves a symbol or a lower-case key; the page's own url should say the canonical one
   React.useEffect(() => {
-    if (d?.group && d.group !== group) location.replace(tokenHref(d.group))
+    if (canonGroup(group) !== group) location.replace(tokenHref(group))
+    else if (d?.group && d.group !== group) location.replace(tokenHref(d.group))
   }, [d?.group, group])
 
   if (a.isError)
@@ -108,14 +180,22 @@ export function TokenPage({ group }: { group: string }) {
       <>
         <a className="crumb" href="#/t">‹ Assets</a>
         <header className="mhdr">
-          <Tok sym={group} size={40} />
-          <div><h1>{group}</h1><div className="sub">asset</div></div>
+          <Tok sym={group.split('::')[1] || group} size={40} />
+          <div><h1>{group.split('::')[0] || group}</h1><div className="sub">asset{isSolGroup(group) ? ' · Solana' : ''}</div></div>
         </header>
-        <div className="note">
-          The index could not answer for this asset — <b>{(a.error as Error).message}</b>. Either no market lends
-          it, the group key is spelled differently (they are case-significant), or this deploy of the index has no
-          asset pages yet.
-        </div>
+        {isSolGroup(group) ? (
+          <div className="note">
+            A Solana-only token: the Solana index does not serve asset pages yet, so there are no totals, holders or
+            history for it here yet.
+          </div>
+        ) : (
+          <div className="note">
+            The index could not answer for this asset — <b>{(a.error as Error).message}</b>. Either no market lends
+            it, the group key is spelled differently (they are case-significant), or this deploy of the index has no
+            asset pages yet.
+          </div>
+        )}
+        <EarnWith group={group} sym={group.split('::')[1] || group.split('::')[0]} />
       </>
     )
 
@@ -205,6 +285,8 @@ export function TokenPage({ group }: { group: string }) {
           </div>
         )}
       </div>
+
+      <EarnWith group={group} sym={sym} />
 
       {d?.headline && (
         <section className="sec">

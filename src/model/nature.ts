@@ -15,12 +15,15 @@
  *   interest. The API carries no strategy tag that would tell a Lagoon lending vault from a
  *   Lagoon trading desk, so the whole platform is read as managed — the honest default for a NAV
  *   that someone else reports.
+ * - `marked`: the share is priced off a market rather than accrued — the API's
+ *   `yieldProfile: 'volatile'` (Yield Basis' leveraged BTC / ETH pools, Saturn's USDat). The rate
+ *   is a trailing result, and it can be negative.
  *
  * Pure: read off the venue and the asset, never off the rate.
  */
 import { exposureOf } from './assets'
 
-export type Nature = 'savings' | 'perp-lp' | 'managed'
+export type Nature = 'savings' | 'perp-lp' | 'managed' | 'marked'
 export interface NatureMeta {
   /** the pill's word */
   word: string
@@ -31,15 +34,17 @@ export const NATURES: Record<Nature, NatureMeta> = {
   savings: { word: 'savings', why: 'Interest, staking or a savings rate on the money you put in. Its value does not move with a market; what can go wrong is the venue, the issuer or the exit.' },
   'perp-lp': { word: 'perp LP', why: 'You are the house for perpetual-futures traders: paid their fees, on the other side of their profits, and holding the pool’s coins. The value moves with those coins and with the traders’ PnL — the rate is fees, and the price can fall by more.' },
   managed: { word: 'managed', why: 'A manager trades the money and reports what the share is worth. Even in dollars it can fall: the rate is a past result, not interest.' },
+  marked: { word: 'marked to market', why: 'The share is priced off a market, not accrued like interest. The rate is what it returned over a past window, it can turn negative, and the value can end below what you put in.' },
 }
 export const isSavings = (n: Nature) => n === 'savings'
 
-/** A deposit's nature, from the venue it sits in and the asset it holds. */
-export function natureOfDeposit(venue: string, asset: string, name?: string | null): Nature {
+/** A deposit's nature, from the venue it sits in, the asset it holds and the API's `risk.yieldProfile`. */
+export function natureOfDeposit(venue: string, asset: string, name?: string | null, yieldProfile?: string): Nature {
   const ex = exposureOf(asset)
   if (ex) return ex.nature
   if (venue === 'vault.gmx') return 'perp-lp'
   if (venue === 'vault.hypercore') return /\bHLP\b|Hyperliquidity Provider/i.test(name ?? '') ? 'perp-lp' : 'managed'
   if (venue === 'vault.lagoon') return 'managed'
+  if (yieldProfile === 'volatile') return 'marked'
   return 'savings'
 }

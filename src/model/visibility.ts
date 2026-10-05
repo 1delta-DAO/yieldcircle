@@ -18,7 +18,7 @@ export type HideCode =
   // structural — no setting brings these back
   | 'unmapped' | 'cross-denom' | 'brokered' | 'basket' | 'no-leverage' | 'thin-ltv' | 'closed'
   // soft — a floor in Settings
-  | 'small' | 'thin-borrow' | 'risky' | 'negative' | 'rate-bet' | 'dust' | 'outlier'
+  | 'small' | 'thin-borrow' | 'risky' | 'unrated' | 'negative' | 'rate-bet' | 'dust' | 'outlier'
 
 export interface HideMeta {
   /** the chip's word */
@@ -44,6 +44,7 @@ export const HIDES: Record<HideCode, HideMeta> = {
   small: { word: 'small', soft: true, kind: 'simple', refetch: true, why: 'Below the size floor. A market with little in it can be emptied by one depositor and its rate is often a promotion.' },
   'thin-borrow': { word: 'thin borrow', soft: true, kind: 'loop', why: 'Less of the debt asset is borrowable than the floor asks for. A loop that cannot be opened at size, or unwound, is a trap however good the rate looks.' },
   risky: { word: 'higher risk', soft: true, why: 'Above the risk cap. The score is the API’s own, over the market’s configuration, the lender and both tokens.' },
+  unrated: { word: 'unrated', soft: true, why: 'The API has not scored this row: no score for the venue, the lender or the token. Unscored is not the same as safe, so these rows stay out with the higher-risk ones and come back with the same switch.' },
   negative: { word: 'costs more than it pays', soft: true, kind: 'loop', why: 'At the balanced tier the borrow rate eats the whole collateral rate. The loop loses money unless the rates move.' },
   'rate-bet': { word: 'rate bet', soft: true, kind: 'loop', why: 'The collateral earns nothing on its own (no staking, no savings, no PT), so the only return is the gap between two lending rates on the same money.' },
   dust: { word: 'pays ~nothing', soft: true, kind: 'simple', why: 'Under the minimum rate — a market that is live but idle.' },
@@ -52,7 +53,7 @@ export const HIDES: Record<HideCode, HideMeta> = {
 
 export const isSoft = (c: HideCode) => HIDES[c].soft
 /** the order a bar lists them in: the ones a switch can fix first */
-export const HIDE_ORDER: HideCode[] = ['thin-borrow', 'small', 'rate-bet', 'negative', 'risky', 'dust', 'outlier', 'cross-denom', 'unmapped', 'brokered', 'basket', 'no-leverage', 'thin-ltv', 'closed']
+export const HIDE_ORDER: HideCode[] = ['thin-borrow', 'small', 'rate-bet', 'negative', 'risky', 'unrated', 'dust', 'outlier', 'cross-denom', 'unmapped', 'brokered', 'basket', 'no-leverage', 'thin-ltv', 'closed']
 
 /**
  * The soft gate a built row fails under the current settings, or null when it
@@ -67,12 +68,12 @@ export function softHide(s: Strategy, st: Settings): HideCode | null {
   if (s.kind === 'loop') {
     if (!s.collateralYields && !st.showRateBets) return 'rate-bet'
     if (s.borrowLiquidityUsd < st.minBorrowLiquidityUsd) return 'thin-borrow'
-    if (s.riskScore > st.maxRisk) return 'risky'
+    if (s.riskScore > st.maxRisk) return s.rated ? 'risky' : 'unrated'
     if (s.rate <= 0 && !st.showNegative) return 'negative'
     return null
   }
   if (s.tvlUsd < st.minTvlUsd) return 'small'
-  if (s.riskScore > st.maxRisk) return 'risky'
+  if (s.riskScore > st.maxRisk) return s.rated ? 'risky' : 'unrated'
   if (s.rate < st.minRate) return 'dust'
   if (s.rate > st.maxRate) return 'outlier'
   return null
@@ -98,7 +99,8 @@ export function relaxFor(code: HideCode): Partial<Settings> {
   switch (code) {
     case 'small': return { minTvlUsd: 0 }
     case 'thin-borrow': return { minBorrowLiquidityUsd: 0 }
-    case 'risky': return { maxRisk: 5 }
+    case 'risky':
+    case 'unrated': return { maxRisk: 5 }
     case 'negative': return { showNegative: true }
     case 'rate-bet': return { showRateBets: true }
     case 'dust': return { minRate: 0 }
@@ -111,7 +113,8 @@ export function restoreFor(code: HideCode): Partial<Settings> {
   switch (code) {
     case 'small': return { minTvlUsd: 2_000_000 }
     case 'thin-borrow': return { minBorrowLiquidityUsd: 100_000 }
-    case 'risky': return { maxRisk: 4 }
+    case 'risky':
+    case 'unrated': return { maxRisk: 4 }
     case 'negative': return { showNegative: false }
     case 'rate-bet': return { showRateBets: false }
     case 'dust': return { minRate: 0.01 }
@@ -136,5 +139,6 @@ export function isWidened(code: HideCode, st: Settings): boolean {
   return (Object.keys(back) as (keyof Settings)[]).some((k) => st[k] !== back[k])
 }
 /** Every soft code whose floor has been moved, in the bar's order. */
-export const widenedCodes = (st: Settings): HideCode[] => HIDE_ORDER.filter((c) => HIDES[c].soft && isWidened(c, st))
+// `unrated` rides the risk cap: one `−` (higher risk) puts both back
+export const widenedCodes = (st: Settings): HideCode[] => HIDE_ORDER.filter((c) => HIDES[c].soft && c !== 'unrated' && isWidened(c, st))
 export { DEFAULTS, NO_CAP }

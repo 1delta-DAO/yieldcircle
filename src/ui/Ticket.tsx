@@ -24,6 +24,7 @@ import { uidOf } from '../model/uid'
 import { NATURES, isSavings } from '../model/nature'
 import { SayWhy } from './SayWhy'
 import { TicketSocial } from './TicketSocial'
+import { AssetLink } from './TokenPage'
 
 /**
  * What the ticket is about, for the pieces too deep to thread props through:
@@ -41,7 +42,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: St
     <div className="ticket">
       <div className="grab" />
       <div className="th">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />}
-        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part{s.terms ? <>, fixed for the term you pick</> : ''}.{s.desk ? <> Your exposure is <b>{nameOf(s.asset)}</b>{s.instrument ? <> (through {s.instrument})</> : ''}: a dollar debt cannot depeg upward, so {s.debt} is a rate you pay, not a risk you hold.</> : ''}{!isSavings(s.nature) ? <> This is not a carry: you owe {s.debt} and hold <b>{s.holds}</b>, whose price moves on its own, so the leverage multiplies that move as well as the rate.</> : ''}</> : <SimpleWords s={s} />}{!isSavings(s.nature) && <p style={{ margin: '8px 0 0' }}><b>Not a saving · {NATURES[s.nature].word}.</b> {NATURES[s.nature].why}</p>}</Info></div><div className="s">{nameOf(s.asset)} strategy · {s.kind === 'loop' ? `${s.venue}${s.terms ? ' · fixed rate' : ''}` : s.via} · {chainLabel(s.chainId)}</div></div>
+        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part{s.terms ? <>, fixed for the term you pick</> : ''}.{s.desk ? <> Your exposure is <b>{nameOf(s.asset)}</b>{s.instrument ? <> (through {s.instrument})</> : ''}: a dollar debt cannot depeg upward, so {s.debt} is a rate you pay, not a risk you hold.</> : ''}{!isSavings(s.nature) ? <> This is not a carry: you owe {s.debt} and hold <b>{s.holds}</b>, whose price moves on its own, so the leverage multiplies that move as well as the rate.</> : ''}</> : <SimpleWords s={s} />}{!isSavings(s.nature) && <p style={{ margin: '8px 0 0' }}><b>Not a saving · {NATURES[s.nature].word}.</b> {NATURES[s.nature].why}</p>}</Info></div><div className="s">{nameOf(s.asset)} strategy · {s.kind === 'loop' ? `${s.venue}${s.terms ? ' · fixed rate' : ''}` : s.via} · {chainLabel(s.chainId)}</div><TicketAssetLinks s={s} /></div>
         <KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} />{holding && <LegsPill others={holding.others} />}<button className="x" onClick={onClose} aria-label="Close">✕</button></div>
       {holding && (
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
@@ -57,6 +58,16 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: St
     </div>
     </TicketCtx.Provider>
   )
+}
+
+/** The token(s) behind the strategy, each a way to its asset page: what it is, before what to do with it. */
+function TicketAssetLinks({ s }: { s: Strategy }) {
+  const legs = s.kind === 'loop'
+    ? [{ g: s.assetGroup, sym: s.holds, logo: s.logoLong }, { g: s.debtGroup, sym: s.debt, logo: s.logoShort }]
+    : [{ g: s.assetGroup, sym: s.assetSymbol, logo: undefined }]
+  const shown = legs.filter((l) => l.g)
+  if (!shown.length) return null
+  return <div className="assetlinks">{shown.map((l) => <AssetLink key={l.g} group={l.g} sym={l.sym} logo={l.logo} />)}</div>
 }
 
 /**

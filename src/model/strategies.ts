@@ -6,7 +6,7 @@
  * (`noteToken`), which positions and balances read.
  */
 import type { EarnMarket, OptimizerRowRaw } from '../sdk/types'
-import { baseOfCollateral, baseOfSymbol, denomOf, deskOf, exposureOf, groupOf, sameMoney, type GroupId } from './assets'
+import { baseOfCollateral, baseOfSymbol, denomOf, deskOf, EXPOSURE_ASSETS, exposureOf, groupOf, sameMoney, type GroupId } from './assets'
 import { creditDesk, deskKey, moneyOf, noteToken } from './desk'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
 import { marketTag } from './market'
@@ -14,6 +14,7 @@ import { natureOfDeposit, type Nature } from './nature'
 import type { HideCode } from './visibility'
 import STRATEGY_TOKENS from '../data/strategy-tokens.json'
 import { normAddr } from './address'
+import { canonGroup } from './assetGroup'
 /** `chain:vaultAddress` → the share token you end up holding (scripts/logos.mjs, from the chain token lists). */
 const strategyToken = (chainId: string, ref: string | undefined) => (ref ? (STRATEGY_TOKENS as Record<string, { symbol: string; logoURI: string | null }>)[`${chainId}:${normAddr(ref)}`] : undefined)
 
@@ -32,6 +33,8 @@ interface Base {
   asset: string
   /** the desk's issuer id (`ethena`, `circle`, `sym:USDf` for a dollar nobody is named for); dollars only */
   desk?: string
+  /** the index's asset-group key of the token the money sits in — a deposit's underlying, a loop's collateral (`model/assetGroup.ts`); opens its asset page */
+  assetGroup?: string
   /** token you end up holding */
   holds: string
   venue: string
@@ -47,8 +50,10 @@ interface Base {
   rate: number
   risk: Risk
   riskLabel: string
-  /** the API's own 1-5 score, before it is folded into the three words above — what `Settings.maxRisk` caps */
+  /** the API's own 1-5 score, before it is folded into the three words above — what `Settings.maxRisk` caps. An unrated row carries 5 here, for the cap only: never shown as a score */
   riskScore: number
+  /** false when the API scored nothing (no score on a deposit, no breakdown on a loop): the row says `unrated`, never `risk 5/5` */
+  rated: boolean
   tvlUsd: number
   /**
    * Set only on a copy the catalogue puts in its HIDDEN list: which floor left
@@ -132,6 +137,8 @@ export interface LoopStrategy extends Base {
   kind: 'loop'
   lender: string
   debt: string
+  /** the debt token's asset-group key */
+  debtGroup?: string
   marketLongUid: string
   marketShortUid: string
   collateralAddress: string
@@ -195,6 +202,8 @@ export interface Candidate<T extends Strategy> {
 
 /** `Capy Fi` is `CapyFi`: the same words, said with different spaces and case. */
 const sameWords = (a: string, b: string) => a.replace(/\s+/g, '').toLowerCase() === b.replace(/\s+/g, '').toLowerCase()
+/** a group key as an asset page opens it; none when the API sent none */
+const groupKey = (g: string | undefined) => (g ? canonGroup(g) : undefined)
 const num = (v: string | number | null | undefined): number => { if (v == null || v === '') return 0; const n = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(n) ? n : 0 }
 /**
  * One vocabulary for both listings: the API's 1–5 score, bucketed exactly as
@@ -202,10 +211,10 @@ const num = (v: string | number | null | undefined): number => { if (v == null |
  * unknown (measured 2026-09-25 on both the earn listing and the optimizer:
  * every `low`/`medium`/`high` label sits on those scores). The score, not the
  * label, is read, because the earn listing mixes in colour words that disagree
- * with it (`2 yellow`, `4 red`). An unknown wears the medium dot, never low.
+ * with it (`2 yellow`, `4 red`). An unrated row wears the medium dot, never low.
  */
 const riskOf = (score: number | undefined, _label?: string): { risk: Risk; riskLabel: string } => {
-  if (!score) return { risk: 2, riskLabel: 'Unknown' }
+  if (!score) return { risk: 2, riskLabel: 'Unrated' }
   const risk: Risk = score <= 2 ? 1 : score <= 4 ? 2 : 3
   return { risk, riskLabel: risk === 1 ? 'Low' : risk === 2 ? 'Medium' : 'High' }
 }
@@ -318,8 +327,11 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const no = (hide: HideCode): Candidate<SimpleStrategy> => ({ s: null, hide, label, chainId: m.chainId })
   // a dollar, ether or bitcoin sits on its desk's row; anything else on its whitelisted base
   const tok = { ...m.asset, chainId: m.chainId }
-  const money = moneyOf(tok)
-  const coin = baseOfSymbol(m.asset.symbol)
+  // a vault whose SHARE is an exposure asset is that asset, whatever it is deposited in: Jupiter's
+  // JLP pool is minted with USDC (its unit, `asset`), and filed by that it read "USDC savings"
+  const exposed = m.venueKind === 'vault' ? EXPOSURE_ASSETS.find((e) => e.chainId === m.chainId && e.address === m.ref) : undefined
+  const money = exposed ? undefined : moneyOf(tok)
+  const coin = exposed ? exposed.sym : baseOfSymbol(m.asset.symbol)
   let asset = money ? deskKey(tok, money) : coin
   if (!asset) return no('unmapped')
   if (money) noteToken(m.chainId, m.asset.address, asset)
@@ -368,7 +380,8 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   // a PT's maturity is part of WHICH product it is: PT sUSDai Oct and PT sUSDai Feb are two rows
   const maturity = typeof m.maturity?.maturity === 'number' ? m.maturity.maturity : undefined
   let via: string, source: string, holds: string
-  if (m.venue === 'vault.lst') { via = `Stake with ${brand}`; source = 'staking'; holds = shareSym || named || own }
+  if (exposed) { via = `Mint ${exposed.sym} on ${brand}`; source = 'pool'; holds = exposed.sym }
+  else if (m.venue === 'vault.lst') { via = `Stake with ${brand}`; source = 'staking'; holds = shareSym || named || own }
   else if (m.venue === 'vault.savings') { via = `${brand} savings`; source = 'savings'; holds = shareSym ?? (named || own) }
   else if (m.venue === 'vault.pendle') { via = `Fixed on Pendle${maturity ? ` · ${dateOf(maturity)}` : ''}`; source = 'fixed'; holds = 'PT ' + (named || own).replace(/^PT\s*/, '').split(' ')[0] }
   else if (isVault) { const who = `${brand}${market ? ` ${market}` : ''} vault`; via = sameWords(brand, protocol) ? who : `${who} · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || own) }
@@ -382,8 +395,8 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const exitMode = m.exit?.mode ?? 'instant'
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const s: SimpleStrategy = {
-    id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
-    nature: natureOfDeposit(m.venue, asset, m.name), rate, risk, riskLabel, riskScore, tvlUsd: tvl,
+    id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, assetGroup: groupKey(m.asset.assetGroup), holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
+    nature: natureOfDeposit(m.venue, asset, m.name, m.risk?.yieldProfile), rate, risk, riskLabel, riskScore, rated: !!m.risk?.score, tvlUsd: tvl,
     earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, assetSymbol: m.asset.symbol, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
     exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, exitSecs: m.exit?.cooldownSecs || undefined, exitFeeBps: m.exit?.feeBps || undefined, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0, passthrough: m.rate?.passthrough || undefined,
@@ -486,8 +499,9 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const venue = venueLabel(r.lender, r.curatorNameLong)
   const instrument = r.collateralDesk?.via ?? (p.pendle || p.spectra ? p.issuer?.name : undefined)
   const s: LoopStrategy = {
-    id: `l:${r.marketLongUid}|${r.marketShortUid}`, kind: 'loop', chainId: r.chainId, group: groupOf(asset), asset, desk: debtMoney && !exposed ? deskOf(asset)?.id : undefined, nature: exposed?.nature ?? 'savings', holds: L.symbol, venue, venueKey: r.lender, logo: L.logoURI,
-    rate, risk, riskLabel, riskScore: worst, tvlUsd: num(r.totalDepositsUsdLong),
+    id: `l:${r.marketLongUid}|${r.marketShortUid}`, kind: 'loop', chainId: r.chainId, group: groupOf(asset), asset, desk: debtMoney && !exposed ? deskOf(asset)?.id : undefined, assetGroup: groupKey(L.assetGroup), debtGroup: groupKey(S.assetGroup), nature: exposed?.nature ?? 'savings', holds: L.symbol, venue, venueKey: r.lender, logo: L.logoURI,
+    // unscored is not safe: capped like a 5, the same as a deposit the API left unscored
+    rate, risk, riskLabel, riskScore: worst || 5, rated: worst > 0, tvlUsd: num(r.totalDepositsUsdLong),
     lender: r.lender, debt: S.symbol, marketLongUid: r.marketLongUid, marketShortUid: r.marketShortUid,
     collateralAddress: L.address, debtAddress: S.address, decimalsLong: L.decimals ?? 18, decimalsShort: S.decimals ?? 18,
     priceLong: r.underlyingInfoLong.prices?.priceUsd, priceShort: r.underlyingInfoShort.prices?.priceUsd, logoLong: L.logoURI, logoShort: S.logoURI,
@@ -543,7 +557,7 @@ export function markPicks(rows: Strategy[]): Set<string> {
   const byKey = new Map<string, Strategy>()
   for (const r of rows) {
     // a pick is a saving: a perp LP or a managed fund is never the default answer for an asset
-    if (r.risk > 2 || r.riskLabel === 'Unknown' || r.nature !== 'savings') continue
+    if (r.risk > 2 || !r.rated || r.nature !== 'savings') continue
     if (r.tvlUsd < (r.kind === 'simple' ? 2e7 : 0) || (r.kind === 'loop' && r.borrowLiquidityUsd < 2e6)) continue
     const k = `${r.asset}|${r.kind}`
     const cur = byKey.get(k)

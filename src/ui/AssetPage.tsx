@@ -19,6 +19,7 @@ import { RateTrend, useSparkRewards } from './Spark'
 import { useViewport } from './useViewport'
 import { useSticky } from '../state/sticky'
 import { NATURES, isSavings, type Nature } from '../model/nature'
+import { AssetLink } from './TokenPage'
 
 /** One list, one number per row. The list decides which; the ticket decides how much and how levered. */
 export function AssetPage({ group, route }: { group: Group; route: Route }) {
@@ -85,7 +86,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
       <div className={`asset${ticketOpen ? '' : ' noticket'}`}>
         <div className="main">
           <div className="hdr">
-            <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {nameOf(u)}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div></div></div>
+            <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {nameOf(u)}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div>{u !== 'all' && <TokenLinks rows={inGroup.filter((s) => s.asset === u)} />}</div></div>
             <AssetChips group={group} route={route} assets={assets} u={u} all={inGroup} />
           </div>
           {idle.length > 0 && (
@@ -222,6 +223,24 @@ function AssetChips({ group, route, assets, u, all, max = 6 }: { group: Group; r
 }
 
 /**
+ * The asset pages behind one shelf row: a dollar desk is several tokens
+ * (USDC, EURC under Circle), ranked by how many strategies use each.
+ */
+function TokenLinks({ rows, max = 4 }: { rows: Strategy[]; max?: number }) {
+  const by = new Map<string, { sym: string; n: number }>()
+  for (const s of rows) {
+    if (!s.assetGroup) continue
+    const sym = s.kind === 'loop' ? s.holds : s.assetSymbol
+    const cur = by.get(s.assetGroup)
+    if (cur) cur.n++
+    else by.set(s.assetGroup, { sym, n: 1 })
+  }
+  const top = [...by].sort((x, y) => y[1].n - x[1].n).slice(0, max)
+  if (!top.length) return null
+  return <div className="assetlinks">{top.map(([g, x]) => <AssetLink key={g} group={g} sym={x.sym} />)}</div>
+}
+
+/**
  * How big the market is, at the end of the row's sentence — and, on hover,
  * how much of it can actually leave.
  *
@@ -252,7 +271,8 @@ function Size({ s }: { s: Strategy }) {
  */
 function WhyIn({ s }: { s: Strategy }) {
   const code = letIn(s)
-  if (!code) return null
+  // the risk word already says `unrated`; a chip saying it again adds nothing
+  if (!code || code === 'unrated') return null
   const d = hideDetail(s, code)
   return <span className="pill why" title={`${HIDES[code].why}${d ? ` (${d})` : ''}`}>{HIDES[code].word}{d ? <span className="d"> {d}</span> : null}</span>
 }
@@ -266,6 +286,8 @@ function NaturePill({ n }: { n: Nature }) {
 
 /** `medium risk`, in the row's own sentence rather than in a column of its own. */
 function RiskWord({ s }: { s: Strategy }) {
+  // unrated is not a level of risk: `unrated`, never `unknown risk` beside a `risk 5/5` chip
+  if (!s.rated) return <span className={`risk r${s.risk}`} title={HIDES.unrated.why}><i />unrated</span>
   const word = (s.riskLabel || ['', 'Low', 'Medium', 'High'][s.risk] || '').toLowerCase()
   return <span className={`risk r${s.risk}`}><i />{word} risk</span>
 }

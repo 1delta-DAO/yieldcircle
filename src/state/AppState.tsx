@@ -1,6 +1,7 @@
 import React from 'react'
 import { useAccount } from 'wagmi'
 import { isAddr, normAddr } from '../model/address'
+import { canonGroup } from '../model/assetGroup'
 import { useSolWallet } from '../wallet/solana'
 import { CHAINS } from '../sdk/queries'
 import { readFeedLink } from './feedLink'
@@ -97,8 +98,8 @@ export function go(path: string, params: Record<string, string | undefined | nul
 /** A market uid carries colons and dots, so it is encoded — and its case is significant, never lowered. */
 export const marketHref = (uid: string) => `#/m/${encodeURIComponent(uid)}`
 export const walletHref = (a: string) => `#/w/${normAddr(a)}`
-/** An asset page. The group key is case-significant and may carry spaces and colons. */
-export const tokenHref = (group: string) => `#/t/${encodeURIComponent(group)}`
+/** An asset page. The group key is case-significant and may carry spaces and colons; a chain-local spelling opens its cross-chain page (`model/assetGroup.ts`). */
+export const tokenHref = (group: string) => `#/t/${encodeURIComponent(canonGroup(group))}`
 
 /**
  * A feed link followed in a tab that is already open — pasted, or Back onto a

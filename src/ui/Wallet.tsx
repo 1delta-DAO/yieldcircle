@@ -25,7 +25,9 @@ import { isEvmChain, normAddr } from '../model/address'
 import { AddrExplorers, CopyButton, MaturityNote, Sk, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
-import { chainLabel } from '../sdk/queries'
+import { chainLabel, offMenuQuery, type OffMenuRef } from '../sdk/queries'
+import { HIDES } from '../model/visibility'
+import { useQueryClient } from '@tanstack/react-query'
 import { primaryLeg } from './Feed'
 import { TokLink } from './TokenPage'
 
@@ -324,18 +326,61 @@ function useCopyable(menu: Menu) {
         }
       }
     }
-    return (legs: IndexPosition[]): Strategy | null => {
+    // a shape the ticket builds that the menu has no row for is still copyable: its row is asked
+    // for on the click (`fetchOffMenu`) and the ticket opens flagged as off-menu
+    return (legs: IndexPosition[]): Copyable => {
       const coll = legs.filter((l) => l.side !== 'borrow')
       const debt = legs.filter((l) => l.side === 'borrow')
-      if (coll.length === 1 && debt.length === 0 && coll[0].side !== 'collateral')
-        return simple.get(coll[0].marketUid) ?? simple.get(fold(coll[0].marketUid)) ?? null
+      if (coll.length === 1 && debt.length === 0 && coll[0].side !== 'collateral') {
+        const st = simple.get(coll[0].marketUid) ?? simple.get(fold(coll[0].marketUid))
+        if (st) return { st }
+        return coll[0].symbol ? { off: { id: `s:${coll[0].marketUid}`, by: coll[0].symbol } } : null
+      }
       if (coll.length === 1 && debt.length === 1) {
         const k = `${coll[0].marketUid}|${debt[0].marketUid}`
-        return loop.get(k) ?? loop.get(`${fold(coll[0].marketUid)}|${fold(debt[0].marketUid)}`) ?? null
+        const st = loop.get(k) ?? loop.get(`${fold(coll[0].marketUid)}|${fold(debt[0].marketUid)}`)
+        if (st) return { st }
+        return coll[0].asset ? { off: { id: `l:${k}`, by: coll[0].asset } } : null
       }
       return null
     }
   }, [menu.all, menu.hidden, menu.overflow])
+}
+
+type Copyable = { st: Strategy } | { off: OffMenuRef } | null
+
+/** The Copy button for whatever `useCopyable` found: a menu row, or one asked for on the click. */
+function CopyCell({ c, who, lev }: { c: Copyable; who: string; lev?: number | null }) {
+  if (!c) return null
+  return 'st' in c ? <CopyPositionButton st={c.st} who={who} lev={lev} /> : <CopyOffMenuButton r={c.off} who={who} />
+}
+
+/**
+ * Copy for a position the menu does not list. The row is fetched on the click,
+ * then the ticket opens with a warning saying why it is off the menu; a shape
+ * the ticket cannot build at all (a price bet, a basket) says so here instead.
+ */
+function CopyOffMenuButton({ r, who }: { r: OffMenuRef; who: string }) {
+  const qc = useQueryClient()
+  const [state, setState] = React.useState<{ busy?: boolean; no?: string }>({})
+  if (state.no) return <span className="t40" style={{ fontSize: 11 }} title={state.no}>can’t copy</span>
+  return (
+    <button
+      type="button"
+      className="btn sm copyb off"
+      disabled={state.busy}
+      title="Not in the menu: opens the ticket with a warning — check liquidity and risk yourself"
+      onClick={async (e) => {
+        e.stopPropagation()
+        setState({ busy: true })
+        const c = await qc.fetchQuery(offMenuQuery(r)).catch(() => null)
+        if (c?.s) go(c.s.group, { u: c.s.asset, s: c.s.id, k: c.s.kind, copy: who, oa: r.by })
+        else setState({ no: c?.hide ? `${HIDES[c.hide].word}: ${HIDES[c.hide].why}` : 'The API has no row for this market to build a ticket from.' })
+      }}
+    >
+      {state.busy ? '…' : 'Copy'}<span className="offmark" aria-label="not in the menu">!</span>
+    </button>
+  )
 }
 
 /** The ticket for that strategy, opened as a copy of `who`'s position — the feed's "Copy this", from a profile. */
@@ -382,7 +427,7 @@ function groupsOrLegs(rows: IndexPosition[], groups?: PositionGroup[]): Position
 const navShare = (equityUsd: number, navUsd: number | null | undefined) =>
   navUsd != null && navUsd > 0 ? ` · ${pct((Math.abs(equityUsd) / navUsd) * 100, 1)} of NAV` : ''
 
-function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; groups?: PositionGroup[]; navUsd?: number | null; copyOf?: (legs: IndexPosition[]) => Strategy | null; who: string }) {
+function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; groups?: PositionGroup[]; navUsd?: number | null; copyOf?: (legs: IndexPosition[]) => Copyable; who: string }) {
   const byLeg = new Map(rows.map((r) => [`${r.marketUid}|${r.side}|${r.posId}`, r]))
   const gs = groupsOrLegs(rows, groups)
   return (
@@ -393,8 +438,9 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
         {gs.map((g) => {
           const found = g.legs.map((l) => byLeg.get(`${l.marketUid}|${l.side}|${l.posId}`)).filter((r): r is IndexPosition => !!r)
           if (found.length === 0) return null
-          const st = copyOf?.(found) ?? null
-          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={st ? <CopyPositionButton st={st} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} />
+          const c = copyOf?.(found) ?? null
+          const st = c && 'st' in c ? c.st : null
+          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={c ? <CopyCell c={c} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} />
           const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
           return <React.Fragment key={g.key}>
             <tr className="grp" onClick={() => { location.hash = marketHref(lead.marketUid) }}>
@@ -412,7 +458,7 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
               </td>
               <td className="r"><b>{usd(g.equityUsd)}</b><small>equity{navShare(g.equityUsd, navUsd)}</small></td>
               <td className="r hide-m"><NetRate g={g} /></td>
-              <td className="r t40">{st ? <CopyPositionButton st={st} who={who} lev={g.leverage} /> : '›'}</td>
+              <td className="r t40">{c ? <CopyCell c={c} who={who} lev={g.leverage} /> : '›'}</td>
             </tr>
             {legs.map((r) => <LegRow key={`${r.marketUid}:${r.side}:${r.posId}`} r={r} sub />)}
           </React.Fragment>

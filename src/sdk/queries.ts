@@ -2,7 +2,8 @@ import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
 import { capPerAsset, classifyEarn, classifyPair, dedupe, rowKey, type Candidate, type LoopStrategy, type SimpleStrategy, type Strategy } from '../model/strategies'
-import { softHide, type HideCode } from '../model/visibility'
+import { HIDES, hideDetail, softHide, type HideCode } from '../model/visibility'
+import { parseUid } from '../model/uid'
 import { EXPOSURE_ASSETS } from '../model/assets'
 import { useSettings, type Settings } from '../state/Settings'
 import type { OptimizerResponse, TokenBalance } from './types'
@@ -496,6 +497,58 @@ export function useEarnPositions(accounts: VmAccounts, chainIds: string[]) {
  * resolves to `null` — an answer, not an error, so the popover can say so in
  * words instead of rendering a spinner that never stops.
  */
+/**
+ * A row the menu does not hold, asked for on its own — so a position can be
+ * copied (or added to) although the catalogue never listed it.
+ *
+ * The catalogue asks the optimizer at `collateralAmountUsd: 10_000`, which
+ * DROPS a pair that cannot fill that size (a Jupiter Lend vault with $36 of
+ * USDC left to borrow simply is not in the answer), pages by rate, and asks
+ * only by tag. The narrow request here asks by the collateral's address with no
+ * size and no floor; a deposit is asked by its token's symbol. Either way the
+ * row goes through the same `classify*`: what it cannot build (a price bet, a
+ * basket, a fixed-term debt) stays unbuilt, and says why.
+ *
+ * `by` is what the request is narrowed by: the collateral token's address for
+ * a loop (`l:<long>|<short>`), the token's symbol for a deposit (`s:<earnUid>`).
+ */
+export interface OffMenuRef { id: string; by: string }
+export type OffMenuRow = Candidate<Strategy> | null
+const sameUid = (a: string, b: string) => a === b || (isEvmChain(parseUid(a)?.chainId ?? '') && a.toLowerCase() === b.toLowerCase())
+export async function fetchOffMenu({ id, by }: OffMenuRef): Promise<OffMenuRow> {
+  if (id.startsWith('l:')) {
+    const [long, short] = id.slice(2).split('|')
+    const chainId = parseUid(long)?.chainId
+    if (!chainId || !short) return null
+    const r = await fetchOptimizerPairs({ chainIds: [chainId], collaterals: [by], minBorrowLiquidityUsd: 0, count: 100 })
+    const row = r.items.find((x) => sameUid(x.marketLongUid, long) && sameUid(x.marketShortUid, short))
+    return row ? classifyPair(row) : null
+  }
+  const earnUid = id.slice(2)
+  const chainId = parseUid(earnUid)?.chainId
+  if (!chainId) return null
+  const r = await fetchEarn({ chainIds: [chainId], count: 500, maxRiskScore: 5, minTvlUsd: 0, assetSymbol: by, passthrough: true })
+  // a profile names the MARKET uid, a reloaded ticket its own id (`s:<earnUid>`): either finds it
+  const m = r.items.find((x) => sameUid(x.earnUid, earnUid) || (!!x.refs?.marketUid && sameUid(x.refs.marketUid, earnUid)))
+  return m ? classifyEarn(m) : null
+}
+export const offMenuQuery = (ref: OffMenuRef) => ({ queryKey: ['off-menu', ref.id, ref.by], queryFn: () => fetchOffMenu(ref), staleTime: 10 * 60_000, retry: false })
+export function useOffMenu(ref: OffMenuRef | null) {
+  return useQuery({ ...offMenuQuery(ref ?? { id: '', by: '' }), enabled: !!ref })
+}
+/**
+ * Why an off-menu row is off the menu, in one sentence for its ticket: the
+ * floor it fails under the current settings, or — when it passes every floor —
+ * that the catalogue's own request never returned it.
+ */
+export function offMenuWhy(s: Strategy, st: Settings): string {
+  const code = softHide(s, st)
+  if (code) { const d = hideDetail(s, code); return `${HIDES[code].word[0].toUpperCase()}${HIDES[code].word.slice(1)}${d ? ` (${d})` : ''}: ${HIDES[code].why}` }
+  return s.kind === 'loop'
+    ? 'The menu asks for loops at a $10k size, and this one did not come back: usually too little left to borrow to fill that.'
+    : 'The menu’s own listing did not return it.'
+}
+
 export function useIrm(marketUid: string | null | undefined, enabled = true) {
   return useQuery({
     enabled: enabled && !!marketUid,

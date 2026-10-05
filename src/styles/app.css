@@ -1467,6 +1467,9 @@ i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-sty
 /* ---------------------------------------------------------------- asset pages (#/t, #/t/<group>) — src/ui/TokenPage.tsx */
 .toklink{display:inline-flex;flex:none;border-radius:50%}
 .toklink:hover{box-shadow:0 0 0 2px var(--primary)}
+.ticket .offmenu{font-size:12.5px;line-height:1.45;color:var(--tx70);background:color-mix(in srgb,var(--warning) 10%,transparent);border-left:3px solid var(--warning)}
+.ticket .offmenu b{color:var(--warning)}
+.copyb .offmark{display:inline-grid;place-items:center;width:13px;height:13px;margin-left:5px;border-radius:50%;font-size:10px;font-weight:700;background:var(--warning);color:#000}
 .assetlink{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 8px 2px 4px;border:1px solid var(--line);border-radius:999px;color:inherit;text-decoration:none;white-space:nowrap}
 .assetlink:hover{border-color:var(--primary)}
 .assetlinks{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}

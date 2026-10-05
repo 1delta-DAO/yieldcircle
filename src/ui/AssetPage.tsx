@@ -13,7 +13,8 @@ import { Comments } from './social-bits'
 import { marketHref } from '../state/AppState'
 import { HiddenBar } from './Hidden'
 import { HIDES, hideDetail, letIn } from '../model/visibility'
-import { useRateHistory } from '../sdk/queries'
+import { offMenuWhy, useOffMenu, useRateHistory, type OffMenuRef } from '../sdk/queries'
+import { useSettings } from '../state/Settings'
 import { isSpike, seriesFor, steadyRate } from '../model/rateHistory'
 import { RateTrend, useSparkRewards } from './Spark'
 import { useViewport } from './useViewport'
@@ -33,7 +34,14 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const sel = route.s ? b.all.find((s) => s.id === route.s) ?? b.hidden.find((s) => s.id === route.s) ?? b.overflow.find((s) => s.id === route.s) ?? null : null
   // a position with no row at all is still the wallet's: managed from what the positions route says about it
   const offMenu = !sel && route.h ? b.holdings.find((h) => h.key === route.h) ?? null : null
-  const kind: 'simple' | 'loop' = sel ? sel.kind : offMenu ? offMenu.kind : route.k ?? 'simple'
+  // ...and the menu's row for it may exist upstream all the same, outside what the catalogue asked
+  // for: asked for on its own, it opens the whole ticket (Add as well as Manage), flagged as off-menu.
+  // A copy of someone's off-menu position arrives the same way, by `s=` + `oa=`
+  const { st } = useSettings()
+  const offRef: OffMenuRef | null = sel ? null : route.s && route.oa ? { id: route.s, by: route.oa } : offMenu ? refOfHolding(offMenu) : null
+  const off = useOffMenu(offRef)
+  const offSel = off.data?.s ?? null
+  const kind: 'simple' | 'loop' = sel ? sel.kind : offSel ? offSel.kind : offMenu ? offMenu.kind : route.k ?? 'simple'
   const scoped = inGroup.filter((s) => u === 'all' || s.asset === u)
   // savings or market exposure: offered only where the scope has both — a page of lending rows
   // gets no switch with nothing behind it
@@ -78,7 +86,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   useRateHistory(React.useMemo(() => running.flatMap((r) => (r.s ? [r.s] : [])), [running.map((r) => r.s?.id).join(',')]), !b.isFetching)
   // what an off-menu row can still do: a loop can always be unwound; a deposit needs the earn uid to withdraw through
   const canManage = (h: Holding) => h.kind === 'loop' ? !!h.collateralUid && !!h.debtUid : !!h.earnUid
-  const ticketOpen = !!sel || !!offMenu
+  const ticketOpen = !!sel || !!offSel || !!offMenu
   const close = () => go(group.id, { u, k: kind })
   return (
     <>
@@ -178,12 +186,19 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
         </div>
         <aside className={ticketOpen ? '' : 'closed'} id="aside">
           {sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} onClose={close} />}
-          {offMenu && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
+          {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '')} s={offSel} idle={b.idlePerChain} holding={offMenu ?? held(offSel) ?? null} mode={route.m} copy={route.copy} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
+          {offMenu && !offSel && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
         </aside>
       </div>
       {ticketOpen && <div className="scrim" onClick={close} />}
     </>
   )
+}
+
+/** how to ask for a held position's row on its own (`useOffMenu`); none for a shape the ticket cannot build */
+function refOfHolding(h: Holding): OffMenuRef | null {
+  if (h.kind === 'loop') return h.collateralUid && h.debtUid && h.assetAddress ? { id: `l:${h.collateralUid}|${h.debtUid}`, by: h.assetAddress } : null
+  return h.earnUid ? { id: `s:${h.earnUid}`, by: h.symbol } : null
 }
 
 /**

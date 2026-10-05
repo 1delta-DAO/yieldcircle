@@ -50,6 +50,8 @@ export interface Route {
   by?: string
   /** who is being copied, when the ticket was opened from a feed card */
   copy?: string
+  /** an off-menu row's narrowing token (`OffMenuRef.by`): `s=` names a row the catalogue does not hold */
+  oa?: string
 }
 const GROUP_IDS = new Set(['USD', 'ETH', 'BTC', 'MORE'])
 
@@ -68,6 +70,7 @@ export function parseRoute(hash = location.hash): Route {
     t: p.get('t') ?? undefined,
     by: p.get('by') ?? undefined,
     copy: p.get('copy') ?? undefined,
+    oa: p.get('oa') ?? undefined,
   }
   const head = seg[0]
   if (head === 'earn' || head === 'explore') return { view: 'earn', ...base }

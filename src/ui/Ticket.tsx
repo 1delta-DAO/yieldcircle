@@ -34,7 +34,7 @@ import { AssetLink } from './TokenPage'
 const TicketCtx = React.createContext<{ uid: string | null; copy?: string }>({ uid: null })
 
 /** The ticket: what you do in plain words, amount (+ leverage), the numbers, what can go wrong, one button. */
-export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: Strategy; idle: Idle[]; holding: Holding | null; mode?: Mode; copy?: string; onClose: () => void }) {
+export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, onClose }: { s: Strategy; idle: Idle[]; holding: Holding | null; mode?: Mode; copy?: string; offMenu?: string; onClose: () => void }) {
   const [mode, setMode] = React.useState<Mode>(holding ? mode0 ?? 'add' : 'add')
   const uid = uidOf(s)
   return (
@@ -52,6 +52,11 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: St
         </div></div>
       )}
       {copy && <CopyBanner who={copy} s={s} />}
+      {offMenu && (
+        <div className="tsec offmenu" role="note">
+          <b>Not in the menu.</b> {offMenu} Check the liquidity, rate and risk yourself before you size it.
+        </div>
+      )}
       {holding && mode !== 'add' ? (s.kind === 'loop' ? <ManageLoop s={s} h={holding} closeFirst={mode === 'close'} /> : <ManageTicket s={s} h={holding} mode={mode} />)
         : s.kind === 'simple' ? <SimpleTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} /> : <LoopTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={holding} />}
       <TicketSocial uid={uid} s={s} />
@@ -615,8 +620,8 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
       </div>
       <div className="tsec"><div className="cells">
         {s && !loan && <div className="c hero"><span className="k">Net yield after</span><span className={`v ${net == null ? '' : net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{net == null ? '—' : pct(net)}</span><span className="s">{closing ? 'position closed' : `was ${pct(netAprAtLeverage(s.depSpot, s.borSpot, Lnow))} at ${num(Lnow, 2)}×`}</span></div>}
-        <div className="c"><span className="k">You hold</span><span className="v">{usd(Math.max(0, C2 - otherUsd))}</span><span className="s">{holds} · was {usd(C - otherUsd)}{otherUsd > 0.5 ? ` · + ${usd(otherUsd)} ${otherColl.map((o) => o.symbol).join(' + ')} stays` : ''}</span></div>
-        <div className="c"><span className="k">You owe</span><span className="v">{usd(D2)}</span><span className="s">{debt} · was {usd(D)}</span></div>
+        <div className="c"><span className="k">You hold</span><span className="v">{usd(Math.max(0, C2 - otherUsd))}</span><span className="s">{holds} · was {usd(C - otherUsd)}{otherUsd > 0.5 ? ` · + ${usd(otherUsd)} ${otherColl.map((o) => o.symbol).join(' + ')} stays` : ''}</span><IrmLink uid={s?.marketLongUid ?? h.collateralUid} side="supply" label="supply curve" rewards={s?.rewardsLong} /></div>
+        <div className="c"><span className="k">You owe</span><span className="v">{usd(D2)}</span><span className="s">{debt} · was {usd(D)}</span><IrmLink uid={s?.marketShortUid ?? h.debtUid} side="borrow" label="borrow curve" rewards={s?.rewardsShort} /></div>
         {closing ? <>
           <div className="c"><span className="k">You get back</span><span className={`v ${closeBlock === 'short' ? 'bad' : ''}`}>{cq.isPending ? <Sk w={60} h={14} /> : backUsd != null && backUsd > 0 ? usd(backUsd) : '—'}</span><span className="s">{closeBlock ? (closeBlock === 'short' ? 'the sale does not cover the debt' : closeBlock === 'keep-short' ? 'not enough to keep any' : '') : keep ? `≈ ${num(backColl!, 4)} ${holds} + ${num(leftover, 4)} ${debt}` : `≈ ${num(backDebt!, 4)} ${debt} · at market, not ${usd(h.valueUsd)}`}</span></div>
           <div className="c"><span className="k">Exit cost</span><span className="v">{sale?.exitCostUsd != null ? usd(sale.exitCostUsd * (keep && keepOk ? sellKeep! / h.amount : 1)) : '—'}</span><span className="s">{sale?.via ? `slippage and fees · via ${sale.via}` : 'slippage and fees'}</span></div>

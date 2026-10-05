@@ -46,12 +46,12 @@ export function useAccountFlows(account: string | undefined, days = 30, chainId?
     retry: retry404,
   })
 }
-/** One position's PnL history (`api.positionSeries`); `key` = a `groups[].key`. */
-export function usePositionSeries(account: string | undefined, key: string | undefined) {
+/** One position's PnL record (`api.positionSeries`); `key` = a `groups[].key`, `unit` = the money it is valued in. */
+export function usePositionSeries(account: string | undefined, key: string | undefined, unit = 'USD') {
   return useQuery({
     enabled: !!account && !!key,
-    queryKey: ['pos-series', account, key],
-    queryFn: () => api.positionSeries(account!, key!),
+    queryKey: ['pos-series', account, key, unit],
+    queryFn: () => api.positionSeries(account!, key!, unit),
     staleTime: 5 * MIN,
     retry: retry404,
   })

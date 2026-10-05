@@ -207,20 +207,23 @@ export const accountPositions = async (account: string, p: { chainId?: string } 
 }
 
 /**
- * The PnL line of ONE position (pos-indexer tickets/0061, docs/pnl-series.md):
- * every UTC midnight since it opened — or since the ledger starts — its value,
- * the money put in by then, and the difference. `key` is a `groups[].key` of
- * `accountPositions` (`chain|account|posId|riskKey`). History, not the live
- * position: fine for any wallet, the connected one included.
+ * The PnL record of ONE position (pos-indexer tickets/0061, docs/pnl-series.md).
+ * `key` is a `groups[].key` of `accountPositions` (`chain|account|posId|riskKey`).
+ * Its holding periods run transaction to transaction; the PnL is their sum and
+ * the APR is that PnL over the capital-days at work. Every value is in `unit`:
+ * USD by default, or `ETH` / `BTC` / an asset group to value it in that money.
+ * History, not the live position: fine for any wallet, the connected one included.
  */
 export interface SeriesPoint {
   t: string
-  navUsd: number | null
-  /** null once a flow before it could not be priced: what was put in is unknown */
-  contribUsd: number | null
-  pnlUsd: number | null
-  /** in the position's own money, when every leg is one asset group */
-  navAsset: number | null
+  nav: number | null
+  /** what is in it on net: value − PnL */
+  contrib: number | null
+  pnl: number
+  /** the PnL's parts: the index's growth … */
+  interest: number
+  /** … and the price's move */
+  priceMove: number
   /** per leg, in that leg's asset */
   legs: (number | null)[]
 }
@@ -233,13 +236,49 @@ export interface SeriesEvent {
   kind: string
   side: string
   amount: number | null
-  amountUsd: number | null
+  value: number | null
   /** + put in, − taken out, 0 = not the holder's choice (liquidation, redemption), null = unpriced */
-  flowUsd: number | null
+  flow: number | null
+  /** the snapshot right after this transaction */
+  nav: number | null
+  pnl: number | null
+}
+/** One holding period: a transaction (or the line's start) to the next transaction (or now). */
+export interface SeriesInterval {
+  from: string
+  to: string
+  days: number
+  navStart: number | null
+  navEnd: number | null
+  pnl: number
+  interest: number
+  priceMove: number
+  /** value × days at work in it */
+  capitalDays: number
+  /** PnL ÷ value at the start, not annualised */
+  returnPct: number | null
+  complete: boolean
+  liquidation: boolean
+}
+export interface SeriesSummary {
+  pnl: number
+  interest: number
+  priceMove: number
+  capitalDays: number
+  /** days it held something and could be priced */
+  openDays: number
+  /** average value at work */
+  avgCapital: number | null
+  /** PnL ÷ capital-days × 365; null under a day */
+  aprPct: number | null
+  /** share of the held time that had a price */
+  coveredShare: number | null
+  intervals: number
 }
 export interface SeriesLeg {
   marketUid: string
   side: string
+  asset: string | null
   symbol: string | null
   assetGroup: string | null
   lenderKey: string
@@ -253,6 +292,8 @@ export interface SeriesLeg {
   exact: boolean
   flags: string[]
   rows: number
+  /** days this leg held a balance with no price (a hole in the record — pos-indexer tickets/0062) */
+  unpricedPoints?: number
 }
 export interface PositionSeries {
   key: string
@@ -260,19 +301,23 @@ export interface PositionSeries {
   account: string
   posId: string
   riskKey: string
+  /** what every value is in: `USD`, `ETH`, `BTC` or an asset group */
+  unit: string
   start: string | null
   /** the line starts at the ledger's floor: the position is older than that */
   since: string | null
   exact: boolean
   points: SeriesPoint[]
   events: SeriesEvent[]
+  intervals: SeriesInterval[]
+  summary: SeriesSummary
   legs: SeriesLeg[]
   unpriced: number
-  assetSymbol: string | null
+  gaps?: number
   unanchored: { marketUid: string; side: string; rows: number }[]
 }
-export const positionSeries = (account: string, key: string, from?: string) =>
-  get<PositionSeries>(`/accounts/${account}/series`, { key, ...(from ? { from } : {}) }, undefined, indexForAddr(account))
+export const positionSeries = (account: string, key: string, unit?: string) =>
+  get<PositionSeries>(`/accounts/${account}/series`, { key, ...(unit && unit !== 'USD' ? { unit } : {}) }, undefined, indexForAddr(account))
 
 export const market = (uid: string) => get<MarketRow>(`/markets/${encodeURIComponent(uid)}`, {}, undefined, indexForUid(uid))
 /**

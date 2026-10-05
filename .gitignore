@@ -9,3 +9,5 @@ wrangler.toml
 *.tsbuildinfo
 .wrangler
 docs/producthunt
+# video tooling (Remotion teasers / ads) stays local
+video/

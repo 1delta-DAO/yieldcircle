@@ -1807,3 +1807,4 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .pnl-e.pnl-iv{grid-template-columns:96px 120px 1fr 96px 64px 28px}
 .pnl-more{align-self:flex-start;font-size:12.5px;color:var(--primary)}
 @media (max-width:600px){.pnl-e.pnl-iv{grid-template-columns:82px 1fr 84px 56px 22px}.pnl-e.pnl-iv>span:nth-child(3){display:none}}
+.pnl-px{display:block;font-size:11.5px;margin-top:2px}

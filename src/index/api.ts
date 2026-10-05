@@ -226,6 +226,8 @@ export interface SeriesPoint {
   priceMove: number
   /** per leg, in that leg's asset */
   legs: (number | null)[]
+  /** per leg, the asset's price in `unit` (absent from an older index) */
+  prices?: (number | null)[]
 }
 export interface SeriesEvent {
   t: string
@@ -285,6 +287,8 @@ export interface SeriesLeg {
   unitKind: string
   walk: 'units' | 'amount'
   indexSource: 'log' | 'cache' | 'none'
+  /** where its prices come from: the shared feed, or its market's own series (a Pendle PT) */
+  priceSource?: 'feed' | 'pendle'
   openedInRange: boolean
   /** no read: the leg's rows net to zero units */
   closed?: boolean

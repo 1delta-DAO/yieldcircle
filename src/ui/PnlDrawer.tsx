@@ -38,6 +38,7 @@ const FLAG_WORDS: Record<string, string> = {
   impaired: 'the market cannot pay this leg — its value is a phantom',
   'unpriced-flow': 'a move had no price at all',
   'flow-priced-nearby': 'a move had no price in its own hour and is valued at the nearest price within two weeks',
+  'price-despiked': 'a price point that broke from both its neighbours (another source’s odd hour) was replaced by theirs',
 }
 const KIND_CLASS: Record<string, string> = {
   deposit: 'k-in', transfer_in: 'k-in', repay: 'k-in',
@@ -107,6 +108,22 @@ function Body({ s, money, f: unitOf, toggle }: {
   const last = s.points.at(-1)
   const syms = [...new Set(s.legs.map((l) => l.symbol ?? '?'))]
   const priceBet = !money
+  /**
+   * What the position earned between the previous move and this one — the
+   * interest and the price on the balance it held in between. The running
+   * total is the chart's; a column of totals read as a loss on every row
+   * while the position was down overall.
+   */
+  const sinceByT = React.useMemo(() => {
+    const m = new Map<string, number | null>()
+    let prev: number | null = 0
+    for (const t of [...new Set(s.events.map((e) => e.t))].sort()) {
+      const cur = s.events.find((e) => e.t === t)?.pnl ?? null
+      m.set(t, cur != null && prev != null ? cur - prev : null)
+      prev = cur
+    }
+    return m
+  }, [s.events])
   return (
     <div className="pnl">
       <div className="pnl-h">
@@ -150,7 +167,7 @@ function Body({ s, money, f: unitOf, toggle }: {
           <button aria-pressed={toggle.pick === 'USD'} onClick={() => toggle.setPick('USD')}>USD</button>
         </div>
       )}
-      <Chart s={s} f={f} />
+      <Chart s={s} f={f} unitLabel={unitOf.label} />
 
       <Statement intervals={s.intervals} f={f} />
 
@@ -161,7 +178,7 @@ function Body({ s, money, f: unitOf, toggle }: {
           {s.legs.map((l, i) => (
             <tr key={i} onClick={() => { location.hash = marketHref(l.marketUid) }}>
               <td><b>{l.symbol ?? '?'}</b> <span className="t50">{l.side === 'borrow' ? 'debt' : l.side}</span></td>
-              <td className="t70" title={`unit kind ${l.unitKind}`}>{l.walk === 'units' ? 'units' : 'amount'} · {l.indexSource === 'log' ? 'lender’s index' : l.indexSource === 'cache' ? 'hourly index' : 'no index'}</td>
+              <td className="t70" title={`unit kind ${l.unitKind}`}>{l.walk === 'units' ? 'units' : 'amount'} · {l.indexSource === 'log' ? 'lender’s index' : l.indexSource === 'cache' ? 'hourly index' : 'no index'}{l.priceSource === 'pendle' && <div className="t50">priced at Pendle’s market</div>}</td>
               <td className="r">{l.rows}</td>
               <td>
                 <span className={l.exact ? 'ok' : 'warn'}>{l.exact ? 'exact' : 'approx'}</span>
@@ -177,9 +194,9 @@ function Body({ s, money, f: unitOf, toggle }: {
         <div className="note">Not in the record: {s.unanchored.map((u) => `${u.rows} ${u.side} row${u.rows === 1 ? '' : 's'} in ${u.marketUid.split(':')[0]}`).join(', ')} — no read has anchored that leg yet.</div>
       )}
 
-      <h3 className="pnl-t">Moves <span className="t50">({s.events.length}) · each with the position’s value and PnL right after it</span></h3>
+      <h3 className="pnl-t">Moves <span className="t50">({s.events.length}) · the value right after each, and what the position earned since the move before</span></h3>
       <div className="pnl-ev">
-        {[...s.events].reverse().map((e, i) => <EventRow key={i} e={e} s={s} f={f} />)}
+        {[...s.events].reverse().map((e, i) => <EventRow key={i} e={e} s={s} f={f} since={sinceByT.get(e.t)} />)}
       </div>
       <div className="t40 pnl-key mono" title="the position key the index answered for">{s.key}</div>
     </div>
@@ -231,7 +248,7 @@ function Statement({ intervals, f }: { intervals: SeriesInterval[]; f: Fmt }) {
   )
 }
 
-function EventRow({ e, s, f }: { e: SeriesEvent; s: PositionSeries; f: Fmt }) {
+function EventRow({ e, s, f, since }: { e: SeriesEvent; s: PositionSeries; f: Fmt; since: number | null | undefined }) {
   const leg = s.legs[e.leg]
   return (
     <div className="pnl-e">
@@ -239,13 +256,29 @@ function EventRow({ e, s, f }: { e: SeriesEvent; s: PositionSeries; f: Fmt }) {
       <span className={`verb ${KIND_CLASS[e.kind] ?? ''}`}>{e.kind.replace('_', ' ')}</span>
       <span>{e.amount != null ? `${fmtAmt(e.amount)} ${leg?.symbol ?? ''}` : '—'}</span>
       <span className="r">{f.vs(e.value)}</span>
-      <span className="r t70" title="the position right after this transaction: value · PnL so far">{f.vs(e.nav)}<small className={e.pnl != null && e.pnl < 0 ? 'bad' : 'ok'}> {e.pnl == null ? '' : f.sg(e.pnl)}</small></span>
+      <span className="r t70" title={`the value right after this transaction · earned since the move before (PnL so far ${f.sg(e.pnl)})`}>{f.vs(e.nav)}<small className={since != null && since < 0 ? 'bad' : 'ok'}> {since == null ? '' : f.sg(since)}</small></span>
       <span className={`r ${e.flow == null ? 'bad' : e.flow > 0 ? 'ok' : e.flow < 0 ? 'warn' : 't40'}`} title={e.flow == null ? 'no price for this move' : e.flow === 0 ? 'not a flow: the holder did not choose it' : 'money in (+) or out (−) of the position'}>
         {e.flow == null ? '?' : e.flow === 0 ? '·' : f.sg(e.flow)}
       </span>
       <TxLink chainId={s.chainId} hash={e.txHash} />
     </div>
   )
+}
+
+/** The legs' prices on a day (one entry per token), so a swing in the PnL can be read off the price that made it. */
+function priceLine(s: PositionSeries, prices: (number | null)[], unit: string, label: string): string {
+  const seen = new Set<string>()
+  const out: string[] = []
+  s.legs.forEach((l, i) => {
+    const sym = l.symbol ?? '?'
+    const p = prices[i]
+    if (seen.has(sym) || p == null) return
+    seen.add(sym)
+    const digits = p >= 1000 ? 0 : p >= 10 ? 2 : 4
+    const n = p.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+    out.push(`${sym} ${unit === 'USD' ? `$${n}` : `${n} ${label}`}`)
+  })
+  return out.join(' · ')
 }
 
 function Stat({ k, v, s }: { k: string; v: React.ReactNode; s?: string }) {
@@ -260,7 +293,7 @@ function Stat({ k, v, s }: { k: string; v: React.ReactNode; s?: string }) {
  * green in, amber out, red a liquidation. A day with no price is a gap, never
  * a straight line.
  */
-function Chart({ s, f }: { s: PositionSeries; f: Fmt }) {
+function Chart({ s, f, unitLabel }: { s: PositionSeries; f: Fmt; unitLabel: string }) {
   const W = 640, H = 200, CH = 90, padL = 8, padR = 8
   const pts = s.points
   const [hover, setHover] = React.useState<number | null>(null)
@@ -324,6 +357,7 @@ function Chart({ s, f }: { s: PositionSeries; f: Fmt }) {
       <div className="pnl-read">
         <b className={`pnl-big ${(hpPnl ?? 0) < 0 ? 'bad' : 'ok'}`}>{f.sg(hpPnl)}</b>
         <span className="t70"><span className="mono">{day(hp.t)}</span> · value <b>{f.v(hp.nav)}</b> · in it <b>{f.v(hp.contrib)}</b></span>
+        {hp.prices && <span className="t50 pnl-px">{priceLine(s, hp.prices, s.unit, unitLabel)}</span>}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg" onPointerMove={onMove} onPointerLeave={() => setHover(null)} preserveAspectRatio="none">
         <defs>

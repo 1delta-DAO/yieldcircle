@@ -375,8 +375,9 @@ function CopyCell({ c, who, lev }: { c: Copyable; who: string; lev?: number | nu
  */
 function CopyOffMenuButton({ r, who }: { r: OffMenuRef; who: string }) {
   const qc = useQueryClient()
-  const [state, setState] = React.useState<{ busy?: boolean; no?: string }>({})
-  if (state.no) return <span className="t40" style={{ fontSize: 11 }} title={state.no}>can’t copy</span>
+  const [state, setState] = React.useState<{ busy?: boolean; no?: { word: string; why: string } }>({})
+  // say WHICH gate refused it in the cell; the full reason stays on hover
+  if (state.no) return <span className="t40" style={{ fontSize: 11 }} title={`Can’t copy — ${state.no.why}`}>{state.no.word}</span>
   return (
     <button
       type="button"
@@ -388,7 +389,7 @@ function CopyOffMenuButton({ r, who }: { r: OffMenuRef; who: string }) {
         setState({ busy: true })
         const c = await qc.fetchQuery(offMenuQuery(r)).catch(() => null)
         if (c?.s) go(c.s.group, { u: c.s.asset, s: c.s.id, k: c.s.kind, copy: who, oa: r.by })
-        else setState({ no: c?.hide ? `${HIDES[c.hide].word}: ${HIDES[c.hide].why}` : 'The API has no row for this market to build a ticket from.' })
+        else setState({ no: c?.hide ? HIDES[c.hide] : { word: 'no ticket', why: 'The API has no row for this market to build a ticket from.' } })
       }}
     >
       {state.busy ? '…' : 'Copy'}<span className="offmark" aria-label="not in the menu">!</span>

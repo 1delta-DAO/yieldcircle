@@ -80,8 +80,10 @@ export interface Valued extends Desked {
 export interface AccountIdentity {
   accountKind?: AccountKind
   accountLabel?: string | null
-  /** null/absent = the index's own claim; else `chain` / `blockscout` / `ens` / `basename` / `seed` / `tag` */
+  /** null/absent = the index's own claim; else `chain` / `blockscout` / `ens` / `basename` / `seed` / `tag`; Solana: `kolscan` / `gmgn` / `sns` */
   accountLabelSource?: string | null
+  /** Solana: the X account a KOL list names for the wallet */
+  accountX?: string | null
 }
 
 export interface LedgerEvent extends Named, Valued, AccountIdentity {

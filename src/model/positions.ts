@@ -5,7 +5,7 @@
  */
 import type { EarnPosition, TokenBalance } from '../sdk/types'
 import { isSvmChain, normAddr } from './address'
-import { baseOfSymbol, groupOf, sameMoney, type GroupId } from './assets'
+import { baseOfSymbol, denomOf, exposureOf, groupOf, sameMoney, type GroupId } from './assets'
 import { deskKey, keyOfToken, moneyOf } from './desk'
 import { decToRaw } from './leverage'
 import { marketTag } from './market'
@@ -111,8 +111,10 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         const asset = money ? (same ? deskKey(collT, money) : keyOfToken(collT) ?? coll.asset.symbol) : baseOfSymbol(coll.asset.symbol) ?? baseOfSymbol(d.asset.symbol)
         if (!asset) continue
         const debtBase = baseOfSymbol(d.asset.symbol)
-        // same test as the catalogue's: same money, not the same display tab
-        const directional = money ? !same : !debtBase || !sameMoney(debtBase, asset)
+        // same test as the catalogue's: same money, not the same display tab — or an exposure
+        // asset levered in a money it allows (a JLP loop borrowed in dollars), which IS the strategy
+        const ex = exposureOf(asset), debtDenom = money ? money.toLowerCase() : debtBase ? denomOf(debtBase) : undefined
+        const directional = ex && debtDenom && ex.debt.includes(debtDenom) ? false : money ? !same : !debtBase || !sameMoney(debtBase, asset)
         const lev = a.suppliedUsd > 0 && a.netUsd > 0 ? a.suppliedUsd / a.netUsd : p.leverage
         const others = [...supply.slice(1).map((l) => ({ side: 'collateral' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.deposits) || 0, usd: l.depositsUsd })),
           ...debt.slice(1).map((l) => ({ side: 'debt' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.debt) || 0, usd: l.debtUsd }))]

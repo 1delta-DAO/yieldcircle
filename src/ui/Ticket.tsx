@@ -3,7 +3,7 @@ import { nameOf, unitOf } from '../model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
 import { dateOf, exitTerms, type LoopStrategy, type LoopTerm, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { isSvmTx, type LoopActions } from '../sdk/types'
-import { nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
+import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
 import { earnDeposit, earnWithdraw, loopClose, loopOpen, ZERO } from '../sdk/api'
 import { chainLabel, SOL_POSITIONS_READY, useCloseQuote, useIrm, useLoopPayAssets, useLoopQuote, useRateHistory } from '../sdk/queries'
 import { seriesFor } from '../model/rateHistory'
@@ -21,6 +21,7 @@ import { Spin, TxNote } from './TxTray'
 import { GetAsset, type Target } from './GetAsset'
 import { IrmLink } from './Irm'
 import { uidOf } from '../model/uid'
+import { NATURES, isSavings } from '../model/nature'
 import { SayWhy } from './SayWhy'
 import { TicketSocial } from './TicketSocial'
 
@@ -40,7 +41,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, onClose }: { s: St
     <div className="ticket">
       <div className="grab" />
       <div className="th">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />}
-        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part{s.terms ? <>, fixed for the term you pick</> : ''}.{s.desk ? <> Your exposure is <b>{nameOf(s.asset)}</b>{s.instrument ? <> (through {s.instrument})</> : ''}: a dollar debt cannot depeg upward, so {s.debt} is a rate you pay, not a risk you hold.</> : ''}</> : <SimpleWords s={s} />}</Info></div><div className="s">{nameOf(s.asset)} strategy · {s.kind === 'loop' ? `${s.venue}${s.terms ? ' · fixed rate' : ''}` : s.via} · {chainLabel(s.chainId)}</div></div>
+        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part{s.terms ? <>, fixed for the term you pick</> : ''}.{s.desk ? <> Your exposure is <b>{nameOf(s.asset)}</b>{s.instrument ? <> (through {s.instrument})</> : ''}: a dollar debt cannot depeg upward, so {s.debt} is a rate you pay, not a risk you hold.</> : ''}{!isSavings(s.nature) ? <> This is not a carry: you owe {s.debt} and hold <b>{s.holds}</b>, whose price moves on its own, so the leverage multiplies that move as well as the rate.</> : ''}</> : <SimpleWords s={s} />}{!isSavings(s.nature) && <p style={{ margin: '8px 0 0' }}><b>Not a saving · {NATURES[s.nature].word}.</b> {NATURES[s.nature].why}</p>}</Info></div><div className="s">{nameOf(s.asset)} strategy · {s.kind === 'loop' ? `${s.venue}${s.terms ? ' · fixed rate' : ''}` : s.via} · {chainLabel(s.chainId)}</div></div>
         <KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} />{holding && <LegsPill others={holding.others} />}<button className="x" onClick={onClose} aria-label="Close">✕</button></div>
       {holding && (
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
@@ -134,6 +135,11 @@ const SOURCE_WORDS: Record<string, string> = {
  * WHYPE and a deposit that reverts for a wallet holding HYPE. Native first, so a wallet holding
  * neither is offered the coin it is likelier to get.
  */
+/**
+ * An idle row against a pay option. The option spells the gas coin `ZERO` (what the API takes), the
+ * Solana balance row spells it `1111…1111` (the System Program id) — so SOL read 0 in the chips.
+ */
+const sameToken = (held: string, want: string) => held === want || (isNativeAddress(held) && isNativeAddress(want))
 type PayRole = 'native' | 'token'
 interface PayOption { role: PayRole; address: string; symbol: string; decimals: number }
 function payOptions(s: SimpleStrategy): PayOption[] {
@@ -186,7 +192,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
   const [getOpen, setGetOpen] = React.useState(false)
   const opts = React.useMemo(() => payOptions(s), [s.id])
   // the balance of the EXACT token: a wstETH row is not paid with the wallet's ETH, and WHYPE is not HYPE until the API is told so
-  const balOf = (address: string) => chainIdle.find((i) => i.address === address)
+  const balOf = (address: string) => chainIdle.find((i) => sameToken(i.address, address))
   const [role, setRole] = useSticky<PayRole | null>(`t:${s.id}:pay`, null)
   const chosen = opts.find((o) => o.role === role) ?? [...opts].sort((a, b) => (balOf(b.address)?.amount ?? 0) - (balOf(a.address)?.amount ?? 0))[0]
   const idle = balOf(chosen.address)
@@ -211,6 +217,8 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
   const tight = s.utilization != null && s.utilization >= 0.9
   const exit = exitTerms(s)
   const risks = [
+    ...(!isSavings(s.nature) ? [`Not a saving (${NATURES[s.nature].word}). ${NATURES[s.nature].why}`] : []),
+    ...(s.passthrough ? [`The market pays nothing of its own: the ${pct(s.rate)} is ${s.holds}’s own yield, which ${s.holds} held in the wallet earns too. Here it sits as collateral, where the ${s.holds} loops borrow against it — and carries the market’s risk on top.`] : []),
     s.source === 'lending' ? 'Rate floats with utilisation.' : s.source === 'fixed' ? 'Carry ends at maturity; roll or redeem.' : s.source === 'staking' ? 'Staking rate drifts with network activity; slashing is socialised.' : 'Rate is set by the protocol and can change.',
     exit.risk ? exit.risk
       : tight ? `${Math.round(s.utilization! * 100)}% of this market is lent out — only ${usdShort(s.liquidityUsd)} can be withdrawn right now, and a bigger exit waits for a borrower to repay.`
@@ -239,7 +247,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
         <div className="c"><span className="k">Per year</span><span className="v">{usd(yearly)}</span><span className="s">≈ {usd(yearly / 12)} / month</span></div>
         {/* the vault's own name under the share token: `steakUSDC` / `Steakhouse USDC`. WHICH vault is the thing the venue alone never says. */}
         <div className="c"><span className="k">You hold</span><span className="v">{s.holds}</span><span className="s" title={s.vaultName ? `${s.vaultName} · ${s.venue}` : s.venue}>{s.vaultName ?? s.venue}</span></div>
-        <div className="c"><span className="k">Risk</span><span className="v" style={{ fontSize: 14 }}><RiskDot r={s.risk} label={s.riskLabel} /></span><span className="s">{s.source} yield</span></div>
+        <div className="c"><span className="k">Risk</span><span className="v" style={{ fontSize: 14 }}><RiskDot r={s.risk} label={s.riskLabel} /></span><span className="s">{isSavings(s.nature) ? `${s.source} yield` : `${NATURES[s.nature].word} · not a saving`}</span></div>
         <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{exit.word}</span><span className="s">{exit.when}</span></div>
         {/* SIZE and LIQUIDITY are two questions, and the ticket used to answer
             neither properly — the size hid under the exit word and how much of
@@ -250,7 +258,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
           <span className="s">{s.utilization != null ? `${Math.round(s.utilization * 100)}% lent out` : s.liquidityUsd != null ? 'can leave now' : 'not reported'}</span></div>
       </div></div>
       <HistorySec s={s} now={s.rate} />
-      <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={i === 0 && s.risk >= 2 ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
+      <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={(i === 0 && s.risk >= 2) || (!isSavings(s.nature) && i === 0) ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
       <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} />
     </>
   )
@@ -304,13 +312,13 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
     return list
   }, [pay.data, s.id])
   // the pay-with chips read the exact token: native is the zero address in the balances (and the API), wrapped is its own entry
-  const balOf = (address: string, _symbol: string) => idle.find((i) => i.address === normAddr(address))
+  const balOf = (address: string, _symbol: string) => idle.find((i) => sameToken(i.address, normAddr(address)))
   const [role, setRole] = useSticky<'collateral' | 'debt' | 'native' | null>(`t:${s.id}:role`, null)
   const chosen = opts.find((o) => o.role === role) ?? [...opts].sort((a, b) => (balOf(b.address, b.symbol)?.usd ?? 0) - (balOf(a.address, a.symbol)?.usd ?? 0))[0]
   const bal = chosen ? balOf(chosen.address, chosen.symbol) : undefined
   const price = chosen?.price || bal?.price || (unit === '$' ? 1 : 0)
   const [amount, setAmount] = useSticky<number>(`t:${s.id}:amount`, () => (unit === '$' ? 1000 : 1))
-  const [tier, setTier] = useSticky<TierId>(`t:${s.id}:tier`, DEFAULT_TIER)
+  const [tier, setTier] = useSticky<TierId>(`t:${s.id}:tier`, isSavings(s.nature) ? DEFAULT_TIER : 'defensive')
   // a number of your own is behind the slider icon, never the default: the tiers are the advice,
   // the slider is for someone who already knows the number they want. `null` = on the tiers
   const [custom, setCustom] = useSticky<number | null>(`t:${s.id}:lev`, null)
@@ -417,7 +425,8 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
           <li className="w"><i /><span>Closing or deleveraging before {ends} costs a penalty: about half the interest the repaid part would still pay.</span></li>
           {!!holding && <li><i /><span>This opens a second loan beside the one you hold, on the same collateral. Each has its own term and is repaid on its own.</span></li>}
         </> : <li className="w"><i /><span>Net yield goes negative if the {s.debt} borrow rate rises above the {s.holds} rate.</span></li>}
-        <li className="w"><i /><span>Liquidation if {s.holds} trades at a discount to {s.debt}.</span></li>
+        {isSavings(s.nature) ? <li className="w"><i /><span>Liquidation if {s.holds} trades at a discount to {s.debt}.</span></li>
+          : <li className="w"><i /><span>Not a saving ({NATURES[s.nature].word}): {s.holds} is priced on its own and {s.debt} is not, so a {pct(drop * 100, 1)} fall in {s.holds} liquidates — at {num(L, 2)}× every move is {num(L, 2)} times bigger. {NATURES[s.nature].why}</span></li>}
         {s.expiry && <li><i /><span>The collateral matures on {dateOf(s.expiry)}; the position must be closed or rolled.</span></li>}
         {s.rewardsLong + s.rewardsShort > 0.05 && <li><i /><span>Part of the rate is incentives that can stop without notice.</span></li>}
       </ul></div>

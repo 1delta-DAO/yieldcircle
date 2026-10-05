@@ -5,6 +5,7 @@ import { useBook } from './useBook'
 import { GroupIcon, Sk, Tok, amt, pct, usd } from './bits'
 import type { AssetBook } from '../model/positions'
 import type { Strategy } from '../model/strategies'
+import { isSavings } from '../model/nature'
 import { BACKEND_BASE_URL } from '../config/backend'
 import { ChainChip } from './ChainPicker'
 import { useRateHistory } from '../sdk/queries'
@@ -31,13 +32,15 @@ export function Earn() {
   const rank = (s: Strategy) => steadyRate(s, get)
   // the best strategy per desk row, and how many sit behind it
   const bestBy = new Map<string, Strategy>(); const countBy = new Map<string, number>()
+  // a saving beats a market-exposure row (a perp LP, a managed fund) whatever the rates: the digest's
+  // "best rate" is read as interest, and JLP's is not
   for (const s of b.all) {
     countBy.set(s.asset, (countBy.get(s.asset) ?? 0) + 1)
-    const cur = bestBy.get(s.asset); if (!cur || rank(s) > rank(cur)) bestBy.set(s.asset, s)
+    const cur = bestBy.get(s.asset); if (!cur || savingsFirst(s, cur, rank) > 0) bestBy.set(s.asset, s)
   }
-  // top desks the reader does NOT hold (the held ones lead their own section above)
+  // top desks the reader does NOT hold (the held ones lead their own section above) — savings only
   const held = new Set(b.books.map((x) => x.asset))
-  const top = [...bestBy.values()].filter((s) => !held.has(s.asset)).sort((x, y) => rank(y) - rank(x)).slice(0, 6)
+  const top = [...bestBy.values()].filter((s) => !held.has(s.asset) && isSavings(s.nature)).sort((x, y) => rank(y) - rank(x)).slice(0, 6)
   return (
     <>
       <div className="feed-h earn-h">
@@ -73,7 +76,7 @@ export function Earn() {
 /** One group: your money in it, the best it pays, and the door to its full listing. */
 function GroupTile({ g, strategies, books, loading, rank, get }: { g: Group; strategies: Strategy[]; books: AssetBook[]; loading: boolean; rank: (s: Strategy) => number; get: HistoryGet }) {
   const total = books.reduce((a, x) => a + x.totalUsd, 0)
-  const best = strategies.length ? strategies.reduce((m, s) => (rank(s) > rank(m) ? s : m)) : null
+  const best = strategies.length ? strategies.reduce((m, s) => (savingsFirst(s, m, rank) > 0 ? s : m)) : null
   const busy = loading && !strategies.length
   return (
     <a className="tile" href={`#/${g.id}`}>
@@ -86,6 +89,10 @@ function GroupTile({ g, strategies, books, loading, rank, get }: { g: Group; str
     </a>
   )
 }
+
+/** > 0 when `a` should lead `b`: a saving first, then the steadier rate. */
+const savingsFirst = (a: Strategy, b: Strategy, rank: (s: Strategy) => number) =>
+  Number(isSavings(a.nature)) - Number(isSavings(b.nature)) || rank(a) - rank(b)
 
 /** An asset the reader holds: the balance as it stands, and the best rate waiting for it. */
 function BookRow({ x, best, get }: { x: AssetBook; best: Strategy | undefined; get: HistoryGet }) {

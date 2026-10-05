@@ -17,6 +17,7 @@
  */
 import type { Strategy } from './strategies'
 import { netAprAtLeverage } from './leverage'
+import { exposureOf } from './assets'
 
 export interface RateHistoryItem {
   base: (number | null)[] | null
@@ -55,8 +56,16 @@ export interface RateSeries {
   leverage?: number
 }
 
+/**
+ * The history does not carry an exposure asset's own yield: a JLP deposit paying 8.4 %, all of
+ * it JLP's, answers `base` 0 every day (measured 2026-10-05), so its line read 0 % and every JLP
+ * loop's −14 %. Those rows draw no line rather than a wrong one, and are not asked for.
+ */
+const blind = (s: Strategy) => (s.kind === 'simple' ? !!s.passthrough : !!exposureOf(s.asset))
+
 /** The uids a row needs: its own, or a loop's two legs. */
 export function historyUids(s: Strategy): string[] {
+  if (blind(s)) return []
   return s.kind === 'simple' ? [s.earnUid] : [s.marketLongUid, s.marketShortUid]
 }
 
@@ -109,7 +118,7 @@ export type HistoryGet = (uid: string) => RateHistoryItem | undefined
  * every loop at its Balanced tier, the leverage its rate is quoted at.
  */
 export function seriesFor(s: Strategy, get: HistoryGet | undefined, withRewards: boolean, L?: number): RateSeries | null {
-  if (!get) return null
+  if (!get || blind(s)) return null
   if (s.kind === 'simple') {
     const it = get(s.earnUid)
     return it?.base ? supplySeries(it, withRewards) : null

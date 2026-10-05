@@ -1460,6 +1460,7 @@ i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-sty
 .hb-note{flex-basis:100%;font-size:11.5px;color:var(--tx40);line-height:1.6;margin-top:2px}
 .hb-w{border-bottom:1px dotted var(--line2);cursor:help}
 .hb-ex{color:var(--tx40);opacity:.8}
+.pill.nature{border-color:#4a3a1a;color:var(--warning);text-transform:none;letter-spacing:.02em}
 .pill.why{border-color:var(--line2);color:var(--tx40);text-transform:none;letter-spacing:0;font-weight:500}
 .pill.why .d{font-family:var(--mono);opacity:.75}
 

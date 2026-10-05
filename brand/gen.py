@@ -191,7 +191,7 @@ def og(W=1200, H=630) -> str:
     p.append(f'<g transform="translate(80 150) scale(1.5)">{mark("url(#g)")}<path d="{parts_d["yield"]}" fill="{INK}"/><path d="{parts_d["circle"]}" fill="url(#gg)"/></g>')
     d1, _ = text_path(TAGLINE, 'IBMPlexSans-400', 44, 96, 420)
     p.append(f'<path d="{d1}" fill="{INK}" opacity="0.9"/>')
-    d2, _ = text_path('Plain deposits and one-transaction loops. By 1delta.', 'IBMPlexSans-400', 26, 96, 470)
+    d2, _ = text_path('Copy what real wallets earn, in one tap.', 'IBMPlexSans-400', 26, 96, 470)
     p.append(f'<path d="{d2}" fill="{MUTE}"/>')
     p.append(f'<rect x="96" y="528" width="72" height="3" fill="{COLOR_A}"/>')
     return svg((0, 0, W, H), ''.join(p))

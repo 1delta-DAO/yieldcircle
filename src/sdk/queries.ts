@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
 import { capPerAsset, classifyEarn, classifyPair, dedupe, rowKey, type Candidate, type LoopStrategy, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { softHide, type HideCode } from '../model/visibility'
+import { EXPOSURE_ASSETS } from '../model/assets'
 import { useSettings, type Settings } from '../state/Settings'
 import type { OptimizerResponse, TokenBalance } from './types'
 import { indexBalances } from '../index/api'
@@ -235,16 +236,38 @@ export function useCatalog(chainIds: string[]) {
       })) : []),
     ]),
   })
+  /**
+   * The exposure assets (`EXPOSURE` in assets.ts — JLP), asked for by name on their home chain.
+   * No archetype finds them: JLP carries no tag, and its deposits pay only the token's own yield,
+   * which the listing leaves out by default. Two narrow requests per asset: its deposits (the 1×)
+   * and its loops against every stablecoin debt (`classifyPair` keeps the monies it allows).
+   */
+  const exposed = EXPOSURE_ASSETS.filter((e) => chainIds.includes(e.chainId))
+  const exposure = useQueries({
+    queries: exposed.flatMap((e) => [
+      {
+        queryKey: ['exposure-earn', e.chainId, e.sym, st.minTvlUsd],
+        queryFn: async () => sortOut((await fetchEarn({ chainIds: [e.chainId], count: 1000, maxRiskScore: 5, minTvlUsd: st.minTvlUsd, assetSymbol: e.sym, passthrough: true })).items.map(classifyEarn), 'simple') as Sorted<Strategy>,
+        staleTime: 10 * 60_000,
+      },
+      {
+        queryKey: ['exposure-loops', e.chainId, e.sym],
+        queryFn: async () => sortOut((await optimizerPages({ chainIds: [e.chainId], collaterals: [e.address], debtTags: ['stablecoin'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop') as Sorted<Strategy>,
+        staleTime: 10 * 60_000,
+      },
+    ]),
+  })
   // one stamp for "any answer changed": this hook runs in the header, the
   // feed and Hot at once, and every catalogue query landing re-renders all three
-  const stamp = [chainIds.join(','), ...[...earn, ...loops].map((q) => q.dataUpdatedAt)].join('|')
+  const stamp = [chainIds.join(','), ...[...earn, ...loops, ...exposure].map((q) => q.dataUpdatedAt)].join('|')
   const earnSorted = useMemo(() => {
     return earn.map((q) => (q.data ? sortOut(q.data.map((m) => classifyEarn(m)), 'simple') : undefined))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stamp])
   const derived = useMemo(() => {
-    const earnRows = earnSorted.flatMap((d) => d?.rows ?? [])
-    const loopRows = loops.flatMap((q) => q.data?.rows ?? [])
+    const exposureRows = exposure.flatMap((q) => q.data?.rows ?? [])
+    const earnRows = [...earnSorted.flatMap((d) => d?.rows ?? []), ...exposureRows.filter((r): r is SimpleStrategy => r.kind === 'simple')]
+    const loopRows = [...loops.flatMap((q) => q.data?.rows ?? []), ...exposureRows.filter((r): r is LoopStrategy => r.kind === 'loop')]
     // every base-asset address the chain answered, shown or held back by a floor,
     // so moving a floor never changes what the balance read asks for
     const addresses: Record<string, string[]> = {}
@@ -272,7 +295,7 @@ export function useCatalog(chainIds: string[]) {
       ...capPerAsset(dedupe(simpleHide.filter((r) => !shown.has(rowKey(r)))), 25),
       ...capPerAsset(dedupe(loopHide.filter((r) => !shown.has(rowKey(r)))), 25),
     ]
-    const structural = mergeStructural([...earnSorted, ...loops.map((q) => q.data)].flatMap((d) => (d ? [{ structural: d.structural, kind: d.kind }] : [])))
+    const structural = mergeStructural([...earnSorted, ...loops.map((q) => q.data), ...exposure.map((q) => q.data)].flatMap((d) => (d ? [{ structural: d.structural, kind: d.kind }] : [])))
     return { simple, loops: loopRowsOut, hidden, overflow, structural, addresses }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [earnSorted, stamp, st])
@@ -281,13 +304,14 @@ export function useCatalog(chainIds: string[]) {
   // balance read worth sending (see `useBalancesPerChain`). The registry is not
   // one of them — it names rows, it does not add any.
   const perBucket = loops.length / (buckets.length || 1)
-  const settled = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched && loops.slice(j * perBucket, (j + 1) * perBucket).every((q) => q.isFetched) ? ids : [])))
+  const exposurePending = new Set(exposed.filter((_, i) => !exposure[2 * i]?.isFetched || !exposure[2 * i + 1]?.isFetched).map((e) => e.chainId))
+  const settled = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched && loops.slice(j * perBucket, (j + 1) * perBucket).every((q) => q.isFetched) ? ids : [])).filter((c) => !exposurePending.has(c)))
   return {
     ...derived, settled,
     isLoading: earn.some((q) => q.isLoading) || loops.some((q) => q.isLoading),
-    isFetching: earn.some((q) => q.isFetching) || loops.some((q) => q.isFetching),
+    isFetching: earn.some((q) => q.isFetching) || loops.some((q) => q.isFetching) || exposure.some((q) => q.isFetching),
     anyData: earn.some((q) => q.data) || loops.some((q) => q.data),
-    errors: [...earn, ...loops].map((q) => q.error).filter((e): e is Error => !!e),
+    errors: [...earn, ...loops, ...exposure].map((q) => q.error).filter((e): e is Error => !!e),
   }
 }
 /** The floors, applied to rows already in hand. A hidden row is a COPY carrying the code that hid it. */

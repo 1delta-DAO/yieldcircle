@@ -17,6 +17,8 @@ import { useRateHistory } from '../sdk/queries'
 import { isSpike, seriesFor, steadyRate } from '../model/rateHistory'
 import { RateTrend, useSparkRewards } from './Spark'
 import { useViewport } from './useViewport'
+import { useSticky } from '../state/sticky'
+import { NATURES, isSavings, type Nature } from '../model/nature'
 
 /** One list, one number per row. The list decides which; the ticket decides how much and how levered. */
 export function AssetPage({ group, route }: { group: Group; route: Route }) {
@@ -31,7 +33,15 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   // a position with no row at all is still the wallet's: managed from what the positions route says about it
   const offMenu = !sel && route.h ? b.holdings.find((h) => h.key === route.h) ?? null : null
   const kind: 'simple' | 'loop' = sel ? sel.kind : offMenu ? offMenu.kind : route.k ?? 'simple'
-  const all = inGroup.filter((s) => u === 'all' || s.asset === u)
+  const scoped = inGroup.filter((s) => u === 'all' || s.asset === u)
+  // savings or market exposure: offered only where the scope has both — a page of lending rows
+  // gets no switch with nothing behind it
+  const [nat, setNat] = useSticky<NatureFilter>(`nature:${group.id}`, 'all')
+  const ofKindScoped = scoped.filter((s) => s.kind === kind)
+  const nExposed = ofKindScoped.filter((s) => !isSavings(s.nature)).length, nSavings = ofKindScoped.length - nExposed
+  const natOn: NatureFilter = nExposed && nSavings ? nat : 'all'
+  const natOk = (s: Strategy) => natOn === 'all' || (natOn === 'savings') === isSavings(s.nature)
+  const all = scoped.filter(natOk)
   const picks = React.useMemo(() => markPicks(inGroup), [inGroup.length])
   // the 30-day line on every row, in ONE request: a rate on a list is a claim
   // about the future, and the line says whether it is what this has paid or a
@@ -47,11 +57,12 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const list = [...ofKind].sort((x, y) => (Number(picks.has(y.id)) - Number(picks.has(x.id))) || (steady.get(y.id) ?? y.rate) - (steady.get(x.id) ?? x.rate))
   const nS = all.filter((s) => s.kind === 'simple').length, nL = all.filter((s) => s.kind === 'loop').length
   // the rows a floor is holding back, scoped exactly as the list is
-  const heldBack = b.hidden.filter((s) => s.group === group.id && (u === 'all' || s.asset === u) && s.kind === kind)
+  const heldBack = b.hidden.filter((s) => s.group === group.id && (u === 'all' || s.asset === u) && s.kind === kind && natOk(s))
   const books = b.books.filter((x) => x.group === group.id && (u === 'all' || x.asset === u))
   const idle = books.filter((x) => x.idle)
-  const bestFor = (a: string) => inGroup.filter((s) => s.asset === a).sort((x, y) => y.rate - x.rate)[0]
-  const bestSimpleFor = (a: string) => inGroup.filter((s) => s.asset === a && s.kind === 'simple').sort((x, y) => y.rate - x.rate)[0]
+  const bestFor = (a: string) => inGroup.filter((s) => s.asset === a && !(s.kind === 'simple' && s.passthrough)).sort((x, y) => y.rate - x.rate)[0]
+  // a deposit that pays only the token's own yield is not putting an idle balance to work: the balance already earns it
+  const bestSimpleFor = (a: string) => inGroup.filter((s) => s.asset === a && s.kind === 'simple' && !s.passthrough).sort((x, y) => y.rate - x.rate)[0]
   // a loop is identified by BOTH legs: several loops on one venue share the collateral market
   const matches = (s: Strategy, h: Holding) => h.kind === s.kind && (s.kind === 'simple' ? h.earnUid === s.earnUid : h.earnUid === s.marketLongUid && (!h.debtUid || h.debtUid.toLowerCase() === s.marketShortUid.toLowerCase()))
   const held = (s: Strategy) => b.holdings.find((h) => matches(s, h))
@@ -78,8 +89,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
             <AssetChips group={group} route={route} assets={assets} u={u} all={inGroup} />
           </div>
           {idle.length > 0 && (
-            <div className="idle-strip">{idle.map((x) => { const best = bestSimpleFor(x.asset), bestAny = bestFor(x.asset); return (
-              <button key={x.asset} className="idle-row" disabled={!best} onClick={() => best && go(group.id, { u: x.asset, s: best.id, k: 'simple' })}>
+            <div className="idle-strip">{idle.map((x) => { const bestAny = bestFor(x.asset), best = bestSimpleFor(x.asset) ?? bestAny; return (
+              <button key={x.asset} className="idle-row" disabled={!best} onClick={() => best && go(group.id, { u: x.asset, s: best.id, k: best.kind })}>
                 <Tok sym={x.asset} /><span className="t"><b>{amt(x.asset, x.idle!.amount, x.idle!.usd)}</b> {group.id === 'USD' ? `${nameOf(x.asset)} ` : x.asset !== x.idle!.symbol ? `${nameOf(x.asset)} ` : ''}idle{bestAny ? <> <span className="t50">· <span className="hide-m">could earn </span>up to</span> <b className="ok">{pct(bestAny.rate)}</b></> : ''}</span><span className="sp" />{best && <span className="cta">Put to work ›</span>}
               </button>) })}</div>
           )}
@@ -102,7 +113,12 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
           )}
           <div className="kind-bar">
             <div className="seg kind"><button aria-pressed={kind === 'simple'} onClick={() => go(group.id, { u, k: 'simple' })}>Deposits <span className="c">{nS}</span></button><button aria-pressed={kind === 'loop'} onClick={() => go(group.id, { u, k: 'loop' })}>Loops <span className="c">{nL}</span></button></div>
-            <span className="hint">{kind === 'simple' ? 'Hold one token that grows. No debt, nothing to liquidate.' : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
+            {nExposed > 0 && nSavings > 0 && <div className="seg kind" role="group" aria-label="Savings or market exposure">
+              <button aria-pressed={natOn === 'all'} onClick={() => setNat('all')}>All</button>
+              <button aria-pressed={natOn === 'savings'} title={NATURES.savings.why} onClick={() => setNat('savings')}>Savings <span className="c">{nSavings}</span></button>
+              <button aria-pressed={natOn === 'exposure'} title="Perp LPs and managed funds: they earn by taking a market’s side, and the value can fall" onClick={() => setNat('exposure')}>Market exposure <span className="c">{nExposed}</span></button>
+            </div>}
+            <span className="hint">{kind === 'simple' ? (list.length && !list.some((s) => isSavings(s.nature)) ? 'Hold one token. No debt, nothing to liquidate — but its price moves with a market.' : 'Hold one token that grows. No debt, nothing to liquidate.') : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
           </div>
           {phone && (list.length || b.isLoading) ? (
             /* a phone gets cards, two abreast: a table row at 357px had to fit
@@ -125,7 +141,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                   <span className="sc-meta"><RiskWord s={s} /></span>
                   <span className="sc-meta">{s.kind === 'simple' ? exitTerms(s).short : s.instrument ? `via ${s.instrument}` : ''}</span>
                   {(s.tvlUsd > 0 || s.kind === 'loop') && <span className="sc-meta"><Size s={s} /></span>}
-                  {(h || letIn(s)) && <span className="sc-pills">{h && <span className="pill run">running</span>}<WhyIn s={s} /></span>}
+                  {(h || letIn(s) || !isSavings(s.nature)) && <span className="sc-pills">{h && <span className="pill run">running</span>}<NaturePill n={s.nature} /><WhyIn s={s} /></span>}
                 </div>) })}
             </div>
           ) : <div className="card">
@@ -134,10 +150,10 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
             ) : list.length ? (
               <table className="tbl strat-t">
                 <colgroup><col /><col className="c-rate" /><col className="c-tail" /></colgroup>
-                <thead><tr><th>{kind === 'simple' ? 'Deposit' : 'Loop'}</th><th className="r">{kind === 'simple' ? 'APR' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier: earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}<button className="rw-toggle" aria-pressed={withRewards} title={withRewards ? 'The 30-day line includes reward streams — click to show the rate without them' : 'The 30-day line excludes reward streams — click to include them'} onClick={() => setWithRewards(!withRewards)}>{withRewards ? '+rewards' : 'no rewards'}</button></th><th /></tr></thead>
+                <thead><tr><th>{kind === 'simple' ? 'Deposit' : 'Loop'}</th><th className="r">{kind === 'simple' ? 'APR' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier (Defensive for a market-exposure loop, whose price moves on its own): earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}<button className="rw-toggle" aria-pressed={withRewards} title={withRewards ? 'The 30-day line includes reward streams — click to show the rate without them' : 'The 30-day line excludes reward streams — click to include them'} onClick={() => setWithRewards(!withRewards)}>{withRewards ? '+rewards' : 'no rewards'}</button></th><th /></tr></thead>
                 <tbody>{list.map((s) => { const h = held(s); const pick = picks.has(s.id); return (
                   <tr key={s.id} aria-selected={sel?.id === s.id} onClick={() => go(group.id, { u, s: s.id, k: s.kind })}>
-                    <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}<WhyIn s={s} /></div>
+                    <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}<NaturePill n={s.nature} /><WhyIn s={s} /></div>
                       {/* the qualifiers read as one sentence. Risk had a column of
                           its own where eight rows in nine said the same word; here it
                           sits second, so it is the part a narrow screen keeps rather
@@ -239,6 +255,13 @@ function WhyIn({ s }: { s: Strategy }) {
   if (!code) return null
   const d = hideDetail(s, code)
   return <span className="pill why" title={`${HIDES[code].why}${d ? ` (${d})` : ''}`}>{HIDES[code].word}{d ? <span className="d"> {d}</span> : null}</span>
+}
+
+type NatureFilter = 'all' | 'savings' | 'exposure'
+/** Not a saving: says so on the row, before anyone reads the rate as interest. */
+function NaturePill({ n }: { n: Nature }) {
+  if (isSavings(n)) return null
+  return <span className="pill nature" title={NATURES[n].why}>{NATURES[n].word}</span>
 }
 
 /** `medium risk`, in the row's own sentence rather than in a column of its own. */

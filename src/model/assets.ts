@@ -13,7 +13,7 @@ export const GROUPS: Group[] = [
   { id: 'USD', name: 'US Dollar', desc: 'Dollars, by whose credit they are', color: '#3fbf7f', unit: '$' },
   { id: 'ETH', name: 'Ether', desc: 'ETH and staked ETH', color: '#8fa6ff', unit: 'ETH' },
   { id: 'BTC', name: 'Bitcoin', desc: 'BTC wrappers', color: '#f0a830', unit: 'BTC' },
-  { id: 'MORE', name: 'More', desc: 'BNB, AVAX, euro, gold, other', color: '#c084fc', unit: '' },
+  { id: 'MORE', name: 'More', desc: 'BNB, AVAX, SOL, JLP, euro, gold, other', color: '#c084fc', unit: '' },
 ]
 export const group = (id: GroupId) => GROUPS.find((g) => g.id === id)!
 
@@ -72,6 +72,11 @@ const BASE: Record<string, { sym: string; group: GroupId; what: string; color: s
   // `sameMoney` reads to call a loop carry rather than a price bet, and that claim needs more than
   // a ticker ending in USD. Arc's USDC and Stable's USDT0 are in `USD` because they are USDC and USDT.
   PATHUSD: { sym: 'pathUSD', group: 'MORE', what: 'Tempo native coin · dollar-priced', color: '#64748b' },
+  // Jupiter's perps liquidity pool. Not a money: a basket (SOL, ETH, WBTC, USDC, USDT) that is
+  // the counterparty to every Jupiter perp trader, paid 75 % of their fees. Its yield (`intrinsicYield`)
+  // is those fees; its PRICE moves with the coins in it and with the traders' PnL. On the menu as a
+  // market-exposure strategy, never a saving (`EXPOSURE` below, `model/nature.ts`).
+  JLP: { sym: 'JLP', group: 'MORE', what: 'Jupiter perps LP · SOL, ETH, BTC and dollars, the house against Jupiter’s traders', color: '#c7f284' },
   EURC: { sym: 'EURC', group: 'MORE', what: 'Circle euro stablecoin', color: '#2775ca' },
   EURCV: { sym: 'EURCV', group: 'MORE', what: 'Société Générale euro stablecoin', color: '#e9041e' },
   XAUT: { sym: 'XAUt', group: 'MORE', what: 'Tether gold', color: '#d4af37' },
@@ -306,6 +311,24 @@ export function denomOf(base: string): Denomination {
   if (g === 'BTC') return 'btc'
   return DENOM[base.toUpperCase()] ?? base.toUpperCase()
 }
+/**
+ * Assets held FOR their market exposure, and the debt money they may be levered against.
+ *
+ * A loop whose debt is another money is a price bet, and `cross-denom` keeps those off the menu
+ * — except here, where the bet is the product. A JLP loop borrows dollars to hold more JLP: the
+ * fees scale with the leverage, and so does the exposure to SOL / ETH / BTC and to the traders.
+ * Such a loop is shown as what it is (`nature: 'perp-lp'`), never as a carry.
+ */
+const EXPOSURE: Record<string, { nature: 'perp-lp'; debt: Denomination[]; home: { chainId: string; address: string } }> = {
+  // `home`: the one token the ticker means. The optimizer is asked for it by address (it carries no
+  // tag any archetype matches), and scripts/logos.mjs draws it from that row — the ticker index
+  // gives `JLP` to an unrelated launchpad token.
+  JLP: { nature: 'perp-lp', debt: ['usd'], home: { chainId: 'solana', address: '27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4' } },
+}
+/** What kind of exposure an asset is held for, and the debt monies it may be levered with; undefined for every other asset. */
+export const exposureOf = (base: string | undefined) => (base ? EXPOSURE[base.toUpperCase()] : undefined)
+/** Every exposure asset with its home token, for the requests that fetch them. */
+export const EXPOSURE_ASSETS = Object.entries(EXPOSURE).map(([sym, e]) => ({ sym, ...e.home }))
 /** Both legs are the same money — the test a carry has to pass. */
 export const sameMoney = (a: string, b: string): boolean => denomOf(a) === denomOf(b)
 export const whatIs = (base: string): string => deskByKey(base)?.what ?? baseInfo(base)?.what ?? base

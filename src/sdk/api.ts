@@ -31,9 +31,13 @@ import type { ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmRe
 // page size is the origin's cap (1000), so no chain needs a second page at the
 // default floor; worker-api's cron pre-warms exactly these pages
 // (`scheduled/prewarmListings.ts`), so the query must stay as it is there.
-export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number }): Promise<EarnResponse> {
+//
+// `assetSymbol` + `passthrough` are for the exposure assets only (`EXPOSURE` in assets.ts): a JLP
+// deposit pays JLP's own yield and nothing of the market's, which the listing leaves out unless
+// asked (`passthrough=include`). That is a separate, narrow request, never the pre-warmed one.
+export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number; assetSymbol?: string; passthrough?: boolean }): Promise<EarnResponse> {
   const count = p.count ?? 500
-  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest' }
+  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, passthrough: p.passthrough ? 'include' : undefined }
   const served = (r: EarnResponse) => r.items.length + (r.excluded?.unrealizable ?? 0)
   const first = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params })
   const items = [...first.items]
@@ -87,6 +91,8 @@ export interface OptimizerQuery {
   /** one or several chains; several go as `chainIds` (tag filters work the same in either mode) */
   chainIds: string[]
   collateralTags?: string[]
+  /** collateral token addresses — single chain only (several chains read them as asset groups) */
+  collaterals?: string[]
   debtTags?: string[]
   collateralAmountUsd?: number
   maxConfigRiskScore?: number
@@ -99,7 +105,7 @@ export interface OptimizerQuery {
 const csv = (v?: string[]) => (v && v.length ? v.join(',') : undefined)
 export function fetchOptimizerPairs(q: OptimizerQuery): Promise<OptimizerResponse> {
   const params: ApiParams = {
-    ...(q.chainIds.length === 1 ? { chainId: q.chainIds[0] } : { chainIds: q.chainIds.join(',') }), collateralTags: csv(q.collateralTags), debtTags: csv(q.debtTags), collateralAmountUsd: q.collateralAmountUsd,
+    ...(q.chainIds.length === 1 ? { chainId: q.chainIds[0] } : { chainIds: q.chainIds.join(',') }), collateralTags: csv(q.collateralTags), collaterals: csv(q.collaterals), debtTags: csv(q.debtTags), collateralAmountUsd: q.collateralAmountUsd,
     maxConfigRiskScore: q.maxConfigRiskScore, maxTokenRiskScore: q.maxTokenRiskScore, minBorrowLiquidityUsd: q.minBorrowLiquidityUsd,
     includeExpired: q.includeExpired, sortBy: 'aprTotal', sortDir: 'DESC', start: q.start, count: q.count ?? 100,
   }

@@ -135,12 +135,24 @@ for (const [chainId, sym] of natives) {
 }
 if (Object.keys(nativeIcon).length) console.log(`gas coin icon taken from its own chain: ${Object.keys(nativeIcon).join(', ')}`)
 
+/**
+ * An exposure asset (`EXPOSURE` in assets.ts) names its one home token, and its icon is that
+ * token's own: the ticker index gave `JLP` to an unrelated launchpad coin.
+ */
+const exposureIcon = {}
+for (const m of literalBody(assets, 'const EXPOSURE:').matchAll(/([A-Za-z0-9]+):\s*\{[^\n]*chainId:\s*'([^']+)',\s*address:\s*'([^']+)'/g)) {
+  let list
+  try { list = JSON.parse(readFileSync(join(root, `${m[2]}.json`), 'utf8')).list } catch { continue }
+  const row = Object.entries(list).find(([a]) => a.toLowerCase() === m[3].toLowerCase())?.[1]
+  if (row?.logoURI) exposureIcon[m[1].toUpperCase()] = row.logoURI
+}
+
 const out = {}
 const missing = []
 for (const sym of [...new Set([...bases, ...deskSyms, ...Object.keys(wrapped)])]) {
   // A bridged or renamed wrapper (USDC.e, DAI.e) is folded into its base's asset group upstream,
   // so it has no ticker of its own — it draws as what it is, the base asset.
-  const uri = nativeIcon[sym] ?? deskIcon[sym] ?? homeIcon[sym] ?? index[sym] ?? index[wrapped[sym]]
+  const uri = exposureIcon[sym] ?? nativeIcon[sym] ?? deskIcon[sym] ?? homeIcon[sym] ?? index[sym] ?? index[wrapped[sym]]
   if (uri) out[sym] = uri
   else missing.push(sym)
 }

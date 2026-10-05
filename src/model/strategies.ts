@@ -6,10 +6,11 @@
  * (`noteToken`), which positions and balances read.
  */
 import type { EarnMarket, OptimizerRowRaw } from '../sdk/types'
-import { baseOfCollateral, baseOfSymbol, deskOf, groupOf, sameMoney, type GroupId } from './assets'
+import { baseOfCollateral, baseOfSymbol, denomOf, deskOf, exposureOf, groupOf, sameMoney, type GroupId } from './assets'
 import { creditDesk, deskKey, moneyOf, noteToken } from './desk'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
 import { marketTag } from './market'
+import { natureOfDeposit, type Nature } from './nature'
 import type { HideCode } from './visibility'
 import STRATEGY_TOKENS from '../data/strategy-tokens.json'
 import { normAddr } from './address'
@@ -36,6 +37,12 @@ interface Base {
   venue: string
   venueKey: string
   logo?: string
+  /**
+   * A saving, or a position that takes a market's side (`model/nature.ts`). Says what the
+   * principal is exposed to, which the rate alone does not: JLP's 8 % is fees on a basket that
+   * moves with SOL, a lending market's 8 % is interest.
+   */
+  nature: Nature
   /** headline %: APR for a deposit, net at the suggested leverage for a loop */
   rate: number
   risk: Risk
@@ -103,6 +110,12 @@ export interface SimpleStrategy extends Base {
   reason?: string
   maturity?: number
   rewards: number
+  /**
+   * The market pays nothing of its own: the rate is the token's (`rate.passthrough`), so holding
+   * the token in the wallet earns the same. Only exposure assets are asked for these rows — a JLP
+   * deposit is the 1× of the JLP loop, collateral already in the market the loop borrows from.
+   */
+  passthrough?: boolean
   /** `termSheet.supply.headline` — one line, templated from THIS row's numbers. */
   headline?: string
   /**
@@ -359,6 +372,8 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   else if (m.venue === 'vault.savings') { via = `${brand} savings`; source = 'savings'; holds = shareSym ?? (named || own) }
   else if (m.venue === 'vault.pendle') { via = `Fixed on Pendle${maturity ? ` · ${dateOf(maturity)}` : ''}`; source = 'fixed'; holds = 'PT ' + (named || own).replace(/^PT\s*/, '').split(' ')[0] }
   else if (isVault) { const who = `${brand}${market ? ` ${market}` : ''} vault`; via = sameWords(brand, protocol) ? who : `${who} · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || own) }
+  // the token's own yield, parked as collateral: nobody borrows JLP, and "Lend" would say they do
+  else if (m.rate?.passthrough) { via = `Collateral on ${brand}${market ? ` · ${market}` : ''}`; source = 'collateral'; holds = own }
   // the BRAND, not the protocol: `Aave V3` and `Aave V4` are both "Aave" upstream, and a V4
   // isolated market is not the V3 pool the same sentence would have named
   else { via = `Lend on ${brand}${market ? ` · ${market}` : ''}`; source = 'lending'; holds = own }
@@ -368,10 +383,10 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const s: SimpleStrategy = {
     id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
-    rate, risk, riskLabel, riskScore, tvlUsd: tvl,
+    nature: natureOfDeposit(m.venue, asset, m.name), rate, risk, riskLabel, riskScore, tvlUsd: tvl,
     earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, assetSymbol: m.asset.symbol, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
-    exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, exitSecs: m.exit?.cooldownSecs || undefined, exitFeeBps: m.exit?.feeBps || undefined, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0,
+    exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, exitSecs: m.exit?.cooldownSecs || undefined, exitFeeBps: m.exit?.feeBps || undefined, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0, passthrough: m.rate?.passthrough || undefined,
     // an API that knows the flag sets it on the deposit; then a missing withdraw leg (an async exit) is a no
     nativeIn: dep.acceptsNative, nativeOut: dep.acceptsNative === undefined ? undefined : m.capabilities.find((c) => c.action === 'withdraw')?.acceptsNative ?? false,
     headline: m.termSheet?.supply?.headline || undefined, description: m.termSheet?.supply?.description || undefined,
@@ -426,7 +441,14 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const coll = { ...L, chainId: r.chainId, desk: r.collateralDesk }
   const debtMoney = moneyOf({ ...S, chainId: r.chainId, desk: r.debtDesk }), collMoney = moneyOf(coll)
   let asset: string | undefined
-  if (debtMoney || collMoney) {
+  // an asset held for its exposure, levered in a money it allows: the bet is the product (JLP
+  // borrowed in dollars). Asked before the carry test, which would call it `cross-denom`.
+  const exposed = exposureOf(baseOfSymbol(L.symbol))
+  const debtDenom = debtMoney ? debtMoney.toLowerCase() : baseOfSymbol(S.symbol) ? denomOf(baseOfSymbol(S.symbol)!) : undefined
+  if (exposed) {
+    if (!debtDenom || !exposed.debt.includes(debtDenom)) return no(debtDenom ? 'cross-denom' : 'unmapped')
+    asset = baseOfSymbol(L.symbol)!
+  } else if (debtMoney || collMoney) {
     if (debtMoney !== collMoney) return no((debtMoney || baseOfSymbol(S.symbol)) && (collMoney || baseOfCollateral(L, S.symbol)) ? 'cross-denom' : 'unmapped')
     asset = deskKey(coll, collMoney!)
     noteToken(r.chainId, L.address, asset)
@@ -455,14 +477,16 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const liqLtv = num(r.collateralFactorLong) || num(r.ltv)
   if (!(liqLtv > 0.3)) return no('thin-ltv')
   const tiers = tierLeverages(maxLev)
-  const rec = tiers[DEFAULT_TIER]
+  // a price that moves on its own does not get the carry's default: at Balanced a JLP loop is
+  // ~5× with a 10 % fall to liquidation, a normal week for SOL. Its headline is the Defensive tier
+  const rec = tiers[exposed ? 'defensive' : DEFAULT_TIER]
   // no outlier cap here: at 75 % of a 28x range a thin carry is legitimately a big number, and the card says what it risks
   const rate = netAprAtLeverage(dep, bor, rec)
   const { risk, riskLabel } = riskOf(worst)
   const venue = venueLabel(r.lender, r.curatorNameLong)
   const instrument = r.collateralDesk?.via ?? (p.pendle || p.spectra ? p.issuer?.name : undefined)
   const s: LoopStrategy = {
-    id: `l:${r.marketLongUid}|${r.marketShortUid}`, kind: 'loop', chainId: r.chainId, group: groupOf(asset), asset, desk: debtMoney ? deskOf(asset)?.id : undefined, holds: L.symbol, venue, venueKey: r.lender, logo: L.logoURI,
+    id: `l:${r.marketLongUid}|${r.marketShortUid}`, kind: 'loop', chainId: r.chainId, group: groupOf(asset), asset, desk: debtMoney && !exposed ? deskOf(asset)?.id : undefined, nature: exposed?.nature ?? 'savings', holds: L.symbol, venue, venueKey: r.lender, logo: L.logoURI,
     rate, risk, riskLabel, riskScore: worst, tvlUsd: num(r.totalDepositsUsdLong),
     lender: r.lender, debt: S.symbol, marketLongUid: r.marketLongUid, marketShortUid: r.marketShortUid,
     collateralAddress: L.address, debtAddress: S.address, decimalsLong: L.decimals ?? 18, decimalsShort: S.decimals ?? 18,
@@ -518,7 +542,8 @@ export function markPicks(rows: Strategy[]): Set<string> {
   const picks = new Set<string>()
   const byKey = new Map<string, Strategy>()
   for (const r of rows) {
-    if (r.risk > 2 || r.riskLabel === 'Unknown') continue
+    // a pick is a saving: a perp LP or a managed fund is never the default answer for an asset
+    if (r.risk > 2 || r.riskLabel === 'Unknown' || r.nature !== 'savings') continue
     if (r.tvlUsd < (r.kind === 'simple' ? 2e7 : 0) || (r.kind === 'loop' && r.borrowLiquidityUsd < 2e6)) continue
     const k = `${r.asset}|${r.kind}`
     const cur = byKey.get(k)

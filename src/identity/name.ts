@@ -78,8 +78,12 @@ export const AUTO_TITLE =
  * knows — a renderer that asks `!handle && !displayName` calls every labelled
  * vault auto.
  */
-/** label sources that NAME a plain wallet: the wallet's own ENS / Basename, our seed file, a third-party tag */
-const WALLET_NAME_SOURCES = new Set(['ens', 'basename', 'seed', 'tag'])
+/**
+ * label sources that NAME a plain wallet: the wallet's own ENS / Basename /
+ * .sol (`sns`), our seed file, a third-party tag, and the Solana KOL lists
+ * (`kolscan`, `gmgn` — pos-indexer docs/sol-names.md)
+ */
+const WALLET_NAME_SOURCES = new Set(['ens', 'basename', 'sns', 'seed', 'tag', 'kolscan', 'gmgn'])
 
 export function labelFor(
   addr: string,

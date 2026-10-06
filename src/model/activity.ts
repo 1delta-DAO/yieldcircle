@@ -22,6 +22,31 @@ import { isSavings } from './nature'
 import { ptMaturityOf, type Strategy } from './strategies'
 import { uidsOf } from './uid'
 
+/**
+ * What a strategy EARNS IN — the lander's second axis, so exposures are never
+ * mixed: a SOL loop's rate is SOL-on-SOL and does not belong on a list next to
+ * a dollar rate. A dollar is a dollar whoever issues it (the USD group); the
+ * coins are themselves; everything else (JLP, euro, gold, HYPE…) is off the
+ * lander and lives in the Earn catalogue.
+ */
+export type Denom = 'USD' | 'ETH' | 'BTC' | 'SOL' | 'BNB' | 'AVAX' | 'MON'
+export const DENOMS: { id: Denom; word: string }[] = [
+  { id: 'USD', word: 'Dollar' },
+  { id: 'ETH', word: 'ETH' },
+  { id: 'BTC', word: 'BTC' },
+  { id: 'SOL', word: 'SOL' },
+  { id: 'BNB', word: 'BNB' },
+  { id: 'AVAX', word: 'AVAX' },
+  { id: 'MON', word: 'MON' },
+]
+const MORE_DENOMS = new Set<string>(['SOL', 'BNB', 'AVAX', 'MON'])
+/** By group for the moneys (any dollar desk is `USD`), by base asset in `MORE` (wrappers and LSTs already resolve: shMON is `MON`). */
+export function denomOfAsset(group: string, asset: string): Denom | null {
+  if (group === 'USD' || group === 'ETH' || group === 'BTC') return group
+  return MORE_DENOMS.has(asset) ? (asset as Denom) : null
+}
+export const denomOf = (s: Strategy): Denom | null => denomOfAsset(s.group, s.asset)
+
 export type Band = 'passive' | 'medium' | 'active'
 export interface BandMeta {
   /** the section heading */

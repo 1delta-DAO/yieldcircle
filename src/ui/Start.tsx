@@ -20,7 +20,7 @@ import { ConnectButton } from '../wallet/ConnectButton'
 import { useBook } from './useBook'
 import { useRateHistory } from '../sdk/queries'
 import { steadyRate, type HistoryGet } from '../model/rateHistory'
-import { BANDS, BAND_ORDER, clockOf, recommend, type Band, type Pick_ } from '../model/activity'
+import { BANDS, BAND_ORDER, DENOMS, clockOf, denomOf, denomOfAsset, recommend, type Band, type Denom, type Pick_ } from '../model/activity'
 import { useEarners } from '../index/queries'
 import type { EarnerRow } from '../index/api'
 import { useProfiles } from '../social/queries'
@@ -51,12 +51,18 @@ export function Start() {
   // positions by APR, people only — the proof behind every "recommended"
   const eq = useEarners({ by: 'position', sort: 'apr', people: true, chainIds: allChains ? undefined : chainIds.join(',') })
   const rows: EarnerRow[] | undefined = eq.data?.by === 'position' ? eq.data.rows : undefined
-  const picks = Object.fromEntries(BAND_ORDER.map((band) => [band, recommend(b.all, band, rows, rank)])) as Record<Band, Pick_[]>
+  // one denomination at a time, so exposures are never mixed: a SOL rate is
+  // SOL-on-SOL, and putting it beside a dollar rate would rank apples by oranges
+  const [denom, setDenom] = React.useState<Denom>('USD')
+  const menu = b.all.filter((s) => denomOf(s) === denom)
+  const picks = Object.fromEntries(BAND_ORDER.map((band) => [band, recommend(menu, band, rows, rank)])) as Record<Band, Pick_[]>
   // one profiles request for every face the cards show
   const { profile } = useProfiles(BAND_ORDER.flatMap((band) => picks[band].map((p) => p.proof?.best?.account)).filter((a): a is string => !!a))
   // being here IS the first visit done — the Home tab goes to the feed from now on
   React.useEffect(() => { markStartSeen() }, [])
-  const idleUsd = b.books.reduce((a, x) => a + x.idleUsd, 0)
+  // the teaser counts only money already IN this denomination — moving a coin
+  // into dollars first would be an exposure change, not parking idle money
+  const idleUsd = b.books.filter((x) => denomOfAsset(x.group, x.asset) === denom).reduce((a, x) => a + x.idleUsd, 0)
   const bestPassive = picks.passive[0]?.s
   const loading = b.isLoading && !b.all.length
   return (
@@ -81,6 +87,15 @@ export function Start() {
           </div>
         )}
       </header>
+
+      {/* what to earn IN: one exposure at a time, so a SOL rate never ranks beside a dollar rate */}
+      <div className="denoms" role="group" aria-label="What to earn in">
+        <span className="denoms-lbl t50">Earn in</span>
+        {DENOMS.map((d) => (
+          <button key={d.id} className="dchip" aria-pressed={denom === d.id} onClick={() => setDenom(d.id)}>{d.word}</button>
+        ))}
+        <span className="sub t50 hide-m">rates are in the asset you pick — exposures are never mixed</span>
+      </div>
 
       {BAND_ORDER.map((band) => (
         <BandSection key={band} band={band} picks={picks[band]} loading={loading} get={get} profile={profile} />
@@ -119,7 +134,7 @@ function BandSection({ band, picks, loading, get, profile }: {
       <div className="band-tend t50">{m.tend}</div>
       <div className="stcards">
         {loading && !picks.length && [0, 1, 2].map((i) => <div key={i} className="stcard"><Sk w={120} /><Sk w={80} h={22} /><Sk w={160} /></div>)}
-        {!loading && !picks.length && <div className="empty t50">Nothing in this band passes the app’s size and risk floors right now.</div>}
+        {!loading && !picks.length && <div className="empty t50">Nothing in this band for the picked asset right now.</div>}
         {picks.map((p) => <StartCard key={p.s.id} p={p} get={get} profile={profile} />)}
       </div>
     </section>

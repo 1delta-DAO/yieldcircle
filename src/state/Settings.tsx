@@ -33,15 +33,22 @@ export interface Settings {
   /** ask the optimizer with the DEBT tag only, so untagged collateral is found too */
   wideNet: boolean
   /**
-   * The swap slippage a loop's open, leverage step and close are built with, in bp. Not a filter
-   * (it is left out of `widened`): a TRADING preference. Low by default because every loop the menu
-   * builds is a same-denomination carry — an LST against its own coin, a savings dollar against a
-   * dollar — so the pair barely moves between the quote and the block, and on Solana whatever the
-   * swap fills above its guaranteed minimum (≤ this) lands idle in the wallet instead of in the
-   * position (lending-sdks SOLANA_LOOP_DUST.md). The cost of going too low is a revert, never a loss.
+   * The max slippage every swap-routed build carries, in bp — a loop's open, leverage step and
+   * close, and a deposit or withdrawal that trades on a book (a Pendle PT). `null` is AUTO
+   * ({@link slippageFor}). Not a filter (it is left out of `widened`): a TRADING preference. Low
+   * because nearly every trade the app builds is between two of the same money — an LST against
+   * its own coin, a savings dollar against a dollar, a PT against its underlying — so the pair
+   * barely moves between the quote and the block, and on Solana whatever the swap fills above its
+   * guaranteed minimum (≤ this) lands idle in the wallet instead of in the position (lending-sdks
+   * SOLANA_LOOP_DUST.md). The cost of going too low is a revert, never a loss.
    */
-  loopSlippageBp: number
+  slippageBp: number | null
 }
+
+/** What AUTO picks: tight between two of the same money, a little wider for a pair priced on its own (JLP against dollars). */
+export const AUTO_SLIPPAGE_BP = { pegged: 5, floating: 10 } as const
+/** The slippage a build for this pair goes out with: the reader's override, else AUTO's pick. */
+export const slippageFor = (st: Settings, pegged: boolean): number => st.slippageBp ?? (pegged ? AUTO_SLIPPAGE_BP.pegged : AUTO_SLIPPAGE_BP.floating)
 
 /** `maxRate` with the cap taken off — a number, so the whole thing still serialises. */
 export const NO_CAP = 1000
@@ -55,7 +62,7 @@ export const DEFAULTS: Settings = {
   showRateBets: false,
   showNegative: false,
   wideNet: false,
-  loopSlippageBp: 10,
+  slippageBp: null,
 }
 
 /** The keys that decide what the menu SHOWS — what `widened` / `isCurated` count. */
@@ -73,7 +80,7 @@ export const WIDE_OPEN: Settings = {
   showRateBets: true,
   showNegative: true,
   wideNet: true,
-  loopSlippageBp: DEFAULTS.loopSlippageBp,
+  slippageBp: DEFAULTS.slippageBp,
 }
 
 const LS = 'yieldcircle.settings'
@@ -93,7 +100,8 @@ function read(): Settings {
       showRateBets: boolOr(p.showRateBets, DEFAULTS.showRateBets),
       showNegative: boolOr(p.showNegative, DEFAULTS.showNegative),
       wideNet: boolOr(p.wideNet, DEFAULTS.wideNet),
-      loopSlippageBp: Math.min(100, Math.max(1, numOr(p.loopSlippageBp, DEFAULTS.loopSlippageBp))),
+      // the old `loopSlippageBp` (a fixed 10 persisted with every other switch) is dropped: everyone starts on auto
+      slippageBp: typeof p.slippageBp === 'number' ? Math.min(100, Math.max(1, numOr(p.slippageBp, 10))) : null,
     }
   } catch { return DEFAULTS }
 }
@@ -121,7 +129,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   // Reset puts the FILTERS back; the slippage is a trading preference and survives it
   const reset = React.useCallback(() => {
     setSt((cur) => {
-      const next = { ...DEFAULTS, loopSlippageBp: cur.loopSlippageBp }
+      const next = { ...DEFAULTS, slippageBp: cur.slippageBp }
       try { localStorage.setItem(LS, JSON.stringify(next)) } catch { /* private mode */ }
       return next
     })

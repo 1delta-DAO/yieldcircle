@@ -155,15 +155,18 @@ function restoreSolCase<P extends EarnPositionsResponse['items'][number]>(p: P):
 }
 
 // ---------------------------------------------------------------- actions
-/** Plain deposit into a lending market or a vault. `amountRaw` is in the row's asset units; no `payAsset` = pay with that asset, {@link nativeAsset} = the native coin into a wrapped-native row. */
+/**
+ * Plain deposit into a lending market or a vault. `amountRaw` is in the row's asset units; no `payAsset` = pay with that asset, {@link nativeAsset} = the native coin into a wrapped-native row.
+ * `slippageBp` is required on a row that trades on a book (a Pendle PT, `SimpleStrategy.booked`) and on a `payAsset` conversion (50 when not given).
+ */
 export function earnDeposit(p: { earnUid: string; amountRaw: string; operator: string; payAsset?: string; slippageBp?: number }) {
   return apiFetchEnvelope<{ quotes?: unknown[] } | null, LoopActions>('/v1/actions/earn/deposit', {
-    params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, payAsset: p.payAsset, slippage: p.payAsset ? p.slippageBp ?? 50 : undefined },
+    params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, payAsset: p.payAsset, slippage: p.slippageBp ?? (p.payAsset ? 50 : undefined) },
   })
 }
-/** Withdraw from a lending market or a synchronous vault. `amountRaw` in the row's asset units (required: `isAll` is not honoured everywhere). `receiveAsset` = {@link nativeAsset} unwraps to the native coin. */
-export function earnWithdraw(p: { earnUid: string; amountRaw: string; operator: string; isAll?: boolean; receiveAsset?: string }) {
-  return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/earn/withdraw', { params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, isAll: p.isAll ? 'true' : undefined, receiveAsset: p.receiveAsset } })
+/** Withdraw from a lending market or a synchronous vault. `amountRaw` in the row's asset units (required: `isAll` is not honoured everywhere, and refused on a booked row). `receiveAsset` = {@link nativeAsset} unwraps to the native coin. `slippageBp`: required on a booked row (a PT sold on its AMM). */
+export function earnWithdraw(p: { earnUid: string; amountRaw: string; operator: string; isAll?: boolean; receiveAsset?: string; slippageBp?: number }) {
+  return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/earn/withdraw', { params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, isAll: p.isAll ? 'true' : undefined, receiveAsset: p.receiveAsset, slippage: p.slippageBp } })
 }
 /** `loanId`: which fixed-term loan the repay pays down — required on a Lista broker debt, ignored elsewhere */
 export interface LoopCloseParams { collateralMarketUid: string; debtMarketUid: string; amountRaw: string; slippageBp: number; isAll?: boolean; account?: string; accountId?: string; loanId?: string }

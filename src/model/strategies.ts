@@ -5,7 +5,7 @@
  * its credit desk (`model/desk.ts`). Pure functions, but for the desk memo they fill
  * (`noteToken`), which positions and balances read.
  */
-import type { EarnMarket, OptimizerRowRaw } from '../sdk/types'
+import type { EarnCapability, EarnMarket, OptimizerRowRaw } from '../sdk/types'
 import { baseOfCollateral, baseOfSymbol, denomOf, deskOf, EXPOSURE_ASSETS, exposureOf, groupOf, sameMoney, type GroupId } from './assets'
 import { creditDesk, deskKey, moneyOf, noteToken } from './desk'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
@@ -87,6 +87,11 @@ export interface SimpleStrategy extends Base {
   /** the API says the chain's coin can be paid in / paid out for this row (`acceptsNative`); undefined on an API without the flag */
   nativeIn?: boolean
   nativeOut?: boolean
+  /**
+   * The row trades on a book (a Pendle PT on its AMM): the API needs `slippage` on its deposit and
+   * withdrawal (a capability's `requires`) and refuses `isAll` on the exit
+   */
+  booked?: boolean
   decimals: number
   priceUsd?: number
   exitMode: string
@@ -409,11 +414,19 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
     liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
     exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, exitSecs: m.exit?.cooldownSecs || undefined, exitFeeBps: m.exit?.feeBps || undefined, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0, passthrough: m.rate?.passthrough || undefined,
     // an API that knows the flag sets it on the deposit; then a missing withdraw leg (an async exit) is a no
+    booked: isBooked(m.venue, m.capabilities) || undefined,
     nativeIn: dep.acceptsNative, nativeOut: dep.acceptsNative === undefined ? undefined : m.capabilities.find((c) => c.action === 'withdraw')?.acceptsNative ?? false,
     headline: m.termSheet?.supply?.headline || undefined, description: m.termSheet?.supply?.description || undefined,
   }
   return { s, hide: null, label, chainId: m.chainId }
 }
+
+/**
+ * A deposit that settles on a book rather than at a protocol-set price. The capability says so
+ * (`requires: ['slippage']`); the venue stands in for a listing that does not publish `requires`.
+ */
+export const isBooked = (venue: string, caps?: EarnCapability[]): boolean =>
+  venue.startsWith('vault.pendle') || venue.startsWith('vault.exponent') || !!caps?.some((c) => (c.action === 'deposit' || c.action === 'withdraw') && c.requires?.includes('slippage'))
 
 /** Lender keys carry 64-hex market ids — shorten to the family name. */
 export function venueLabel(lender: string, curator?: string | null): string {

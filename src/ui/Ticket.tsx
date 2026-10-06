@@ -1,7 +1,7 @@
 import React from 'react'
 import { nameOf, unitOf } from '../model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
-import { dateOf, exitTerms, type LoopStrategy, type LoopTerm, type SimpleStrategy, type Strategy } from '../model/strategies'
+import { dateOf, exitTerms, isBooked, type LoopStrategy, type LoopTerm, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { isSvmTx, type LoopActions } from '../sdk/types'
 import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
 import { earnDeposit, earnWithdraw, loopClose, loopOpen, nativeAsset } from '../sdk/api'
@@ -10,7 +10,8 @@ import { seriesFor } from '../model/rateHistory'
 import { RateHistoryPanel, useSparkRewards } from './Spark'
 import { useApp, type Mode } from '../state/AppState'
 import { useSticky } from '../state/sticky'
-import { useSettings } from '../state/Settings'
+import { slippageFor, useSettings } from '../state/Settings'
+import { SlippagePicker } from './SettingsPanel'
 import { DecimalInput, Info, KindPill, LegsPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
 import { Who } from './social-bits'
 import { isSvmChain, normAddr } from '../model/address'
@@ -223,9 +224,12 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
   const [amount, setAmount] = useSticky<number>(`t:${s.id}:amount`, () => (unit === '$' ? 1000 : Math.min(idle?.amount ?? 1, 1)))
   const amtUsd = amount * price
   const yearly = amtUsd * s.rate / 100
-  const key = [s.id, amount, chosen.role, account ?? ''].join('|')
+  // a PT is bought on its AMM: the API wants a bound on the fill, and a PT against its underlying is one money
+  const st = useSettings().st
+  const slip = s.booked ? slippageFor(st, isSavings(s.nature)) : undefined
+  const key = [s.id, amount, chosen.role, actor ?? '', slip ?? ''].join('|')
   const ladder = useLadder(key, s.chainId, async () => {
-    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: actor!, payAsset: chosen.role === 'native' ? chosen.address : undefined })
+    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: actor!, payAsset: chosen.role === 'native' ? chosen.address : undefined, slippageBp: slip })
     if (chosen.role === 'native' && !paysNative(env.actions)) throw new Error(`${s.brand} does not take ${chosen.symbol} directly here. Pay with ${s.assetSymbol}.`)
     return stepsFrom(env.actions, s.via, s.chainId)
   }, [s.earnUid, s.marketUid])
@@ -278,8 +282,19 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
       </div></div>
       <HistorySec s={s} now={s.rate} />
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={(i === 0 && s.risk >= 2) || (!isSavings(s.nature) && i === 0) ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
+      {s.booked && <BookedSlippage pegged={isSavings(s.nature)} what={s.holds} />}
       <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} />
     </>
+  )
+}
+
+/** The bound on a PT's fill, where the ticket trades it — the same switch as the profile's settings. */
+function BookedSlippage({ pegged, what, sell }: { pegged: boolean; what: string; sell?: boolean }) {
+  return (
+    <div className="tsec">
+      <span className="lbl">Max slippage <Info label="Max slippage">{what} is {sell ? 'sold' : 'bought'} on a market, not at a price the protocol sets. This is how far the fill may land from the quote before the transaction reverts instead. Auto is tight because {what} and what you pay with are the same money; a revert only costs gas. It applies to every trade the app builds (loops too) and is also under Settings.</Info></span>
+      <SlippagePicker pegged={pegged} />
+    </div>
   )
 }
 
@@ -318,7 +333,8 @@ const dayOf = (days: number) => new Date(Date.now() + days * 86400_000).toLocale
 
 function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle[]; allIdle: Idle[]; holding: Holding | null }) {
   const { account, isConnected, solSigner } = useApp()
-  const slip = useSettings().st.loopSlippageBp
+  // every loop on the menu is a carry (one money); an exposure loop (JLP against dollars) is not
+  const slip = slippageFor(useSettings().st, isSavings(s.nature))
   const actor = isSvmChain(s.chainId) ? solSigner : account
   const [getOpen, setGetOpen] = React.useState(false)
   const unit = unitOf(s.asset)
@@ -362,7 +378,8 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
   const Eh = holding && holding.valueUsd > 0 ? holding.valueUsd : 0, Lh = holding?.leverage && holding.leverage > 1 ? holding.leverage : 1
   const Lc = Eh > 0 ? (Eh * Lh + E * L) / (Eh + E) : L
   const netC = netAprAtLeverage(dep, bor, Lc), hfC = healthAt(s.liqLtv, Lc)
-  const q = useLoopQuote(s, E, L, account, slip, term?.id)
+  // the VM's own signer, as the build below: a Solana loop quoted for the EVM address is quoted for nobody
+  const q = useLoopQuote(s, E, L, actor, slip, term?.id)
   const econ = q.data?.data?.economics ?? q.data?.data?.quotes?.[0]?.economics ?? null
   // the quote's carry prices a broker debt at the market's variable rate, not the term's (API gap,
   // 2026-09-29): on a fixed loop only its entry cost is kept, and the payback is this ticket's own
@@ -371,7 +388,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
   // answered, but with no route: the build would come back with nothing but an approval
   const noRoute = !!q.data && !hasRoute(q.data.data)
   const yearly = E * net / 100
-  const key = [s.id, amount, L, term?.id ?? '', chosen?.role ?? '', account ?? ''].join('|')
+  const key = [s.id, amount, L, term?.id ?? '', chosen?.role ?? '', actor ?? '', slip].join('|')
   const ladder = useLadder(key, s.chainId, async () => {
     const debtTokens = s.priceShort ? D / s.priceShort : 0
     const env = await loopOpen({
@@ -475,10 +492,14 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const [asNative, setAsNative] = useSticky<boolean>(`t:${h.key}:receive-native`, false)
   const native = canNative && asNative && !maxRounds
   const outSym = native ? coin : h.symbol
-  const key = [s?.id ?? h.key, mode, eff, native ? 'native' : 'token', account ?? ''].join('|')
   const rate = s?.rate ?? h.apr
+  // a PT is SOLD on its AMM before maturity: a bound on the fill is required, and `isAll` is refused (the raw amount is exact anyway)
+  const booked = s?.booked ?? isBooked(h.earnUid ?? '')
+  const st = useSettings().st
+  const slip = booked ? slippageFor(st, s ? isSavings(s.nature) : true) : undefined
+  const key = [s?.id ?? h.key, mode, eff, native ? 'native' : 'token', actor ?? '', slip ?? ''].join('|')
   const ladder = useLadder(key, h.chainId, async () => {
-    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: all && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: actor!, isAll: fullExit, receiveAsset: native ? nativeAsset(h.chainId) : undefined })
+    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: (all || (booked && fullExit)) && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: actor!, isAll: fullExit && !booked, receiveAsset: native ? nativeAsset(h.chainId) : undefined, slippageBp: slip })
     return stepsFrom(env.actions, 'Withdraw', h.chainId)
   }, [s?.earnUid, h.earnUid])
   const price = h.amount > 0 ? h.valueUsd / h.amount : 0
@@ -500,6 +521,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
         <div className="c"><span className="k">Left in</span><span className="v">{num(Math.max(0, h.amount - eff), 4)}</span><span className="s">{h.symbol}{rate != null ? ` · still earning ${pct(rate)}` : ''}</span></div>
         {exit && <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{exit.word}</span><span className="s">{exit.when}</span></div>}
       </div></div>
+      {booked && <BookedSlippage pegged={s ? isSavings(s.nature) : true} what={h.symbol} sell />}
       <Action ladder={ladder} label={`Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={!(eff > 0)} chainId={h.chainId} />
     </>
   )
@@ -516,7 +538,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
  */
 function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; closeFirst?: boolean }) {
   const { account, isConnected, solSigner } = useApp()
-  const slip = useSettings().st.loopSlippageBp
+  const slip = slippageFor(useSettings().st, s ? isSavings(s.nature) : !h.directional)
   const actor = isSvmChain(h.chainId) ? solSigner : account
   const holds = s?.holds ?? h.symbol, debt = s?.debt ?? h.debtSymbol ?? 'debt'
   // the book as the API reports it: equity and leverage from the position, prices only to size the legs in tokens
@@ -580,7 +602,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const leftover = owed * keepPad
   const backUsd = !sale ? null : keep ? (keepOk ? (backColl! * rate! + leftover) * pDebt : null) : backDebt! * pDebt
   const closeBlock = !closing ? null : cq.isPending ? 'pricing' : !sale ? 'no-route' : !covers ? 'short' : keep && !keepOk ? 'keep-short' : null
-  const key = [s?.id ?? h.key, 'manage', L, keep ? 'keep' : 'sell', account ?? ''].join('|')
+  const key = [s?.id ?? h.key, 'manage', L, keep ? 'keep' : 'sell', actor ?? '', slip].join('|')
   const ladder = useLadder(key, h.chainId, async () => {
     if (down || !s) {
       const amountRaw = closing && !keep ? allRaw : toRaw(closing ? sellKeep! : sellTok, h.decimals)

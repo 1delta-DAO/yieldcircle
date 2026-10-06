@@ -11,7 +11,7 @@
  * now, beside the chains: both are settings of the reader, not of a page.
  */
 import React from 'react'
-import { DEFAULTS, FILTER_KEYS, NO_CAP, useSettings, type Settings } from '../state/Settings'
+import { AUTO_SLIPPAGE_BP, DEFAULTS, FILTER_KEYS, NO_CAP, slippageFor, useSettings, type Settings } from '../state/Settings'
 
 const MONEY = (x: number) => (x === 0 ? 'Any' : x >= 1e6 ? `$${x / 1e6}m+` : `$${x / 1e3}k+`)
 
@@ -45,10 +45,26 @@ export function SettingsPanel() {
         label="Wider pair search" sub="ask the optimizer without collateral tags — finds untagged collateral (sUSDp, syzUSD), costs a request per chain" />
 
       <div className="sm-h" style={{ marginTop: 14 }}><b>Trading</b></div>
-      <Row label="Loop slippage" note="open, lever, close">
-        <Seg value={st.loopSlippageBp} onPick={(v) => set({ loopSlippageBp: v })} opts={[5, 10, 30, 50]} fmt={(v) => `${v / 100}%`} />
+      <Row label="Max slippage" note="loops, fixed-rate PTs">
+        <SlippagePicker />
       </Row>
-      <p className="sm-p">A loop pairs an asset with its own denomination (an LST with its coin, a savings dollar with a dollar), so the price barely moves between the quote and the block. Tight is cheaper: on Solana what the swap fills above its minimum stays idle in your wallet. Too tight only means a reverted transaction, never a worse fill.</p>
+      <p className="sm-p">Auto takes {AUTO_SLIPPAGE_BP.pegged / 100}% when both sides are the same money (an LST and its coin, a savings dollar and a dollar, a PT and its underlying) and {AUTO_SLIPPAGE_BP.floating / 100}% when one is priced on its own. Tight is cheaper: on Solana what the swap fills above its minimum stays idle in your wallet. Too tight only means a reverted transaction, never a worse fill.</p>
+    </div>
+  )
+}
+
+const SLIPS = [null, 5, 10, 30, 50] as const
+/**
+ * The one slippage switch, here and in a ticket that trades on a book. `pegged` (a ticket's own
+ * pair) spells out what Auto picks for it; without it Auto is just Auto.
+ */
+export function SlippagePicker({ pegged }: { pegged?: boolean }) {
+  const { st, set } = useSettings()
+  return (
+    <div className="seg sm">
+      {SLIPS.map((o) => <button key={String(o)} aria-pressed={st.slippageBp === o} onClick={() => set({ slippageBp: o })}>
+        {o == null ? (pegged == null ? 'Auto' : `Auto ${slippageFor({ ...st, slippageBp: null }, pegged) / 100}%`) : `${o / 100}%`}
+      </button>)}
     </div>
   )
 }

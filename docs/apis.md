@@ -83,8 +83,8 @@ that sometimes answer un-enveloped or with `ok` instead of `success`
 
 | Function | Endpoint | Param mapping |
 |---|---|---|
-| `earnDeposit` | `/v1/actions/earn/deposit` | `earnUid`, `amount`, `operator`, optional `payAsset` (+`slippage` only then) |
-| `earnWithdraw` | `/v1/actions/earn/withdraw` | `receiveAsset = ZERO` unwraps to native; always pass `amount` (`isAll` not honoured everywhere) |
+| `earnDeposit` | `/v1/actions/earn/deposit` | `earnUid`, `amount`, `operator`, optional `payAsset`; `slippage` on a booked row (Pendle PT, `SimpleStrategy.booked`, from the capability's `requires`) or with a `payAsset` |
+| `earnWithdraw` | `/v1/actions/earn/withdraw` | `receiveAsset = ZERO` unwraps to native; always pass `amount` (`isAll` not honoured everywhere, refused on a booked row); `slippage` on a booked row |
 | `loopOpen` | `/v1/actions/loop/leverage` | **`marketUidIn` = DEBT, `marketUidOut` = COLLATERAL** on open; `termId` for Lista broker debt |
 | `loopClose` | `/v1/actions/loop/close` | **`marketUidIn` = COLLATERAL, `marketUidOut` = DEBT** on close; `loanId` for Lista broker debt |
 | `spotSwapQuote` | `/v1/actions/swap/spot` | one tx per route in `actions.alternatives`, matched by index to `data.quotes` |

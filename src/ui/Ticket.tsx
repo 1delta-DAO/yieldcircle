@@ -334,6 +334,8 @@ const defaultTerm = (ts: LoopTerm[]) => [...ts].sort((a, b) => a.apr - b.apr || 
 /** The tenor a Loopscale loop opens with before anyone picks: the cheapest quoted, the longest of equals; the shortest while nothing has answered. */
 const defaultTenor = <T extends { tenor: LoopTenor; offer: { apr: number } | null }>(qs: T[]) =>
   [...qs].filter((q) => q.offer).sort((a, b) => a.offer!.apr - b.offer!.apr || b.tenor.days - a.tenor.days)[0] ?? qs[0]
+/** A payback in words: hours under a day, then whole days (rounded up — it is not earned back before). */
+const daysWord = (d: number) => (d <= 0 ? 'at once' : d < 1 ? `${Math.max(1, Math.ceil(d * 24))} h` : `${Math.ceil(d)} day${Math.ceil(d) === 1 ? '' : 's'}`)
 const tenorWord = (t: LoopTenor) => (t.days === 1 ? '1 day' : t.days === 7 ? '1 week' : t.days === 30 ? '1 month' : `${t.days / 30} months`)
 const dayOf = (days: number) => new Date(Date.now() + days * 86400_000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
@@ -409,9 +411,16 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   // the VM's own signer, as the build below: a Solana loop quoted for the EVM address is quoted for nobody
   const q = useLoopQuote(s, E, L, actor, slip, term?.id, tenor)
   const econ = q.data?.data?.economics ?? q.data?.data?.quotes?.[0]?.economics ?? null
-  // the quote's carry prices a broker debt at the market's variable rate, not the term's (API gap,
-  // 2026-09-29): on a fixed loop only its entry cost is kept, and the payback is this ticket's own
-  const payback = !econ ? null : term ? (net > 0 && E > 0 && econ.entryCostUsd.total > 0 ? econ.entryCostUsd.total / (E * net / 100 / 365) : null) : econ.breakEvenDays.total
+  // Break-even: the entry cost over what the loop earns a day. The API's own where it prices the
+  // carry (EVM). Its Solana quote leaves the carry null (worker-api `svmEconomics`, 2026-10-06), and
+  // on a broker term it prices the debt at the market's variable rate, not the term's (2026-09-29):
+  // there the payback is this ticket's own, off the net it shows. Null = never (no positive carry).
+  const cost = econ?.entryCostUsd.total ?? 0
+  const ownPayback = !econ ? null : cost <= 0 ? 0 : net > 0 && E > 0 ? cost / (E * net / 100 / 365) : null
+  const payback = !econ ? null : term ? ownPayback : econ.breakEvenDays.total ?? ownPayback
+  // the clock the payback runs against: the fixed debt's term, its due date, the PT's expiry
+  const clockDays = term?.days ?? tenor?.days ?? (s.dueAt ? (s.dueAt * 1000 - Date.now()) / 86400_000 : s.expiry ? (s.expiry * 1000 - Date.now()) / 86400_000 : null)
+  const clockWord = term ? `the ${term.days}-day term` : tenor ? `the ${tenorWord(tenor)} term` : s.dueAt ? `the loan's due date` : s.expiry ? 'maturity' : ''
   const simHf = q.data?.data?.simulation?.post?.healthFactor
   // answered, but with no route: the build would come back with nothing but an approval
   const noRoute = !!q.data && !hasRoute(q.data.data)
@@ -488,7 +497,12 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
             the curve says how close the market is to doing it. */}
         <div className="c"><span className="k">You hold</span><span className="v">{usd(C)}</span><span className="s">{s.holds} on {s.venue}</span><IrmLink uid={s.marketLongUid} side="supply" label="supply curve" rewards={s.rewardsLong} /></div>
         <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · {term ? `fixed ${pct(term.apr)} for ${term.days} days` : tenor ? `fixed ${pct(bor)} for ${tenorWord(tenor)}` : s.dueAt ? `fixed ${pct(bor)}, due ${due}` : 'floating'} · {usdShort(s.borrowLiquidityUsd)} to borrow</span><IrmLink uid={s.marketShortUid} side="borrow" label={term ? 'rate after the term' : 'borrow curve'} rewards={s.rewardsShort} /></div>
-        <div className="c"><span className="k">Entry cost</span><span className="v">{q.isFetching && !econ ? <Sk w={60} h={14} /> : econ ? usd(econ.entryCostUsd.total) : '—'}</span><span className="s">{econ ? `${payback != null ? `earned back in ${Math.ceil(payback)} days` : 'slippage, fees, gas'} · max slippage ${slip / 100}%` : noRoute ? 'no route at this size' : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
+        <div className="c"><span className="k">Break-even</span>
+          <span className={`v ${econ && payback == null ? 'bad' : payback != null && clockDays != null && payback > clockDays ? 'warn' : ''}`}>{q.isFetching && !econ ? <Sk w={60} h={14} /> : !econ ? '—' : payback == null ? 'never' : daysWord(payback)}</span>
+          <span className="s">{econ ? <>entry cost {usd(cost)}{payback != null && clockDays != null && payback > clockDays ? ` · past ${clockWord}` : ''} <Info label="What the entry costs">
+            <b>{usd(cost)}</b> to open: swap slippage {usd(econ.entryCostUsd.slippage)}, fees {usd(econ.entryCostUsd.fees)}, network {econ.entryCostUsd.gas == null ? 'not priced' : usd(econ.entryCostUsd.gas)}. Max slippage allowed: {slip / 100}%.
+            <p style={{ margin: '8px 0 0' }}>{payback == null ? <>At {pct(net)} the loop earns nothing, so the entry is never earned back.</> : <>At {pct(net)} on {usd(E)} the loop earns {usd(E * net / 100 / 365)} a day, so the entry is earned back in {daysWord(payback)}{clockDays != null ? <> — {payback > clockDays ? 'after' : 'before'} {clockWord}</> : ''}. Closing costs about as much again.</>}</p>
+          </Info></> : noRoute ? 'no route at this size' : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
         <div className="c"><span className="k">Health</span><span className={`v ${(simHf ?? hf) < 1.1 ? 'bad' : (simHf ?? hf) < 1.25 ? 'warn' : 'ok'}`}>{(simHf ?? hf).toFixed(2)}</span><span className="s">{simHf ? 'simulated by the API' : 'from the liquidation threshold'}</span></div>
       </div>
         <span className="lbl" style={{ marginTop: 14 }}>Liquidation</span>

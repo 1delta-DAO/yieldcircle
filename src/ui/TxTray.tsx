@@ -27,6 +27,10 @@ export function useNow(on: boolean) {
 }
 const ago = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s` }
 const blk = (n?: number) => (n != null ? n.toLocaleString('en-US') : '')
+/** What came back into the wallet — a withdrawal, or the few units a loop's swap left over. */
+const gained = (r: NonNullable<Trace['received']>) => `to your wallet: ${r.map((x) => `+${trim(x.amount)} ${x.symbol}`.trim()).join(', ')}`
+/** Six significant digits at most: dust is still readable as dust (0.001484), a withdrawal as 1,250.5. */
+const trim = (a: string) => { const n = parseFloat(a); return n >= 1 ? n.toLocaleString('en-US', { maximumFractionDigits: 4 }) : n.toPrecision(Math.min(6, a.replace(/^0\.0*/, '').length || 1)).replace(/\.?0+$/, '') }
 
 export type Tone = 'run' | 'ok' | 'warn' | 'bad'
 /** The one sentence for where a trace is: a head for the pill, a detail for the line under it. */
@@ -41,7 +45,7 @@ export function phaseWords(t: Trace, now = Date.now()): { head: string; detail?:
       ? { head: 'Updating your positions', detail: `final in block ${blk(t.block)}`, tone: 'run' }
       : { head: 'Updating your balance', detail: t.bridge ? `${t.bridge.name}: delivered` : `final in block ${blk(t.block)}`, tone: 'run' }
     case 'bridging': return { head: 'Bridging', detail: !t.bridge?.status || t.bridge.status === 'NOT_FOUND' ? 'waiting for the bridge to pick it up' : `${t.bridge.name}: ${t.bridge.status.toLowerCase().replace(/_/g, ' ')}`, tone: 'run' }
-    case 'settled': return { head: 'Done', detail: t.note ?? (t.block ? `final in block ${blk(t.block)}` : undefined), tone: t.note ? 'warn' : 'ok' }
+    case 'settled': return { head: 'Done', detail: t.note ?? (t.received?.length ? gained(t.received) : t.block ? `final in block ${blk(t.block)}` : undefined), tone: t.note ? 'warn' : 'ok' }
     case 'reverted': return { head: 'Reverted', detail: t.err, tone: 'bad' }
     case 'dropped': return { head: 'Dropped', detail: t.err, tone: 'bad' }
     case 'failed': return { head: 'Failed', detail: t.err, tone: 'bad' }
@@ -85,7 +89,7 @@ export function TxNote({ t }: { t: Trace | undefined }) {
   const now = useNow(!!t && !isDone(t))
   if (!t) return null
   const w = phaseWords(t, now)
-  if (t.phase === 'settled' && !t.note) return null
+  if (t.phase === 'settled' && !t.note && !t.received?.length) return null
   return <small className={w.tone === 'bad' ? 'bad' : w.tone === 'warn' ? 'warn' : ''}>{w.head}{w.detail ? ` · ${w.detail}` : ''}</small>
 }
 

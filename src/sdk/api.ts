@@ -7,7 +7,7 @@ import { apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } from '../ve
 import { isNativeAddress } from '../model/positions'
 import { isSvmChain } from '../model/address'
 import type { RateHistoryResponse } from '../model/rateHistory'
-import type { ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmResponse, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
+import type { ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmResponse, LendingBook, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
 
 // ---------------------------------------------------------------- deposits (supply side)
 // `terms: 'digest'` — NOT 'none'. The digest is where the row's own prose lives:
@@ -64,6 +64,15 @@ export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRisk
 export const IRM_MAX_BATCH = 8
 export function fetchIrm(marketUids: string[]) {
   return apiFetch<IrmResponse>('/v1/data/lending/irm', { params: { marketUids: marketUids.slice(0, IRM_MAX_BATCH).join(',') } })
+}
+
+/**
+ * A fixed-rate lender's liquidity ladder (`MORPHO_MIDNIGHT_<id>`, Term, Exactly): `side=borrow` is
+ * what a borrower takes, best rate first. Display and sizing only — the loop builders fill the book
+ * server-side. `marketUid` is the DEBT market's.
+ */
+export function fetchLendingBook(marketUid: string, count = 50) {
+  return apiFetch<LendingBook>('/v1/data/lending/book', { params: { marketUid, side: 'borrow', count } })
 }
 
 // The chain directory: id, name and a logo, for every chain the API knows.
@@ -188,6 +197,8 @@ export interface LoopOpenParams {
   payAmountRaw?: string
   /** the fixed term to borrow for — required on a Lista broker debt (`LoopStrategy.terms`), ignored elsewhere */
   termId?: string
+  /** the loan tenor — required on a Loopscale open (`LoopStrategy.tenors`), ignored elsewhere */
+  tenor?: { duration: number; durationType: number }
   /** the position a leverage step adds to (Solana: with no `payAmount` the API adjusts THIS position to `leverage`) */
   accountId?: string
 }
@@ -197,6 +208,7 @@ export function loopOpen(p: LoopOpenParams) {
       marketUidIn: p.debtMarketUid,      // API: in = debt on OPEN
       marketUidOut: p.collateralMarketUid,
       debtAmount: p.debtAmountRaw, slippage: p.slippageBp, leverage: p.leverage, account: p.account, payAsset: p.payAsset, payAmount: p.payAmountRaw, termId: p.termId, accountId: p.accountId,
+      duration: p.tenor?.duration, durationType: p.tenor?.durationType,
     },
   })
 }

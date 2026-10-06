@@ -192,9 +192,39 @@ export interface LoopStrategy extends Base {
    * nothing walks a curve. Only Lista's broker today (see `classifyPair`).
    */
   terms?: LoopTerm[]
+  /**
+   * Set on a Loopscale loop: the loan tenors the open can ask for (the build refuses one without).
+   * Unlike Lista's card these carry no rate — the feed has none per tenor (`termsShort` is null) and
+   * each tenor is its own order book, priced at size — so the ticket quotes each one.
+   */
+  tenors?: LoopTenor[]
+  /**
+   * Set on an order-book loan that falls due on one date (Morpho Midnight): the maturity, unix s.
+   * Zero-coupon — the face owed is fixed when the loan is taken and does not accrue; repaid early it
+   * is still the whole face, with no penalty on top; unpaid at maturity the loan can be liquidated
+   * whatever its health. Each maturity is its own market (`MORPHO_MIDNIGHT_<id>`). `bor` / `borSpot`
+   * are the top of the book (the API's `borrowAprShort`); the ticket prices its size off the book.
+   */
+  dueAt?: number
+  /** Every maturity of the same pair on the same venue, soonest first (this row among them, without their own `dates`) — the ticket's date picker. */
+  dates?: LoopStrategy[]
 }
 /** One fixed term: `apr` is effective (on `borrowAprShort`'s footing), `days` from the day it is opened. */
 export interface LoopTerm { id: string; days: number; apr: number }
+/** A Loopscale tenor, in its own enum: `durationType` 0 = days, 1 = weeks, 2 = months. */
+export interface LoopTenor { id: string; days: number; duration: number; durationType: 0 | 1 | 2 }
+/**
+ * The four tenors Loopscale's app offers (margin-fetcher-sol `LS_TENORS`). A pair's lenders need not
+ * quote all four: a tenor nobody offers answers `NO_OFFER`, and the ticket greys it out.
+ */
+/** A Loopscale pair's lender key (`LOOPSCALE_<principal>_<collateral>`): one isolated book per pair, loans as accounts. */
+export const isLoopscale = (lender?: string) => !!lender?.startsWith('LOOPSCALE_')
+export const LOOPSCALE_TENORS: LoopTenor[] = [
+  { id: '1d', days: 1, duration: 1, durationType: 0 },
+  { id: '1w', days: 7, duration: 1, durationType: 1 },
+  { id: '1m', days: 30, duration: 1, durationType: 2 },
+  { id: '3m', days: 90, duration: 3, durationType: 2 },
+]
 export type Strategy = SimpleStrategy | LoopStrategy
 
 /**
@@ -467,7 +497,12 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   // all: Midnight sends `variableBorrowDisabledShort: false` on every row with a 0 % borrow rate, and
   // a `fixedTerm` block alone means nothing — Lista's float markets and Exactly's pools carry one.
   const terms = r.variableBorrowDisabledShort && r.fixedTerm?.model === 'lista' ? termCard(r) : []
-  if (r.variableBorrowDisabledShort ? !terms.length : FIXED_DATE.has(r.fixedTerm?.model ?? '') || r.debtTerms?.maturityKind === 'fixed-date') return no('brokered')
+  // Morpho Midnight is the one dated order book the ticket builds: the API prices its top of book
+  // (`borrowAprShort`), the book route prices any size, and open and close both have a native route.
+  // A maturity nobody is lending into (`canOpen: false`, 0 % and no liquidity) stays out
+  const dueAt = r.fixedTerm?.model === 'midnight' && r.debtTerms?.canOpen && num(r.borrowAprShort) > 0 ? r.fixedTerm.maturity : undefined
+  if (dueAt) { if (dueAt * 1000 < Date.now() + 2 * 86400_000) return no('brokered') }
+  else if (r.variableBorrowDisabledShort ? !terms.length : FIXED_DATE.has(r.fixedTerm?.model ?? '') || r.debtTerms?.maturityKind === 'fixed-date') return no('brokered')
   // A dollar, ether or bitcoin loop sits on its COLLATERAL's desk. The debt is a rate, not an
   // exposure: a stable does not depeg upward, so borrowing USDC against sUSDe is Ethena's credit;
   // borrowing WETH against wstETH is Lido's (docs/stablecoin-exposure.md). Any debt of the same
@@ -529,6 +564,8 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields,
     expiry: L.props?.pendle?.expiry ?? L.props?.spectra?.expiry, instrument,
     ...(terms.length ? { terms, borSpot: bor } : {}),
+    ...(r.fixedTerm?.model === 'loopscale' ? { tenors: LOOPSCALE_TENORS } : {}),
+    ...(dueAt ? { dueAt } : {}),
   }
   return { s, hide: null, label, chainId: r.chainId }
 }
@@ -562,7 +599,29 @@ function termCard(r: OptimizerRowRaw): LoopTerm[] {
  * 2026-10-02 four Pendle pairs lost their nearer maturity to the higher rate.
  */
 export const rowKey = (r: Strategy): string =>
-  r.kind === 'simple' && r.source === 'vault' ? `${r.chainId}|${r.ref}` : `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? `${r.debt}${r.terms ? '|fixed' : ''}|${r.expiry ?? ''}` : r.maturity ?? ''}`
+  r.kind === 'simple' && r.source === 'vault' ? `${r.chainId}|${r.ref}` : `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? `${r.debt}${r.terms ? '|fixed' : ''}|${r.expiry ?? ''}${r.dueAt ? `|due${r.dueAt}` : ''}` : r.maturity ?? ''}`
+/**
+ * One row per dated pair: the maturities of a Midnight pair (each its own market, its own row out of
+ * `dedupe`) become one row — the cheapest — carrying all of them as `dates`, for the ticket's picker.
+ * The others go back as `rest`: not listed, still openable by id (a holder of that maturity).
+ */
+export function foldDates(rows: LoopStrategy[]): { rows: LoopStrategy[]; rest: LoopStrategy[] } {
+  const groups = new Map<string, LoopStrategy[]>()
+  const out: LoopStrategy[] = [], rest: LoopStrategy[] = []
+  for (const r of rows) {
+    if (!r.dueAt) { out.push(r); continue }
+    const k = `${r.chainId}|${r.collateralAddress}|${r.debtAddress}|${r.venue}`
+    groups.set(k, [...(groups.get(k) ?? []), r])
+  }
+  for (const g of groups.values()) {
+    // the entries carry no `dates` of their own: no cycle for anything that serialises a row
+    const dates = [...g].sort((a, b) => a.dueAt! - b.dueAt!)
+    const withDates = dates.map((r) => ({ ...r, dates }))
+    const lead = [...withDates].sort((a, b) => b.rate - a.rate)[0]
+    out.push(lead); rest.push(...withDates.filter((r) => r !== lead))
+  }
+  return { rows: out, rest }
+}
 export function dedupe<T extends Strategy>(rows: T[]): T[] {
   const best = new Map<string, T>()
   for (const r of rows) {

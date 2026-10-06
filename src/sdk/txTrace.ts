@@ -6,6 +6,8 @@ import { bridgeStatus, fetchEarnPositions, fetchTokenBalances, type PositionsSco
 import { balancesChanged } from './liveBalances'
 import { isEvmAddr, isEvmChain, isSvmChain, normAddr } from '../model/address'
 import { getBlockHeight, getSignatureStatus } from '../wallet/solRpc'
+import { isNativeAddress } from '../model/positions'
+import { formatUnits } from 'viem'
 import type { EarnPosition, EarnPositionsResponse } from './types'
 
 /**
@@ -15,7 +17,8 @@ import type { EarnPosition, EarnPositionsResponse } from './types'
  *   included  → in a block, not deep enough to call final
  *   final     → FINAL_CONFIRMATIONS deep, and the receipt re-read in the same block (no reorg)
  *   syncing   → the lender(s) / vault(s) it touched are re-read until they DIFFER from before;
- *               for a swap or bridge, the balance(s) it pays into (`watch`), the same way
+ *               then the wallet balances it moves (`watch`: a swap's or bridge's output, a
+ *               ticket's pay and receive tokens), the same way
  *   bridging  → a cross-chain leg is on its way (the bridge's own status)
  *   settled   → done: every number on screen includes it
  *
@@ -52,9 +55,16 @@ export interface Trace {
   bridge?: { name: string; toChainId: string; tokenIn?: string; tokenOut?: string; status?: string }
   /** The market / earn uids it acts on (`AAVE_V3:1:0x…`, `vault.morpho:8453:0x…`) — what the re-read is narrowed to. */
   touches?: string[]
-  /** Balances it pays into (a swap's or bridge's output), read until they move; `watchBase` is their raw amount at send. */
-  watch?: { chainId: string; address: string }[]
+  /**
+   * Wallet balances it moves, read until they do; `watchBase` is their raw amount at send. A swap's or
+   * bridge's output; on a positions transaction the tokens the ticket pays with and gets back — the
+   * position can show the change while the balance read (a Solana RPC at `finalized`, ~13 s behind
+   * `confirmed`) still answers the old amount, and nothing else would read it again.
+   */
+  watch?: { chainId: string; address: string; symbol?: string }[]
   watchBase?: Record<string, string>
+  /** What the watched balances GAINED (a withdrawal, a close, a swap's leftover dust), formatted. */
+  received?: { symbol: string; amount: string }[]
   phase: Phase
   at: number; doneAt?: number
   block?: number; blockHash?: string; conf?: number; need: number
@@ -139,7 +149,7 @@ export function traceTx(t: { hash: string; chainId: string; account: string; tit
   emit()
   if (t.moves === 'positions' && !cached) void readScope(account, t.chainId, scope).then((r) => { if (r && get(t.hash)?.snap == null) patch(t.hash, { snap: fingerprint(r.items, t.chainId, scope) }) })
   // the watched balances before anything arrives: a bridge's destination cannot have moved yet
-  if (t.watch?.length) void readWatched(account, t.watch).then((b) => { if (b && !get(t.hash)?.watchBase) patch(t.hash, { watchBase: b }) })
+  if (t.watch?.length) void readWatched(account, t.watch).then((b) => { if (b && !get(t.hash)?.watchBase) patch(t.hash, { watchBase: rawOf(b) }) })
   void run(t.hash)
 }
 export function dismissTrace(id: string) { patch(id, { seen: true }) }
@@ -289,7 +299,11 @@ async function bridge(id: string) {
 async function sync(id: string) {
   const t = get(id)!
   const scope = scopeOf(t.touches ?? [])
-  const done = (note?: string) => { if (qc) balancesChanged(qc, t.chainId); patch(id, { phase: 'settled', doneAt: Date.now(), note }) }
+  const done = (note?: string) => {
+    // the wallet side next: the positions answer is no proof the balance read has caught up
+    if (t.watch) return balanceSync(id, note)
+    if (qc) balancesChanged(qc, t.chainId); patch(id, { phase: 'settled', doneAt: Date.now(), note })
+  }
   if (!qc || !qc.getQueriesData(bucket(t.account, t.chainId)).length) return done()
   for (const wait of scope ? NARROW_SYNC_WAITS : SYNC_WAITS) {
     await sleep(wait)
@@ -303,30 +317,49 @@ async function sync(id: string) {
 }
 
 /**
- * A swap's or bridge's output, read fresh until it differs from the balance at send — then every
- * balance read on those chains. The destination of a bridge is read only now, never at the source
- * landing, when it could only answer the old amount.
+ * The watched balances, read fresh until one differs from the balance at send — then every
+ * balance read on those chains, which now answer the new amount too. The destination of a bridge
+ * is read only now, never at the source landing, when it could only answer the old amount. What
+ * went UP is kept as `received`: on a loop open that is the swap's leftover dust, which the
+ * wallet's idle list drops as under a cent and the user would otherwise never see arrive.
+ * `carried` is the positions sync's own note, when this runs after it.
  */
-async function balanceSync(id: string) {
+async function balanceSync(id: string, carried?: string) {
   const t = get(id)!, w = t.watch ?? []
-  let note: string | undefined = 'Arrived, but the balance has not shown it yet. It will on the next refresh.'
+  let note: string | undefined = t.moves === 'positions'
+    ? carried ?? 'Final on chain, but your wallet balance has not picked it up yet. It will on the next refresh.'
+    : 'Arrived, but the balance has not shown it yet. It will on the next refresh.'
+  let received: Trace['received']
   for (const wait of SYNC_WAITS) {
     await sleep(wait)
     const now = await readWatched(t.account, w)
     const base = get(id)?.watchBase
-    if (now && (!base || Object.keys(now).some((k) => now[k] !== base[k]))) { note = undefined; break }
+    if (now && (!base || Object.keys(now).some((k) => now[k].raw !== base[k]))) {
+      note = carried
+      if (base) received = Object.entries(now).flatMap(([k, b]) => { const d = BigInt(b.raw) - BigInt(base[k] ?? '0'); return d > 0n ? [{ symbol: b.symbol, amount: formatUnits(d, b.decimals) }] : [] })
+      break
+    }
   }
   if (qc) balancesChanged(qc, t.chainId, t.bridge?.toChainId, ...w.map((x) => x.chainId))
-  patch(id, { phase: 'settled', doneAt: Date.now(), note })
+  patch(id, { phase: 'settled', doneAt: Date.now(), note, ...(received?.length ? { received } : {}) })
 }
-/** Raw balances of the watched tokens, `chain:address` → amount; `null` if a read failed. */
-async function readWatched(account: string, w: { chainId: string; address: string }[]): Promise<Record<string, string> | null> {
-  const out: Record<string, string> = {}
+type Watched = Record<string, { raw: string; symbol: string; decimals: number }>
+const rawOf = (b: Watched) => Object.fromEntries(Object.entries(b).map(([k, v]) => [k, v.raw]))
+/** The watched tokens, `chain:address` → raw amount (and how to say it); `null` if a read failed. */
+async function readWatched(account: string, w: NonNullable<Trace['watch']>): Promise<Watched | null> {
+  const out: Watched = {}
   try {
     for (const c of [...new Set(w.map((x) => x.chainId))]) {
-      const asked = w.filter((x) => x.chainId === c).map((x) => normAddr(x.address))
-      const r = await fetchTokenBalances(account, c, asked, true)
-      for (const a of asked) out[`${c}:${a}`] = r.items.find((b) => normAddr(b.address) === a)?.balanceRaw ?? '0'
+      const asked = [...new Set(w.filter((x) => x.chainId === c).map((x) => normAddr(x.address)))]
+      // the gas coin has several spellings (zero address, `0xeeee…`, the System Program id): any one matches
+      const same = (a: string, b: string) => normAddr(a) === b || (isNativeAddress(a) && isNativeAddress(b))
+      // the route's `assets` filter wants the native coin as the zero address on EVM; Solana answers it unasked
+      const ask = asked.map((a) => (isNativeAddress(a) && isEvmChain(c) ? '0x0000000000000000000000000000000000000000' : a)).filter((a) => !(isSvmChain(c) && isNativeAddress(a)))
+      const r = await fetchTokenBalances(account, c, ask, true)
+      for (const a of asked) {
+        const b = r.items.find((x) => same(x.address, a))
+        out[`${c}:${a}`] = { raw: b?.balanceRaw ?? '0', symbol: b?.symbol || w.find((x) => x.chainId === c && normAddr(x.address) === a)?.symbol || '', decimals: b?.decimals ?? 0 }
+      }
     }
     return out
   } catch { return null }

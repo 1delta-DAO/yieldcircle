@@ -1,12 +1,12 @@
 import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
-import { capPerAsset, classifyEarn, classifyPair, dedupe, rowKey, type Candidate, type LoopStrategy, type SimpleStrategy, type Strategy } from '../model/strategies'
+import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
+import { capPerAsset, classifyEarn, classifyPair, dedupe, foldDates, rowKey, type Candidate, type LoopStrategy, type LoopTenor, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { HIDES, hideDetail, softHide, type HideCode } from '../model/visibility'
 import { parseUid } from '../model/uid'
 import { EXPOSURE_ASSETS } from '../model/assets'
 import { useSettings, type Settings } from '../state/Settings'
-import type { OptimizerResponse, TokenBalance } from './types'
+import type { LendingBook, OptimizerResponse, TokenBalance } from './types'
 import { indexBalances } from '../index/api'
 import type { IndexBalanceItem } from '../index/types'
 import { useLiveChains } from './liveBalances'
@@ -276,7 +276,9 @@ export function useCatalog(chainIds: string[]) {
     const { show: simpleShow, hide: simpleHide } = split(earnRows, st)
     const { show: loopShow, hide: loopHide } = split(loopRows, st)
     const simple = capPerAsset(dedupe(simpleShow))
-    const loopRowsOut = capPerAsset(dedupe(loopShow))
+    // a dated pair's maturities fold into one row with a date picker (`foldDates`)
+    const folded = foldDates(dedupe(loopShow))
+    const loopRowsOut = capPerAsset(folded.rows)
     // a hidden row that is another spelling of a visible one is noise: the same
     // market on the same venue, kept out by `dedupe` and then handed back by the
     // `+` as a duplicate
@@ -290,7 +292,8 @@ export function useCatalog(chainIds: string[]) {
      */
     const overflow: Strategy[] = [
       ...dedupe(simpleShow).filter((r) => !shown.has(rowKey(r))),
-      ...dedupe(loopShow).filter((r) => !shown.has(rowKey(r))),
+      ...folded.rows.filter((r) => !shown.has(rowKey(r))),
+      ...folded.rest,
     ]
     const hidden: HiddenRow[] = [
       ...capPerAsset(dedupe(simpleHide.filter((r) => !shown.has(rowKey(r)))), 25),
@@ -575,18 +578,62 @@ export function useRateHistory(rows: Strategy[], settled = true): HistoryGet {
 
 function useDebounced<T>(v: T, ms: number): T { const [d, setD] = useState(v); useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t) }, [v, ms]); return d }
 /** Quote-only loop (no account): the API's projected economics and simulated health for the ticket. */
-export function useLoopQuote(l: LoopStrategy | null, equityUsd: number, leverageLive: number, account?: string, slippageBp = 50, termId?: string) {
+export function useLoopQuote(l: LoopStrategy | null, equityUsd: number, leverageLive: number, account?: string, slippageBp = 50, termId?: string, tenor?: LoopTenor) {
   const leverage = useDebounced(leverageLive, 500)
   const equity = useDebounced(equityUsd, 500)
+  return useQuery(loopQuoteOpts(l, equity, leverage, account, slippageBp, termId, tenor))
+}
+function loopQuoteOpts(l: LoopStrategy | null, equity: number, leverage: number, account: string | undefined, slippageBp: number, termId?: string, tenor?: LoopTenor) {
   const debtUsd = equity * (leverage - 1)
   const debtTokens = l?.priceShort ? debtUsd / l.priceShort : 0
-  return useQuery({
-    enabled: !!l && debtTokens > 0,
-    queryKey: ['loopq', l?.id, Math.round(debtTokens * 1e6), leverage, slippageBp, account ?? '', termId ?? ''],
+  return {
+    // a Loopscale loop is not quoted without its tenor: the API refuses (`MISSING_PARAM`)
+    enabled: !!l && debtTokens > 0 && (!l.tenors || !!tenor),
+    queryKey: ['loopq', l?.id, Math.round(debtTokens * 1e6), leverage, slippageBp, account ?? '', termId ?? '', tenor?.id ?? ''],
     staleTime: 20_000,
     retry: false,
     // some lenders (LlamaLend) only quote with an account; passing it costs nothing — nothing is signed here
-    queryFn: () => loopOpen({ collateralMarketUid: l!.marketLongUid, debtMarketUid: l!.marketShortUid, debtAmountRaw: toRaw(debtTokens, l!.decimalsShort), slippageBp, leverage, account, termId }),
+    queryFn: () => loopOpen({ collateralMarketUid: l!.marketLongUid, debtMarketUid: l!.marketShortUid, debtAmountRaw: toRaw(debtTokens, l!.decimalsShort), slippageBp, leverage, account, termId, tenor }),
+  }
+}
+/**
+ * The borrow books of dated markets (Midnight), one request per market — a pair has a handful of
+ * maturities. `bookAprAt` turns one into the rate a size actually pays.
+ */
+export function useLendingBooks(debtMarketUids: string[]) {
+  const qs = useQueries({ queries: debtMarketUids.map((uid) => ({ queryKey: ['book', uid], queryFn: () => fetchLendingBook(uid), staleTime: 30_000, retry: 1 })) })
+  return debtMarketUids.map((uid, i) => ({ uid, book: qs[i].data ?? null, pending: qs[i].isPending }))
+}
+/**
+ * What borrowing `amount` debt tokens costs on this book: the assets-weighted APR of the levels it
+ * walks (marginal), or the level that covers it (uniform). `null` when the book cannot fill it.
+ */
+export function bookAprAt(book: LendingBook | null, amount: number): number | null {
+  if (!book?.levels.length) return null
+  if (!(amount > 0)) return book.levels[0].aprPct
+  if (book.pricing === 'uniform') return book.levels.find((l) => l.cumulativeAssets >= amount)?.aprPct ?? null
+  let left = amount, cost = 0
+  for (const l of book.levels) {
+    const take = Math.min(left, l.assets)
+    cost += take * l.aprPct; left -= take
+    if (left <= 1e-9) return cost / amount
+  }
+  return null
+}
+/**
+ * One quote per Loopscale tenor at the ticket's size — the only place a tenor's rate exists (the
+ * feed carries the cheapest as `borrowAprShort` and nothing per tenor; each tenor is its own book,
+ * priced at size). The selected tenor's entry is the SAME query as the ticket's `useLoopQuote`, so
+ * four requests, not five. `null` per tenor = nobody offers it at this size (`NO_OFFER`).
+ */
+export function useTenorQuotes(l: LoopStrategy, equityUsd: number, leverageLive: number, account?: string, slippageBp = 50) {
+  const leverage = useDebounced(leverageLive, 500)
+  const equity = useDebounced(equityUsd, 500)
+  const tenors = l.tenors ?? []
+  const qs = useQueries({ queries: tenors.map((t) => loopQuoteOpts(l, equity, leverage, account, slippageBp, undefined, t)) })
+  return tenors.map((t, i) => {
+    const o = qs[i].data?.data?.offer
+    return { tenor: t, pending: qs[i].isPending && qs[i].fetchStatus !== 'idle', offer: o ? { apr: o.apy / 1e4, ltv: o.ltv / 1e6, lqt: o.lqt / 1e6, depth: o.amount } : null }
   })
 }
 /**

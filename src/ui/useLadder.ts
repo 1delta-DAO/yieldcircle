@@ -31,7 +31,9 @@ import { useSwitchTo } from '../wallet/useSwitchTo'
  * one step that IS the action (the last one that is neither) the positions.
  */
 export type Step = { kind: 'permission' | 'setup' | 'route'; tx: AnyTx; label: string; hash?: string; done?: boolean; onFail?: string; moves?: Moves }
-type Bundle = { steps: Step[]; title?: string; touches?: string[] }
+/** A token the action moves in the wallet — paid with, or paid back into (a close, a swap's leftover). */
+export type Watch = { address: string | undefined; symbol?: string }
+type Bundle = { steps: Step[]; title?: string; touches?: string[]; watch?: { address: string; symbol?: string }[] }
 type Saved = { key: string; bundle: Bundle; pending?: string }
 const SS = 'yieldcircle.bundle'
 const load = (key: string): Saved | null => { try { const v = JSON.parse(sessionStorage.getItem(SS) ?? 'null') as Saved | null; return v && v.key === key ? v : null } catch { return null } }
@@ -81,8 +83,11 @@ export function stepsFrom(a: LoopActions | null | undefined, routeLabel: string,
 
 const EXPIRED = 'The transaction expired before it was sent — a Solana transaction lives about 90 seconds. Start the action again to build a fresh one.'
 
-/** `touches`: the market / earn uids the action works on — what `txTrace` re-reads once it is final, and nothing else. */
-export function useLadder(key: string, chainId: string, build: () => Promise<Step[]>, touches: (string | undefined)[] = []) {
+/**
+ * `touches`: the market / earn uids the action works on — what `txTrace` re-reads once it is final, and nothing else.
+ * `watch`: the wallet tokens it moves, re-read after the positions until the balance shows it (and what came back is said).
+ */
+export function useLadder(key: string, chainId: string, build: () => Promise<Step[]>, touches: (string | undefined)[] = [], watch: Watch[] = []) {
   const svm = isSvmChain(chainId)
   // the wallet's own chain: `useChainId` is the config's, and never follows a wallet onto a chain it lacks
   const { isConnected, chainId: walletChain, address, connector } = useAccount()
@@ -105,7 +110,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   React.useEffect(() => { save(bundle ? { key, bundle, pending } : null) }, [key, bundle, pending])
   const start = async (title?: string) => {
     setBusy(true); setErr(null)
-    try { const steps = await build(); if (!steps.length) throw new Error('the API returned nothing to sign'); setPending(undefined); setBundle({ steps, title, touches: touches.filter((u): u is string => !!u) }) }
+    try { const steps = await build(); if (!steps.length) throw new Error('the API returned nothing to sign'); setPending(undefined); setBundle({ steps, title, touches: touches.filter((u): u is string => !!u), watch: watch.filter((w): w is { address: string; symbol?: string } => !!w.address) }) }
     catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
   const next = bundle?.steps.find((s) => !s.done)
@@ -113,7 +118,9 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   // one signer per VM: the Solana account signs svm steps, wagmi's signs the rest
   const signer = svm ? sol.account?.address : address
   const follow = (hash: string, st: Step, lastValidHeight?: number) =>
-    signer && traceTx({ hash, chainId, account: signer, title: bundle?.title ?? st.label, label: st.label, moves: st.moves ?? 'positions', touches: bundle?.touches, lastValidHeight })
+    signer && traceTx({ hash, chainId, account: signer, title: bundle?.title ?? st.label, label: st.label, moves: st.moves ?? 'positions', touches: bundle?.touches, lastValidHeight,
+      // only the step that waits for the positions: an approval moves nothing, a wrap is its own read
+      watch: (st.moves ?? 'positions') === 'positions' ? bundle?.watch?.map((w) => ({ chainId, ...w })) : undefined })
   // a ladder restored after a reload whose trace did not survive (storage off): pick the hash up again
   React.useEffect(() => { if (pending && !tr && pendingStep) follow(pending, pendingStep, isSvmTx(pendingStep.tx) ? pendingStep.tx.lastValidBlockHeight : undefined) }, [pending, !!tr, signer])
   React.useEffect(() => {

@@ -152,11 +152,27 @@ export interface LoopQuoteData {
   quotes: { deltas?: { aggregator?: string; tradeInput?: number; tradeOutput?: number }; economics?: TradeEconomics | null }[]
   economics?: TradeEconomics | null
   simulation?: { pre?: { healthFactor?: number }; post?: { healthFactor?: number } }
+  /**
+   * Loopscale only: the offer the loan fills at this size and tenor. Every figure in CBPS (1e6 = 100 %):
+   * `apy` the fixed borrow rate (a simple annual rate, despite the name), `ltv` the most it lends,
+   * `lqt` the liquidation threshold; `amount` the offer's depth in principal units.
+   */
+  offer?: { apy: number; ltv: number; lqt: number; amount: number; durationIndex?: number }
 }
 /** `/loop/close`: the same quotes, with an exit's economics instead of an entry's */
 export interface LoopCloseData extends Omit<LoopQuoteData, 'economics'> { economics?: { exitCostUsd?: { total?: number } } | null }
 export interface LoopPayAsset { address: string; symbol: string; decimals?: number; logoURI?: string; role: 'collateral' | 'debt' | 'native'; wrapsTo?: string; wrapsRole?: 'collateral' | 'debt' }
 export interface LoopPayAssetsData { payAssets: LoopPayAsset[]; strict: boolean; notes: string[] }
+
+/**
+ * `/v1/data/lending/book`. `pricing: 'marginal'` (Midnight, Term): each level is a lot at its own
+ * APR, so a size pays the assets-weighted mean of the levels it walks. `'uniform'` (Exactly): ONE rate
+ * for the whole trade at its final size — the level whose `cumulativeAssets` covers it.
+ */
+export interface LendingBook {
+  lender: string; chainId: string; side: 'borrow' | 'lend'; pricing: 'marginal' | 'uniform'; maturity?: number
+  levels: { aprPct: number; assets: number; cumulativeAssets: number }[]
+}
 
 // ---------------------------------------------------------------- balances
 export interface TokenBalance { address: string; symbol: string; name?: string; decimals: number; balanceRaw: string; balance: string; priceUSD?: number; balanceUSD?: number }

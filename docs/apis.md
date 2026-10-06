@@ -73,6 +73,7 @@ that sometimes answer un-enveloped or with `ok` instead of `success`
 | `fetchRateHistory` | `POST /v1/data/earn/rate-history` | `useRateHistory` (over `sdk/rateHistoryStore.ts`) → the 30-day line in AssetPage's rate and Earning cells, the ticket's "Last 30 days" block, `30d x%` on the Earn digest, Hot cards, the market header and search; and `steadyRate`, which those lists RANK by | body `{ uids }` (≤ 1000 per request, chunked; a deposit's `earnUid`, a loop's `marketLongUid` + `marketShortUid`). A per-UID cache shared by every surface: only uids not held (or older than 30 min) are queued, and everything asked in one tick goes out as ONE request — a page with list + ticket + header costs one call (origin rebuilds hourly, worker caches 10 min). A failed read backs off 5 min and leaves rows without a line. Points are bps, one time-weighted mean per UTC day; base and rewards apart so the line can be drawn with or without them; a loop nets its legs per day in `model/rateHistory.ts`. |
 | `fetchOptimizerPairs` | `GET /v1/data/lending/pairs/optimize` | `useCatalog` → loop rows (`optimizerPages`) | `chainId` for one chain, `chainIds` for several; archetypes = tag filters; asked with no risk cap / liquidity floor (floors are applied client-side in `model/visibility.ts`); plus one `collaterals=<address>&debtTags=stablecoin` request per exposure asset (JLP carries no tag an archetype matches) |
 | `fetchIrm` | `GET /v1/data/lending/irm` | `useIrm` | **max 8 uids** per call (`IRM_MAX_BATCH`) — 10 returns 500 |
+| `fetchLendingBook` | `GET /v1/data/lending/book` | `useLendingBooks` → the dated-loan ticket (Morpho Midnight) | `marketUid` = the DEBT market, `side=borrow`; `pricing: 'marginal'` = each level its own lot, so a size pays the assets-weighted mean of the levels it walks (`bookAprAt`). The pairs feed gives a Midnight row only its top of book as `borrowAprShort` (and 0 % + `debtTerms.canOpen: false` on an empty book, which `classifyPair` hides). Each maturity is its own `MORPHO_MIDNIGHT_<id>` market; `foldDates` folds a pair's maturities into one row with `dates` for the ticket's picker. Zero-coupon: the face owed is fixed at the open, repaid 1:1 early (no penalty), liquidatable once past due. |
 | `fetchChains` | `GET /v1/data/chains` | `chainsQuery`, `ChainMark` | names + logos |
 | `fetchTokenBalances` | `GET /v1/data/token/balances` | `useBalances`, `useBalancesPerChain` (live fallback), `txTrace`, `GetAsset` | single chain only; route answers `max-age=15` → pass `fresh` after a tx |
 | `fetchEarnPositions` | `GET /v1/data/earn/positions` | `useEarnPositions`, `txTrace` | **the only source for the connected user's positions**; `lenders` / `vaults` narrow a post-tx re-read |
@@ -85,7 +86,7 @@ that sometimes answer un-enveloped or with `ok` instead of `success`
 |---|---|---|
 | `earnDeposit` | `/v1/actions/earn/deposit` | `earnUid`, `amount`, `operator`, optional `payAsset`; `slippage` on a booked row (Pendle PT, `SimpleStrategy.booked`, from the capability's `requires`) or with a `payAsset` |
 | `earnWithdraw` | `/v1/actions/earn/withdraw` | `receiveAsset = ZERO` unwraps to native; always pass `amount` (`isAll` not honoured everywhere, refused on a booked row); `slippage` on a booked row |
-| `loopOpen` | `/v1/actions/loop/leverage` | **`marketUidIn` = DEBT, `marketUidOut` = COLLATERAL** on open; `termId` for Lista broker debt |
+| `loopOpen` | `/v1/actions/loop/leverage` | **`marketUidIn` = DEBT, `marketUidOut` = COLLATERAL** on open; `termId` for Lista broker debt; `duration` + `durationType` (0 days · 1 weeks · 2 months) **required** on a Loopscale pair (`LoopStrategy.tenors`) — the feed carries no per-tenor rate, so `useTenorQuotes` quotes each tenor and reads `data.offer` (`apy` / `lqt` in CBPS) |
 | `loopClose` | `/v1/actions/loop/close` | **`marketUidIn` = COLLATERAL, `marketUidOut` = DEBT** on close; `loanId` for Lista broker debt |
 | `spotSwapQuote` | `/v1/actions/swap/spot` | one tx per route in `actions.alternatives`, matched by index to `data.quotes` |
 | `xchainSwapQuote` | `/v1/actions/swap/x-chain` | approvals per bridge (`permissions[].spender`) |
@@ -94,7 +95,11 @@ Quotes that the UI shows before signing are hooks: `useLoopQuote`,
 `useCloseQuote` (`sdk/queries.ts`, `staleTime` 20 s). Execution order is
 permissions → transactions → one route (`useLadder.ts`); every sent tx is
 followed by `sdk/txTrace.ts`, which re-reads positions/balances only once the
-tx is final and the answer has *changed*.
+tx is final and the answer has *changed*. A ticket passes the wallet tokens it
+moves (`useLadder`'s `watch`: pay asset, both loop legs, the withdrawn token);
+after the positions show the change those are read fresh until they move too —
+the Solana balance read answers at `finalized`, behind the positions — and what
+went up is said under the step (`to your wallet: +0.001484 nOPAL`, a swap's dust).
 
 `ZERO` (`0x000…0`) is the native coin everywhere (`payAsset`, `receiveAsset`,
 `tokenIn`, balance reads).

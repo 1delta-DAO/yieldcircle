@@ -39,6 +39,9 @@ export interface Holding {
   debtUid?: string
   debtSymbol?: string
   debtAmount?: number
+  /** a loop's two tokens — what a close / reduce pays back into the wallet */
+  collateralAddress?: string
+  debtAddress?: string
   accountId?: string
   lender?: string
   /**
@@ -121,7 +124,7 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         const loans = a.legs.filter((l) => l.loanId && l.marketUid === d.marketUid && l.debtUsd > 0.005)
           .map((l) => ({ id: l.loanId!, debt: parseFloat(l.debt) || 0, debtUsd: l.debtUsd })).sort((x, y) => y.debtUsd - x.debtUsd)
         out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'loop', label: `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
-          amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
+          amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, collateralAddress: normAddr(coll.asset.address), debtAddress: normAddr(d.asset.address), debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
       } else {
         for (const l of supply) {
           const asset = keyOfToken({ ...l.asset, chainId: p.chainId }); if (!asset) continue

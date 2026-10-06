@@ -19,7 +19,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useApp, go, marketHref } from '../state/AppState'
 import { isSvmChain } from '../model/address'
 import * as idx from '../index/api'
-import { useCrowns } from '../index/queries'
+import { earnersQuery, useCrowns } from '../index/queries'
 import { useProfiles } from '../social/queries'
 import { CrownIcon, FollowButton, Money, Who, crownTitle } from './social-bits'
 import { Sk, pct, usdShort } from './bits'
@@ -110,26 +110,13 @@ interface BoardKey {
 }
 
 /**
- * One factory for the board's queries, so the page and the idle prefetch ask
- * for byte-identical URLs — the index pre-warms these exact URLs, and the
- * browser cache holds the siblings so a toggle never waits.
+ * One factory for the board's queries (`earnersQuery`, shared with the Start
+ * page), so the page and the idle prefetch ask for byte-identical URLs — the
+ * index pre-warms these exact URLs, and the browser cache holds the siblings
+ * so a toggle never waits.
  */
-function boardQuery(k: BoardKey) {
-  const p: idx.EarnersQuery = {
-    sort: k.sort,
-    preset: k.showAll ? 'all' : undefined,
-    people: k.people,
-    chainIds: k.chains,
-    limit: 50,
-  }
-  return {
-    queryKey: ['earners', k.by, k.sort, k.showAll, k.people, k.chains ?? 'all'] as const,
-    queryFn: (): Promise<idx.EarnersResponse | idx.WalletEarnersResponse> =>
-      k.by === 'wallet' ? idx.walletEarners(p) : idx.earners(p),
-    staleTime: 60_000,
-    retry: false,
-  }
-}
+const boardQuery = (k: BoardKey) =>
+  earnersQuery({ by: k.by, sort: k.sort, preset: k.showAll ? 'all' : undefined, people: k.people, chainIds: k.chains })
 
 /**
  * Who wears the crowns for what the board is showing: the overall podium,

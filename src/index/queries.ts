@@ -275,6 +275,36 @@ export function useStress(markets: string[]) {
   }
 }
 
+/**
+ * The earners board, as query OPTIONS: the Board page composes them (it also
+ * prefetches the sibling views, and wants `placeholderData` of its own) and
+ * the Start page asks plainly through `useEarners`. One factory so both build
+ * byte-identical URLs — the index pre-warms the default board URLs, and a
+ * second spelling of the same question would always be a cold query.
+ */
+export interface EarnersKey {
+  by: 'position' | 'wallet'
+  sort: 'perDay' | 'apr'
+  /** 'all' lifts the default preset that hides flagged positions */
+  preset?: 'all'
+  people: boolean
+  chainIds?: string
+  limit?: number
+}
+export function earnersQuery(k: EarnersKey) {
+  const p: api.EarnersQuery = { sort: k.sort, preset: k.preset, people: k.people, chainIds: k.chainIds, limit: k.limit ?? 50 }
+  return {
+    queryKey: ['earners', k.by, k.sort, k.preset ?? 'default', k.people, k.chainIds ?? 'all', k.limit ?? 50] as const,
+    queryFn: (): Promise<api.EarnersResponse | api.WalletEarnersResponse> =>
+      k.by === 'wallet' ? api.walletEarners(p) : api.earners(p),
+    staleTime: MIN,
+    retry: false,
+  }
+}
+export function useEarners(k: EarnersKey, enabled = true) {
+  return useQuery({ ...earnersQuery(k), enabled })
+}
+
 /** The podium now (and the latest reigns), overall and per chain. `account` narrows both to one wallet. */
 export function useCrowns(account?: string) {
   const a = account && isEvmAddr(account) ? normAddr(account) : undefined

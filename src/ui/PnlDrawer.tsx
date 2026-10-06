@@ -168,7 +168,7 @@ function Body({ s, money, f: unitOf, toggle }: {
           <button aria-pressed={toggle.pick === 'USD'} onClick={() => toggle.setPick('USD')}>USD</button>
         </div>
       )}
-      <Chart s={s} f={f} unitLabel={unitOf.label} />
+      <Chart s={s} f={f} unitLabel={unitOf.label} rates={!priceBet} />
 
       <Statement intervals={s.intervals} f={f} />
 
@@ -307,8 +307,8 @@ function Stat({ k, v, s }: { k: string; v: React.ReactNode; s?: string }) {
  * green in, amber out, red a liquidation. A day with no price is a gap, never
  * a straight line.
  */
-function Chart({ s, f, unitLabel }: { s: PositionSeries; f: Fmt; unitLabel: string }) {
-  const W = 640, H = 200, CH = 90, padL = 8, padR = 8
+function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabel: string; rates: boolean }) {
+  const W = 640, H = 200, CH = 90, RH = 120, padL = 8, padR = 8
   const pts = s.points
   const [hover, setHover] = React.useState<number | null>(null)
   const gid = React.useId().replace(/:/g, '')
@@ -398,6 +398,7 @@ function Chart({ s, f, unitLabel }: { s: PositionSeries; f: Fmt; unitLabel: stri
         })}
         {hoverLine(2, CH - 14)}
       </svg>
+      {rates && <Rates s={s} xi={xi} W={W} H={RH} padL={padL} padR={padR} hover={hover} onMove={onMove} onLeave={() => setHover(null)} at={hover ?? (lastI >= 0 ? lastI : pts.length - 1)} />}
       <div className="pnl-legend t50">
         <span><i className={`sw pnl ${dir}`} /> PnL so far</span>
         <span><i className="sw nav" /> value</span>
@@ -408,3 +409,78 @@ function Chart({ s, f, unitLabel }: { s: PositionSeries; f: Fmt; unitLabel: stri
     </div>
   )
 }
+
+/**
+ * The rates AT THE TIME, under the PnL: what the position earned over the
+ * trailing window (net, on its equity — the slope of the PnL line as an APR),
+ * the record so far (dashed: the headline APR as it stood that day), and each
+ * leg's own rate over the same window — a deposit's yield, a debt's cost. A
+ * loop whose carry is high today and was negative for weeks reads as exactly
+ * that, instead of the list's forward APR looking like the record. The scale
+ * is held to the middle of the values (a position's first days on a sliver of
+ * equity swing to thousands of %); a point outside it sits on the edge.
+ */
+function Rates({ s, xi, W, H, padL, padR, hover, onMove, onLeave, at }: {
+  s: PositionSeries
+  xi: (i: number) => number
+  W: number; H: number; padL: number; padR: number
+  hover: number | null
+  onMove: (ev: React.PointerEvent<SVGSVGElement>) => void
+  onLeave: () => void
+  at: number
+}) {
+  const pts = s.points
+  if (!pts.some((p) => p.aprWindowPct != null)) return null
+  const net = pts.map((p) => p.aprWindowPct ?? null)
+  const rec = pts.map((p) => p.aprPct ?? null)
+  const legs = s.legs.map((_, li) => pts.map((p) => p.legRates?.[li] ?? null))
+  const all = [...net, ...rec, ...legs.flat()].filter((v): v is number => v != null).sort((a, b) => a - b)
+  const q = (f: number) => all[Math.min(all.length - 1, Math.max(0, Math.round(f * (all.length - 1))))]
+  let lo = Math.min(0, q(0.05)), hi = Math.max(0, q(0.95))
+  const pad = (hi - lo) * 0.12 || 1
+  lo -= lo < 0 ? pad : 0
+  hi += pad
+  const ry = (v: number) => 6 + ((hi - Math.min(hi, Math.max(lo, v))) / (hi - lo)) * (H - 12)
+  const line = (vs: (number | null)[]) => {
+    let d = '', on = false
+    vs.forEach((v, i) => {
+      if (v == null) { on = false; return }
+      d += `${on ? 'L' : 'M'}${xi(i).toFixed(1)},${ry(v).toFixed(1)}`
+      on = true
+    })
+    return d
+  }
+  const hp = pts[at]
+  const legName = (li: number) => `${s.legs[li].symbol ?? '?'} ${isDebtSide(s.legs[li].side) ? 'cost' : 'earned'}`
+  const w = s.aprWindowDays ?? 7
+  const pc = (v: number | null | undefined) => (v == null ? '—' : pct(v))
+  return (
+    <>
+      <div className="pnl-read pnl-rread">
+        <span className="t70">Net APR, trailing {w} days: <b className={(hp.aprWindowPct ?? 0) < 0 ? 'bad' : 'ok'}>{pc(hp.aprWindowPct)}</b></span>
+        {s.legs.map((l, li) => <span key={li} className="t50">{legName(li)} <b className="t70">{pc(hp.legRates?.[li])}</b></span>)}
+        <span className="t50">record so far <b className="t70">{pc(hp.aprPct)}</b></span>
+      </div>
+      <div className="pnl-rwrap">
+        <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg pnl-r" onPointerMove={onMove} onPointerLeave={onLeave} preserveAspectRatio="none">
+          <line className="pnl-zero" x1={padL} x2={W - padR} y1={ry(0)} y2={ry(0)} />
+          {legs.map((vs, li) => <path key={li} className={`pnl-leg ${isDebtSide(s.legs[li].side) ? 'debt' : 'dep'}`} d={line(vs)} />)}
+          <path className="pnl-rec" d={line(rec)} />
+          <path className="pnl-net" d={line(net)} />
+          {hover != null && <line className="pnl-hover" x1={xi(hover)} x2={xi(hover)} y1={2} y2={H - 2} />}
+        </svg>
+        <span className="pnl-ax t40" style={{ top: `${(ry(hi - pad * 0.5) / H) * 100}%` }}>{pct(hi - pad, 0)}</span>
+        <span className="pnl-ax t40" style={{ top: `${(ry(0) / H) * 100}%` }}>0 %</span>
+        {lo < 0 && <span className="pnl-ax t40" style={{ top: `${(ry(lo + pad * 0.5) / H) * 100}%` }}>{pct(lo + pad, 0)}</span>}
+      </div>
+      <div className="pnl-legend t50">
+        <span><i className="sw rnet" /> net APR, trailing {w} d</span>
+        <span><i className="sw rrec" /> record so far</span>
+        <span><i className="sw rdep" /> deposit earned</span>
+        <span><i className="sw rdebt" /> debt cost</span>
+        <span className="sp" /><span title="realized: what the balances actually earned over the window, interest and price. The APR in the positions list is today's rates carried forward.">realized, not today's rates</span>
+      </div>
+    </>
+  )
+}
+const isDebtSide = (side: string) => side === 'borrow' || side === 'debt'

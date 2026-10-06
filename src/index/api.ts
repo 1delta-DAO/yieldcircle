@@ -228,6 +228,12 @@ export interface SeriesPoint {
   legs: (number | null)[]
   /** per leg, the asset's price in `unit` (absent from an older index) */
   prices?: (number | null)[]
+  /** the record so far: PnL ÷ capital-days × 365, % (absent from an older index) */
+  aprPct?: number | null
+  /** the same over the trailing `aprWindowDays` only: what it earned at the time */
+  aprWindowPct?: number | null
+  /** per leg over that window, % a year of its value: earned on a deposit, the cost on a debt */
+  legRates?: (number | null)[]
 }
 export interface SeriesEvent {
   t: string
@@ -307,6 +313,8 @@ export interface PositionSeries {
   riskKey: string
   /** what every value is in: `USD`, `ETH`, `BTC` or an asset group */
   unit: string
+  /** the trailing window of the points' `aprWindowPct` / `legRates` (absent from an older index) */
+  aprWindowDays?: number
   start: string | null
   /** the line starts at the ledger's floor: the position is older than that */
   since: string | null

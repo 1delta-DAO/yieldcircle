@@ -22,6 +22,7 @@ import React from 'react'
 import { Hot } from './Hot'
 import { Pulse } from './Pulse'
 import { Feed } from './Feed'
+import { StartChip } from './Start'
 import { useViewport } from './useViewport'
 
 export function Home({ tab }: { tab?: string }) {
@@ -38,6 +39,8 @@ export function Home({ tab }: { tab?: string }) {
   // end (2026-09-29).
   return (
     <div className="home-fit">
+      {/* for whoever skipped the Start page: one quiet line back to it, gone once dismissed or a wallet connects */}
+      <StartChip />
       <Pulse />
       <div className="home">
         <div className="home-main">

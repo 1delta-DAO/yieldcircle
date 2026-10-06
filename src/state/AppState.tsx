@@ -12,6 +12,7 @@ import { readFeedLink } from './feedLink'
  * and a pasted link all work without a router.
  *
  *   #/                       the home: pulse · hot · the feed  (?t=following|everyone|menu, filters: see feedLink.ts)
+ *   #/start                  the beginner dashboard (what `#/` shows a first visit)
  *   #/earn                   the catalogue, by asset
  *   #/USD?u=USDC&s=<id>&k=loop   asset page + ticket
  *   #/w/0x…                  a wallet
@@ -26,7 +27,7 @@ import { readFeedLink } from './feedLink'
  * `#/feed` is the home (the feed moved onto it) and `#/explore` is `#/earn`.
  */
 export type Mode = 'add' | 'reduce' | 'close' | 'manage'
-export type View = 'home' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'landing' | 'deck'
+export type View = 'home' | 'start' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'landing' | 'deck'
 export interface Route {
   view: View
   group?: string
@@ -77,6 +78,8 @@ export function parseRoute(hash = location.hash): Route {
   }
   const head = seg[0]
   if (head === 'earn' || head === 'explore') return { view: 'earn', ...base }
+  // the beginner dashboard (src/ui/Start.tsx) — also what `#/` shows a first visit
+  if (head === 'start') return { view: 'start', ...base }
   // the pitch deck (docs/solana.md submission) — deep link only, no button leads here
   if (head === 'landing') return { view: 'landing', ...base }
   // the investor deck (src/ui/Deck.tsx) — also deep link only

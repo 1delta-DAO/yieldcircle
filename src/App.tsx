@@ -11,11 +11,16 @@ import { ProfilePage } from './ui/Profile'
 import { Alerts } from './ui/Alerts'
 import { Landing } from './ui/Landing'
 import { Deck } from './ui/Deck'
-import { useRoute } from './state/AppState'
+import { Start, useSeenStart } from './ui/Start'
+import { useApp, useRoute } from './state/AppState'
 import { GROUPS } from './model/assets'
 
 export default function App() {
   const r = useRoute()
+  const { isConnected } = useApp()
+  // a first visit without a wallet lands on the beginner dashboard instead of
+  // the feed; connecting — or choosing the feed from it — makes `#/` the home
+  const seenStart = useSeenStart()
   const group = GROUPS.find((g) => g.id === r.group)
   if (r.view === 'landing') return <Landing /> // full-bleed, no Shell — a pitch, not a page of the app
   if (r.view === 'deck') return <Deck /> // same deal: the investor deck presents without the Shell
@@ -30,6 +35,8 @@ export default function App() {
         : r.view === 'alerts' ? <Alerts />
         : group ? <AssetPage key={group.id} group={group} route={r} />
         : r.view === 'earn' ? <Earn />
+        : r.view === 'start' ? <Start />
+        : !seenStart && !isConnected ? <Start />
         : <Home tab={r.t} />}
     </Shell>
   )

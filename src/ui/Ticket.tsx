@@ -4,7 +4,7 @@ import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt,
 import { dateOf, exitTerms, type LoopStrategy, type LoopTerm, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { isSvmTx, type LoopActions } from '../sdk/types'
 import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
-import { earnDeposit, earnWithdraw, loopClose, loopOpen, ZERO } from '../sdk/api'
+import { earnDeposit, earnWithdraw, loopClose, loopOpen, nativeAsset } from '../sdk/api'
 import { chainLabel, SOL_POSITIONS_READY, useCloseQuote, useIrm, useLoopPayAssets, useLoopQuote, useRateHistory } from '../sdk/queries'
 import { seriesFor } from '../model/rateHistory'
 import { RateHistoryPanel, useSparkRewards } from './Spark'
@@ -150,13 +150,13 @@ const SOURCE_WORDS: Record<string, string> = {
 /**
  * What a plain deposit can be paid with: the market's own token, and — into a row whose token is
  * the chain's wrapped gas coin — the gas coin itself, which the API wraps inside the deposit when
- * asked with `payAsset` = {@link ZERO}. Leaving `payAsset` out asks for the ERC-20: an approve of
+ * asked with `payAsset` = {@link nativeAsset}. Leaving `payAsset` out asks for the ERC-20: an approve of
  * WHYPE and a deposit that reverts for a wallet holding HYPE. Native first, so a wallet holding
  * neither is offered the coin it is likelier to get.
  */
 /**
- * An idle row against a pay option. The option spells the gas coin `ZERO` (what the API takes), the
- * Solana balance row spells it `1111…1111` (the System Program id) — so SOL read 0 in the chips.
+ * An idle row against a pay option. The option spells the gas coin as the API takes it ({@link nativeAsset}),
+ * a balance row may use another alias (`0xEeee…`, `native`) — so the coin read 0 in the chips.
  */
 const sameToken = (held: string, want: string) => held === want || (isNativeAddress(held) && isNativeAddress(want))
 type PayRole = 'native' | 'token'
@@ -164,7 +164,7 @@ interface PayOption { role: PayRole; address: string; symbol: string; decimals: 
 function payOptions(s: SimpleStrategy): PayOption[] {
   const token: PayOption = { role: 'token', address: normAddr(s.assetAddress), symbol: s.assetSymbol, decimals: s.decimals }
   const native = s.nativeIn ?? (wrapsNative(s.chainId, s.assetAddress) && !startsAny(s.venueKey, NO_NATIVE_DEPOSIT))
-  return native ? [{ role: 'native', address: ZERO, symbol: nativeSymbol(s.chainId), decimals: nativeDecimals(s.chainId) }, token] : [token]
+  return native ? [{ role: 'native', address: nativeAsset(s.chainId), symbol: nativeSymbol(s.chainId), decimals: nativeDecimals(s.chainId) }, token] : [token]
 }
 /**
  * The API answers "can the coin go in / come out here" itself (`acceptsNative`, read into
@@ -225,7 +225,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
   const yearly = amtUsd * s.rate / 100
   const key = [s.id, amount, chosen.role, account ?? ''].join('|')
   const ladder = useLadder(key, s.chainId, async () => {
-    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: actor!, payAsset: chosen.role === 'native' ? ZERO : undefined })
+    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: actor!, payAsset: chosen.role === 'native' ? chosen.address : undefined })
     if (chosen.role === 'native' && !paysNative(env.actions)) throw new Error(`${s.brand} does not take ${chosen.symbol} directly here. Pay with ${s.assetSymbol}.`)
     return stepsFrom(env.actions, s.via, s.chainId)
   }, [s.earnUid, s.marketUid])
@@ -327,7 +327,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
   const opts = React.useMemo(() => {
     const coll = { role: 'collateral' as const, symbol: s.holds, address: s.collateralAddress, decimals: s.decimalsLong, price: s.priceLong ?? 0, logo: s.logoLong }
     const debt = { role: 'debt' as const, symbol: s.debt, address: s.debtAddress, decimals: s.decimalsShort, price: s.priceShort ?? 0, logo: s.logoShort }
-    const list = pay.data ? pay.data.payAssets.map((a) => a.role === 'collateral' ? { ...coll, address: a.address || coll.address } : a.role === 'debt' ? { ...debt, address: a.address || debt.address } : { ...(a.wrapsRole === 'debt' ? debt : coll), role: 'native' as const, address: ZERO, symbol: a.symbol || 'ETH', logo: a.logoURI }) : [coll, debt]
+    const list = pay.data ? pay.data.payAssets.map((a) => a.role === 'collateral' ? { ...coll, address: a.address || coll.address } : a.role === 'debt' ? { ...debt, address: a.address || debt.address } : { ...(a.wrapsRole === 'debt' ? debt : coll), role: 'native' as const, address: nativeAsset(s.chainId), symbol: a.symbol || 'ETH', logo: a.logoURI }) : [coll, debt]
     return list
   }, [pay.data, s.id])
   // the pay-with chips read the exact token: native is the zero address in the balances (and the API), wrapped is its own entry
@@ -376,7 +376,7 @@ function LoopTicket({ s, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle
     const debtTokens = s.priceShort ? D / s.priceShort : 0
     const env = await loopOpen({
       collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!,
-      payAsset: chosen ? (chosen.role === 'native' ? ZERO : chosen.address) : undefined, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined, termId: term?.id,
+      payAsset: chosen?.address, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined, termId: term?.id,
     })
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     if (chosen?.role === 'native' && !paysNative(env.actions)) throw new Error(`This loop does not take ${chosen.symbol} directly. Pay with another asset.`)
@@ -463,7 +463,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const [amount, setAmount] = useSticky<number>(`t:${h.key}:withdraw`, () => +(h.amount / 2).toFixed(6))
   const eff = all ? h.amount : Math.min(amount, h.amount)
   const share = h.amount > 0 ? eff / h.amount : 0
-  // out of a wrapped-native row the gas coin is one tap away (`receiveAsset` = ZERO, unwrapped in the
+  // out of a wrapped-native row the gas coin is one tap away (`receiveAsset` = `nativeAsset`, unwrapped in the
   // same bundle). Not the default: the unwrap goes through a gateway, the composer or Morpho's
   // adapter, which costs an approve or an authorization the plain withdraw does not
   const venueKey = s?.venueKey ?? h.earnUid ?? h.lender ?? ''
@@ -478,7 +478,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const key = [s?.id ?? h.key, mode, eff, native ? 'native' : 'token', account ?? ''].join('|')
   const rate = s?.rate ?? h.apr
   const ladder = useLadder(key, h.chainId, async () => {
-    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: all && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: actor!, isAll: fullExit, receiveAsset: native ? ZERO : undefined })
+    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: all && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: actor!, isAll: fullExit, receiveAsset: native ? nativeAsset(h.chainId) : undefined })
     return stepsFrom(env.actions, 'Withdraw', h.chainId)
   }, [s?.earnUid, h.earnUid])
   const price = h.amount > 0 ? h.valueUsd / h.amount : 0

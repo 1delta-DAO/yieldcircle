@@ -155,13 +155,13 @@ function restoreSolCase<P extends EarnPositionsResponse['items'][number]>(p: P):
 }
 
 // ---------------------------------------------------------------- actions
-/** Plain deposit into a lending market or a vault. `amountRaw` is in the row's asset units; no `payAsset` = pay with that asset, {@link ZERO} = the native coin into a wrapped-native row. */
+/** Plain deposit into a lending market or a vault. `amountRaw` is in the row's asset units; no `payAsset` = pay with that asset, {@link nativeAsset} = the native coin into a wrapped-native row. */
 export function earnDeposit(p: { earnUid: string; amountRaw: string; operator: string; payAsset?: string; slippageBp?: number }) {
   return apiFetchEnvelope<{ quotes?: unknown[] } | null, LoopActions>('/v1/actions/earn/deposit', {
     params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, payAsset: p.payAsset, slippage: p.payAsset ? p.slippageBp ?? 50 : undefined },
   })
 }
-/** Withdraw from a lending market or a synchronous vault. `amountRaw` in the row's asset units (required: `isAll` is not honoured everywhere). `receiveAsset` = {@link ZERO} unwraps to the native coin. */
+/** Withdraw from a lending market or a synchronous vault. `amountRaw` in the row's asset units (required: `isAll` is not honoured everywhere). `receiveAsset` = {@link nativeAsset} unwraps to the native coin. */
 export function earnWithdraw(p: { earnUid: string; amountRaw: string; operator: string; isAll?: boolean; receiveAsset?: string }) {
   return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/earn/withdraw', { params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, isAll: p.isAll ? 'true' : undefined, receiveAsset: p.receiveAsset } })
 }
@@ -200,8 +200,12 @@ export function loopOpen(p: LoopOpenParams) {
 export function fetchLoopPayAssets(p: { collateralMarketUid: string; debtMarketUid: string }) {
   return apiFetch<LoopPayAssetsData>('/v1/actions/loop/leverage/pay-assets', { params: { marketUidIn: p.debtMarketUid, marketUidOut: p.collateralMarketUid } })
 }
-/** The native coin, as the API and the balances route both spell it (`payAsset` / `receiveAsset` / `tokenIn`). */
+/** The native coin on an EVM chain, as the API and the balances route both spell it (`payAsset` / `receiveAsset` / `tokenIn`). */
 export const ZERO = '0x0000000000000000000000000000000000000000'
+/** Solana's native coin: the System Program id, what the balances route returns for SOL (the Solana earn / lending builders rejected `ZERO` with "must be a base58 mint"). */
+export const SOL_NATIVE = '11111111111111111111111111111111'
+/** The native coin as `payAsset` / `receiveAsset` on `chainId`. */
+export const nativeAsset = (chainId: string): string => (isSvmChain(chainId) ? SOL_NATIVE : ZERO)
 
 // ---------------------------------------------------------------- swap / bridge
 export interface SwapRouteQuote { bridge?: string; aggregator?: string; tradeInput: number; tradeOutput: number; estimatedDuration?: number; approvalTarget?: string; approvalRequired?: boolean }

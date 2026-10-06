@@ -194,9 +194,19 @@ function Body({ s, money, f: unitOf, toggle }: {
         <div className="note">Not in the record: {s.unanchored.map((u) => `${u.rows} ${u.side} row${u.rows === 1 ? '' : 's'} in ${u.marketUid.split(':')[0]}`).join(', ')} — no read has anchored that leg yet.</div>
       )}
 
-      <h3 className="pnl-t">Moves <span className="t50">({s.events.length}) · the value right after each, and what the position earned since the move before</span></h3>
+      <h3 className="pnl-t">Moves <span className="t50">({s.events.length}) · newest first</span></h3>
       <div className="pnl-ev">
-        {[...s.events].reverse().map((e, i) => <EventRow key={i} e={e} s={s} f={f} since={sinceByT.get(e.t)} />)}
+        <div className="pnl-e pnl-eh t50">
+          <span>time</span><span>move</span><span>amount</span><span className="r">value</span>
+          <span className="r" title="the position's value right after the transaction">position after</span>
+          <span className="r" title="interest and price on the balance held since the previous transaction — not the move itself: a deposit or a borrow is not a gain or a loss">earned before it</span>
+          <span />
+        </div>
+        {[...s.events].reverse().map((e, i, all) => (
+          // one transaction can be several moves (a deposit and a borrow):
+          // what the position earned before it is stated once, on its first row
+          <EventRow key={i} e={e} s={s} f={f} since={i > 0 && all[i - 1].t === e.t ? undefined : sinceByT.get(e.t)} />
+        ))}
       </div>
       <div className="t40 pnl-key mono" title="the position key the index answered for">{s.key}</div>
     </div>
@@ -255,10 +265,13 @@ function EventRow({ e, s, f, since }: { e: SeriesEvent; s: PositionSeries; f: Fm
       <span className="t50 mono">{e.t.slice(0, 16).replace('T', ' ')}</span>
       <span className={`verb ${KIND_CLASS[e.kind] ?? ''}`}>{e.kind.replace('_', ' ')}</span>
       <span>{e.amount != null ? `${fmtAmt(e.amount)} ${leg?.symbol ?? ''}` : '—'}</span>
-      <span className="r">{f.vs(e.value)}</span>
-      <span className="r t70" title={`the value right after this transaction · earned since the move before (PnL so far ${f.sg(e.pnl)})`}>{f.vs(e.nav)}<small className={since != null && since < 0 ? 'bad' : 'ok'}> {since == null ? '' : f.sg(since)}</small></span>
-      <span className={`r ${e.flow == null ? 'bad' : e.flow > 0 ? 'ok' : e.flow < 0 ? 'warn' : 't40'}`} title={e.flow == null ? 'no price for this move' : e.flow === 0 ? 'not a flow: the holder did not choose it' : 'money in (+) or out (−) of the position'}>
-        {e.flow == null ? '?' : e.flow === 0 ? '·' : f.sg(e.flow)}
+      <span className="r" title={e.flow == null ? 'no price for this move' : e.flow === 0 ? 'not the holder’s choice (a liquidation): counted in the PnL' : e.flow > 0 ? 'money put into the position' : 'money taken out of the position'}>
+        {e.flow == null ? <span className="bad">?</span> : f.vs(e.value)}
+        <small className="t40"> {e.flow == null ? '' : e.flow > 0 ? 'in' : e.flow < 0 ? 'out' : ''}</small>
+      </span>
+      <span className="r t70" title={`the value right after this transaction (PnL so far ${f.sg(e.pnl)})`}>{f.vs(e.nav)}</span>
+      <span className={`r ${since == null ? 't40' : since < 0 ? 'bad' : 'ok'}`} title="interest and price on the balance held since the previous transaction">
+        {since === undefined ? '' : since == null ? '?' : f.sg(since)}
       </span>
       <TxLink chainId={s.chainId} hash={e.txHash} />
     </div>

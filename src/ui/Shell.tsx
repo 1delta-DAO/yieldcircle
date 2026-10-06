@@ -86,7 +86,7 @@ function Me() {
           <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><circle cx="10" cy="7" r="3.2" /><path d="M3.8 17c.9-3.2 3.3-4.8 6.2-4.8s5.3 1.6 6.2 4.8" strokeLinecap="round" /></svg>
         )}
         {signer && <UnseenDot />}
-        {signer && <PendingDot account={signer} />}
+        <PendingDot account={signer ?? solSigner} />
       </button>
       <Drawer open={open} onClose={() => setOpen(false)} side="left" label="You"><ProfileSheet /></Drawer>
     </>
@@ -99,7 +99,7 @@ function Face({ addr }: { addr: string }) {
   return <Character addr={addr} avatarUrl={draft ? draft.avatarUrl : p.data?.profile?.avatarUrl} size={30} />
 }
 /** Follows or a profile edit waiting for one signature (docs/social.md §17); the sheet behind the face applies them. */
-function PendingDot({ account }: { account: string }) {
+function PendingDot({ account }: { account: string | undefined }) {
   const q = useQueue(account)
   const n = q.follows.length + (q.profile ? 1 : 0)
   return n > 0 ? <i className="pdot" aria-label={`${n} unsigned change${n === 1 ? '' : 's'}`} /> : null

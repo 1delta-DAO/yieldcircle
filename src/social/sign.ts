@@ -9,7 +9,7 @@
  */
 import { useAccount, useSignTypedData } from 'wagmi'
 import { base58Encode, isSolAddr } from '../model/address'
-import { solSignMessage } from '../wallet/solana'
+import { solSignMessage, useSolWallet } from '../wallet/solana'
 import * as api from './api'
 import type { RatingSubjectKind } from './api'
 import type { SubjectKind } from './types'
@@ -145,13 +145,10 @@ export interface Envelope { primaryType: PrimaryType; message: Record<string, un
 
 /**
  * The SOLANA signer (docs/solana.md §F): ed25519 over the JSON-canonical,
- * domain-separated form of the same typed payload. **Not wired into `send`
- * yet** — the social service verifies EIP-712 over a `0x` author only
- * (`packages/social`: `hexToBuf` on accounts, the ADDR regex), so a write
- * signed this way is refused today. It exists so the payload shape is agreed
- * and pinned before the first Solana thread is written; when the service
- * accepts ed25519 identities, `sign` below picks the signer by the author's
- * VM and nothing else changes.
+ * domain-separated form of the same typed payload. The social service
+ * verifies it for every primaryType on `/write` (`packages/social`
+ * `envelope.ts`, tickets/0056 W6.1); `sign` below picks it when the author
+ * is the Solana wallet.
  */
 export async function signSolanaEnvelope<T extends PrimaryType>(primaryType: T, message: Record<string, unknown>): Promise<Envelope> {
   const sig = await solSignMessage(canonicalJson({ domain: DOMAIN, primaryType, message }))
@@ -167,13 +164,18 @@ function canonicalJson(v: unknown): string {
 
 export function useSocialWrite() {
   const { address } = useAccount()
+  const sol = useSolWallet().account?.address
   const { signTypedDataAsync } = useSignTypedData()
+  // the social identity: the EVM wallet when there is one (it owns the
+  // profile a Solana wallet links into), else the Solana wallet on its own
+  const author = address?.toLowerCase() ?? sol
   /** Sign only. Used where the envelope travels somewhere other than `/write`. */
   async function sign<T extends PrimaryType>(primaryType: T, fields: Record<string, unknown>): Promise<Envelope> {
-    if (!address) throw new Error('connect a wallet to post')
+    if (!author) throw new Error('connect a wallet to post')
     // fields may carry their own `nonce` (the X link worker issues one and
     // both halves must quote it); otherwise one is generated here
-    const message = { author: address.toLowerCase(), ...fields, nonce: (fields.nonce as string) || nonce(), signedAt: now() }
+    const message = { author, ...fields, nonce: (fields.nonce as string) || nonce(), signedAt: now() }
+    if (!address) return signSolanaEnvelope(primaryType, message)
     // viem types the message against the chosen primaryType; the writer's
     // public methods below are what keeps the call sites honest
     const signature = await signTypedDataAsync({
@@ -189,7 +191,8 @@ export function useSocialWrite() {
     return api.write(e.primaryType, e.message, e.signature)
   }
   return {
-    account: address?.toLowerCase(),
+    /** the author every write is signed as: hex lowered, or the Solana base58 verbatim */
+    account: author,
     /** post a comment; `parentId` 0 is top level */
     message: (subjectKind: SubjectKind, subjectKey: string, body: string, parentId = 0) =>
       send('Message', { subjectKind, subjectKey, parentId, body }),
@@ -229,7 +232,11 @@ export function useSocialWrite() {
      * which only the worker can observe, so the envelope is returned and the
      * caller hands it over.
      */
-    xLink: (linkNonce: string, action: 'link' | 'unlink'): Promise<Envelope> => sign('XLink', { nonce: linkNonce, action }),
+    xLink: (linkNonce: string, action: 'link' | 'unlink'): Promise<Envelope> => {
+      // `/x-link` verifies EIP-712 only: its proof text quotes a `0x` address
+      if (!address) throw new Error('connect an EVM wallet to link X')
+      return sign('XLink', { nonce: linkNonce, action })
+    },
     /**
      * Link another wallet to THIS one's profile (docs/wallet-links.md): the
      * connected EVM wallet signs the primary half, the member — a Solana

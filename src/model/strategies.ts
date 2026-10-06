@@ -35,6 +35,8 @@ interface Base {
   desk?: string
   /** the index's asset-group key of the token the money sits in — a deposit's underlying, a loop's collateral (`model/assetGroup.ts`); opens its asset page */
   assetGroup?: string
+  /** that token's own mark (the deposit's underlying, the loop's collateral): the row's face where no curated icon exists (`assetLogo`) */
+  tokenLogo?: string
   /** token you end up holding */
   holds: string
   venue: string
@@ -395,7 +397,7 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const exitMode = m.exit?.mode ?? 'instant'
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const s: SimpleStrategy = {
-    id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, assetGroup: groupKey(m.asset.assetGroup), holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
+    id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, assetGroup: groupKey(m.asset.assetGroup), tokenLogo: m.asset.logoURI || undefined, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
     nature: natureOfDeposit(m.venue, asset, m.name, m.risk?.yieldProfile), rate, risk, riskLabel, riskScore, rated: !!m.risk?.score, tvlUsd: tvl,
     earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, assetSymbol: m.asset.symbol, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
@@ -499,7 +501,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const venue = venueLabel(r.lender, r.curatorNameLong)
   const instrument = r.collateralDesk?.via ?? (p.pendle || p.spectra ? p.issuer?.name : undefined)
   const s: LoopStrategy = {
-    id: `l:${r.marketLongUid}|${r.marketShortUid}`, kind: 'loop', chainId: r.chainId, group: groupOf(asset), asset, desk: debtMoney && !exposed ? deskOf(asset)?.id : undefined, assetGroup: groupKey(L.assetGroup), debtGroup: groupKey(S.assetGroup), nature: exposed?.nature ?? 'savings', holds: L.symbol, venue, venueKey: r.lender, logo: L.logoURI,
+    id: `l:${r.marketLongUid}|${r.marketShortUid}`, kind: 'loop', chainId: r.chainId, group: groupOf(asset), asset, desk: debtMoney && !exposed ? deskOf(asset)?.id : undefined, assetGroup: groupKey(L.assetGroup), tokenLogo: L.logoURI || undefined, debtGroup: groupKey(S.assetGroup), nature: exposed?.nature ?? 'savings', holds: L.symbol, venue, venueKey: r.lender, logo: L.logoURI,
     // unscored is not safe: capped like a 5, the same as a deposit the API left unscored
     rate, risk, riskLabel, riskScore: worst || 5, rated: worst > 0, tvlUsd: num(r.totalDepositsUsdLong),
     lender: r.lender, debt: S.symbol, marketLongUid: r.marketLongUid, marketShortUid: r.marketShortUid,

@@ -175,8 +175,10 @@ Solana, and each action route answering `chainType: 'svm'`.
 - **Writing, follows and profiles** need social to accept a Solana identity.
   That is pos-indexer work: an ed25519 signature over the same typed payload
   (JSON-canonical, domain-separated), accounts stored as text or by VM, and
-  every `ADDR` check made VM-aware. Until then, a Solana-only user reads but
-  does not post, and the composer says so.
+  every `ADDR` check made VM-aware. **Done 2026-10-06**: `/write` verifies a
+  base58 author ed25519 for every primaryType, and a Solana-only wallet
+  follows, posts and signs its pending queue like an EVM one (an EVM wallet,
+  when also connected, stays the author).
 - `social/sign.ts` gets a second signer, `signSolana(message)`, chosen by the
   author's VM. The EIP-712 domain stays unchanged.
 

@@ -1077,6 +1077,20 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
   .row.board .flags{max-width:70px}
   .row.board .flags .pill.flag{display:none}
   .row.board .flags .pill.flag.bad{display:inline-flex}
+  /* the name and the number never yield on a phone: the generated-name tag is said on the wallet
+     page (here it ate the name), the facts under the name wrap to a second line instead of an ellipsis */
+  .row.board{padding:8px 12px}
+  .row.board .who > :has(> .pill.auto),.row.board .who .pill.auto{display:none}
+  .row.board .who .wn small{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.3;margin-top:1px}
+  /* a kind tag (safe, vault) sits beside the facts, not the name */
+  .row.board .who{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:0;align-items:center}
+  .row.board .who > :first-child{grid-row:1/3;margin-right:8px}
+  .row.board .who .wn{display:contents}
+  .row.board .who .wn b{grid-row:1;grid-column:2/-1}
+  .row.board .who .wn small{grid-row:2;grid-column:2}
+  .row.board .who .pill.kind{grid-row:2;grid-column:3;margin-left:6px}
+  .row.board .who .xtag{grid-row:2;grid-column:4;margin-left:6px}
+  .row.board .v.only-m{display:block!important}
   .fcard{padding:12px 13px}
   .fc-t{margin:0 -13px;padding:0 13px}
   .fc-g + .fc-t{margin-top:10px}
@@ -1794,13 +1808,29 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .sw.tin{background:var(--success)}.sw.tout{background:var(--warning)}.sw.tliq{background:var(--error)}
 .pnl-t{font-size:13px;margin:6px 0 0}
 .pnl-legs td{vertical-align:top;font-size:12.5px}.pnl-legs tr{cursor:pointer}
+/* the flags under a leg are sentences: let them wrap, or the table pushes the drawer sideways on a phone */
+.pnl-legs td{white-space:normal;overflow-wrap:break-word}
+.pnl-legs td:first-child,.pnl-legs td.r{white-space:nowrap}
+.pnl-e>span{min-width:0;overflow-wrap:break-word}
+.drawer.wide .drawer-b{overflow-x:hidden}
 .pnl-flag{font-size:11.5px;line-height:1.35}
 .pnl-ev{display:flex;flex-direction:column;max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:var(--r)}
-.pnl-e{display:grid;grid-template-columns:104px 84px 1fr 60px 120px 84px 18px;gap:8px;align-items:center;padding:5px 8px;font-size:12.5px;border-bottom:1px solid var(--line)}
+.pnl-e{display:grid;grid-template-columns:104px 76px 1fr 84px 76px 84px 18px;gap:8px;align-items:center;padding:5px 8px;font-size:12.5px;border-bottom:1px solid var(--line)}
+.pnl-e.pnl-eh{position:sticky;top:0;z-index:1;background:var(--b200);font-size:11px;padding-top:4px;padding-bottom:4px}
 .pnl-e:last-child{border-bottom:0}.pnl-e .r{text-align:right}
 .verb.k-liq{color:var(--error)}
 .pnl-key{font-size:10.5px;word-break:break-all}
-@media (max-width:600px){.pnl-stats{grid-template-columns:1fr}.pnl-e{grid-template-columns:86px 70px 1fr 64px 18px}.pnl-e>span:nth-child(5),.pnl-e>span:nth-child(6){display:none}}
+@media (max-width:600px){
+  /* a leg on a phone is a card: the leg and its row count, then how it walks, then the check, full width */
+  .pnl-legs thead{display:none}
+  .pnl-legs tr{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;padding:8px 10px;border-bottom:1px solid var(--line-soft)}
+  .pnl-legs tr:last-child{border-bottom:0}
+  .pnl-legs td{display:block;height:auto;padding:0;border:0}
+  .pnl-legs td:nth-child(2),.pnl-legs td:nth-child(4){grid-column:1/-1;margin-top:3px}
+  .pnl-legs td.r{grid-row:1;grid-column:2}
+  .pnl-legs td.r::after{content:' rows';color:var(--tx50)}
+}
+@media (max-width:600px){.pnl-stats{grid-template-columns:1fr}.pnl-e{grid-template-columns:86px 64px 1fr 72px 18px}.pnl-e>span:nth-child(4),.pnl-e>span:nth-child(5){display:none}}
 .pnl-e small{font-size:11px}
 .pnl-record{font-size:15px;line-height:1.5;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--b200,transparent)}
 .pnl-record b{font-size:16px}
@@ -1808,3 +1838,19 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .pnl-more{align-self:flex-start;font-size:12.5px;color:var(--primary)}
 @media (max-width:600px){.pnl-e.pnl-iv{grid-template-columns:82px 1fr 84px 56px 22px}.pnl-e.pnl-iv>span:nth-child(3){display:none}}
 .pnl-px{display:block;font-size:11.5px;margin-top:2px}
+/* under 420px a move and a holding period do not fit one line: the time drops under the move */
+@media (max-width:420px){
+  .pnl-e{grid-template-columns:auto minmax(0,1fr) auto 18px;row-gap:1px}
+  .pnl-e>span:nth-child(1){grid-row:2;grid-column:1/3;font-size:11px}
+  .pnl-e.pnl-eh>span:nth-child(1){display:none}
+  .pnl-e>span:nth-child(2){grid-row:1;grid-column:1}
+  .pnl-e>span:nth-child(3){grid-row:1;grid-column:2}
+  .pnl-e>span:nth-child(6){grid-row:1/3;grid-column:3}
+  .pnl-e>:nth-child(7){grid-row:1/3;grid-column:4}
+  .pnl-e.pnl-iv{grid-template-columns:minmax(0,1fr) auto auto 22px}
+  .pnl-e.pnl-iv>span:nth-child(1){grid-column:1}
+  .pnl-e.pnl-iv>span:nth-child(2){grid-row:1;grid-column:1}
+  .pnl-e.pnl-iv>span:nth-child(4){grid-row:1/3;grid-column:2}
+  .pnl-e.pnl-iv>span:nth-child(5){grid-row:1/3;grid-column:3}
+  .pnl-e.pnl-iv>span:nth-child(6){grid-row:1/3;grid-column:4}
+}

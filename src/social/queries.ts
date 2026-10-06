@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import React from 'react'
-import { isEvmAddr, normAddr } from '../model/address'
+import { normAddr } from '../model/address'
 import * as api from './api'
 import { entryKey, useQueue, type TargetKind } from './pending'
 import type { Follow, Profile, SubjectKind } from './types'
@@ -34,8 +34,7 @@ export function useCounts(subjects: { kind: SubjectKind; key: string }[]) {
 
 export function useProfile(account: string | undefined) {
   return useQuery({
-    // a base58 account 400s on the social service until it knows ed25519 identities
-    enabled: !!account && isEvmAddr(normAddr(account)),
+    enabled: !!account,
     queryKey: ['profile', normAddr(account)],
     queryFn: () => api.profile(account!),
     staleTime: MIN,
@@ -69,7 +68,7 @@ export function useHandleCheck(handle: string, account: string | undefined, curr
 }
 
 export function useFollowers(account: string | undefined) {
-  return useQuery({ enabled: !!account && isEvmAddr(normAddr(account)), queryKey: ['followers', normAddr(account)], queryFn: () => api.followers(account!), staleTime: MIN })
+  return useQuery({ enabled: !!account, queryKey: ['followers', normAddr(account)], queryFn: () => api.followers(account!), staleTime: MIN })
 }
 
 /**

@@ -170,6 +170,7 @@ const DESK: Record<DeskGroup, Record<string, Entry>> = {
     elixir: { sym: 'deUSD', name: 'Elixir', what: 'deUSD, sdeUSD', color: '#343a40', kind: 'yield' },
     nest: { sym: 'pUSD', name: 'Nest', what: 'pUSD · Plume’s dollar, USDC-backed', color: '#e8ff5a', kind: 'issued' },
     liquity: { sym: 'BOLD', name: 'Liquity', what: 'BOLD · immutable CDP stablecoin', color: '#405aff', kind: 'yield' },
+    onre: { sym: 'ONyc', name: 'OnRe', what: 'ONyc · reinsurance premiums, paid as a rising NAV', color: '#f5b301', kind: 'yield' },
   },
   ETH: {
     'plain:ETH': { sym: 'ETH', name: 'Ether', what: 'ETH and WETH · nobody’s liability', color: '#8fa6ff', kind: 'plain' },

@@ -21,7 +21,7 @@ import { MyStats } from './Stats'
 import { useSettings } from '../state/Settings'
 
 export function ProfileSheet() {
-  const { account, signer, viewAs, allChains, chainLabelFor } = useApp()
+  const { account, signer, solSigner, viewAs, allChains, chainLabelFor } = useApp()
   const { widened } = useSettings()
   const p = useProfile(account)
   return (
@@ -48,7 +48,8 @@ export function ProfileSheet() {
 
       <Fold label="Chains" state={allChains ? 'All chains' : chainLabelFor()} on={!allChains}><ChainList /></Fold>
       <Fold label="Filters" state={widened ? `${widened} widened` : 'Curated'} on={widened > 0}><SettingsPanel /></Fold>
-      {signer && <PendingChanges />}
+      {/* a Solana-only wallet follows the same way: its queue is signed ed25519 */}
+      {(signer ?? solSigner) && <PendingChanges />}
     </div>
   )
 }

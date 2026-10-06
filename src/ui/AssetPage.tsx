@@ -1,5 +1,5 @@
 import React from 'react'
-import { nameOf, whatIs, type Group } from '../model/assets'
+import { assetLogo, nameOf, whatIs, type Group } from '../model/assets'
 import { exitTerms, markPicks, type Strategy } from '../model/strategies'
 import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
@@ -94,7 +94,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
       <div className={`asset${ticketOpen ? '' : ' noticket'}`}>
         <div className="main">
           <div className="hdr">
-            <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {nameOf(u)}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div>{u !== 'all' && <TokenLinks rows={inGroup.filter((s) => s.asset === u)} />}</div></div>
+            <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} logo={markOf(u, inGroup)} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {nameOf(u)}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div>{u !== 'all' && <TokenLinks rows={inGroup.filter((s) => s.asset === u)} />}</div></div>
             <AssetChips group={group} route={route} assets={assets} u={u} all={inGroup} />
           </div>
           {idle.length > 0 && (
@@ -228,7 +228,7 @@ function AssetChips({ group, route, assets, u, all, max = 6 }: { group: Group; r
       </button>
       {shown.map((a) => (
         <button key={a} className="chip" aria-pressed={u === a} onClick={() => go(group.id, { u: a, s: route.s, k: route.k })}>
-          <Tok sym={a} size={16} />{nameOf(a)} <span className="c">{countOf(a)}</span>
+          <Tok sym={a} logo={markOf(a, all)} size={16} />{nameOf(a)} <span className="c">{countOf(a)}</span>
         </button>
       ))}
       {hidden > 0 && <button className="chip more" onClick={() => setOpen(true)}>+{hidden}</button>}
@@ -242,18 +242,31 @@ function AssetChips({ group, route, assets, u, all, max = 6 }: { group: Group; r
  * (USDC, EURC under Circle), ranked by how many strategies use each.
  */
 function TokenLinks({ rows, max = 4 }: { rows: Strategy[]; max?: number }) {
-  const by = new Map<string, { sym: string; n: number }>()
+  const top = tokensOf(rows).slice(0, max)
+  if (!top.length) return null
+  return <div className="assetlinks">{top.map(([g, x]) => <AssetLink key={g} group={g} sym={x.sym} logo={assetLogo(x.sym) ?? x.logo} />)}</div>
+}
+
+/** A row's tokens by asset group, most-used first, each with its own mark from the rows. */
+function tokensOf(rows: Strategy[]) {
+  const by = new Map<string, { sym: string; logo?: string; n: number }>()
   for (const s of rows) {
     if (!s.assetGroup) continue
     const sym = s.kind === 'loop' ? s.holds : s.assetSymbol
     const cur = by.get(s.assetGroup)
-    if (cur) cur.n++
-    else by.set(s.assetGroup, { sym, n: 1 })
+    if (cur) { cur.n++; cur.logo ??= s.tokenLogo }
+    else by.set(s.assetGroup, { sym, logo: s.tokenLogo, n: 1 })
   }
-  const top = [...by].sort((x, y) => y[1].n - x[1].n).slice(0, max)
-  if (!top.length) return null
-  return <div className="assetlinks">{top.map(([g, x]) => <AssetLink key={g} group={g} sym={x.sym} />)}</div>
+  return [...by].sort((x, y) => y[1].n - x[1].n)
 }
+
+/**
+ * A row's mark: the curated icon of its key (`logos.json`), else its most-used token's own. Only
+ * the registered desks and bases are curated; a desk the API names at runtime (Huma) or a
+ * dollar nobody is named for would otherwise draw as initials.
+ */
+const markOf = (key: string, rows: Strategy[]): string | undefined =>
+  assetLogo(key) ?? tokensOf(rows.filter((s) => s.asset === key)).find(([, x]) => x.logo)?.[1].logo
 
 /**
  * How big the market is, at the end of the row's sentence — and, on hover,

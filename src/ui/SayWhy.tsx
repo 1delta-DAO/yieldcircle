@@ -6,18 +6,19 @@
  * It gets them by asking at the one moment intent is maximal — beside the
  * confirm button, from someone who is about to put money in.
  *
- * The note is posted to the STRATEGY's market thread, not to the transaction.
- * Two reasons: the market uid is the key this app, the index and the social
- * service provably agree on (the loop legs are the optimizer's own uids and a
- * deposit's is rebuilt from the same `<lender>:<chain>:<ref>` shape), and it
- * puts the comment where the next person choosing that strategy will read it.
+ * The note is posted to the STRATEGY's thread (`threadOf`), not to the
+ * transaction: a deposit's market, a loop's own `loop:<collateral>|<debt>`
+ * (tickets/0005). Both are built from market uids this app, the index and the
+ * social service provably agree on, and it puts the comment where the next
+ * person choosing that strategy will read it.
  * One EIP-712 signature, no gas, nothing sent on chain.
  */
 import React from 'react'
 import { useSocialRefresh } from '../social/queries'
 import { useSocialWrite } from '../social/sign'
+import type { ThreadRef } from '../model/uid'
 
-export function SayWhy({ uid, label, done }: { uid: string | null; label?: string; done?: boolean }) {
+export function SayWhy({ on, label, done }: { on: ThreadRef | null; label?: string; done?: boolean }) {
   const { account, message } = useSocialWrite()
   const refresh = useSocialRefresh()
   const [open, setOpen] = React.useState(false)
@@ -25,15 +26,15 @@ export function SayWhy({ uid, label, done }: { uid: string | null; label?: strin
   const [busy, setBusy] = React.useState(false)
   const [posted, setPosted] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
-  if (!uid || !account) return null
+  if (!on || !account) return null
 
   const post = async () => {
     const text = body.trim()
     if (!text) return
     setBusy(true); setErr(null)
     try {
-      await message('market', uid, text)
-      refresh.thread('market', uid)
+      await message(on.kind, on.key, text)
+      refresh.thread(on.kind, on.key)
       setPosted(true); setOpen(false); setBody('')
     } catch (e) {
       const m = (e as Error).message

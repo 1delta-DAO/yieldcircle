@@ -18,12 +18,14 @@ const REACTIONS: { kind: string; glyph: string; title: string }[] = [
   { kind: 'risky', glyph: '⚠', title: 'looks risky' },
 ]
 
-export function Thread({ kind, subjectKey, title, placeholder, compact }: {
+export function Thread({ kind, subjectKey, title, placeholder, compact, max }: {
   kind: SubjectKind
   subjectKey: string
   title?: React.ReactNode
   placeholder?: string
   compact?: boolean
+  /** show only the newest `max` top-level messages until asked for the rest — a thread inside a drawer */
+  max?: number
 }) {
   const t = useThread(kind, subjectKey)
   const msgs = t.data?.messages ?? []
@@ -54,7 +56,9 @@ export function Thread({ kind, subjectKey, title, placeholder, compact }: {
     try { await remove(m.id); refresh.thread(kind, subjectKey) } catch (e) { setErr(short(e)) }
   }
 
-  const tops = msgs.filter((m) => !m.parentId)
+  const [all, setAll] = React.useState(false)
+  const every = msgs.filter((m) => !m.parentId)
+  const tops = max && !all ? every.slice(0, max) : every
   const kids = (id: number) => msgs.filter((m) => m.parentId === id)
   return (
     <div className={`thread${compact ? ' compact' : ''}`}>
@@ -78,6 +82,7 @@ export function Thread({ kind, subjectKey, title, placeholder, compact }: {
             ))}
           </div>
         ))}
+        {tops.length < every.length && <button className="lnk thread-more" onClick={() => setAll(true)}>Show all {every.length} ›</button>}
       </div>
       <div className="composer">
         {replyTo && <div className="replying">replying to <b>{replyTo.body.slice(0, 40)}{replyTo.body.length > 40 ? '…' : ''}</b><button className="x" onClick={() => setReplyTo(null)} aria-label="Cancel reply">✕</button></div>}
@@ -112,7 +117,7 @@ function Row({ m, profile, mine, onReply, onDelete }: {
     <div className="msg-row">
       <div className="msg-h">
         <Who account={m.author} profile={profile} size={22} />
-        <Stake usd={m.authorStake} />
+        <Stake stake={m.authorStake} />
         <span className="sp" />
         <Ago ts={m.signedAt} />
       </div>

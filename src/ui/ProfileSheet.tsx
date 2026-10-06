@@ -12,6 +12,7 @@ import { marketHref, useApp, walletHref } from '../state/AppState'
 import { useProfile, useProfiles } from '../social/queries'
 import { entryKey, usePending } from '../social/pending'
 import { labelFor } from '../identity/name'
+import { parseLoopKey } from '../model/uid'
 import { ConnectButton } from '../wallet/ConnectButton'
 import { Who } from './social-bits'
 import { ChainList } from './ChainPicker'
@@ -103,10 +104,13 @@ function PendingChanges() {
         )}
         {q.follows.map((f) => {
           const k = entryKey(f.targetKind, f.target)
+          const loop = f.targetKind === 'strategy' ? parseLoopKey(f.target) : null
           const label = f.targetKind === 'wallet' ? labelFor(f.target, names.profile(f.target)).label
             : f.targetKind === 'market' ? f.target.split(':')[0]
+            : loop ? `a loop on ${loop.long.split(':')[0]}`
             : f.target
-          const href = f.targetKind === 'wallet' ? walletHref(f.target) : f.targetKind === 'market' ? marketHref(f.target) : `#/c/${encodeURIComponent(f.target)}`
+          const href = f.targetKind === 'wallet' ? walletHref(f.target) : f.targetKind === 'market' ? marketHref(f.target)
+            : loop ? marketHref(loop.long) : `#/c/${encodeURIComponent(f.target)}`
           return (
             <li key={k} className={q.errors[k] ? 'bad' : undefined}>
               <span className={f.action === 'follow' ? 'ok' : 'warn'}>{f.action === 'follow' ? 'Follow' : 'Unfollow'}</span>

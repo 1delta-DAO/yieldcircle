@@ -41,9 +41,9 @@ export function uidOfEarn(m: Pick<EarnMarket, 'chainId' | 'venue' | 'ref' | 'ass
 }
 
 /**
- * The market a strategy's thread hangs on. A loop talks on its COLLATERAL leg
- * (that is the position you hold and the market the index's holders list is
- * about); its debt leg has its own thread, reachable from the market page.
+ * The market a strategy sits in: a loop's COLLATERAL leg (the position you
+ * hold, and the market the index's holders list is about). Not where it is
+ * talked about any more — that is `threadOf`.
  */
 export function uidOf(s: Strategy): string | null {
   return s.kind === 'loop' ? s.marketLongUid : uidOfEarnLike(s)
@@ -57,6 +57,45 @@ function uidOfEarnLike(s: Extract<Strategy, { kind: 'simple' }>): string | null 
     return createMarketUid(chainId, venue, ref)
   }
   return createMarketUid(s.chainId, s.venueKey, s.assetAddress)
+}
+
+/** the uid as `createMarketUid` spells it — the social service refuses any other spelling in a loop key */
+const canonUid = (uid: string) => { const p = parseUid(uid); return p ? createMarketUid(p.chainId, p.lender, p.ref) : null }
+
+/**
+ * A loop's OWN thread key (tickets/0005, pos-indexer `social/strategyKey.ts`):
+ * `loop:<collateral uid>|<debt uid>`. Two loops on one collateral market used
+ * to share that market's thread with each other and with the plain deposit
+ * into it; the pair is what the user actually opened. Leverage and a fixed
+ * term are parameters of one strategy, so they stay out of the key.
+ */
+export function loopKey(s: Extract<Strategy, { kind: 'loop' }>): string | null {
+  const a = canonUid(s.marketLongUid), b = canonUid(s.marketShortUid)
+  return a && b && a !== b ? `loop:${a}|${b}` : null
+}
+/** The two legs of a loop key; null when it is not one. */
+export function parseLoopKey(key: string): { long: string; short: string } | null {
+  if (!key.startsWith('loop:')) return null
+  const [long, short, ...rest] = key.slice(5).split('|')
+  return long && short && !rest.length ? { long, short } : null
+}
+
+/** Where a strategy is talked about. */
+export interface ThreadRef { kind: 'market' | 'strategy'; key: string }
+/**
+ * The ONE answer to "which thread is this strategy's" — the ticket, Say why,
+ * the row's 💬 and the feed all ask here, so none drifts back to `uidOf`. A
+ * deposit is one market and keeps that market's thread; a loop has its own
+ * once the service takes `strategy` (`loops`), else it stays on its
+ * collateral market as before.
+ */
+export function threadOf(s: Strategy, loops: boolean): ThreadRef | null {
+  if (s.kind === 'loop' && loops) {
+    const k = loopKey(s)
+    if (k) return { kind: 'strategy', key: k }
+  }
+  const u = uidOf(s)
+  return u ? { kind: 'market', key: u } : null
 }
 
 /** Both legs of a loop, for a market page that wants the whole position. */

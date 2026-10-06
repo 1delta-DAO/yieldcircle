@@ -20,7 +20,8 @@ import { isDone, useTrace } from '../sdk/txTrace'
 import { Spin, TxNote } from './TxTray'
 import { GetAsset, type Target } from './GetAsset'
 import { IrmLink } from './Irm'
-import { uidOf } from '../model/uid'
+import { uidOf, type ThreadRef } from '../model/uid'
+import { useThreadOf } from '../social/queries'
 import { NATURES, isSavings } from '../model/nature'
 import { SayWhy } from './SayWhy'
 import { TicketSocial } from './TicketSocial'
@@ -28,17 +29,19 @@ import { AssetLink } from './TokenPage'
 
 /**
  * What the ticket is about, for the pieces too deep to thread props through:
- * the market uid the strategy talks on, and the wallet being copied when the
- * ticket was opened from a feed card.
+ * the market the strategy sits in, the thread it is talked about on
+ * (`threadOf`), and the wallet being copied when the ticket was opened from a
+ * feed card.
  */
-const TicketCtx = React.createContext<{ uid: string | null; copy?: string }>({ uid: null })
+const TicketCtx = React.createContext<{ uid: string | null; thread?: ThreadRef | null; copy?: string }>({ uid: null })
 
 /** The ticket: what you do in plain words, amount (+ leverage), the numbers, what can go wrong, one button. */
-export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, onClose }: { s: Strategy; idle: Idle[]; holding: Holding | null; mode?: Mode; copy?: string; offMenu?: string; onClose: () => void }) {
+export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, talk, onClose }: { s: Strategy; idle: Idle[]; holding: Holding | null; mode?: Mode; copy?: string; offMenu?: string; talk?: boolean; onClose: () => void }) {
   const [mode, setMode] = React.useState<Mode>(holding ? mode0 ?? 'add' : 'add')
   const uid = uidOf(s)
+  const thread = useThreadOf()(s)
   return (
-    <TicketCtx.Provider value={{ uid, copy }}>
+    <TicketCtx.Provider value={{ uid, thread, copy }}>
     <div className="ticket">
       <div className="grab" />
       <div className="th">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />}
@@ -59,7 +62,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, onClose }
       )}
       {holding && mode !== 'add' ? (s.kind === 'loop' ? <ManageLoop s={s} h={holding} closeFirst={mode === 'close'} /> : <ManageTicket s={s} h={holding} mode={mode} />)
         : s.kind === 'simple' ? <SimpleTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} /> : <LoopTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={holding} />}
-      <TicketSocial uid={uid} s={s} />
+      <TicketSocial uid={uid} thread={thread} s={s} focus={talk} />
     </div>
     </TicketCtx.Provider>
   )
@@ -688,7 +691,7 @@ function AmountBox({ unit, value, onChange, onMax }: { unit: string; value: numb
 /** The sticky bottom of the ticket: one button, then the ladder once built. */
 function Action({ ladder: l, label, account, isConnected, disabled, chainId }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; chainId: string }) {
   const { setViewAs } = useApp()
-  const { uid } = React.useContext(TicketCtx)
+  const { thread } = React.useContext(TicketCtx)
   const viewing = !!account && !isConnected
   // Solana actions open together with the positions read (docs/solana.md
   // "Sequencing" step 4): the deposit route already builds, but a deposit the
@@ -704,7 +707,7 @@ function Action({ ladder: l, label, account, isConnected, disabled, chainId }: {
         : viewing ? <button className="btn wide" disabled>Viewing {account.slice(0, 6)}… · connect to sign</button>
         : !l.isConnected ? <button className="btn wide" disabled>{isSvmChain(chainId) ? 'Connect a Solana wallet (Phantom, Solflare, Backpack) to sign' : 'Connect a wallet to sign'}</button>
         : <button className="btn wide pri" disabled={disabled || l.busy} onClick={() => l.start(label)}>{l.busy ? 'Building…' : label}</button>}
-      {!viewing && <SayWhy uid={uid} />}
+      {!viewing && <SayWhy on={thread ?? null} />}
       <div className="foot" style={{ marginTop: 8 }}>The API builds the exact calls (approvals, then the action); nothing is sent until you sign each one. Gas on {chainLabel(chainId)}.</div>
     </div>
   )
@@ -713,7 +716,7 @@ function Action({ ladder: l, label, account, isConnected, disabled, chainId }: {
       <span className="lbl">{l.settled ? 'Done' : l.finished ? 'Updating your positions…' : l.signing ? 'Confirm in your wallet' : l.pending ? 'Waiting for the block…' : 'Sign in your wallet'}</span>
       <ol className="steps">{l.bundle.steps.map((st, i) => <StepRow key={i} st={st} n={i + 1} on={st === l.next} signing={l.signing && st === l.next} chainId={chainId} />)}</ol>
       {l.err && <div className="err" style={{ marginTop: 8 }}>{l.err}</div>}
-      {l.finished && <SayWhy uid={uid} done />}
+      {l.finished && <SayWhy on={thread ?? null} done />}
       <div className="actions" style={{ marginTop: 12 }}>
         {l.finished ? <a className="btn wide pri" href="#/">{l.settled ? 'See your positions' : <><Spin sm /> Updating your positions…</>}</a>
           : <button className="btn wide pri" disabled={!!l.pending || l.switching || (l.signing && !l.remote)} onClick={l.signing ? l.reopen : l.sendNext}>{l.switching ? 'Switching…' : l.wrongChain ? `Switch wallet to ${chainLabel(chainId)}` : l.signing ? (l.remote ? 'Open your wallet to confirm' : 'Confirm in your wallet…') : l.pending ? <><Spin sm /> Waiting for the block…</> : `Send ${l.done + 1} of ${l.total}`}</button>}

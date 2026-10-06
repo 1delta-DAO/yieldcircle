@@ -12,7 +12,7 @@ import { base58Encode, isSolAddr } from '../model/address'
 import { solSignMessage, useSolWallet } from '../wallet/solana'
 import * as api from './api'
 import type { RatingSubjectKind } from './api'
-import type { SubjectKind } from './types'
+import type { Follow, SubjectKind } from './types'
 
 export const DOMAIN = { name: '1delta social', version: '1' } as const
 
@@ -125,7 +125,7 @@ export const TYPES = {
 } as const
 /** The op structs are only ever nested inside a `Batch`, never signed alone. */
 export type PrimaryType = Exclude<keyof typeof TYPES, 'FollowOp' | 'ProfileOp'>
-export type FollowOp = { targetKind: 'wallet' | 'market' | 'curator'; target: string; action: 'follow' | 'unfollow' }
+export type FollowOp = { targetKind: Follow['targetKind']; target: string; action: 'follow' | 'unfollow' }
 export type ProfileOp = { handle: string; displayName: string; bio: string; avatarUrl: string; tags: string[]; visibility: 'public' | 'unlisted' }
 
 const nonce = () => {
@@ -198,7 +198,7 @@ export function useSocialWrite() {
       send('Message', { subjectKind, subjectKey, parentId, body }),
     react: (subjectKind: SubjectKind, subjectKey: string, kind: string, on: boolean) =>
       send('Reaction', { subjectKind, subjectKey, kind, action: on ? 'add' : 'remove' }),
-    follow: (targetKind: 'wallet' | 'market' | 'curator', target: string, on: boolean) =>
+    follow: (targetKind: Follow['targetKind'], target: string, on: boolean) =>
       send('Follow', { targetKind, target, action: on ? 'follow' : 'unfollow' }),
     /**
      * Say something about a subject. Everyone may write — a wallet the index

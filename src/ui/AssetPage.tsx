@@ -7,10 +7,9 @@ import { useBook } from './useBook'
 import { HoldingTicket, Ticket } from './Ticket'
 import { GroupIcon, Info, KindPill, LegsPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort } from './bits'
 import { chainLabel } from '../sdk/queries'
-import { uidOf } from '../model/uid'
-import { useCounts } from '../social/queries'
+import type { ThreadRef } from '../model/uid'
+import { useCounts, useThreadOf } from '../social/queries'
 import { Comments } from './social-bits'
-import { marketHref } from '../state/AppState'
 import { HiddenBar } from './Hidden'
 import { HIDES, hideDetail, letIn } from '../model/visibility'
 import { offMenuWhy, useOffMenu, useRateHistory, type OffMenuRef } from '../sdk/queries'
@@ -77,9 +76,13 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const held = (s: Strategy) => b.holdings.find((h) => matches(s, h))
   // holdings in scope, each paired with the catalogue strategy it belongs to (none → not actionable here)
   // 💬 on every row in ONE request: the service takes up to 1000 subjects a call
-  const uids = React.useMemo(() => list.map((x) => ({ s: x, uid: uidOf(x) })).filter((x): x is { s: Strategy; uid: string } => !!x.uid), [list])
-  const counts = useCounts(React.useMemo(() => uids.map((x) => ({ kind: 'market' as const, key: x.uid })), [uids]))
-  const commentsOn = (x: Strategy) => { const u = uidOf(x); return u ? counts.count('market', u) : 0 }
+  // the STRATEGY's thread (`threadOf`): a loop's own, not its collateral market's
+  const threadFor = useThreadOf()
+  const threads = React.useMemo(() => list.map(threadFor).filter((x): x is ThreadRef => !!x), [list, threadFor])
+  const counts = useCounts(threads)
+  const commentsOn = (x: Strategy) => { const t = threadFor(x); return t ? counts.count(t.kind, t.key) : 0 }
+  /** a row's 💬 opens its ticket on the thread — where the strategy is talked about, beside what it pays */
+  const talkOn = (x: Strategy) => go(group.id, { u, s: x.id, k: x.kind, talk: '1' })
   const running: { h: Holding; s: Strategy | null }[] = b.holdings.filter((h) => !h.directional && h.group === group.id && (u === 'all' || h.asset === u)).sort((x, y) => y.valueUsd - x.valueUsd)
     .map((h) => ({ h, s: inGroup.find((s) => matches(s, h)) ?? b.hidden.find((s) => s.group === group.id && matches(s, h)) ?? null }))
   // the held positions' strategies may be of the other kind than the list shows
@@ -141,7 +144,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                     {s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}
                     <b>{s.holds}</b>
                     {pick && <span className="pick-star" title="our pick">★</span>}
-                    {n > 0 && <Comments n={n} onClick={() => { const x = uidOf(s); if (x) location.hash = marketHref(x) }} />}
+                    {n > 0 && <Comments n={n} onClick={() => talkOn(s)} />}
                   </div>
                   <span className="sc-via">{s.kind === 'simple' ? s.via : `borrow ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span>
                   <span className={`sc-rate ${s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}`}>{pct(s.rate)}</span>
@@ -175,7 +178,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                     {/* a bubble on a row nobody has posted on is furniture, so it
                         only appears once there is something to open */}
                     <td className="r tail">
-                      {commentsOn(s) > 0 && <Comments n={commentsOn(s)} onClick={() => { const u = uidOf(s); if (u) location.hash = marketHref(u) }} />}
+                      {commentsOn(s) > 0 && <Comments n={commentsOn(s)} onClick={() => talkOn(s)} />}
                       <span className="t40">›</span>
                     </td>
                   </tr>) })}</tbody>
@@ -185,8 +188,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
           <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />
         </div>
         <aside className={ticketOpen ? '' : 'closed'} id="aside">
-          {sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} onClose={close} />}
-          {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '')} s={offSel} idle={b.idlePerChain} holding={offMenu ?? held(offSel) ?? null} mode={route.m} copy={route.copy} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
+          {sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} onClose={close} />}
+          {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '')} s={offSel} idle={b.idlePerChain} holding={offMenu ?? held(offSel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
           {offMenu && !offSel && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
         </aside>
       </div>

@@ -991,3 +991,36 @@ every chain and once per chain (*Base Yield King*). Built in pos-indexer
   shows a Reigning strip for its scope and a crown in the holder's rank.
 - **Not yet:** Solana wallets (the sol index has no crowns job), notifications
   on crowning / dethroning, and a character layer gated on having reigned.
+
+## 19 · Strategies you can talk about
+
+*2026-10-06, tickets/0005.* Comments existed on strategies, but did not look
+like it: a loop talked on its collateral market (shared with every other loop
+on that market and with the plain deposit into it), the thread was a
+collapsed toggle at the bottom of the ticket, and nothing surfaced what was
+said anywhere but there.
+
+- **A loop has its own thread**, subject `strategy`, key
+  `loop:<collateral uid>|<debt uid>` (canonical `createMarketUid` legs). A
+  deposit keeps its market's thread: it IS one market. `model/uid.ts`
+  `threadOf` is the one place that answers "which thread"; `useThreadOf()`
+  binds it to the service (`/typed-data` lists `subjectKinds`), so against an
+  older service a loop stays on its collateral market rather than signing a
+  write that would be refused. `subjectKind` is a string in the `Message`
+  type: no struct hash changed.
+- **Service** (`packages/social`): `strategyKey.ts` checks a key and refuses —
+  never rewrites — a spelling no reader computes (the signature covers it).
+  The stake on a loop comment pairs both legs on `pos_id`: `legs: 2` and the
+  net only when the author holds THIS loop. New reads: `GET /messages/recent`
+  (chain / protocol filters read off the key), `GET /accounts/:a/messages`,
+  `POST /latest`. A followed loop is expanded to its two markets in both
+  indexes' follow sets.
+- **Ticket**: "What people say" sits under the numbers and is open (two
+  newest, "show all"), with Follow; a loop links what was said on its
+  collateral market before. "Who else is in it" follows. A row's 💬 opens the
+  ticket on the thread (`talk=1`), no longer the market page.
+- **Feed**: a **Talk** tab — one card per top-level comment, the strategy it is
+  about, "Open strategy". A move card quotes **the mover's own** newest
+  comment on that strategy (`POST /latest` by author), never a stranger's.
+- **Wallet**: "Said" — what this wallet has signed, each row leading to what it
+  was said about.

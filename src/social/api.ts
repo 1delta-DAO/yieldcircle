@@ -6,7 +6,7 @@
  */
 import { SOCIAL_BASE_URL } from '../config/backend'
 import { normAddr } from '../model/address'
-import type { Follow, Follower, Profile, ProfileResponse, SubjectKind, Thread, ThreadSummary, TypedData } from './types'
+import type { Follow, Follower, Message, Profile, ProfileResponse, SubjectKind, Thread, ThreadSummary, TypedData } from './types'
 
 /** Where in a `Batch` an op failed, in the message's own words: `follows[3]`, `profile[0].handle`. */
 export interface OpError { at: string; error: string }
@@ -37,8 +37,42 @@ export function normaliseProfile(p: Profile | null): Profile | null {
 }
 
 export const typedData = () => call<TypedData>('/typed-data')
-export const thread = (kind: SubjectKind, key: string) => call<Thread>(`/threads/${kind}/${encodeURIComponent(key)}`)
+/**
+ * Comment reads skip the browser's HTTP cache: the service sends
+ * `max-age=30`, so a thread refetched right after a post came back from the
+ * cache without the post — you wrote, and your words were not there.
+ */
+const fresh: RequestInit = { cache: 'no-cache' }
+export const thread = (kind: SubjectKind, key: string) => call<Thread>(`/threads/${kind}/${encodeURIComponent(key)}`, fresh)
 export const recentThreads = (limit = 40) => call<{ threads: ThreadSummary[] }>(`/threads?limit=${limit}`)
+
+/**
+ * What people SAY, newest first, top level only (tickets/0005): the feed's
+ * Talk tab. `chainIds` and `protocols` are read off the subject's key by the
+ * service, the same chain segment and protocol rule as the ledger feed's
+ * chips. `before` is the last message id the client has.
+ */
+export interface MessagePage { messages: Message[]; next: number | null }
+export function recentMessages(f: { kinds?: SubjectKind[]; chainIds?: string; protocols?: string; before?: number | null; limit?: number }) {
+  const q = new URLSearchParams()
+  if (f.kinds?.length) q.set('kinds', f.kinds.join(','))
+  if (f.chainIds) q.set('chainIds', f.chainIds)
+  if (f.protocols) q.set('protocols', f.protocols)
+  if (f.before) q.set('before', String(f.before))
+  q.set('limit', String(f.limit ?? 30))
+  return call<MessagePage>(`/messages/recent?${q}`, fresh)
+}
+/** One wallet's own messages, replies included: its page's "Said". */
+export const accountMessages = (account: string, before?: number | null) =>
+  call<MessagePage>(`/accounts/${encodeURIComponent(normAddr(account))}/messages${before ? `?before=${before}` : ''}`, fresh)
+
+/**
+ * The newest top-level message per subject, by one author where named — a
+ * feed card quotes the mover's own reason, never a stranger's. Keyed
+ * `<kind>|<key>|<author or ''>`; ≤ 200 subjects a call.
+ */
+export const latest = (subjects: { kind: SubjectKind; key: string; author?: string | null }[]) =>
+  call<{ latest: Record<string, Message> }>('/latest', post('/latest', { subjects }))
 
 /** Batch message counts — ONE request for a whole list view. `{ kind: { key: n } }`. */
 export const counts = (subjects: { kind: SubjectKind; key: string }[]) =>
@@ -195,7 +229,7 @@ export const ratingsBy = (account: string, limit = 50) =>
     `/ratings/by/${account}?limit=${limit}`,
   )
 
-export interface WriteResult { ok?: boolean; id?: number | null; duplicate?: boolean; authorStake?: number | null; profile?: Profile | null; follows?: Follow[] }
+export interface WriteResult { ok?: boolean; id?: number | null; duplicate?: boolean; authorStake?: Message['authorStake']; profile?: Profile | null; follows?: Follow[] }
 /**
  * Can `account` take this handle — another wallet's profile or ENS name may
  * hold it. Asked while the user types: a profile edit waits in the pending

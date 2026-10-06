@@ -10,6 +10,9 @@
  *   menu       everyone, but only in markets this app can open in one tap.
  *              The default: a move you cannot act on is a log line.
  *   everyone   the whole tape.
+ *   talk       what people SAID about strategies and markets, newest first
+ *              (tickets/0005) — the comments that used to surface only
+ *              under a transaction.
  *
  * It is the home page's main column, under the pulse and beside Hot — the
  * social side is what this app is for, so what people are doing is the first
@@ -23,10 +26,13 @@ import { useCuratorsByAccount, useFeedPage } from "../index/queries";
 import type { TxBundle, TxLeg, TxSubject } from "../index/types";
 import {
   useCounts,
+  useLatest,
   useMyFollows,
   useProfiles,
   useRatingCounts,
+  useThreadOf,
 } from "../social/queries";
+import type { Message } from "../social/types";
 import { positionKey } from "../social/api";
 import { useSocialWrite } from "../social/sign";
 import { useMenu } from "./useMenu";
@@ -40,11 +46,12 @@ import { ChainCorner } from "./ChainMark";
 import { indexChainLabel, subjectOf } from "../index/types";
 import { Sk, Tip, Tok, TxLink, pct } from "./bits";
 import { Thread } from "./Thread";
+import { Talk } from "./Talk";
 import { ChainChip } from "./ChainPicker";
 import { chainLabel } from "../sdk/queries";
 import type { Strategy } from "../model/strategies";
 
-type Tab = "following" | "menu" | "everyone";
+type Tab = "following" | "menu" | "everyone" | "talk";
 
 /**
  * Rows that only ever accumulate, keyed by transaction.
@@ -116,7 +123,7 @@ function useShowDust(): [boolean, (v: boolean) => void] {
 }
 
 const tabOf = (t: string | undefined): Tab =>
-  t === "following" || t === "everyone" ? t : "menu";
+  t === "following" || t === "everyone" || t === "talk" ? t : "menu";
 
 export function Feed({ tab: tabIn }: { tab?: string }) {
   const { chains, chainIds, allChains } = useApp();
@@ -221,7 +228,8 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           ...desks,
         };
   /** the follow feed is nobody's feed until a wallet says who "you" are, and the menu's until there is a menu */
-  const asked = tab === "following" ? !!account : tab !== "menu" || !!set;
+  const asked =
+    tab === "talk" ? false : tab === "following" ? !!account : tab !== "menu" || !!set;
   const feed = useFeedPage(q, limit, asked, set ?? undefined);
 
   /**
@@ -278,12 +286,46 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   const [open, setOpen] = React.useState<string | null>(null);
 
   /**
+   * The catalogue row a card is about. A move with a borrow leg is matched as
+   * the LOOP it is — collateral and debt — so the Copy button and the quoted
+   * reason belong to that loop and not to whichever loop first claimed the
+   * collateral market.
+   */
+  const threadFor = useThreadOf();
+  const stratOf = (t: TxBundle): Strategy | null => {
+    const leg = primaryLeg(t, pf.keys);
+    const debt = t.legs.find((l) => l.side === "borrow")?.marketUid?.toLowerCase();
+    if (leg?.marketUid && debt) {
+      const hit = menu.all.find(
+        (s) => s.kind === "loop" && s.marketLongUid === leg.marketUid && s.marketShortUid.toLowerCase() === debt,
+      );
+      if (hit) return hit;
+    }
+    return menu.forUid(leg?.marketUid);
+  };
+  /** the mover's own reason, said on the strategy they moved in (Say why) — never a stranger's comment */
+  const sayOf = (t: TxBundle) => {
+    const st = stratOf(t);
+    const th = st ? threadFor(st) : null;
+    const who = subjectOf(t).account;
+    return th && who ? { ...th, author: who } : null;
+  };
+  const said = useLatest(txs.map(sayOf).filter((x): x is NonNullable<ReturnType<typeof sayOf>> => !!x));
+  const saidOn = (t: TxBundle): Message | null => {
+    const x = sayOf(t);
+    return x ? said(x.kind, x.key, x.author) : null;
+  };
+
+  /**
    * Still looking. On a first visit the menu tab waits for the catalogue the
    * index knows nothing about, and reporting "nothing in the menu" before it
    * has landed is a verdict delivered before the evidence is in.
    */
   const digging = tab === "menu" && (!set || (feed.isFetching && !txs.length));
   const busy = feed.isLoading || digging;
+  /** a followed loop counts once, though the feed expands it to its two markets */
+  const nFollowed =
+    follows.wallets.length + follows.markets.length + follows.strategies.length;
 
   return (
     /* the feed is a reading column, not a page: 1060px is where the row's five
@@ -299,11 +341,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
             onClick={() => { location.hash = hashFor("following"); }}
           >
             Following
-            {follows.wallets.length + follows.markets.length > 0 && (
-              <span className="c">
-                {follows.wallets.length + follows.markets.length}
-              </span>
-            )}
+            {nFollowed > 0 && <span className="c">{nFollowed}</span>}
           </button>
           <button
             aria-pressed={tab === "menu"}
@@ -317,9 +355,16 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           >
             Everyone
           </button>
+          <button
+            aria-pressed={tab === "talk"}
+            onClick={() => { location.hash = hashFor("talk"); }}
+            title="What people said about strategies and markets, newest first"
+          >
+            Talk
+          </button>
         </div>
         <span className="sp" />
-        <label
+        {tab !== "talk" && <label
           className="dustchk"
           title={`Moves under $${DUST_USD} — $0 rebalances, accruals, rounding. Hidden by default.`}
         >
@@ -329,16 +374,17 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
             onChange={(e) => setShowDust(e.target.checked)}
           />
           Small moves
-        </label>
+        </label>}
         <ChainChip />
         <ShareView hash={here} />
       </div>
       <LinkChainsToast />
 
       <ProtocolChips f={pf} />
-      <IssuerChips f={inf} />
-      <CuratorChips f={cf} />
-      {cf.param && (
+      {/* whose credit and which desk are facts about a ledger row; a comment has neither */}
+      {tab !== "talk" && <IssuerChips f={inf} />}
+      {tab !== "talk" && <CuratorChips f={cf} />}
+      {tab !== "talk" && cf.param && (
         <div className="note sm">
           Only what{" "}
           <b>
@@ -364,8 +410,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
       {tab === "following" &&
         account &&
         !follows.isLoading &&
-        !follows.wallets.length &&
-        !follows.markets.length && (
+        !nFollowed && (
           <div className="note">
             <b>You follow nobody yet.</b> This feed stays empty until you do —
             it is never quietly replaced by the global one. Open a wallet or a
@@ -390,6 +435,10 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
         </div>
       )}
 
+      {tab === "talk" ? (
+        <Talk chainIds={chainsParam} protocols={pf.param} menu={menu.all} />
+      ) : (
+      <>
       <div className="feed">
         {busy &&
           !txs.length &&
@@ -441,7 +490,8 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
             key={`${t.chainId}:${t.txHash}`}
             tx={t}
             profile={profile(subjectOf(t).account)}
-            strategy={menu.forUid(primaryLeg(t, pf.keys)?.marketUid)}
+            strategy={stratOf(t)}
+            said={saidOn(t)}
             only={pf.keys}
             curator={who.curatorOf(subjectOf(t).account)}
             rating={rated.ratingOf(
@@ -485,6 +535,8 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
             </span>
           )}
         </div>
+      )}
+      </>
       )}
     </div>
   );
@@ -751,6 +803,7 @@ function Card({
   tx,
   profile,
   strategy,
+  said,
   comments,
   open,
   onToggle,
@@ -761,6 +814,8 @@ function Card({
   tx: TxBundle;
   profile: ReturnType<ReturnType<typeof useProfiles>["profile"]>;
   strategy: Strategy | null;
+  /** what the mover said about this strategy (tickets/0005) — the card's one-line reason */
+  said?: Message | null;
   comments: number;
   open: boolean;
   onToggle: () => void;
@@ -900,6 +955,11 @@ function Card({
           ) : null}
         </div>
       </div>
+      {said?.body && (
+        <p className="fc-said" title={`said on this ${strategy?.kind === "loop" ? "loop" : "strategy"}, ${new Date(said.signedAt).toLocaleDateString()}`}>
+          “{said.body}”
+        </p>
+      )}
       {flows && (
         <div className="fc-t">
           <Flows tx={tx} />

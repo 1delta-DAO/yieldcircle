@@ -179,7 +179,19 @@ already carry it
 `EarnMarket.ref`, and vaults are `vault.<provider>:<chainId>:<address>`.
 All of that is in `src/model/uid.ts` (`uidOf`, `uidsOf`, `parseUid`); the
 feed's "Copy" button depends on it via `ui/useMenu.ts`. Social thread keys use
-the same uid.
+the same uid — except a loop's, which is its own `loop:<collateral uid>|<debt
+uid>` (`threadOf` / `loopKey`, tickets/0005). Ask `threadOf` (or
+`useThreadOf()`, which knows whether the service takes `strategy` yet) for a
+strategy's thread; never build the key at a call site.
+
+Social reads beyond threads and counts: `recentMessages` → `GET
+/messages/recent?kinds=&chainIds=&protocols=&before=` (the feed's Talk tab,
+`useRecentMessages`), `accountMessages` → `GET /accounts/:a/messages` (a
+wallet's "Said", `useAccountMessages`), `latest` → `POST /latest {subjects:
+[{kind, key, author}]}` (a feed card's quoted reason, `useLatest`). Thread and
+message reads pass `cache: 'no-cache'`: the service sends `max-age`, and a
+refetch right after a post otherwise comes back from the browser cache without
+the post.
 
 ## Recipes
 

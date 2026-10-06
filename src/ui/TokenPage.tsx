@@ -161,7 +161,7 @@ export function TokenPage({ group }: { group: string }) {
   const feed = useFeedPage({ assetGroups: spellingsOf(group).join(','), chainIds: chainsParam }, 30)
   const { profile } = useProfiles((holders.data?.holders ?? []).map((h) => h.account))
   const counts = useCounts([{ kind: 'asset', key: group }])
-  const [mode, setMode] = React.useState<SliceMode>('protocol')
+  const [picked, setMode] = React.useState<SliceMode | null>(null)
   const [allMarkets, setAllMarkets] = React.useState(false)
   const [allVaults, setAllVaults] = React.useState(false)
   const [allWrappers, setAllWrappers] = React.useState(false)
@@ -201,6 +201,8 @@ export function TokenPage({ group }: { group: string }) {
 
   const sym = d?.symbol ?? group
   const t = d?.totals
+  // a token only ever POSTED as collateral (apyUSD in Morpho) has no lending deposits: open on what it has
+  const mode: SliceMode = picked ?? (d && !d.byProtocol.length && d.collateralByProtocol.length ? 'collateral' : 'protocol')
   const slices: AssetSlice[] =
     !d ? [] :
     mode === 'protocol' ? d.byProtocol :
@@ -315,7 +317,8 @@ export function TokenPage({ group }: { group: string }) {
               pretty={mode === 'chain' ? chainName : undefined}
             />
           )}
-          <StackChart h={hist.data} loading={hist.isLoading} failed={hist.isError} />
+          {/* the history is lending deposits only: it belongs to the deposit splits */}
+          {(mode === 'protocol' || mode === 'chain') && <StackChart h={hist.data} loading={hist.isLoading} failed={hist.isError} />}
           {!!d?.notes.length && (
             <div className="tk-notes">{d.notes.map((n, i) => <div key={i}>{n}</div>)}</div>
           )}

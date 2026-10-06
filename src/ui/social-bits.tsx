@@ -11,7 +11,7 @@ import { AUTO_TITLE, labelFor, shortAddr } from '../identity/name'
 import { useMyFollows, useSocialRefresh } from '../social/queries'
 import { entryKey, useBatchSupported, usePending } from '../social/pending'
 import { useSocialWrite } from '../social/sign'
-import type { Profile } from '../social/types'
+import type { AuthorStake, Follow, Profile } from '../social/types'
 import type { AccountKind, TxBundle, UsdStatus } from '../index/types'
 import { chainLabel } from '../sdk/queries'
 import { Tip, pct, usd, usdShort } from './bits'
@@ -338,7 +338,7 @@ function plainVerb(kinds: Record<string, number>): { verb: string; cls: string }
 
 // ---------------------------------------------------------------- follow
 export function FollowButton({ kind, target, small, label, quiet }: {
-  kind: 'wallet' | 'market' | 'curator'
+  kind: Follow['targetKind']
   target: string
   small?: boolean
   label?: string
@@ -388,9 +388,30 @@ const Bubble = () => (
   <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M2.6 2h10.8a1.6 1.6 0 0 1 1.6 1.6v6.2a1.6 1.6 0 0 1-1.6 1.6H7l-3.6 3v-3H2.6A1.6 1.6 0 0 1 1 9.8V3.6A1.6 1.6 0 0 1 2.6 2z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /></svg>
 )
 
-/** The author's skin in the game, read from the index at write time. Not a claim — a balance. */
-export function Stake({ usd: v }: { usd?: number | null }) {
+/**
+ * The author's skin in the game, read from the index at write time. Not a
+ * claim — a balance. The service stores an object (`AuthorStake`); this used
+ * to take a number and was handed that object, which rendered nothing useful.
+ * On a loop's thread only `legs: 2` — both legs of THIS loop — says "in this
+ * loop"; the collateral alone is said as what it is.
+ */
+export function Stake({ stake: x }: { stake?: AuthorStake | null }) {
+  if (!x || 'holder' in x) return null
+  if (x.kind === 'loop' && x.legs === 2) {
+    const net = x.netUsd
+    if (net == null || x.collateralUsd == null || x.collateralUsd < 1) return null
+    return (
+      <span className="stake" title={`in this loop when they wrote it: ${usdShort(x.collateralUsd)} collateral, ${usdShort(x.debtUsd)} owed`}>
+        in this loop · {usdShort(net)} net
+      </span>
+    )
+  }
+  const v = x.amountUsd
   if (v == null || v < 1) return null
-  return <span className="stake" title="what the author held in this market when they wrote it">holds {usdShort(v)}</span>
+  return (
+    <span className="stake" title={x.kind === 'loop' ? 'what the author held in the collateral market when they wrote it, without the borrow that makes it this loop' : 'what the author held in this market when they wrote it'}>
+      holds {usdShort(v)}{x.kind === 'loop' ? ' of the collateral' : ''}
+    </span>
+  )
 }
 export { usd, usdShort }

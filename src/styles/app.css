@@ -667,6 +667,17 @@ h1 .pill.auto{vertical-align:middle;margin-left:9px}
 .feed{display:flex;flex-direction:column;gap:10px}
 .fcard{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);padding:10px 14px;display:flex;flex-direction:column;transition:border-color .15s}
 .fcard:hover{border-color:var(--line2)}
+/* the mover's own reason under their move (tickets/0005) */
+.fc-said{margin:6px 0 2px 40px;font-size:13px;line-height:1.45;color:var(--tx70);font-style:italic;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* a Talk card: one comment, and the strategy it is about */
+.tcard{gap:8px;padding:12px 14px}
+.tc-h{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tx50)}
+.tc-b{margin:0;padding-left:34px;font-size:14px;line-height:1.5;color:var(--tx);white-space:pre-wrap;word-break:break-word}
+.tc-f{display:flex;align-items:center;gap:8px;padding-left:34px;font-size:12.5px;flex-wrap:wrap}
+.tc-s{display:inline-flex;align-items:center;gap:6px;min-width:0;color:var(--tx70);text-align:left}
+button.tc-s:hover b{color:var(--primary)}
+.tc-n{font-size:12px}
+@media (max-width:640px){.tc-b,.tc-f{padding-left:0}.tc-s{flex-wrap:wrap}.fc-said{margin-left:0}.said-row{grid-template-columns:minmax(0,1fr) 40px}.said-on{grid-column:1 / -1}}
 /* One line, five columns: who · what · how much · when · what you can do.
    Four stacked bands left a wide dead middle on a 1240px page; as a row the
    money, the chain and the buttons hold the same width on every card, so the
@@ -784,8 +795,9 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .ts-holder{display:flex;align-items:center;gap:8px;min-height:36px;font-family:var(--mono);font-size:12px;color:var(--tx50);border-bottom:1px solid var(--line-soft);padding:0 2px}
 .ts-holder:last-child{border-bottom:0}
 .ts-holder:hover{color:var(--tx70)}
-.ts-toggle{text-align:left;font-size:12.5px;color:var(--primary);min-height:30px}
-.ts-toggle:hover{text-decoration:underline}
+.ts-more{font-size:12px;color:var(--tx50)}
+.ts-more:hover{color:var(--primary)}
+.thread-more{align-self:flex-start;font-size:12px}
 .tsec.copy{display:flex;align-items:center;gap:10px;background:#062830;font-size:12.5px;flex-wrap:wrap}
 
 /* ---------- wallet ---------- */
@@ -822,6 +834,12 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .tape-row:hover{background:#131313}
 /* a tape row that carries the explorer out-link: the row keeps its own grid inside the
    link (a link cannot hold another one), the icon sits beside it in the wrapper */
+/* a wallet's "Said": where, the words, when */
+.said-row{display:grid;grid-template-columns:minmax(120px,220px) minmax(0,1fr) 46px;align-items:center;gap:12px;min-height:44px;padding:8px 16px;border-bottom:1px solid var(--line-soft);font-size:13px;color:var(--tx)}
+.said-row:last-child{border-bottom:0}
+.said-row:hover{background:#131313}
+.said-on{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.said-b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic;color:var(--tx70)}
 .tape-item{display:flex;align-items:stretch;border-bottom:1px solid var(--line-soft)}
 .tape-item:last-child{border-bottom:0}
 .tape-item>.tape-row{flex:1 1 auto;min-width:0;border-bottom:0}

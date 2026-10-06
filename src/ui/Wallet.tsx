@@ -26,6 +26,7 @@ import { isEvmChain, normAddr } from '../model/address'
 import { AddrExplorers, CopyButton, MaturityNote, Sk, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
+import { Said } from './Talk'
 import { chainLabel, offMenuQuery, type OffMenuRef } from '../sdk/queries'
 import { HIDES } from '../model/visibility'
 import { useQueryClient } from '@tanstack/react-query'
@@ -240,6 +241,8 @@ export function Wallet({ addr }: { addr: string }) {
           })}</div>
         </div>
       </section>
+
+      <Said account={addr} menu={menu.all} />
 
       <section className="sec">
         <div className="sec-h"><h2>Wall</h2><span className="sub">a thread on this wallet</span></div>

@@ -55,6 +55,8 @@ export interface Route {
   oa?: string
   /** #/w/<addr>?pos=<group key> — the position whose PnL history is open (pos-indexer tickets/0061) */
   pos?: string
+  /** `talk=1`: the ticket opens on its thread (a row's 💬, a Talk card) — tickets/0005 */
+  talk?: boolean
 }
 const GROUP_IDS = new Set(['USD', 'ETH', 'BTC', 'MORE'])
 
@@ -75,6 +77,7 @@ export function parseRoute(hash = location.hash): Route {
     copy: p.get('copy') ?? undefined,
     oa: p.get('oa') ?? undefined,
     pos: p.get('pos') ?? undefined,
+    talk: p.get('talk') === '1',
   }
   const head = seg[0]
   if (head === 'earn' || head === 'explore') return { view: 'earn', ...base }

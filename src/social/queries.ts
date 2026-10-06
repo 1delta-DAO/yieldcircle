@@ -1,6 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import React from 'react'
 import { normAddr } from '../model/address'
+import { threadOf, type ThreadRef } from '../model/uid'
+import type { Strategy } from '../model/strategies'
 import * as api from './api'
 import { entryKey, useQueue, type TargetKind } from './pending'
 import type { Follow, Profile, SubjectKind } from './types'
@@ -13,6 +15,66 @@ export function useThread(kind: SubjectKind | undefined, key: string | undefined
     queryKey: ['thread', kind, key],
     queryFn: () => api.thread(kind!, key!),
     staleTime: 20_000,
+  })
+}
+
+/**
+ * What this deployment of the service accepts, from `/typed-data` (the same
+ * query `useBatchSupported` reads). Until the service lists `strategy`, a
+ * loop keeps talking on its collateral market — so the app and the service
+ * deploy in either order, and nobody signs a write the service would refuse.
+ */
+export function useStrategyThreads(): boolean {
+  const q = useQuery({ queryKey: ['typed-data'], queryFn: api.typedData, staleTime: 30 * MIN, retry: false })
+  return !!q.data?.subjectKinds?.includes('strategy')
+}
+/** `threadOf`, bound to what the service takes. */
+export function useThreadOf(): (s: Strategy) => ThreadRef | null {
+  const loops = useStrategyThreads()
+  return React.useCallback((s: Strategy) => threadOf(s, loops), [loops])
+}
+
+/** The Talk tab: what people said, newest first, paged on the last id. */
+export function useRecentMessages(f: { chainIds?: string; protocols?: string }, enabled = true) {
+  return useInfiniteQuery({
+    enabled,
+    queryKey: ['messages-recent', f.chainIds ?? '', f.protocols ?? ''],
+    queryFn: ({ pageParam }) => api.recentMessages({ kinds: ['market', 'strategy'], ...f, before: pageParam, limit: 30 }),
+    initialPageParam: null as number | null,
+    getNextPageParam: (last) => (last.messages.length < 30 ? undefined : last.next),
+    staleTime: 20_000,
+    refetchInterval: 60_000,
+  })
+}
+/**
+ * What each mover SAID about the strategy they moved in — one request for a
+ * page of cards. Asked only of a service that has the route (it shipped with
+ * `strategy` threads); before that it answers nothing and the cards stay as
+ * they were.
+ */
+export function useLatest(subjects: { kind: SubjectKind; key: string; author: string }[]) {
+  const ready = useStrategyThreads()
+  const want = subjects.slice(0, 200)
+  const stable = want.map((s) => `${s.kind}/${s.key}/${s.author}`).sort().join(',')
+  const q = useQuery({
+    enabled: ready && want.length > 0,
+    queryKey: ['latest', stable],
+    queryFn: () => api.latest(want),
+    staleTime: MIN,
+    retry: false,
+  })
+  const map = q.data?.latest ?? {}
+  return (kind: SubjectKind, key: string, author: string) => map[`${kind}|${key}|${normAddr(author)}`] ?? null
+}
+
+/** A wallet's own messages. */
+export function useAccountMessages(account: string | undefined) {
+  return useQuery({
+    enabled: !!account,
+    queryKey: ['messages-by', normAddr(account)],
+    queryFn: () => api.accountMessages(account!),
+    staleTime: MIN,
+    retry: false,
   })
 }
 
@@ -117,6 +179,8 @@ export function useMyFollows(account: string | undefined) {
     markets: follows.filter((f) => f.targetKind === 'market').map((f) => f.target),
     /** a desk the feed expands to its vault addresses (pos-indexer tickets/0013 §8.4) */
     curators: follows.filter((f) => f.targetKind === 'curator').map((f) => f.target),
+    /** loops (tickets/0005), which the feed expands to their two markets */
+    strategies: follows.filter((f) => f.targetKind === 'strategy').map((f) => f.target),
     isFollowing: (kind: TargetKind, target: string) => {
       const p = pend.get(entryKey(kind, target))
       return p ? p.action === 'follow' : serverFollowing(kind, target)
@@ -172,7 +236,13 @@ export function useRatingCounts(subjects: { kind: api.RatingSubjectKind; key: st
 export function useSocialRefresh() {
   const qc = useQueryClient()
   return {
-    thread: (kind: SubjectKind, key: string) => { void qc.invalidateQueries({ queryKey: ['thread', kind, key] }); void qc.invalidateQueries({ queryKey: ['counts'] }) },
+    thread: (kind: SubjectKind, key: string) => {
+      void qc.invalidateQueries({ queryKey: ['thread', kind, key] })
+      void qc.invalidateQueries({ queryKey: ['counts'] })
+      void qc.invalidateQueries({ queryKey: ['messages-recent'] })
+      void qc.invalidateQueries({ queryKey: ['messages-by'] })
+      void qc.invalidateQueries({ queryKey: ['latest'] })
+    },
     follows: (account?: string) => { void qc.invalidateQueries({ queryKey: ['follows', normAddr(account)] }); void qc.invalidateQueries({ queryKey: ['followers'] }); void qc.invalidateQueries({ queryKey: ['feed1'] }) },
     profile: (account?: string) => { void qc.invalidateQueries({ queryKey: ['profile', normAddr(account)] }); void qc.invalidateQueries({ queryKey: ['profiles'] }) },
     links: () => { void qc.invalidateQueries({ queryKey: ['wallet-links'] }); void qc.invalidateQueries({ queryKey: ['profiles'] }); void qc.invalidateQueries({ queryKey: ['profile'] }) },

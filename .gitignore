@@ -11,3 +11,6 @@ wrangler.toml
 docs/producthunt
 # video tooling (Remotion teasers / ads) stays local
 video/
+
+# mascot tooling + generations (fal.ai) stay local
+brand/mascot/

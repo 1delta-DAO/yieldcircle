@@ -163,7 +163,7 @@ export function Wallet({ addr }: { addr: string }) {
           {profile?.bio && <p className="wc-bio">{profile.bio}</p>}
           <div className="wc-tags">
             {desk && <CuratorMark c={desk} sub />}
-            <Badges tags={profile?.systemTags} max={4} />
+            <Badges tags={profile?.systemTags} evidence={profile?.systemTagEvidence} max={4} />
             {profile?.tags?.map((t) => <Tip key={t} tip={<><b>Self-declared.</b> The owner of this address wrote this tag on their signed profile. Nothing checks it.</>}><i className="badge-tag self">{t}</i></Tip>)}
           </div>
           {bad.length > 0 && <p className="foot warn">This character claims {bad.map((g) => g.why).join(' and ')}, which the index has not confirmed.</p>}

@@ -548,6 +548,18 @@ export const walletEarners = (p: EarnersQuery = {}) =>
   bothBoards<WalletEarnerRow>('wallet', p).then((r) => ({ ...r, by: 'wallet' as const }))
 
 /**
+ * The crowns (pos-indexer 0059): places 1–3 of the wallet APR board — the
+ * board's default view, NAV ≥ $10k — once over every chain (`scope: 'all'`)
+ * and once per chain (`scope` = chain id, ranked on that chain's positions
+ * alone). A place changes hands only after the challenger has held it for two
+ * hours. EVM index only: the Solana index has no crowns yet.
+ */
+export interface CrownRow { scope: string; place: number; account: string; since: string; aprPct: number | null; navUsd: number | null }
+export interface ReignRow { scope: string; place: number; account: string; from: string; to: string | null; peakAprPct: number | null }
+export interface CrownsResponse { crowns: CrownRow[]; reigns: ReignRow[]; computedAt: string | null }
+export const crowns = (account?: string, limit?: number) => get<CrownsResponse>('/crowns', { account, limit })
+
+/**
  * What is HOT: the markets people are acting in, ranked on frequency AND size
  * together. Either alone lies — volume alone crowns whichever market one whale
  * passed through, frequency alone crowns a spray of dust — so the score is the

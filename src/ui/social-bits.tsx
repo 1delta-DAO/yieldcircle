@@ -13,7 +13,8 @@ import { entryKey, useBatchSupported, usePending } from '../social/pending'
 import { useSocialWrite } from '../social/sign'
 import type { Profile } from '../social/types'
 import type { AccountKind, TxBundle, UsdStatus } from '../index/types'
-import { Tip, usd, usdShort } from './bits'
+import { chainLabel } from '../sdk/queries'
+import { Tip, pct, usd, usdShort } from './bits'
 
 // ---------------------------------------------------------------- time
 /** One shared clock: a hundred ages on a screen tick together and cost one timer. */
@@ -141,7 +142,7 @@ export function Who({ account, profile, size = 28, idx, sub, plain }: {
     <>
       <Face account={account} profile={profile} size={size} idx={idx} />
       <span className="wn">
-        <b>{name.label}{bad.length > 0 && <i className="unearned" title={`claims ${bad.map((g) => g.why).join(', ')}`}>!</i>}</b>
+        <b>{name.label}<TopCrown tags={profile?.systemTags} />{bad.length > 0 && <i className="unearned" title={`claims ${bad.map((g) => g.why).join(', ')}`}>!</i>}</b>
         {sub != null ? <small>{sub}</small> : name.generated && <small className="t40">{shortAddr(account)}</small>}
       </span>
       {name.generated && <AutoTag />}
@@ -173,7 +174,9 @@ export const TAG_HELP: Record<string, string> = {
   'size-large': 'Has deposited over $100k in total, lifetime, summed across every market at the price at each deposit. Vaults and protocol contracts are excluded.',
 }
 const BADGE_FOOT = 'Earned from the on-chain record — it cannot be claimed or bought.'
-export function Badge({ tag }: { tag: string }) {
+export function Badge({ tag, evidence }: { tag: string; evidence?: unknown }) {
+  const crown = parseCrown(tag)
+  if (crown) return <CrownBadge crown={crown} evidence={evidence as CrownEvidence | undefined} />
   const label = TAG_LABEL[tag] ?? tag
   return (
     <Tip tip={<><b>{label}</b> — {TAG_HELP[tag] ?? 'A badge the index computed from this address\'s history.'} <span className="t40">{BADGE_FOOT}</span></>}>
@@ -181,15 +184,79 @@ export function Badge({ tag }: { tag: string }) {
     </Tip>
   )
 }
-export function Badges({ tags, max = 3 }: { tags?: string[] | null; max?: number }) {
+const tagLabel = (t: string) => { const c = parseCrown(t); return c ? crownTitle(c) : TAG_LABEL[t] ?? t }
+export function Badges({ tags, evidence, max = 3 }: { tags?: string[] | null; evidence?: { tag: string; evidence: unknown }[] | null; max?: number }) {
   if (!tags?.length) return null
-  const rest = tags.slice(max)
+  // crowns first, the overall one before the chains', gold before bronze
+  const sorted = [...tags].sort((a, b) => crownOrder(a) - crownOrder(b))
+  const ev = new Map((evidence ?? []).map((e) => [e.tag, e.evidence]))
+  const rest = sorted.slice(max)
   return (
     <span className="badges">
-      {tags.slice(0, max).map((t) => <Badge key={t} tag={t} />)}
-      {rest.length > 0 && <Tip tip={<>Also: {rest.map((t) => TAG_LABEL[t] ?? t).join(', ')}.</>}><i className="badge-tag more">+{rest.length}</i></Tip>}
+      {sorted.slice(0, max).map((t) => <Badge key={t} tag={t} evidence={ev.get(t)} />)}
+      {rest.length > 0 && <Tip tip={<>Also: {rest.map(tagLabel).join(', ')}.</>}><i className="badge-tag more">+{rest.length}</i></Tip>}
     </span>
   )
+}
+
+// ---------------------------------------------------------------- crowns
+/**
+ * Places 1–3 of the wallet APR board, overall and per chain (pos-indexer
+ * 0059). The index mirrors each into the holder's badges as
+ * `crown.<scope>.<place>` and deletes it the run they lose it, so a crown is
+ * always the podium as it stands — never a title someone keeps.
+ */
+export interface Crown { scope: string; place: number }
+interface CrownEvidence { since?: string; aprPct?: number | null; navUsd?: number | null }
+/** The title of each place. One line to change. */
+const CROWN_TITLES = ['Yield King', 'Yield Prince', 'Yield Duke']
+const METAL = ['gold', 'silver', 'bronze']
+
+export function parseCrown(tag: string): Crown | null {
+  const m = /^crown\.([^.]+)\.([1-3])$/.exec(tag)
+  return m ? { scope: m[1], place: Number(m[2]) } : null
+}
+/** "Yield King", "Base Yield Prince". */
+export const crownTitle = (c: Crown) =>
+  `${c.scope === 'all' ? '' : chainLabel(c.scope) + ' '}${CROWN_TITLES[c.place - 1] ?? `#${c.place}`}`
+const crownOrder = (tag: string) => {
+  const c = parseCrown(tag)
+  return c ? (c.scope === 'all' ? 0 : 10) + c.place : 100
+}
+const crownRule = (c: Crown) =>
+  `Place ${c.place} of the wallet APR board${c.scope === 'all' ? ' across every chain' : ` on ${chainLabel(c.scope)}, ranked on this wallet's positions there alone`} — net carry on equity at the 24 h mean rates, people only, positions that are not a takeable yield left out, NAV of $10k or more. A place changes hands once someone has held it for two hours, and the crown goes the run it is lost.`
+
+/** The crown mark: a metal per place. */
+export function CrownIcon({ place, size = 14, title }: { place: number; size?: number; title?: string }) {
+  return (
+    <svg className={`crown ${METAL[place - 1] ?? 'bronze'}`} width={size} height={size} viewBox="0 0 24 24" role="img" aria-label={title ?? CROWN_TITLES[place - 1]}>
+      {title && <title>{title}</title>}
+      <path d="M3 8.5l4.5 4 4.5-7 4.5 7 4.5-4-2 10H5l-2-10z" fill="currentColor" />
+      <rect x="5" y="19.5" width="14" height="2" rx="1" fill="currentColor" />
+      <circle cx="3" cy="8" r="1.6" fill="currentColor" /><circle cx="12" cy="4.5" r="1.6" fill="currentColor" /><circle cx="21" cy="8" r="1.6" fill="currentColor" />
+    </svg>
+  )
+}
+
+function CrownBadge({ crown, evidence }: { crown: Crown; evidence?: CrownEvidence }) {
+  const title = crownTitle(crown)
+  return (
+    <Tip tip={<>
+      <b>{title}</b> — {crownRule(crown)}
+      {evidence?.since && <> Holding it since {new Date(evidence.since).toLocaleDateString()}{evidence.aprPct != null && <>, at {pct(evidence.aprPct)} APR</>}.</>}
+      {' '}<span className="t40">{BADGE_FOOT}</span>
+    </>}>
+      <i className={`badge-tag crowned ${METAL[crown.place - 1]}`}><CrownIcon place={crown.place} size={11} />{title}</i>
+    </Tip>
+  )
+}
+
+/** The best crown a wallet wears, as a mark beside its name. */
+export function TopCrown({ tags }: { tags?: string[] | null }) {
+  const best = tags?.map(parseCrown).filter((c): c is Crown => !!c)
+    .sort((a, b) => a.place - b.place || (a.scope === 'all' ? -1 : b.scope === 'all' ? 1 : 0))[0]
+  if (!best) return null
+  return <CrownIcon place={best.place} size={13} title={crownTitle(best)} />
 }
 
 // ---------------------------------------------------------------- actions

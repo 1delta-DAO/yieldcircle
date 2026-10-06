@@ -611,6 +611,24 @@ h1 .pill.auto{vertical-align:middle;margin-left:9px}
 .badge-tag{display:inline-block;font-size:10px;font-style:normal;letter-spacing:.03em;padding:2px 7px;border-radius:999px;border:1px solid #1f4a35;color:var(--success);white-space:nowrap;background:#0a1a13}
 .badge-tag.self{border-color:var(--line2);color:var(--tx50);background:transparent}
 .badge-tag.more{border-color:var(--line2);color:var(--tx40);background:transparent}
+/* crowns (pos-indexer 0059): the board's podium, one metal per place */
+:root{--gold:#f5c542;--silver:#c9d1d9;--bronze:#d08a4e}
+.crown{flex:none;display:inline-block;vertical-align:-2px}
+.crown.gold{color:var(--gold)}.crown.silver{color:var(--silver)}.crown.bronze{color:var(--bronze)}
+.who .wn b .crown{margin-left:5px}
+.badge-tag.crowned{display:inline-flex;align-items:center;gap:4px;background:transparent}
+.badge-tag.crowned.gold{border-color:#6b5517;color:var(--gold)}
+.badge-tag.crowned.silver{border-color:#4a5058;color:var(--silver)}
+.badge-tag.crowned.bronze{border-color:#5e3f22;color:var(--bronze)}
+.rank.crowned{display:inline-flex;justify-content:flex-end}
+.reigning{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px}
+.reign{display:flex;align-items:center;gap:10px;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--b200);text-decoration:none;color:inherit}
+.reign:hover{border-color:var(--line2)}
+.reign.p1{border-color:#6b5517}
+.reign-t{display:flex;flex-direction:column;gap:3px;min-width:0}
+.reign-t > small{font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--tx50)}
+.reign.p1 .reign-t > small{color:var(--gold)}
+@media (max-width:640px){.reigning{grid-template-columns:1fr}.reign{padding:8px 10px}}
 .faces{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
 
 /* ---------- action vocabulary ---------- */

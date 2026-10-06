@@ -149,6 +149,7 @@ Those come from `/v1/data/earn/positions` (live). `accountPositions` is for
 | Assets | `assets` `/assets`, `asset` `/assets/:group`, `assetHistory`, `assetHolders` (group is case-significant, always `encodeURIComponent`) | `useAssetBook`, `useAsset`, `useAssetHistory`, `useAssetHolders` |
 | Search | `find` `/find?q=&kinds=&per=` (one ranked answer per category, capped counts, `best`, `remote: 'pending'` = ask again in ~1.5 s), `findCatalog` `/find/catalog` (the browse kinds whole, ETag'd, searched in the browser with `search/rank.ts` — a copy of pos-indexer's `search.ts`, `pnpm search-rank` checks it), `findClick` `POST /find/click` `{ docId }` | in `ui/Search.tsx` (catalog cached in localStorage) |
 | Risk | `stress` `/stress?markets=` | `useStress` |
+| Crowns | `crowns` `/crowns?account=` (places 1–3 of the wallet APR board, `scope` `all` or a chain id; EVM index only) | `useCrowns` — the board's Reigning strip and rank; everywhere else crowns arrive as `crown.<scope>.<place>` badges on the profile |
 | Health | `health` `/health` | `useIndexHealth` |
 | Balances | `indexBalances` → `POST /balances/:account/query` `{ assets: { [chainId]: address[] } }` | `useBalancesPerChain` in **`sdk/queries.ts`** |
 

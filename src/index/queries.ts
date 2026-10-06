@@ -275,6 +275,18 @@ export function useStress(markets: string[]) {
   }
 }
 
+/** The podium now (and the latest reigns), overall and per chain. `account` narrows both to one wallet. */
+export function useCrowns(account?: string) {
+  const a = account && isEvmAddr(account) ? normAddr(account) : undefined
+  return useQuery({
+    queryKey: ['crowns', a ?? 'all'],
+    queryFn: () => api.crowns(a),
+    enabled: !account || !!a,
+    staleTime: 2 * MIN,
+    retry: false,
+  })
+}
+
 /** Is the index up, and does it answer for this build at all? One call, cached for the session. */
 export function useIndexHealth() {
   return useQuery({ queryKey: ['index-health'], queryFn: api.health, staleTime: 10 * MIN, retry: false })

@@ -963,3 +963,31 @@ replay, all-or-nothing, handle taken, `/handle`, and unfollow inside a batch.
 **Still to check by hand:** how MetaMask, Rabby, Coinbase Wallet and Ledger
 display nested struct arrays. Ledger may fall back to blind-signing a hash.
 Also check a Safe signing a `Batch` through the 1271 path.
+
+## 18 · Crowns — the board's podium, recorded
+
+*2026-10-06.* Places 1–3 of the **wallet APR** board wear a crown —
+gold, silver, bronze; *Yield King*, *Yield Prince*, *Yield Duke* — once over
+every chain and once per chain (*Base Yield King*). Built in pos-indexer
+(migration `0059_crowns.sql`, `position-store/src/crowns.ts`, job `crowns`,
+`GET /crowns`).
+
+- **Who qualifies** is the board's default view exactly: people only, the
+  plain-lending preset, exact figures, NAV ≥ $10k, unlisted profiles out. A
+  chain crown ranks a wallet on its positions **on that chain alone** (folded
+  from `position_carry`), not on the whole-wallet figure the board's chain
+  filter shows.
+- **A place changes hands after a two-hour hold.** The figure is today's
+  carry and jumps with a rate; a challenger must stand at the place for two
+  hours of runs before taking it (`crown_candidates.first_seen`). An unlisted
+  holder leaves at once.
+- **Recorded:** `idx.crowns` is the podium now, `idx.crown_reigns` every reign
+  with its start, end and peak APR — the history a hall of fame or a
+  "former Yield King" mark would read.
+- **How the app sees them:** the job mirrors each crown into
+  `idx.account_badges` as `crown.<scope>.<place>` and deletes it the run it is
+  lost, so every profile already carries its crowns in `systemTags`. `Who`
+  draws the best one beside the name, `Badges` lists them first, the board
+  shows a Reigning strip for its scope and a crown in the holder's rank.
+- **Not yet:** Solana wallets (the sol index has no crowns job), notifications
+  on crowning / dethroning, and a character layer gated on having reigned.

@@ -19,8 +19,9 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { useApp, go, marketHref } from '../state/AppState'
 import { isSvmChain } from '../model/address'
 import * as idx from '../index/api'
+import { useCrowns } from '../index/queries'
 import { useProfiles } from '../social/queries'
-import { FollowButton, Money, Who } from './social-bits'
+import { CrownIcon, FollowButton, Money, Who, crownTitle } from './social-bits'
 import { Sk, pct, usdShort } from './bits'
 import { ChainChip } from './ChainPicker'
 
@@ -130,6 +131,33 @@ function boardQuery(k: BoardKey) {
   }
 }
 
+/**
+ * Who wears the crowns for what the board is showing: the overall podium,
+ * or one chain's when exactly one chain is picked (pos-indexer 0059). The
+ * crowns rank wallet APR on the default view; the board below may be sorted
+ * or cut otherwise, so this strip is the podium, not the top of the list.
+ */
+function Reigning({ scope }: { scope: string }) {
+  const q = useCrowns()
+  const podium = (q.data?.crowns ?? []).filter((c) => c.scope === scope).sort((a, b) => a.place - b.place)
+  const { profile } = useProfiles(podium.map((c) => c.account))
+  if (!podium.length) return null
+  return (
+    <div className="reigning">
+      {podium.map((c) => (
+        <a key={c.place} className={`reign p${c.place}`} href={`#/w/${c.account}`}
+          title={`${crownTitle(c)} since ${new Date(c.since).toLocaleString()} — place ${c.place} of the wallet APR board${scope === 'all' ? '' : ' on this chain, ranked on its positions here alone'}`}>
+          <CrownIcon place={c.place} size={18} />
+          <span className="reign-t">
+            <small>{crownTitle(c)}</small>
+            <Who account={c.account} profile={profile(c.account)} size={22} plain sub={<>{pct(c.aprPct)} · {usdShort(c.navUsd ?? 0)}</>} />
+          </span>
+        </a>
+      ))}
+    </div>
+  )
+}
+
 export function Board({ window: w, by: b }: { window?: string; by?: string }) {
   const { chainIds, allChains } = useApp()
   const sort: Sort = w === 'day' ? 'perDay' : 'apr'
@@ -166,6 +194,19 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
   const hidden = Object.entries(data?.hidden ?? {})
   const flags = data?.ratingFlags
   const { profile } = useProfiles(accounts)
+  // the podium for this view: one chain picked → that chain's, else overall
+  const scope = !allChains && chainIds.length === 1 ? chainIds[0] : 'all'
+  const crowns = useCrowns().data?.crowns
+  const crownOf = (a: string) => crowns?.find((c) => c.scope === scope && c.account === a.toLowerCase())
+  // a wallet with several positions on the list wears it on its first row only
+  const firstRow = new Map<string, number>()
+  accounts.forEach((a, i) => { if (!firstRow.has(a)) firstRow.set(a, i) })
+  const rank = (a: string, i: number) => {
+    const c = firstRow.get(a) === i ? crownOf(a) : undefined
+    return c
+      ? <span className="rank lead crowned" title={crownTitle(c)}><CrownIcon place={c.place} size={16} /></span>
+      : <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
+  }
   const nav = (p: { t?: Sort; by?: By }) =>
     go('board', { t: (p.t ?? sort) === 'perDay' ? 'day' : undefined, by: (p.by ?? by) === 'wallet' ? 'wallet' : undefined })
 
@@ -207,6 +248,7 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
         <button className="linklike" onClick={() => setContracts((x) => !x)}>{contracts ? 'people only' : 'include contracts'}</button>
         . Wallets that marked themselves unlisted are not here.
       </div>
+      <Reigning scope={scope} />
       {flags && flags.status !== 'ok' && (
         <div className="note warn">Community exploit flags are {flags.status} on this index right now — the exploited exclusion may be out of date.</div>
       )}
@@ -223,7 +265,7 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
           {data?.by === 'wallet'
             ? wallets.map((r, i) => (
                 <a key={r.account} className="row wrow board" href={`#/w/${r.account}`}>
-                  <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
+                  {rank(r.account, i)}
                   <Who account={r.account} profile={profile(r.account)} idx={r} plain
                     sub={
                       <>
@@ -248,7 +290,7 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
                 const wl = r.wallet
                 return (
                   <a key={r.key} className="row wrow board" href={`#/w/${r.account}`} title="open this wallet — the position’s PnL history is a click on its row there">
-                    <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
+                    {rank(r.account, i)}
                     <Who account={r.account} profile={profile(r.account)} idx={r} plain
                       sub={
                         <>

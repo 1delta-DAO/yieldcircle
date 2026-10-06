@@ -106,9 +106,13 @@ export function bandOf(s: Strategy): Band | null {
 
 /**
  * Who of the earners board sits in this strategy's market(s), and with how
- * much. A deposit matches a row holding its market; a loop asks for BOTH its
- * legs, so a mere lender of the same collateral does not read as running the
- * loop. Equity, not supply: what the wallet actually has at stake.
+ * much. A loop asks for BOTH its legs, so a mere lender of the same collateral
+ * does not read as running the loop. A deposit asks for a row that holds it AS
+ * a deposit — a supply/share leg of its market (`holdsAsDeposit`), with no
+ * debt anywhere in the position: on Morpho Blue the lender, the collateral
+ * poster and the borrower all share one market uid, so a PT looper borrowing
+ * the loan asset would otherwise "prove" lending it (the 60 % loop vouching
+ * for a 6 % deposit). Equity, not supply: what the wallet actually has at stake.
  */
 export interface Proof {
   totalUsd: number
@@ -120,7 +124,9 @@ export function proofOf(s: Strategy, rows: EarnerRow[] | undefined): Proof | nul
   if (!rows?.length) return null
   const want = uidsOf(s)
   if (!want.length) return null
-  const matched = rows.filter((r) => want.every((u) => r.marketUids.includes(u)))
+  const matched = s.kind === 'loop'
+    ? rows.filter((r) => want.every((u) => r.marketUids.includes(u)))
+    : rows.filter((r) => !r.legs.some((l) => l.side === 'borrow') && r.legs.some((l) => want.includes(l.marketUid) && holdsAsDeposit(l, s.assetSymbol)))
   if (!matched.length) return null
   const accounts = new Set(matched.map((r) => r.account))
   const best = matched.reduce((m, r) => (r.equityUsd > m.equityUsd ? r : m))
@@ -131,6 +137,15 @@ export function proofOf(s: Strategy, rows: EarnerRow[] | undefined): Proof | nul
   }
 }
 
+/**
+ * A supply or vault-share leg is the deposit itself; a collateral leg only when
+ * it is the deposit's own asset (Aave-style collateral) — a Morpho market's
+ * collateral is a DIFFERENT token under the same uid. A leg without a symbol
+ * is given the benefit of the doubt.
+ */
+const holdsAsDeposit = (l: EarnerRow['legs'][number], sym: string) =>
+  l.side !== 'borrow' && (l.side !== 'collateral' || !l.symbol || l.symbol.toUpperCase() === sym.toUpperCase())
+
 export interface Pick_ {
   s: Strategy
   proof: Proof | null
@@ -138,7 +153,9 @@ export interface Pick_ {
 /**
  * The cards of one band: proven strategies first (the ones top earners hold,
  * biggest stake leading), the steadiest rate breaking ties and filling the
- * rest. One card per desk row (`asset`), like the Earn digest — three USDC
+ * rest. Passive is the beginner's savings account, so there the lowest risk
+ * tier leads before proof or rate: a low-risk USDC market at 8 % outranks a
+ * yellow synthetic dollar at 12 %, and the riskier rows only fill what is left. One card per desk row (`asset`), like the Earn digest — three USDC
  * vaults are one recommendation, not three.
  */
 export function recommend(all: Strategy[], band: Band, rows: EarnerRow[] | undefined, rank: (s: Strategy) => number, per = 3): Pick_[] {
@@ -146,16 +163,19 @@ export function recommend(all: Strategy[], band: Band, rows: EarnerRow[] | undef
   // a starting point is low-to-medium risk; high-risk rows only when the band would otherwise be empty
   const calm = whole.filter((s) => s.risk <= 2)
   const inBand = calm.length ? calm : whole
-  // best row per desk: proof beats rank, rank breaks the tie
+  // best row per desk: (passive: risk first) proof beats rank, rank breaks the tie
+  const riskFirst = band === 'passive'
   const byAsset = new Map<string, Pick_>()
   for (const s of inBand) {
     const p: Pick_ = { s, proof: proofOf(s, rows) }
     const cur = byAsset.get(s.asset)
-    if (!cur || better(p, cur, rank)) byAsset.set(s.asset, p)
+    if (!cur || better(p, cur, rank, riskFirst)) byAsset.set(s.asset, p)
   }
-  return [...byAsset.values()].sort((a, b) => (better(a, b, rank) ? -1 : 1)).slice(0, per)
+  return [...byAsset.values()].sort((a, b) => (better(a, b, rank, riskFirst) ? -1 : 1)).slice(0, per)
 }
-const better = (a: Pick_, b: Pick_, rank: (s: Strategy) => number) =>
-  (a.proof?.totalUsd ?? 0) !== (b.proof?.totalUsd ?? 0)
+const better = (a: Pick_, b: Pick_, rank: (s: Strategy) => number, riskFirst: boolean): boolean =>
+  riskFirst && a.s.risk !== b.s.risk
+    ? a.s.risk < b.s.risk
+    : (a.proof?.totalUsd ?? 0) !== (b.proof?.totalUsd ?? 0)
     ? (a.proof?.totalUsd ?? 0) > (b.proof?.totalUsd ?? 0)
     : rank(a.s) > rank(b.s)

@@ -289,13 +289,13 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
                       } />
                     <span className="sp" />
                     <Flags risk={r.risk} detail={r.riskDetail} />
-                    <span className="v ok apr hide-m" title={r.exact ? 'every leg carries a price and a rate' : 'a leg has no rate or price: this is a floor, not a guess'}>
-                      {r.exact ? '' : '≈ '}{pct(r.netAprPct)}
-                      <small>{r.apr24hPct != null ? `${pct(r.apr24hPct)} 24h` : 'position APR'}</small>
+                    <span className="v ok apr hide-m" title={`${r.apr24hPct != null ? 'the 24 h mean — what the board ranks on; ' : ''}${r.exact ? 'every leg carries a price and a rate' : 'a leg has no rate or price: this is a floor, not a guess'}`}>
+                      {r.exact ? '' : '≈ '}{pct(r.apr24hPct ?? r.netAprPct)}
+                      <small>{r.apr24hPct != null ? `${pct(r.netAprPct)} now` : 'position APR'}</small>
                     </span>
                     <AccountCell r={r} />
                     <span className="v hide-m"><Money usd={r.perDayUsd} /><small>a day</small></span>
-                    <MobileV sort={sort} apr={r.netAprPct} exact={r.exact} perDay={r.perDayUsd} />
+                    <MobileV sort={sort} apr={r.apr24hPct ?? r.netAprPct} exact={r.exact} perDay={r.perDayUsd} />
                     <span onClick={(e) => e.preventDefault()}><FollowButton kind="wallet" target={r.account} small /></span>
                   </a>
                 )

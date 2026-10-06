@@ -865,6 +865,11 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .rank.lead{color:var(--primary);font-weight:600}
 .row.wrow .v{font-family:var(--mono);font-size:14px;text-align:right;line-height:1.2;flex:none;white-space:nowrap}
 .row.wrow .v small{display:block;font-size:10px;color:var(--tx50);letter-spacing:.01em}
+/* the board's value cells are columns: fixed widths, so every row's figures and flags line up */
+.row.board .v.apr{width:88px}
+.row.board .v.acct{width:136px}
+.row.board .v.hide-m:not(.apr):not(.acct){width:64px}
+.row.board .flags{width:150px;max-width:none;flex:none}
 
 /* ---------- market ---------- */
 .mhdr{display:flex;align-items:center;gap:14px;margin:6px 0 12px;flex-wrap:wrap}
@@ -1110,7 +1115,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
   .row.wrow .v{font-size:13px}
   .row.wrow .v small{max-width:112px;overflow:hidden;text-overflow:ellipsis}
   /* flags squeeze the name on a phone; keep only the one that must never vanish */
-  .row.board .flags{max-width:70px}
+  .row.board .flags{width:auto;max-width:70px}
   .row.board .flags .pill.flag{display:none}
   .row.board .flags .pill.flag.bad{display:inline-flex}
   /* the name and the number never yield on a phone: the generated-name tag is said on the wallet

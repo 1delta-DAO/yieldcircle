@@ -454,6 +454,9 @@ function Rates({ s, xi, W, H, padL, padR, hover, onMove, onLeave, at }: {
   const legName = (li: number) => `${s.legs[li].symbol ?? '?'} ${isDebtSide(s.legs[li].side) ? 'cost' : 'earned'}`
   const w = s.aprWindowDays ?? 7
   const pc = (v: number | null | undefined) => (v == null ? '—' : pct(v))
+  const cr = carryOf(s)
+  const hc = cr?.points[at] ?? null
+  const spikes = cr ? cr.spikes.length : 0
   return (
     <>
       <div className="pnl-read pnl-rread">
@@ -461,6 +464,20 @@ function Rates({ s, xi, W, H, padL, padR, hover, onMove, onLeave, at }: {
         {s.legs.map((l, li) => <span key={li} className="t50">{legName(li)} <b className="t70">{pc(hp.legRates?.[li])}</b></span>)}
         <span className="t50">record so far <b className="t70">{pc(hp.aprPct)}</b></span>
       </div>
+      {hc && hc.debt != null && (
+        <div className="pnl-read pnl-carry-read">
+          <span className="t70">
+            Spread <b className={hc.dep - hc.debt < 0 ? 'bad' : 'ok'}>{signedPts(hc.dep - hc.debt)}</b>
+            {hc.lev != null && <> at <b>{hc.lev.toFixed(1)}×</b> leverage</>}
+          </span>
+          <span className="t50">
+            {hc.dep - hc.debt < 0
+              ? 'the debt costs more than the deposit earns — leverage multiplies the loss'
+              : 'the deposit earns more than the debt costs — leverage multiplies the gain'}
+          </span>
+          {spikes > 0 && <span className="bad">debt cost spiked on {spikes} day{spikes === 1 ? '' : 's'}</span>}
+        </div>
+      )}
       <div className="pnl-rwrap">
         <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg pnl-r" onPointerMove={onMove} onPointerLeave={onLeave} preserveAspectRatio="none">
           <line className="pnl-zero" x1={padL} x2={W - padR} y1={ry(0)} y2={ry(0)} />
@@ -473,6 +490,7 @@ function Rates({ s, xi, W, H, padL, padR, hover, onMove, onLeave, at }: {
         <span className="pnl-ax t40" style={{ top: `${(ry(0) / H) * 100}%` }}>0 %</span>
         {lo < 0 && <span className="pnl-ax t40" style={{ top: `${(ry(lo + pad * 0.5) / H) * 100}%` }}>{pct(lo + pad, 0)}</span>}
       </div>
+      {cr && <Carry cr={cr} xi={xi} W={W} padL={padL} padR={padR} hover={hover} onMove={onMove} onLeave={onLeave} />}
       <div className="pnl-legend t50">
         <span><i className="sw rnet" /> net APR, trailing {w} d</span>
         <span><i className="sw rrec" /> record so far</span>
@@ -484,3 +502,131 @@ function Rates({ s, xi, W, H, padL, padR, hover, onMove, onLeave, at }: {
   )
 }
 const isDebtSide = (side: string) => side === 'borrow' || side === 'debt'
+const signedPts = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)} pts`
+
+interface CarryPoint {
+  /** what the deposits earned, % a year, weighted by each leg's value */
+  dep: number
+  /** what the debt cost, the same way; null with no debt */
+  debt: number | null
+  /** deposits ÷ equity */
+  lev: number | null
+}
+/**
+ * The carry under a loop: what its deposits earned against what its debt
+ * cost, per point, each weighted by the legs' value then. The net APR on
+ * equity is `dep + (lev − 1) × (dep − debt)`, so the spread and the leverage
+ * ARE the story — a 1.5-point negative spread at 10× is a −6 % position, and
+ * on the net line alone that reads as a mystery. A spike is a day whose debt
+ * cost sits ≥ 2 points (and ≥ 30 %) above its own median of the previous
+ * week: the rates are trailing-window realized rates, so a one-hour spike
+ * shows up smoothed, never invented.
+ */
+function carryOf(s: PositionSeries): { points: (CarryPoint | null)[]; spikes: number[] } | null {
+  if (!s.legs.some((l) => isDebtSide(l.side)) || !s.legs.some((l) => !isDebtSide(l.side))) return null
+  const points = s.points.map((p): CarryPoint | null => {
+    let dv = 0, dr = 0, bv = 0, br = 0
+    s.legs.forEach((l, li) => {
+      const r = p.legRates?.[li], a = p.legs[li], px = p.prices?.[li]
+      if (r == null || a == null || px == null) return
+      const v = Math.abs(a * px)
+      if (!(v > 0)) return
+      if (isDebtSide(l.side)) { bv += v; br += v * r } else { dv += v; dr += v * r }
+    })
+    if (!(dv > 0)) return null
+    return { dep: dr / dv, debt: bv > 0 ? br / bv : null, lev: p.nav != null && p.nav > 0 ? dv / p.nav : null }
+  })
+  if (!points.some((c) => c?.debt != null)) return null
+  const spikes: number[] = []
+  const t = s.points.map((p) => Date.parse(p.t))
+  points.forEach((c, i) => {
+    if (c?.debt == null) return
+    const prev = points
+      .map((x, j) => ({ x, j }))
+      .filter(({ x, j }) => j < i && x?.debt != null && t[i] - t[j] <= 7 * 86_400_000)
+      .map(({ x }) => x!.debt!)
+      .sort((a, b) => a - b)
+    if (prev.length < 3) return
+    const med = prev[Math.floor(prev.length / 2)]
+    if (c.debt - med >= Math.max(2, 0.3 * Math.abs(med))) spikes.push(i)
+  })
+  return { points, spikes }
+}
+
+/**
+ * The carry strip: deposit earned (green) and debt cost (amber) on their OWN
+ * scale — on the net APR's scale they are two flat lines near zero — with the
+ * gap between them filled green where the deposit out-earns the debt and red
+ * where the debt costs more, and a red mark on every debt-cost spike.
+ */
+function Carry({ cr, xi, W, padL, padR, hover, onMove, onLeave }: {
+  cr: { points: (CarryPoint | null)[]; spikes: number[] }
+  xi: (i: number) => number
+  W: number; padL: number; padR: number
+  hover: number | null
+  onMove: (ev: React.PointerEvent<SVGSVGElement>) => void
+  onLeave: () => void
+}) {
+  const H = 70
+  const vs = cr.points.flatMap((c) => (c ? [c.dep, ...(c.debt != null ? [c.debt] : [])] : [])).sort((a, b) => a - b)
+  if (vs.length < 2) return null
+  const q = (f: number) => vs[Math.min(vs.length - 1, Math.max(0, Math.round(f * (vs.length - 1))))]
+  let lo = q(0.05), hi = q(0.95)
+  const pad = (hi - lo) * 0.15 || 1
+  lo -= pad
+  hi += pad
+  const y = (v: number) => 8 + ((hi - Math.min(hi, Math.max(lo, v))) / (hi - lo)) * (H - 14)
+  const line = (get: (c: CarryPoint) => number | null) => {
+    let d = '', on = false
+    cr.points.forEach((c, i) => {
+      const v = c ? get(c) : null
+      if (v == null) { on = false; return }
+      d += `${on ? 'L' : 'M'}${xi(i).toFixed(1)},${y(v).toFixed(1)}`
+      on = true
+    })
+    return d
+  }
+  // the gap between the two lines, split where they cross
+  const fills: { d: string; neg: boolean }[] = []
+  for (let i = 0; i + 1 < cr.points.length; i++) {
+    const a = cr.points[i], b = cr.points[i + 1]
+    if (a?.debt == null || b?.debt == null) continue
+    const x0 = xi(i), x1 = xi(i + 1)
+    const d0 = a.dep - a.debt, d1 = b.dep - b.debt
+    const quad = (xa: number, da: number, ta: number, xb: number, db: number, tb: number) =>
+      `M${xa.toFixed(1)},${y(da).toFixed(1)}L${xb.toFixed(1)},${y(db).toFixed(1)}L${xb.toFixed(1)},${y(tb).toFixed(1)}L${xa.toFixed(1)},${y(ta).toFixed(1)}Z`
+    if (d0 * d1 >= 0) {
+      fills.push({ d: quad(x0, a.dep, a.debt, x1, b.dep, b.debt), neg: d0 + d1 < 0 })
+    } else {
+      const f = d0 / (d0 - d1)
+      const xm = x0 + f * (x1 - x0), vm = a.dep + f * (b.dep - a.dep)
+      fills.push({ d: quad(x0, a.dep, a.debt, xm, vm, vm), neg: d0 < 0 })
+      fills.push({ d: quad(xm, vm, vm, x1, b.dep, b.debt), neg: d1 < 0 })
+    }
+  }
+  return (
+    <div className="pnl-rwrap">
+      <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg pnl-carry" onPointerMove={onMove} onPointerLeave={onLeave} preserveAspectRatio="none">
+        {fills.map((f, i) => <path key={i} className={`pnl-gap ${f.neg ? 'neg' : 'pos'}`} d={f.d} />)}
+        <path className="pnl-leg dep" d={line((c) => c.dep)} />
+        <path className="pnl-leg debt" d={line((c) => c.debt)} />
+        {cr.spikes.map((i) => (
+          <line key={i} className="pnl-spike" x1={xi(i)} x2={xi(i)} y1={1} y2={H - 1}>
+            <title>{`debt cost ${pct(cr.points[i]!.debt!)} — a spike over the previous week`}</title>
+          </line>
+        ))}
+        {hover != null && <line className="pnl-hover" x1={xi(hover)} x2={xi(hover)} y1={2} y2={H - 2} />}
+        <line className="pnl-zero" x1={padL} x2={W - padR} y1={y(0)} y2={y(0)} style={lo < 0 && hi > 0 ? undefined : { display: 'none' }} />
+      </svg>
+      <span className="pnl-ax t40" style={{ top: `${(y(hi - pad) / H) * 100}%` }}>{pct(hi - pad, 1)}</span>
+      <span className="pnl-ax t40" style={{ top: `${(y(lo + pad) / H) * 100}%` }}>{pct(lo + pad, 1)}</span>
+      <div className="pnl-legend t50">
+        <span><i className="sw rdep" /> deposit earned</span>
+        <span><i className="sw rdebt" /> debt cost</span>
+        <span><i className="sw gpos" /> earns more than it costs</span>
+        <span><i className="sw gneg" /> costs more than it earns</span>
+        {cr.spikes.length > 0 && <span><i className="sw spike" /> debt-cost spike</span>}
+      </div>
+    </div>
+  )
+}

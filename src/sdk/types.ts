@@ -112,7 +112,7 @@ export interface OptimizerRowRaw {
    * no intrinsic or reward — so add `intrinsicYieldShort` and subtract `rewardAprShort` to put it on
    * `borrowAprShort`'s footing. Null on a variable-rate debt.
    */
-  termsShort?: { termId: string; durationDays?: number; apr: number | string }[] | null
+  termsShort?: { termId: string; durationDays?: number; apr: number | string; aprAtAmount?: number | string; fillable?: number | string | null; capped?: boolean }[] | null
   intrinsicYieldShort?: string | number
   /** `maturityKind: 'fixed-date'` is a debt that falls due on one date (Midnight, Term, TermMax) */
   debtTerms?: { maturityKind?: string; canOpen?: boolean } | null

@@ -194,8 +194,9 @@ export interface LoopStrategy extends Base {
   terms?: LoopTerm[]
   /**
    * Set on a Loopscale loop: the loan tenors the open can ask for (the build refuses one without).
-   * Unlike Lista's card these carry no rate — the feed has none per tenor (`termsShort` is null) and
-   * each tenor is its own order book, priced at size — so the ticket quotes each one.
+   * Each tenor is its own order book. The feed's `termsShort` carries the tenors lenders offer, with
+   * a rate and depth (null until ~2026-10; most pairs offer only `1d`); the ticket still quotes each
+   * at size and prefers that quote, falling back to the feed's rate when the build cannot quote.
    */
   tenors?: LoopTenor[]
   /**
@@ -211,8 +212,12 @@ export interface LoopStrategy extends Base {
 }
 /** One fixed term: `apr` is effective (on `borrowAprShort`'s footing), `days` from the day it is opened. */
 export interface LoopTerm { id: string; days: number; apr: number }
-/** A Loopscale tenor, in its own enum: `durationType` 0 = days, 1 = weeks, 2 = months. */
-export interface LoopTenor { id: string; days: number; duration: number; durationType: 0 | 1 | 2 }
+/**
+ * A Loopscale tenor, in its own enum: `durationType` 0 = days, 1 = weeks, 2 = months. `apr` / `fillable`
+ * are the pairs feed's own book for this tenor (`termsShort`, on `borrowAprShort`'s footing; debt
+ * tokens it fills at that rate) — absent = no lender offers the tenor.
+ */
+export interface LoopTenor { id: string; days: number; duration: number; durationType: 0 | 1 | 2; apr?: number; fillable?: number }
 /**
  * The four tenors Loopscale's app offers (margin-fetcher-sol `LS_TENORS`). A pair's lenders need not
  * quote all four: a tenor nobody offers answers `NO_OFFER`, and the ticket greys it out.
@@ -572,13 +577,22 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields,
     expiry, instrument,
     ...(terms.length ? { terms, borSpot: bor } : {}),
-    ...(r.fixedTerm?.model === 'loopscale' ? { tenors: LOOPSCALE_TENORS } : {}),
+    ...(r.fixedTerm?.model === 'loopscale' ? { tenors: loopscaleTenors(r) } : {}),
     ...(dueAt ? { dueAt } : {}),
   }
   return { s, hide: null, label, chainId: r.chainId }
 }
 /** Fixed debts that fall due on one date and price at size: shown only when the API quotes them honestly. */
 const FIXED_DATE = new Set(['midnight', 'term', 'termmax', 'teller'])
+/** Loopscale's four tenors, each with the feed's rate and depth where a lender offers it. */
+function loopscaleTenors(r: OptimizerRowRaw): LoopTenor[] {
+  const adj = num(r.intrinsicYieldShort) - num(r.rewardAprShort)
+  const feed = new Map((r.termsShort ?? []).map((t) => [String(t.termId), t]))
+  return LOOPSCALE_TENORS.map((t) => {
+    const f = feed.get(t.id)
+    return f ? { ...t, apr: num(f.aprAtAmount ?? f.apr) + adj, fillable: f.fillable == null ? undefined : num(f.fillable) } : t
+  })
+}
 /** `termsShort` → terms on the same footing as `borrowAprShort` (the card's rates are raw), shortest first. */
 function termCard(r: OptimizerRowRaw): LoopTerm[] {
   const adj = num(r.intrinsicYieldShort) - num(r.rewardAprShort)

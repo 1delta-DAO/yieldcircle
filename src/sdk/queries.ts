@@ -655,9 +655,14 @@ export function useTenorQuotes(l: LoopStrategy, equityUsd: number, leverageLive:
   const equity = useDebounced(equityUsd, 500)
   const tenors = l.tenors ?? []
   const qs = useQueries({ queries: tenors.map((t) => loopQuoteOpts(l, equity, leverage, account, slippageBp, undefined, t)) })
+  const debtTokens = l.priceShort ? (equity * (leverage - 1)) / l.priceShort : 0
   return tenors.map((t, i) => {
     const o = qs[i].data?.data?.offer
-    return { tenor: t, pending: qs[i].isPending && qs[i].fetchStatus !== 'idle', offer: o ? { apr: o.apy / 1e4, ltv: o.ltv / 1e6, lqt: o.lqt / 1e6, depth: o.amount } : null }
+    // the quote at this size when the build answers; else the feed's book for the tenor, if it fills
+    // this size. A build that cannot quote (`PRICE_UNAVAILABLE` on srONyc, 2026-10-07) is not "no lender"
+    const feed = t.apr != null && (t.fillable == null || debtTokens <= t.fillable) ? { apr: t.apr, ltv: 0, lqt: 0, depth: t.fillable ?? 0 } : null
+    const pending = qs[i].isPending && qs[i].fetchStatus !== 'idle'
+    return { tenor: t, pending: pending && !feed, offer: o ? { apr: o.apy / 1e4, ltv: o.ltv / 1e6, lqt: o.lqt / 1e6, depth: o.amount } : feed }
   })
 }
 /**

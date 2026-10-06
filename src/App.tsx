@@ -11,16 +11,18 @@ import { ProfilePage } from './ui/Profile'
 import { Alerts } from './ui/Alerts'
 import { Landing } from './ui/Landing'
 import { Deck } from './ui/Deck'
-import { Start, useSeenStart } from './ui/Start'
-import { useApp, useRoute } from './state/AppState'
+import { Start, startSeen } from './ui/Start'
+import { parseRoute, useRoute } from './state/AppState'
 import { GROUPS } from './model/assets'
+import React from 'react'
 
 export default function App() {
+  // the first visit lands on the Start tab instead of the feed: decided once,
+  // synchronously before the first render (an effect is too late — Start's own
+  // mount marks the visit seen and would swallow the redirect). Start marks
+  // the browser, so the Home tab is the feed from then on.
+  React.useState(() => { if (!startSeen() && parseRoute().view === 'home') location.hash = '#/start' })
   const r = useRoute()
-  const { isConnected } = useApp()
-  // a first visit without a wallet lands on the beginner dashboard instead of
-  // the feed; connecting — or choosing the feed from it — makes `#/` the home
-  const seenStart = useSeenStart()
   const group = GROUPS.find((g) => g.id === r.group)
   if (r.view === 'landing') return <Landing /> // full-bleed, no Shell — a pitch, not a page of the app
   if (r.view === 'deck') return <Deck /> // same deal: the investor deck presents without the Shell
@@ -36,7 +38,6 @@ export default function App() {
         : group ? <AssetPage key={group.id} group={group} route={r} />
         : r.view === 'earn' ? <Earn />
         : r.view === 'start' ? <Start />
-        : !seenStart && !isConnected ? <Start />
         : <Home tab={r.t} />}
     </Shell>
   )

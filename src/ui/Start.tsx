@@ -10,10 +10,9 @@
  * wallet it links to), the steady 30-day rate breaking ties; never because
  * tonight's rate is the biggest number.
  *
- * It renders at `#/start`, and in place of the home for a first visit without
- * a wallet (`useSeenStart`): connecting, or choosing the feed, marks the visit
- * seen and `#/` is the social home from then on. A quiet chip on the home
- * (`StartChip`) keeps the door open for whoever skipped.
+ * It is the first of the four tabs, and a first visit without a wallet is
+ * redirected here from `#/` (`useSeenStart`, marked in App.tsx) — once, so the
+ * Home tab is the social feed from then on.
  */
 import React from 'react'
 import { useApp, walletHref } from '../state/AppState'
@@ -32,41 +31,15 @@ import { dateOf, type Strategy } from '../model/strategies'
 import { nameOf } from '../model/assets'
 
 // ---------------------------------------------------------------- first visit
-/**
- * Has this browser moved past the Start page? Set when a wallet connects or
- * the visitor chooses the feed — never merely because the page rendered, so a
- * closed tab does not count as onboarded.
- */
+/** Has this browser been pointed at the Start tab once? App.tsx redirects the first `#/` here and marks it. */
 const SEEN_KEY = 'yieldcircle.start-seen:v1'
 let seen: boolean = (() => { try { return localStorage.getItem(SEEN_KEY) === '1' } catch { return true } })()
-const seenListeners = new Set<() => void>()
 export function markStartSeen() {
   if (seen) return
   seen = true
   try { localStorage.setItem(SEEN_KEY, '1') } catch { /* private mode */ }
-  seenListeners.forEach((l) => l())
 }
-export function useSeenStart(): boolean {
-  return React.useSyncExternalStore(
-    (l) => { seenListeners.add(l); return () => { seenListeners.delete(l) } },
-    () => seen,
-    () => true,
-  )
-}
-
-/** On the home, for whoever skipped the Start page: one quiet line back to it. */
-export function StartChip() {
-  const { isConnected } = useApp()
-  const [hidden, setHidden] = React.useState(() => { try { return localStorage.getItem('yieldcircle.start-chip:v1') === '1' } catch { return false } })
-  if (isConnected || hidden) return null
-  const dismiss = () => { setHidden(true); try { localStorage.setItem('yieldcircle.start-chip:v1', '1') } catch { /* private mode */ } }
-  return (
-    <div className="startchip">
-      <a href="#/start">New here? See where to start — three ways to earn, easiest first ›</a>
-      <button onClick={dismiss} aria-label="Dismiss" title="Dismiss">×</button>
-    </div>
-  )
-}
+export const startSeen = () => seen
 
 // ---------------------------------------------------------------- the page
 export function Start() {
@@ -81,8 +54,8 @@ export function Start() {
   const picks = Object.fromEntries(BAND_ORDER.map((band) => [band, recommend(b.all, band, rows, rank)])) as Record<Band, Pick_[]>
   // one profiles request for every face the cards show
   const { profile } = useProfiles(BAND_ORDER.flatMap((band) => picks[band].map((p) => p.proof?.best?.account)).filter((a): a is string => !!a))
-  // a connected wallet IS onboarded: `#/` is the social home from here on
-  React.useEffect(() => { if (isConnected) markStartSeen() }, [isConnected])
+  // being here IS the first visit done — the Home tab goes to the feed from now on
+  React.useEffect(() => { markStartSeen() }, [])
   const idleUsd = b.books.reduce((a, x) => a + x.idleUsd, 0)
   const bestPassive = picks.passive[0]?.s
   const loading = b.isLoading && !b.all.length
@@ -98,9 +71,7 @@ export function Start() {
         {!isConnected && (
           <div className="start-cta">
             <ConnectButton />
-            <button className="linklike" onClick={() => { markStartSeen(); location.hash = '#/' }}>
-              or look around first — see the live feed ›
-            </button>
+            <a className="linklike" href="#/">or look around first — see the live feed ›</a>
           </div>
         )}
         {isConnected && idleUsd > 0 && bestPassive && (
@@ -117,7 +88,7 @@ export function Start() {
 
       <section className="sec">
         <div className="note">
-          <b>How to go deeper.</b> The <a href="#/" onClick={() => markStartSeen()}>home feed</a> shows
+          <b>How to go deeper.</b> The <a href="#/">home feed</a> shows
           every move real wallets make, as it happens — any position there opens as a ticket you can
           copy in one tap. The <a href="#/board">board</a> ranks wallets by what they verifiably earn,
           and the <a href="#/earn">Earn tab</a> lists the whole catalogue, asset by asset.

@@ -1,5 +1,5 @@
 /**
- * The frame every page sits in: a bar across the top, three tabs, and two
+ * The frame every page sits in: a bar across the top, four tabs, and two
  * sheets.
  *
  *   top-left    your face → the profile sheet (you, your page, alerts,
@@ -7,7 +7,8 @@
  *   then        one search box for everything the app has a page for
  *   top-right   your standing (rank or followers) and your balance → your
  *               positions; Connect in its place before there is a wallet
- *   the tabs    Home (what people are doing) · Earn (the catalogue) · Board
+ *   the tabs    Start (the beginner dashboard) · Home (what people are doing)
+ *               · Earn (the catalogue) · Board
  *
  * It used to be one bar holding eight destinations and six controls, which a
  * phone could not show: at 360px only "Home" was visible and the rest
@@ -39,11 +40,12 @@ import { Sk, usd, usdShort } from './bits'
 
 const ic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
 const TABS: { id: string; label: string; href: string; on: View[]; icon: React.ReactNode }[] = [
+  { id: 'start', label: 'Start', href: '#/start', on: ['start'], icon: <svg {...ic}><circle cx="10" cy="10" r="6.8" /><path d="M12.8 7.2 11 11l-3.8 1.8L9 9z" /></svg> },
   { id: 'home', label: 'Home', href: '#/', on: ['home'], icon: <svg {...ic}><path d="M3.5 9 10 3.8 16.5 9v7a1 1 0 0 1-1 1h-3.3v-4.6H7.8V17H4.5a1 1 0 0 1-1-1z" /></svg> },
   { id: 'earn', label: 'Earn', href: '#/earn', on: ['earn', 'group', 'token'], icon: <svg {...ic}><ellipse cx="10" cy="5.8" rx="5.8" ry="2.4" /><path d="M4.2 5.8v4.1c0 1.3 2.6 2.4 5.8 2.4s5.8-1.1 5.8-2.4V5.8M4.2 9.9V14c0 1.3 2.6 2.4 5.8 2.4s5.8-1.1 5.8-2.4V9.9" /></svg> },
   { id: 'board', label: 'Board', href: '#/board', on: ['board'], icon: <svg {...ic}><path d="M6.5 3.5h7v4.2a3.5 3.5 0 0 1-7 0zM6.5 5H3.8v.9a2.8 2.8 0 0 0 2.9 2.8M13.5 5h2.7v.9a2.8 2.8 0 0 1-2.9 2.8M10 11.2v2.6M7 16.5h6M8.2 13.8h3.6" /></svg> },
 ]
-const ROOTS: View[] = ['home', 'earn', 'board']
+const ROOTS: View[] = ['start', 'home', 'earn', 'board']
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const r = useRoute()

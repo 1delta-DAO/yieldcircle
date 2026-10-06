@@ -258,15 +258,38 @@ export function useCatalog(chainIds: string[]) {
       },
     ]),
   })
+  /**
+   * Exponent's PTs (Solana), as loop collateral. Upstream tags them with none of the archetypes'
+   * flags — `props.exponent`, no `pendle` — so the stable archetype never returns them, and
+   * `collateralTags=exponent` answers nothing (measured 2026-10-06). The earn listing names every
+   * one (`vault.exponent`, `ref` = the PT mint; not depositable there, the PT is bought inside the
+   * loop), so ask for exactly those mints: one request per chain, 9 pairs on Solana that day —
+   * PT-ONyc on Loopscale, PT-eUSX / PT-USX on Kamino, two SOL PTs.
+   */
+  const earnStamp = earn.map((q) => q.dataUpdatedAt).join('|')
+  const ptMints = useMemo(() => {
+    const by: Record<string, string[]> = {}
+    for (const q of earn) for (const m of q.data ?? []) if (m.venue === 'vault.exponent') (by[m.chainId] ??= []).push(m.ref)
+    return Object.entries(by).map(([chainId, refs]) => ({ chainId, refs: [...new Set(refs)].sort() }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [earnStamp])
+  const ptLoops = useQueries({
+    queries: ptMints.map(({ chainId, refs }) => ({
+      queryKey: ['pt-loops', chainId, refs.join(',')],
+      queryFn: async () => sortOut((await optimizerPages({ chainIds: [chainId], collaterals: refs, debtTags: ['stablecoin', 'wnative'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop') as Sorted<Strategy>,
+      staleTime: 10 * 60_000,
+    })),
+  })
+  const extra = [...exposure, ...ptLoops]
   // one stamp for "any answer changed": this hook runs in the header, the
   // feed and Hot at once, and every catalogue query landing re-renders all three
-  const stamp = [chainIds.join(','), ...[...earn, ...loops, ...exposure].map((q) => q.dataUpdatedAt)].join('|')
+  const stamp = [chainIds.join(','), ...[...earn, ...loops, ...extra].map((q) => q.dataUpdatedAt)].join('|')
   const earnSorted = useMemo(() => {
     return earn.map((q) => (q.data ? sortOut(q.data.map((m) => classifyEarn(m)), 'simple') : undefined))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stamp])
   const derived = useMemo(() => {
-    const exposureRows = exposure.flatMap((q) => q.data?.rows ?? [])
+    const exposureRows = extra.flatMap((q) => q.data?.rows ?? [])
     const earnRows = [...earnSorted.flatMap((d) => d?.rows ?? []), ...exposureRows.filter((r): r is SimpleStrategy => r.kind === 'simple')]
     const loopRows = [...loops.flatMap((q) => q.data?.rows ?? []), ...exposureRows.filter((r): r is LoopStrategy => r.kind === 'loop')]
     // every base-asset address the chain answered, shown or held back by a floor,
@@ -299,7 +322,7 @@ export function useCatalog(chainIds: string[]) {
       ...capPerAsset(dedupe(simpleHide.filter((r) => !shown.has(rowKey(r)))), 25),
       ...capPerAsset(dedupe(loopHide.filter((r) => !shown.has(rowKey(r)))), 25),
     ]
-    const structural = mergeStructural([...earnSorted, ...loops.map((q) => q.data), ...exposure.map((q) => q.data)].flatMap((d) => (d ? [{ structural: d.structural, kind: d.kind }] : [])))
+    const structural = mergeStructural([...earnSorted, ...loops.map((q) => q.data), ...extra.map((q) => q.data)].flatMap((d) => (d ? [{ structural: d.structural, kind: d.kind }] : [])))
     return { simple, loops: loopRowsOut, hidden, overflow, structural, addresses }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [earnSorted, stamp, st])
@@ -309,13 +332,14 @@ export function useCatalog(chainIds: string[]) {
   // one of them — it names rows, it does not add any.
   const perBucket = loops.length / (buckets.length || 1)
   const exposurePending = new Set(exposed.filter((_, i) => !exposure[2 * i]?.isFetched || !exposure[2 * i + 1]?.isFetched).map((e) => e.chainId))
+  ptMints.forEach((m, i) => { if (!ptLoops[i]?.isFetched) exposurePending.add(m.chainId) })
   const settled = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched && loops.slice(j * perBucket, (j + 1) * perBucket).every((q) => q.isFetched) ? ids : [])).filter((c) => !exposurePending.has(c)))
   return {
     ...derived, settled,
     isLoading: earn.some((q) => q.isLoading) || loops.some((q) => q.isLoading),
-    isFetching: earn.some((q) => q.isFetching) || loops.some((q) => q.isFetching) || exposure.some((q) => q.isFetching),
+    isFetching: earn.some((q) => q.isFetching) || loops.some((q) => q.isFetching) || extra.some((q) => q.isFetching),
     anyData: earn.some((q) => q.data) || loops.some((q) => q.data),
-    errors: [...earn, ...loops, ...exposure].map((q) => q.error).filter((e): e is Error => !!e),
+    errors: [...earn, ...loops, ...extra].map((q) => q.error).filter((e): e is Error => !!e),
   }
 }
 /** The floors, applied to rows already in hand. A hidden row is a COPY carrying the code that hid it. */

@@ -267,15 +267,19 @@ const DAY = 86400
 export const dateOf = (t: number) => new Date(t * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 const MON: Record<string, number> = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 }
 /**
- * A Pendle PT's maturity from its symbol, `PT-USD3-17DEC2026` → 17 Dec 2026
- * 00:00 UTC, which is when Pendle expires every PT. For a position the index
- * or the positions route names only by token: neither carries the expiry on
- * the position row, and the catalogue's `maturity` only exists for a PT it lists.
+ * A PT's maturity from its symbol, `PT-USD3-17DEC2026` → 17 Dec 2026 00:00 UTC,
+ * which is when Pendle expires every PT. Solana spells the year in two digits
+ * and sometimes the month in four: Exponent's `PT-eUSX-01DEC26`, Loopscale's
+ * `PT-ONyc-10SEPT26` — the DAY is right, the hour is the venue's (an Exponent
+ * PT matures at 10:00 or 13:00 UTC; `props.exponent.maturity` has it exactly).
+ * For a position the index or the positions route names only by token: neither
+ * carries the expiry on the position row, and the catalogue's `maturity` only
+ * exists for a PT it lists.
  */
 export function ptMaturityOf(symbol: string | null | undefined): number | undefined {
-  const m = /^PT-.+-(\d{1,2})([A-Z]{3})(\d{4})$/.exec(symbol ?? '')
+  const m = /^PT-.+-(\d{1,2})([A-Z]{3})T?(\d{2}|\d{4})$/.exec(symbol ?? '')
   if (!m || MON[m[2]] == null) return undefined
-  return Date.UTC(+m[3], MON[m[2]], +m[1]) / 1000
+  return Date.UTC(m[3].length === 2 ? 2000 + +m[3] : +m[3], MON[m[2]], +m[1]) / 1000
 }
 /**
  * A held PT's clock, for a position row: the date, and once it is near or past,
@@ -534,7 +538,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   // a carry needs collateral that yields on its own (staking, savings, a PT, a fund); lending one plain stable
   // against another is a rate bet on a small market — a FLOOR (`Settings.showRateBets`), not a structural gate
   const p = L.props ?? {}
-  const collateralYields = !!(p.lst || p.savings || p.pendle || p.spectra || p.rwa || (L.intrinsicYield ?? 0) > 0)
+  const collateralYields = !!(p.lst || p.savings || p.pendle || p.spectra || p.exponent || p.rwa || (L.intrinsicYield ?? 0) > 0)
   // the at-size legs (quoted at $10k of collateral) when the venue has a depth grid, else the sticker
   const dep = num(r.depositAprAtAmount) || num(r.depositAprLong), maxLev = num(r.maxLeverage)
   const bor = terms.length ? Math.min(...terms.map((t) => t.apr)) : num(r.borrowAprAtAmount) || num(r.borrowAprShort)
@@ -549,11 +553,15 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   // a price that moves on its own does not get the carry's default: at Balanced a JLP loop is
   // ~5× with a 10 % fall to liquidation, a normal week for SOL. Its headline is the Defensive tier
   const rec = tiers[exposed ? 'defensive' : DEFAULT_TIER]
+  // the PT's own clock: Pendle and Spectra on EVM, Exponent on Solana (`maturity`, unix s), else the
+  // symbol's date. A matured PT cannot be bought into — Loopscale still lists `PT-ONyc-10SEPT26` books
+  const expiry = p.pendle?.expiry ?? p.spectra?.expiry ?? p.spectra?.maturity ?? p.exponent?.maturity ?? ptMaturityOf(L.symbol)
+  if (expiry && expiry * 1000 < Date.now()) return no('closed')
   // no outlier cap here: at 75 % of a 28x range a thin carry is legitimately a big number, and the card says what it risks
   const rate = netAprAtLeverage(dep, bor, rec)
   const { risk, riskLabel } = riskOf(worst)
   const venue = venueLabel(r.lender, r.curatorNameLong)
-  const instrument = r.collateralDesk?.via ?? (p.pendle || p.spectra ? p.issuer?.name : undefined)
+  const instrument = r.collateralDesk?.via ?? (p.pendle || p.spectra || p.exponent ? p.issuer?.name : undefined)
   const s: LoopStrategy = {
     id: `l:${r.marketLongUid}|${r.marketShortUid}`, kind: 'loop', chainId: r.chainId, group: groupOf(asset), asset, desk: debtMoney && !exposed ? deskOf(asset)?.id : undefined, assetGroup: groupKey(L.assetGroup), tokenLogo: L.logoURI || undefined, debtGroup: groupKey(S.assetGroup), nature: exposed?.nature ?? 'savings', holds: L.symbol, venue, venueKey: r.lender, logo: L.logoURI,
     // unscored is not safe: capped like a 5, the same as a deposit the API left unscored
@@ -562,7 +570,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     collateralAddress: L.address, debtAddress: S.address, decimalsLong: L.decimals ?? 18, decimalsShort: S.decimals ?? 18,
     priceLong: r.underlyingInfoLong.prices?.priceUsd, priceShort: r.underlyingInfoShort.prices?.priceUsd, logoLong: L.logoURI, logoShort: S.logoURI,
     dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields,
-    expiry: L.props?.pendle?.expiry ?? L.props?.spectra?.expiry, instrument,
+    expiry, instrument,
     ...(terms.length ? { terms, borSpot: bor } : {}),
     ...(r.fixedTerm?.model === 'loopscale' ? { tenors: LOOPSCALE_TENORS } : {}),
     ...(dueAt ? { dueAt } : {}),

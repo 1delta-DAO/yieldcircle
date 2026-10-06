@@ -93,7 +93,7 @@ export interface EarnPositionsResponse { ok: boolean; account: string; items: Ea
 // ---------------------------------------------------------------- optimizer (loops)
 export interface AssetRef {
   chainId: string; address: string; symbol: string; name?: string; decimals?: number; logoURI?: string; assetGroup?: string; intrinsicYield?: number
-  props?: { lst?: { type?: string; asset?: string; provider?: string }; pendle?: { expiry: number; tokenType?: string; underlyingAsset?: string }; spectra?: { expiry?: number; maturity?: number }; rwa?: { type?: string; issuer?: string; denomination?: string }; savings?: { base?: string; underlying?: string }; stablecoin?: { base?: string }; issuer?: IssuerRef | null; issuerExposures?: IssuerRef[] | null; risk?: { score?: number; source?: string; category?: string }; wnative?: boolean; [k: string]: unknown }
+  props?: { lst?: { type?: string; asset?: string; provider?: string }; pendle?: { expiry: number; tokenType?: string; underlyingAsset?: string }; spectra?: { expiry?: number; maturity?: number }; exponent?: { maturity?: number; platform?: string; ptAddress?: string }; rwa?: { type?: string; issuer?: string; denomination?: string }; savings?: { base?: string; underlying?: string }; stablecoin?: { base?: string }; issuer?: IssuerRef | null; issuerExposures?: IssuerRef[] | null; risk?: { score?: number; source?: string; category?: string }; wnative?: boolean; [k: string]: unknown }
 }
 export interface UnderlyingInfo { asset: AssetRef; prices?: { priceUsd?: number } }
 export interface OptimizerRowRaw {

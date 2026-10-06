@@ -26,6 +26,8 @@ export interface DeskToken {
   chainId?: string
   address?: string
   symbol?: string
+  /** the API's group, which for a PT names its underlying in brackets (`PT eUSX (USX) Solana::…`) */
+  assetGroup?: string
   /** resolved upstream (`asset.desk`, `collateralDesk`): taken as-is */
   desk?: IssuerLike | null
   issuer?: IssuerLike | null
@@ -80,6 +82,14 @@ export function moneyOf(t: DeskToken): DeskGroup | undefined {
   if (k) {
     for (const m of ['USD', 'ETH', 'BTC'] as const) if (k in TABLE[m]) return m
     const seen = SEEN.get(k); if (seen) return groupOf(seen) as DeskGroup
+  }
+  // a PT is its underlying's money, which its group names in brackets. Exponent's PTs carry no
+  // other money field (`PT eUSX (USX) Solana`, `PT ONyc (USD) Solana`) and their inner token is
+  // rarely a base (eUSX, srONyc), so without this they were nobody's money and never a carry
+  if (isWrapper(t.props)) {
+    const u = /\(([A-Za-z0-9.]+)\)/.exec(t.assetGroup ?? '')?.[1]
+    const ub = u && (MONIES.has(u.toUpperCase()) ? u.toUpperCase() : baseOfSymbol(u))
+    if (ub) { const g = MONIES.has(ub) ? ub : groupOf(ub); if (g !== 'MORE') return g as DeskGroup }
   }
   // the API's `denomination: 'USD'` is read off `props.stablecoin` (see below), so it counts only
   // with a desk named for the token

@@ -4,7 +4,8 @@
  * The home answers "what are people doing?", the Earn tab "what pays what?".
  * Neither answers the question someone NEW actually has: *what should I do
  * with my money, and how much work is it?* This page does, in three bands
- * (`model/activity.ts`) — passive savings, medium loops, active PT strategies
+ * (`model/activity.ts`) — passive savings, medium loops, active strategies on a
+ * clock (a PT, or a loop on fixed-rate debt)
  * — with 2–3 recommended cards each. A card is recommended because the top-50
  * earners board holds real equity in it (the proof is on the card, with the
  * wallet it links to), the steady 30-day rate breaking ties; never because
@@ -20,7 +21,7 @@ import { ConnectButton } from '../wallet/ConnectButton'
 import { useBook } from './useBook'
 import { useRateHistory } from '../sdk/queries'
 import { steadyRate, type HistoryGet } from '../model/rateHistory'
-import { BANDS, BAND_ORDER, DENOMS, clockOf, denomOf, denomOfAsset, recommend, type Band, type Denom, type Pick_ } from '../model/activity'
+import { BANDS, BAND_ORDER, DENOMS, clockOf, denomOf, denomOfAsset, isFixedDebt, recommend, type Band, type Denom, type Pick_ } from '../model/activity'
 import { useEarners } from '../index/queries'
 import type { EarnerRow } from '../index/api'
 import { useProfiles } from '../social/queries'
@@ -159,6 +160,10 @@ function Effort({ n }: { n: number }) {
 function StartCard({ p, get, profile }: { p: Pick_; get: HistoryGet; profile: ProfileOf }) {
   const s = p.s
   const expiry = clockOf(s)
+  // which clock: the PT's own maturity, or the loan's (a fixed-rate borrow falls due; a tenor runs from the open)
+  const ptClock = s.kind !== 'loop' || !!s.expiry
+  const fixedDebt = s.kind === 'loop' && isFixedDebt(s)
+  const loopWord = s.kind === 'loop' ? `${s.expiry ? 'PT loop' : 'loop'} on ${s.venue} · borrows ${s.debt}${fixedDebt ? ' at a fixed rate' : ''}` : ''
   // the ticket's own URL (what `go(s.group, { u, k })` would set), so the card is a real link
   const q = new URLSearchParams({ u: s.asset, ...(s.kind === 'loop' ? { k: 'loop' } : {}) })
   const best = p.proof?.best
@@ -170,7 +175,7 @@ function StartCard({ p, get, profile }: { p: Pick_; get: HistoryGet; profile: Pr
           : <Toks a={s.asset} b={s.debt} logoA={s.logoLong ?? s.tokenLogo} logoB={s.logoShort} />}
         <span className="stcard-n">
           <b>{nameOf(s.asset)}</b>
-          <small className="t50">{s.kind === 'loop' ? `${s.rec.toFixed(1)}× ${expiry ? 'PT loop' : 'loop'} on ${s.venue} · borrows ${s.debt}` : s.via}</small>
+          <small className="t50">{s.kind === 'loop' ? `${s.rec.toFixed(1)}× ${loopWord}` : s.via}</small>
         </span>
         <RiskDot r={s.risk} label={s.riskLabel} dotOnly />
       </div>
@@ -178,7 +183,8 @@ function StartCard({ p, get, profile }: { p: Pick_; get: HistoryGet; profile: Pr
         <b className="ok">{pct(s.rate)}</b>
         <span className="t50">APR</span>
         <Avg30 s={s} get={get} prefix="30d " />
-        {expiry ? <span className="pill pt" title="A fixed-rate PT: the rate holds until this date, then the money must be redeemed or rolled.">until {dateOf(expiry)}</span> : null}
+        {expiry ? <span className="pill pt" title={ptClock ? 'A fixed-rate PT: the rate holds until this date, then the money must be redeemed or rolled.' : 'A fixed-rate loan: it falls due on this date and must be repaid or rolled — past it, it can be liquidated.'}>{ptClock ? 'until' : 'loan due'} {dateOf(expiry)}</span>
+          : fixedDebt ? <span className="pill pt" title="The borrow rate is fixed for the term you pick when you open it; at its end the loan must be repaid or rolled.">fixed term</span> : null}
       </div>
       {p.proof && best ? (
         // the wallet behind the proof, without an <a> inside this <a>

@@ -258,10 +258,10 @@ export function baseOfSymbol(sym: string | undefined): string | undefined {
  * Base asset of a loop's collateral from its props: savings.underlying (sUSDe → USDe), lst.asset (wstETH → ETH),
  * the parenthesised underlying of a PT's name ("PT reUSD (USDC) …" → USDC), then the symbol itself.
  */
-export function baseOfCollateral(a: { symbol: string; name?: string; assetGroup?: string; props?: { lst?: { asset?: string }; savings?: { base?: string; underlying?: string }; stablecoin?: { base?: string }; pendle?: unknown; spectra?: unknown } }, debtSymbol: string): string | undefined {
+export function baseOfCollateral(a: { symbol: string; name?: string; assetGroup?: string; props?: { lst?: { asset?: string }; savings?: { base?: string; underlying?: string }; stablecoin?: { base?: string }; pendle?: unknown; spectra?: unknown; exponent?: unknown } }, debtSymbol: string): string | undefined {
   const p = a.props ?? {}
   const cands: (string | undefined)[] = [p.savings?.underlying, p.lst?.asset]
-  if (p.pendle || p.spectra) { const m = /\(([A-Za-z0-9]+)\)/.exec(a.assetGroup ?? a.name ?? ''); cands.push(m?.[1]) }
+  if (p.pendle || p.spectra || p.exponent) { const m = /\(([A-Za-z0-9]+)\)/.exec(a.assetGroup ?? a.name ?? ''); cands.push(m?.[1]) }
   cands.push(a.symbol)
   for (const c of cands) { const b = baseOfSymbol(c); if (b) return b }
   const debtBase = baseOfSymbol(debtSymbol)

@@ -6,9 +6,13 @@
  *   passive  a plain savings deposit: interest accrues, nothing to tend
  *   medium   a loop with no fixed maturity: two floating legs — the net rate
  *            moves, so it wants a look now and then
- *   active   anything on a PT (fixed maturity): the rate is locked, but the
- *            instrument EXPIRES — the money must be redeemed or rolled on a
- *            date, and before it the only exit is selling at the market's bid
+ *   active   anything on a clock. A PT (fixed maturity): the rate is locked,
+ *            but the instrument EXPIRES — the money must be redeemed or rolled
+ *            on a date, and before it the only exit is selling at the market's
+ *            bid. Or a loop on FIXED-RATE debt (Morpho Midnight's dated loans,
+ *            Loopscale's tenors, Lista's broker terms): the borrow cost is
+ *            locked, but the loan falls due and must be repaid or rolled —
+ *            Midnight's can be liquidated once past due, whatever its health
  *
  * A deposit that is not savings (perp LP, managed, marked — `model/nature.ts`)
  * fits no band: its principal moves with a market, which is not "passive"
@@ -19,7 +23,7 @@
  */
 import type { EarnerRow } from '../index/api'
 import { isSavings } from './nature'
-import { ptMaturityOf, type Strategy } from './strategies'
+import { ptMaturityOf, type LoopStrategy, type Strategy } from './strategies'
 import { uidsOf } from './uid'
 
 /**
@@ -74,19 +78,24 @@ export const BANDS: Record<Band, BandMeta> = {
   active: {
     word: 'Active',
     effort: 3,
-    why: 'Built on a fixed-rate PT: the rate is locked until a set date, and often higher — but the instrument matures.',
-    tend: 'On the maturity date the money stops earning until you redeem or roll it; leaving early means selling at the market’s bid.',
+    why: 'Built on a fixed rate — a PT, or a fixed-rate loan: the rate is locked until a set date, and often higher — but it runs out.',
+    tend: 'On that date a PT stops earning until you redeem or roll it, and a fixed loan must be repaid or rolled; leaving a PT early means selling at the market’s bid.',
   },
 }
 export const BAND_ORDER: Band[] = ['passive', 'medium', 'active']
 
+/** A loop borrowing at a fixed rate for a term: Lista's broker card, Loopscale's tenors, a Midnight maturity. */
+export const isFixedDebt = (s: LoopStrategy): boolean => !!(s.terms?.length || s.tenors?.length || s.dueAt)
+
 /**
- * The clock a strategy runs on, when it has one: a loop's collateral expiry, a
- * fixed deposit's maturity — or, for a LENDING market whose asset is itself a
- * PT (those rows carry no `maturity` field), the date in the PT's own symbol.
+ * The clock a strategy runs on, when it has one: a loop's collateral expiry or
+ * its dated loan's due date (Midnight), a fixed deposit's maturity — or, for a
+ * LENDING market whose asset is itself a PT (those rows carry no `maturity`
+ * field), the date in the PT's own symbol. A tenor or term loan (Loopscale,
+ * Lista) has a clock too, but it starts when the loan is opened: no date here.
  */
 export function clockOf(s: Strategy): number | undefined {
-  if (s.kind === 'loop') return s.expiry
+  if (s.kind === 'loop') return s.expiry ?? s.dueAt
   return s.maturity ?? ptMaturityOf(s.assetSymbol) ?? ptMaturityOf(s.holds)
 }
 
@@ -97,7 +106,9 @@ export function bandOf(s: Strategy): Band | null {
   if (clockOf(s)) return 'active'
   if (s.kind === 'loop') {
     // a loop whose collateral earns nothing is a pure rate bet — not a starting point
-    return s.collateralYields ? 'medium' : null
+    if (!s.collateralYields) return null
+    // fixed-rate debt runs out like a PT does: the loan must be repaid or rolled at the end of its term
+    return isFixedDebt(s) ? 'active' : 'medium'
   }
   // a fixed-rate deposit (Pendle PT) is active even where no date was parsed
   if (s.source === 'fixed') return 'active'

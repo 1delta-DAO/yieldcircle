@@ -943,6 +943,8 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .back:hover{color:var(--tx);background:var(--b300)}
 .bell{position:relative;display:grid;place-items:center;width:34px;height:34px;border-radius:var(--r);color:var(--tx50);flex:none}
 .bell:hover,.bell.on{color:var(--primary);background:var(--b300)}
+.waitnudge{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:0 0 16px;padding:10px 12px;border:1px solid var(--line2);border-radius:var(--r);background:var(--b200);font-size:13px;color:var(--tx70)}
+.waitnudge span{flex:1 1 220px}
 .ndot{position:absolute;top:2px;right:0;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--primary);color:var(--primary-ink);font:700 9.5px/15px var(--mono);font-style:normal;text-align:center}
 .ndot.inline{position:static;display:inline-block;margin-left:8px;vertical-align:1px}
 

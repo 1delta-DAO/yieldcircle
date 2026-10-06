@@ -9,6 +9,10 @@
  * borrows the app's WalletConnect sheet (`src/wallet/GateBridge.tsx`), and
  * only a build without WalletConnect falls back to "open in your wallet's
  * browser".
+ *
+ * `waitlist: true` is the same flow for a visitor already in on an access
+ * code (`/?waitlist`, linked from the app's nudge): different words, a way
+ * back to the app, and nothing here is blocking them.
  */
 
 /** The messages both sides build; the middleware recovers the signer from them. */
@@ -17,7 +21,7 @@ export const message = (address: string, issued: string, email?: string) =>
     ? `YieldCircle beta access\n\nAddress: ${address.toLowerCase()}\nIssued: ${issued}`
     : `YieldCircle waitlist\n\nAddress: ${address.toLowerCase()}\nEmail: ${email}\nIssued: ${issued}`
 
-export const overlay = () => `
+export const overlay = ({ waitlist = false } = {}) => `
 <div id="yc-gate">
 <style>
   #yc-gate { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: center; padding: 24px 16px;
@@ -38,16 +42,20 @@ export const overlay = () => `
   #yc-gate button:disabled { opacity: .5; cursor: default; }
   #yc-gate #yc-status { min-height: 1.5em; margin: 16px 0 0; font: 12px/1.5 'IBM Plex Mono', monospace; color: #8a8a8a; overflow-wrap: anywhere; }
   #yc-gate .err { color: #ff8a7a !important; }
+  #yc-gate .back { display: inline-block; margin-top: 14px; font-size: 13px; color: #8a8a8a; }
 </style>
 <div class="card">
-  <div class="tag">Closed beta</div>
+  <div class="tag">${waitlist ? 'Access code' : 'Closed beta'}</div>
   <h1 id="yc-title">Join the waitlist</h1>
-  <p id="yc-sub">Everything you see is live. Access opens in waves down the waitlist &mdash; connect your wallet to join it, or to walk in if it&rsquo;s your turn.</p>
+  <p id="yc-sub">${waitlist
+    ? 'You&rsquo;re in on an access code, which isn&rsquo;t yours to keep. Connect your wallet and leave an email to hold a place of your own &mdash; access opens in waves.'
+    : 'Everything you see is live. Access opens in waves down the waitlist &mdash; connect your wallet to join it, or to walk in if it&rsquo;s your turn.'}</p>
   <div class="row" id="yc-row">
     <input id="yc-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" hidden />
     <button id="yc-go">Connect wallet</button>
   </div>
-  <div id="yc-status"></div>
+  <div id="yc-status"></div>${waitlist ? `
+  <a class="back" href="/">Back to the app</a>` : ''}
 </div>
 <script>
 (() => {
@@ -147,7 +155,7 @@ export const overlay = () => `
     status('Sign to enter \\u2014 free, no transaction.');
     return w.sign(T_VERIFY.replace('__a__', address.toLowerCase()).replace('__i__', issued)).then(function (signature) {
       return post('/gate/verify', { address: address, issued: issued, signature: signature });
-    }).then(function () { status('You\\u2019re in.'); location.reload(); });
+    }).then(function () { status('You\\u2019re in.'); ${waitlist ? "location.replace('/' + location.hash)" : 'location.reload()'}; });
   }
 
   function lineup() {

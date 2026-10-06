@@ -18,6 +18,9 @@
  *
  * The tabs sit in the top bar from 768px up and in a bar along the bottom
  * below that, where a thumb reaches them.
+ *
+ * A visitor in on the beta's access code gets one strip above the page asking
+ * them to join the waitlist (`Waitlist`), until their wallet holds a place.
  */
 import React from 'react'
 import { normAddr } from '../model/address'
@@ -37,6 +40,7 @@ import { MyStats, StatsChip } from './Stats'
 import { useBook } from './useBook'
 import { TxInFlight, TxTray } from './TxTray'
 import { Sk, usd, usdShort } from './bits'
+import { onAccessCode, useOnList, WAITLIST_HREF } from '../wallet/gate'
 
 const ic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
 const TABS: { id: string; label: string; href: string; on: View[]; icon: React.ReactNode }[] = [
@@ -70,7 +74,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <Search />
         <Yours />
       </div></header>
-      <main className="wrap">{children}</main>
+      <main className="wrap"><Waitlist />{children}</main>
       {tabs('tabbar')}
       <TxTray />
     </>
@@ -137,6 +141,28 @@ function Yours() {
         <Positions b={b} />
       </Drawer>
     </>
+  )
+}
+
+/**
+ * In on the access code, not on the list: the code is borrowed, a place in
+ * line is theirs. Joining opens the gate's waitlist flow in a new tab, so the
+ * page they were on stays. Gone once the connected wallet is listed or
+ * waitlisted; "Later" hides it for this browser session only.
+ */
+const LATER_KEY = 'yc.waitlist-later'
+function Waitlist() {
+  const { account } = useApp()
+  const onList = useOnList(account)
+  const [later, setLater] = React.useState(() => { try { return sessionStorage.getItem(LATER_KEY) === '1' } catch { return false } })
+  if (!onAccessCode() || later || onList.data) return null
+  const hide = () => { try { sessionStorage.setItem(LATER_KEY, '1') } catch { /* private mode */ } setLater(true) }
+  return (
+    <div className="waitnudge">
+      <span>You're in on an access code. Join the waitlist to hold a place of your own.</span>
+      <a className="btn sm pri" href={WAITLIST_HREF} target="_blank" rel="noopener">Join the waitlist</a>
+      <button className="btn sm ghost" onClick={hide}>Later</button>
+    </div>
   )
 }
 

@@ -17,7 +17,10 @@
  *   NOTIFY_EMAIL    optional, where requests are mailed (default below)
  *   GATE_OFF        optional, "1" opens the app to everyone (the end of the beta)
  *   GATE_PASS       Secret, optional — an access code: `/?access=<code>` lets the holder in
- *                   without a whitelisted wallet (hackathon judges, reviewers)
+ *                   without a whitelisted wallet (hackathon judges, reviewers). Such a
+ *                   visitor never joined the waitlist, so the app nudges them to: the
+ *                   HTML carries `window.ycPass`, and `/?waitlist` serves them the
+ *                   overlay in its waitlist mode (`src/wallet/gate.ts`)
  *
  * Unconfigured (missing binding or secret) the gate is OFF and the app serves
  * normally — a misconfiguration must never take the site down.
@@ -64,9 +67,14 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
   // Only the HTML document gets the overlay; every asset passes through untouched.
   if (request.method !== 'GET' || !(res.headers.get('content-type') ?? '').includes('text/html')) return res
   const holder = await readCookie(request.headers.get('cookie'), env.GATE_SECRET!).catch(() => null)
-  if (holder) return res
+  if (holder && holder !== 'pass') return res
 
-  const body = (await res.text()).replace('</body>', `${overlay()}</body>`)
+  // an access-code holder is in, but not on the list: the app asks them to join (window.ycPass),
+  // and the page it links to, `/?waitlist`, is the overlay's own waitlist flow
+  const inject = holder !== 'pass' ? overlay()
+    : url.searchParams.has('waitlist') ? overlay({ waitlist: true })
+    : '<script>window.ycPass=true</script>'
+  const body = (await res.text()).replace('</body>', `${inject}</body>`)
   const headers = new Headers(res.headers)
   headers.set('cache-control', 'no-store')
   headers.delete('content-length')

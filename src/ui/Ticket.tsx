@@ -69,7 +69,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, onClose }
 function TicketAssetLinks({ s }: { s: Strategy }) {
   const legs = s.kind === 'loop'
     ? [{ g: s.assetGroup, sym: s.holds, logo: s.logoLong }, { g: s.debtGroup, sym: s.debt, logo: s.logoShort }]
-    : [{ g: s.assetGroup, sym: s.assetSymbol, logo: undefined }]
+    : [{ g: s.shareGroup, sym: s.shareGroup ?? '', logo: s.shareLogo ?? s.logo }, { g: s.assetGroup, sym: s.assetSymbol, logo: s.tokenLogo }]
   const shown = legs.filter((l) => l.g)
   if (!shown.length) return null
   return <div className="assetlinks">{shown.map((l) => <AssetLink key={l.g} group={l.g} sym={l.sym} logo={l.logo} />)}</div>

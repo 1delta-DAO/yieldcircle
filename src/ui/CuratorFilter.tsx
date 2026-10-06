@@ -18,7 +18,7 @@ import React from 'react'
 import { useApp } from '../state/AppState'
 import { useCurators } from '../index/queries'
 import type { AccountCurator, CuratorRow } from '../index/api'
-import { usdShort } from './bits'
+import { ProtocolLogo, curatorIconUrls, usdShort } from './bits'
 import { useSticky } from '../state/sticky'
 
 /** `cand:1:0x5555…` → "the desk at 0x5555…" — an unnamed desk is not a nameless one. */
@@ -82,7 +82,7 @@ export function CuratorChips({ f, max = 6 }: { f: CuratorFilterState; max?: numb
           title={title(c)}
           onClick={() => f.setPicked(f.picked === c.curatorId ? undefined : c.curatorId)}
         >
-          {c.logoUri ? <img src={c.logoUri} alt="" loading="lazy" /> : <i className="plogo">c</i>}
+          <ProtocolLogo urls={curatorIconUrls(c.curatorId, c.logoUri)} name={curatorLabel(c)} />
           <span className="pn">{curatorLabel(c)}</span>
           <span className="pc">{c.nVaults ?? 0}</span>
         </button>
@@ -124,7 +124,7 @@ export function CuratorMark({
       }
     >
       {sub && <span className="cs">{c.via === 'vault' ? 'curated by' : c.role ? `${c.role} of` : 'operated by'}</span>}
-      {c.logoUri ? <img src={c.logoUri} alt="" loading="lazy" /> : <i className="plogo">c</i>}
+      <ProtocolLogo urls={curatorIconUrls(c.curatorId, c.logoUri)} name={curatorLabel(c)} />
       <span className="cn">{curatorLabel(c)}</span>
       {c.confidence && <span className="cc">{MARK[c.confidence] ?? ''}</span>}
     </a>

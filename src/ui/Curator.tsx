@@ -28,7 +28,7 @@ import { prettyProtocol } from './ProtocolFilter'
 import { Rate } from './Rate'
 import { Thread } from './Thread'
 import { Ago, FollowButton, ImpairedNote, Money, Who, describeBundle } from './social-bits'
-import { Sk, TxLink, pct, usd, usdShort } from './bits'
+import { Sk, TxLink, curatorIconUrls, pct, usd, usdShort } from './bits'
 
 export function Slices({ title, note, rows, pretty, href }: {
   title: string
@@ -65,21 +65,22 @@ export function Slices({ title, note, rows, pretty, href }: {
  * than it is tall, and we keep it whole in a rounded box rather than cutting a
  * circle out of the join.
  */
-function CuratorLogo({ src }: { src?: string | null }) {
-  const [shape, setShape] = React.useState<'square' | 'wide' | 'none'>('square')
-  React.useEffect(() => setShape('square'), [src])
-  if (!src || shape === 'none') return <i className="chdr-logo plogo">c</i>
+function CuratorLogo({ urls }: { urls: string[] }) {
+  const [shape, setShape] = React.useState<'square' | 'wide'>('square')
+  const [i, setI] = React.useState(0)
+  React.useEffect(() => { setShape('square'); setI(0) }, [urls.join()])
+  // a logo that will not load moves on to the next candidate, and the last leaves the letter, not a broken picture
+  if (i >= urls.length) return <i className="chdr-logo plogo">c</i>
   return (
     <img
       className={`chdr-logo${shape === 'wide' ? ' wide' : ''}`}
-      src={src}
+      src={urls[i]}
       alt=""
       onLoad={(e) => {
         const im = e.currentTarget
         if (im.naturalWidth > im.naturalHeight * 1.3) setShape('wide')
       }}
-      // a logo that will not load should leave the letter, not a broken picture
-      onError={() => setShape('none')}
+      onError={() => setI((n) => n + 1)}
     />
   )
 }
@@ -105,7 +106,7 @@ export function Curator({ id }: { id: string }) {
     <>
       <a className="crumb" href="#/">‹ Home</a>
       <header className="mhdr">
-        <CuratorLogo src={d?.logoUri} />
+        <CuratorLogo urls={d ? curatorIconUrls(id, d.logoUri) : []} />
         <div>
           <h1>{d ? curatorLabel(d) : c.isLoading ? '…' : id}</h1>
           <div className="sub">

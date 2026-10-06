@@ -131,10 +131,12 @@ export function Info({ children, label = 'What is this?' }: { children: React.Re
 
 /** Token mark: the icon when we have one, else a coloured disc with the first letters. */
 export function Tok({ sym, logo, size = 22 }: { sym: string; logo?: string; size?: number }) {
-  const [bad, setBad] = React.useState(false)
-  // a strategy passes its own picture (the vault, the LST, the venue token); a bare symbol gets the base-asset mark from the token list
-  logo = logo ?? assetLogo(sym)
-  if (logo && !bad) return <img className="tok" src={logo} alt="" width={size} height={size} style={{ width: size, height: size, background: '#111' }} onError={() => setBad(true)} title={sym} />
+  // a strategy passes its own picture (the vault, the LST, the venue token); a bare symbol gets the base-asset mark
+  // from the token list — and so does a passed picture that fails to load (the index's ipfs.io gateway answers 429)
+  const urls = React.useMemo(() => [...new Set([logo, assetLogo(sym)].filter((u): u is string => !!u))], [logo, sym])
+  const [i, setI] = React.useState(0)
+  React.useEffect(() => setI(0), [urls.join()])
+  if (i < urls.length) return <img className="tok" src={urls[i]} alt="" width={size} height={size} style={{ width: size, height: size }} onError={() => setI((n) => n + 1)} title={sym} />
   return <i className="tok" style={{ background: colorOf(sym), width: size, height: size }} title={sym}>{short(sym)}</i>
 }
 const ICON_ROOT = 'https://raw.githubusercontent.com/1delta-DAO/protocol-icons/main/'
@@ -177,6 +179,14 @@ export function venueIconUrls(key: string, brand?: string): string[] {
 /** A PROTOCOL's mark (a filter chip, not a row): the generic family icon first, the index's instance logo only after it. */
 export function protocolIconUrls(key: string, logoUri?: string | null): string[] {
   return [...new Set([...venueIconUrls(key), ...(logoUri ? [logoUri] : [])])]
+}
+/**
+ * A curator's mark: the index's logo first, then the icon set under the desk's slug. The Solana
+ * index has no logos for its desks (Jupiter, Jito, Huma), but the icon set carries them as lenders.
+ */
+export function curatorIconUrls(id: string, logoUri?: string | null): string[] {
+  const slug = id.replace(/^desk:/, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+  return [...new Set([logoUri, slug && iconUrl(slug), slug && iconUrl(slug + '_lend')].filter((u): u is string => !!u))]
 }
 /** The first of `urls` that loads; the name's first letter when none does. */
 export function ProtocolLogo({ urls, name }: { urls: string[]; name: string }) {

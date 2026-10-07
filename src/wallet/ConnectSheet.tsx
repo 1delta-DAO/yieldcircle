@@ -6,7 +6,8 @@ import { useModalChrome } from '../ui/useModalChrome'
 import { readTouch } from '../ui/useViewport'
 import { isAddr } from '../model/address'
 import { SOCIAL_LINKS_READY } from '../social/api'
-import { useSolWallet } from './solana'
+import { useSolWallet, type StdWallet } from './solana'
+import type { Connector } from 'wagmi'
 import { useConnectFlow, type ConnectFlow } from './useConnectFlow'
 import { forgetWallet } from './deeplink'
 import { WALLETS } from './wallets'
@@ -81,13 +82,15 @@ export function ConnectSheet({ onClose, onPick }: { onClose: () => void; onPick?
 }
 
 /**
- * The Solana side of the sheet — one account per VM, beside the EVM one, never
- * instead of it (docs/solana.md §5). Wallet-standard discovery only finds
- * extensions in THIS browser (Phantom, Solflare, Backpack); a phone connects
- * from the wallet app's own browser, the same answer the EVM list gives.
+ * The connected Solana account — one per VM, beside the EVM one, never instead
+ * of it (docs/solana.md §5). Connecting one happens in the merged list above
+ * (`Choose`): wallet-standard discovery only finds extensions in THIS browser
+ * (Phantom, Solflare, Backpack); a phone connects from the wallet app's own
+ * browser, the same answer the EVM list gives.
  */
 function SolanaSection({ onPick }: { onPick?: (address: string) => void }) {
   const sol = useSolWallet()
+  if (!sol.account) return null
   return (
     <div className="tsec">
       <span className="lbl">Solana</span>
@@ -101,19 +104,7 @@ function SolanaSection({ onPick }: { onPick?: (address: string) => void }) {
           <span className="addr" style={{ alignSelf: 'center' }}>{short(sol.account.address)}</span>
           <button className="btn" onClick={() => sol.disconnect()}>Disconnect</button>
         </div>
-      ) : sol.wallets.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {sol.wallets.map((w) => (
-            <button key={w.name} className="btn wide" onClick={() => void sol.connect(w).catch(() => {})}>
-              {w.icon && <img src={w.icon} alt="" width={16} height={16} style={{ verticalAlign: '-3px', marginRight: 6 }} />}
-              {w.name}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <p className="foot" style={{ margin: 0 }}>No Solana wallet in this browser. Phantom, Solflare or Backpack appear here once installed — or open this page in the wallet app's own browser.</p>
-      )}
-      {sol.error && <p className="err" style={{ margin: '6px 0 0' }}>{sol.error}</p>}
+      ) : null}
       <LinkHint hasSol={!!sol.account} />
     </div>
   )
@@ -140,39 +131,87 @@ function Waiting({ name, onReopen, onBack }: { name: string; onReopen: () => voi
   )
 }
 
-function Choose({ f, touch }: { f: ConnectFlow; touch: boolean }) {
-  return (
-    <>
-      {f.injected.length > 0 && (
-        <div className="tsec">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {f.injected.map((c) => (
-              <button key={c.id} className="btn pri wide" disabled={f.isPending} onClick={() => f.connect({ connector: c })}>{c.name}</button>
-            ))}
-          </div>
-          <p className="foot" style={{ marginTop: 6 }}>The wallet built into this browser.</p>
-        </div>
-      )}
+/** One row per wallet, whichever VMs it speaks: the EIP-6963 announcements and the Wallet Standard ones, merged by name. */
+interface Row { key: string; name: string; icon?: string; evm?: Connector; sol?: StdWallet }
+const rowKey = (name: string) => name.toLowerCase().replace(/\s*wallet$/, '').trim()
+function mergeWallets(evm: Connector[], sol: StdWallet[]): Row[] {
+  const rows = new Map<string, Row>()
+  for (const c of evm) {
+    const key = rowKey(c.name)
+    rows.set(key, { key, name: c.name, icon: c.icon, evm: c })
+  }
+  for (const w of sol) {
+    const key = rowKey(w.name)
+    const r = rows.get(key)
+    if (r) { r.sol = w; r.icon ||= w.icon }
+    else rows.set(key, { key, name: w.name, icon: w.icon, sol: w })
+  }
+  return [...rows.values()]
+}
 
-      {!HAS_WC ? (
-        <div className="tsec">
-          <p className="err" style={{ margin: 0 }}>WalletConnect is not configured on this build, so a phone browser cannot connect.</p>
-          <p className="foot" style={{ marginTop: 6 }}>Open this page inside your wallet app's browser, or set <span className="mono">VITE_WC_PROJECT_ID</span> and redeploy.</p>
+const WcIcon = () => (
+  <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#3b99fc" /><path d="M9.6 12.9c3.5-3.4 9.3-3.4 12.8 0l.4.4a.4.4 0 0 1 0 .6l-1.5 1.4a.2.2 0 0 1-.3 0l-.6-.6c-2.5-2.4-6.5-2.4-9 0l-.6.6a.2.2 0 0 1-.3 0l-1.5-1.4a.4.4 0 0 1 0-.6zm15.8 2.9 1.3 1.3a.4.4 0 0 1 0 .6l-5.9 5.7a.4.4 0 0 1-.6 0l-4.2-4a.1.1 0 0 0-.2 0l-4.2 4a.4.4 0 0 1-.6 0l-5.9-5.7a.4.4 0 0 1 0-.6l1.3-1.3a.4.4 0 0 1 .6 0l4.2 4a.1.1 0 0 0 .2 0l4.2-4a.4.4 0 0 1 .6 0l4.2 4a.1.1 0 0 0 .2 0l4.2-4a.4.4 0 0 1 .6 0z" fill="#fff" /></svg>
+)
+
+function Choose({ f, touch }: { f: ConnectFlow; touch: boolean }) {
+  const sol = useSolWallet()
+  const rows = React.useMemo(() => mergeWallets(f.injected, sol.wallets), [f.injected, sol.wallets])
+  const [wc, setWc] = React.useState(false)
+  const [picked, setPicked] = React.useState<string>()
+  /**
+   * The WalletConnect pairing is a pending connect until a phone scans it —
+   * it must not grey out the extensions beside it (that is exactly what the
+   * old sheet did: the QR auto-started and every injected tile sat disabled).
+   */
+  const busy = f.isPending && !wc
+  const toggleWc = () => { if (wc) f.cancel(); setWc(!wc) }
+  return (
+    <div className="tsec">
+      <span className="lbl">Choose a wallet</span>
+      <div className="wl">
+        {rows.map((r) => {
+          const both = !!r.evm && !!r.sol
+          const go = (vm: 'evm' | 'sol') => {
+            setPicked(r.name)
+            if (vm === 'evm') { if (wc) { f.cancel(); setWc(false) } f.connect({ connector: r.evm! }) }
+            else void sol.connect(r.sol!).catch(() => {})
+          }
+          const Tag = both ? 'div' : 'button'
+          return (
+            <Tag key={r.key} className="wl-row" disabled={both ? undefined : busy} onClick={both ? undefined : () => go(r.evm ? 'evm' : 'sol')}>
+              {r.icon ? <img className="wl-ic" src={r.icon} alt="" /> : <span className="wl-ic wl-ic-x">{r.name[0]}</span>}
+              <span className="wl-n">{r.name}</span>
+              {both
+                ? <span className="wl-vms"><button className="wl-vm" disabled={busy} onClick={() => go('evm')}>EVM</button><button className="wl-vm" disabled={busy} onClick={() => go('sol')}>Solana</button></span>
+                : <span className="wl-vm static">{r.evm ? 'EVM' : 'Solana'}</span>}
+            </Tag>
+          )
+        })}
+        {HAS_WC && (
+          <button className={`wl-row${wc ? ' on' : ''}`} disabled={busy} onClick={toggleWc}>
+            <WcIcon />
+            <span className="wl-n">WalletConnect<small>{touch ? 'Open a wallet app on this phone' : 'Scan with your phone'}</small></span>
+            <span className="wl-vm static">EVM</span>
+          </button>
+        )}
+      </div>
+      {wc && HAS_WC && (touch ? (
+        <div className="wl" style={{ marginTop: 8 }}>
+          {WALLETS.map((w) => (
+            <button key={w.id} className="wl-row sub" disabled={busy} onClick={() => f.pick(w)}><span className="wl-n">{w.name}</span><span className="wl-vm static">open</span></button>
+          ))}
+          <p className="foot" style={{ margin: '4px 0 0' }}>Not listed? Connect from your wallet's own browser.</p>
         </div>
-      ) : touch ? (
-        <div className="tsec">
-          <span className="lbl">Connect a wallet app</span>
-          <div className="wgrid">
-            {WALLETS.map((w) => (
-              <button key={w.id} className="wtile" disabled={f.isPending} onClick={() => f.pick(w)}>{w.name}</button>
-            ))}
-          </div>
-          <p className="foot" style={{ marginTop: 8 }}>Not listed? Connect from your wallet's own browser.</p>
-        </div>
-      ) : (
-        <Qr f={f} />
+      ) : <Qr f={f} />)}
+      {!rows.length && !HAS_WC && (
+        <p className="foot" style={{ marginTop: 8 }}>No wallet in this browser, and WalletConnect is not configured on this build. Open this page inside your wallet app's browser, or set <span className="mono">VITE_WC_PROJECT_ID</span> and redeploy.</p>
       )}
-    </>
+      {!rows.length && HAS_WC && !wc && <p className="foot" style={{ marginTop: 8 }}>No wallet extension in this browser — use WalletConnect, or open this page in your wallet app's browser.</p>}
+      {busy && picked && !f.error && (
+        <p className="foot wl-wait" style={{ marginTop: 8 }}><span className="spin" /> Waiting for <b>{picked}</b> — approve the connection in the extension. <button className="lnk" onClick={f.cancel}>Cancel</button></p>
+      )}
+      {sol.error && <p className="err" style={{ margin: '8px 0 0' }}>{sol.error}</p>}
+    </div>
   )
 }
 
@@ -193,8 +232,7 @@ function Qr({ f }: { f: ConnectFlow }) {
   }, [f.wc, f.connect])
   const retry = () => { if (f.wc) { f.cancel(); f.connect({ connector: f.wc }) } }
   return (
-    <div className="tsec">
-      <span className="lbl">Scan with your wallet</span>
+    <div className="wl-qr">
       {f.uri
         ? <QrSvg text={f.uri} />
         : <div className="qrbox skel" aria-label={f.error ? 'Could not reach WalletConnect' : 'Preparing'}>

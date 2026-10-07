@@ -1995,3 +1995,25 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
   .join-orb.back:nth-child(n+7){display:none}
   .join-sheet{position:fixed;left:16px;right:16px;bottom:16px;z-index:9}.join-sheet .join-card{position:static;width:auto}
 }
+
+/* ---- the wallet sheet's list (src/wallet/ConnectSheet.tsx): one row per wallet, its icon, the VMs it speaks */
+.wl{display:flex;flex-direction:column;gap:6px}
+.wl-row{display:flex;align-items:center;gap:12px;width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--b300);text-align:left;color:var(--tx);transition:border-color .12s,background .12s}
+button.wl-row:hover:not(:disabled),.wl-row.on{border-color:var(--tx50);background:var(--b400)}
+.wl-row:disabled{opacity:.5;cursor:default}
+.wl-row.sub{padding:8px 12px;background:var(--b200)}
+.wl-ic{width:28px;height:28px;border-radius:8px;flex:none;object-fit:contain;background:#000}
+.wl-ic-x{display:grid;place-items:center;font-weight:600;color:var(--tx50);border:1px solid var(--line2)}
+.wl-n{flex:1;min-width:0;display:flex;flex-direction:column;font-size:14.5px;font-weight:600;letter-spacing:-.01em;line-height:1.2}
+.wl-n small{font-weight:400;font-size:11.5px;color:var(--tx50);margin-top:2px}
+.wl-vms{display:flex;gap:4px}
+.wl-vm{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:5px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--tx70);background:var(--b200);transition:border-color .12s,color .12s}
+button.wl-vm:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+.wl-vm.static{color:var(--tx40);border-color:transparent;background:none;padding-right:0}
+.wl-qr{margin-top:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--b300);display:flex;flex-direction:column;align-items:center;gap:10px}
+.wl-qr .qrbox{width:200px;height:200px}
+.wl-qr .actions{margin-top:0!important}
+.wl-wait{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.wl-wait b{color:var(--tx)}
+.wl-wait .spin{width:10px;height:10px;border-radius:50%;border:2px solid var(--line2);border-top-color:var(--primary);animation:wl-spin .8s linear infinite;flex:none}
+.wl-wait .lnk{color:var(--primary);text-decoration:underline}
+@keyframes wl-spin{to{transform:rotate(360deg)}}

@@ -14,3 +14,6 @@ video/
 
 # mascot tooling + generations (fal.ai) stay local
 brand/mascot/
+
+# social post material (X images, data, copy) stays local
+images/

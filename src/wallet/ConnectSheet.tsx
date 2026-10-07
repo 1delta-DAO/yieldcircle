@@ -22,7 +22,8 @@ const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
  * are ordered by how good the outcome is — an injected provider (a wallet's own
  * in-app browser) beats a hand-off, and a hand-off beats a QR code.
  */
-export function ConnectSheet({ onClose }: { onClose: () => void }) {
+/** `gate`: opened by the beta gate to pick a wallet to sign with — viewing as someone is not that, so it is left out */
+export function ConnectSheet({ onClose, gate = false }: { onClose: () => void; gate?: boolean }) {
   const { account, isConnected, viewAs, setViewAs } = useApp()
   const { connector: active } = useAccount()
   const { disconnect } = useDisconnect()
@@ -55,11 +56,11 @@ export function ConnectSheet({ onClose }: { onClose: () => void }) {
 
         <SolanaSection />
 
-        <div className="tsec">
+        {!gate && <div className="tsec">
           <span className="lbl">View as</span>
           <ViewAs value={viewAs} onApply={setViewAs} />
           <p className="foot" style={{ marginTop: 6 }}>Read any wallet's positions without connecting. Signing still needs a wallet.</p>
-        </div>
+        </div>}
         {active && <div className="tsec"><p className="foot" style={{ margin: 0 }}>Connected with {active.name}.</p></div>}
       </div>
     </div>

@@ -5,10 +5,11 @@
  * The story the visitor hears is a WAITLIST in two layers: connect, and the
  * wallet is either whitelisted (sign, you're in), already waitlisted (you're
  * in line, access soon), or invited to join the waitlist (email + signature).
- * An injected wallet (EIP-1193) is used directly; without one the overlay
- * borrows the app's WalletConnect sheet (`src/wallet/GateBridge.tsx`), and
- * only a build without WalletConnect falls back to "open in your wallet's
- * browser".
+ * The connecting is the app's own wallet sheet (`src/wallet/GateBridge.tsx`):
+ * every injected EVM wallet by name, WalletConnect, and the Solana wallets —
+ * a Solana pubkey joins and signs in like any other address. Only a page whose
+ * bundle never mounted speaks EIP-1193 to an injected wallet itself, and
+ * without one falls back to "open in your wallet's browser".
  *
  * `waitlist: true` is the same flow for a visitor already in on an access
  * code (`/?waitlist`, linked from the app's nudge): different words, a way
@@ -60,8 +61,6 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
     box-shadow: 0 0 0 1px rgba(124,233,245,.35), 0 0 32px rgba(47,211,232,.35); transition: transform .15s, box-shadow .15s; }
   #yc-gate .yc-btn:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(124,233,245,.55), 0 0 48px rgba(47,211,232,.5); }
   #yc-gate .yc-btn:disabled { opacity: .55; cursor: default; transform: none; box-shadow: none; }
-  #yc-gate .yc-alt { background: #000; color: #e8e8e8; box-shadow: 0 0 0 1px #2a2a2a; font-weight: 500; }
-  #yc-gate .yc-alt:hover { box-shadow: 0 0 0 1px #8a8a8a; }
   #yc-gate #yc-status { min-height: 1.5em; margin: 14px 0 0; font: 12px/1.5 'IBM Plex Mono', monospace; color: rgba(232,232,232,.5); overflow-wrap: anywhere; }
   #yc-gate .yc-err { color: #ff8a7a !important; }
   #yc-gate .yc-back { display: inline-block; margin-top: 12px; font-size: 13px; color: rgba(232,232,232,.5); text-decoration: none; border-bottom: 1px solid transparent; }
@@ -78,7 +77,6 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
   <div class="yc-row" id="yc-row">
     <input id="yc-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" hidden />
     <button class="yc-btn" id="yc-go">Connect wallet</button>
-    <button class="yc-btn yc-alt" id="yc-sol">Solana wallet</button>
   </div>
   <div id="yc-status"></div>${waitlist ? `
   <a class="yc-back" href="/">Back to the app</a>` : hidden ? `
@@ -99,15 +97,16 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
   var toHex = function (b) { if (typeof b === 'string') b = new TextEncoder().encode(b); var o = '0x', i = 0; for (; i < b.length; i++) o += b[i].toString(16).padStart(2, '0'); return o; };
   var norm = function (a) { return a.indexOf('0x') === 0 ? a.toLowerCase() : a; };
   /*
-   * Three wallets behind one shape. An injected EVM provider (extension, a
-   * wallet's own browser) is spoken to directly. Without one, the app's connect
-   * sheet does it (src/wallet/GateBridge.tsx: WalletConnect deep links on a
-   * phone, a QR code on a desktop) — the overlay steps aside while that sheet
-   * is up. A remote wallet signs on a TAP (\`tap\`): bringing the wallet app
-   * forward is a navigation, and iOS only allows one while the gesture is live.
-   * A Solana wallet (the second button) is found over the Wallet Standard —
-   * Phantom, Solflare, Backpack… announce themselves on a window event — or,
-   * failing that, \`window.solana\`; it signs the same text, raw ed25519.
+   * The app's own connect sheet does the connecting (src/wallet/GateBridge.tsx,
+   * registered as \`ycGate\` once React has mounted, a beat after this script
+   * runs): the same list as the app — the injected EVM wallets by name, a
+   * WalletConnect deep link or QR code, the Solana wallets (Phantom, Solflare,
+   * Backpack…) — and whichever the visitor picks is the wallet the gate checks
+   * and signs with. The overlay steps aside while the sheet is up. A remote
+   * wallet signs on a TAP (\`tap\`): bringing the wallet app forward is a
+   * navigation, and iOS only allows one while the gesture is live. Only when
+   * the bundle never registers (it failed to load) does the overlay fall back
+   * to speaking EIP-1193 to an injected provider itself.
    */
   var injected = eth && {
     tap: false,
@@ -122,57 +121,18 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
         var back = function () { gate.style.display = ''; };
         return yc.connect().then(function (a) { back(); return a; }, function (e) { back(); throw e; });
       },
-      sign: function (msg) { return yc.sign(msg); },
+      sign: function (msg) { return yc.sign(msg, address); },
     };
   };
-  // the bundle registers \`ycGate\` once React has mounted, a beat after this script runs
   var wallet = function () {
-    if (injected) return Promise.resolve(injected);
     return new Promise(function (resolve) {
       var t0 = Date.now();
       (function poll() {
         if (window.ycGate) resolve(bridged(window.ycGate));
-        else if (Date.now() - t0 > 5000) resolve(null);
+        else if (Date.now() - t0 > 5000) resolve(injected || null);
         else setTimeout(poll, 100);
       })();
     });
-  };
-  // Wallet Standard discovery, as src/wallet/solana.ts does it: wallets already on the page answer app-ready, later ones register
-  var solStd = [];
-  try {
-    var api = { register: function () { for (var i = 0; i < arguments.length; i++) solStd.push(arguments[i]); return function () {}; } };
-    window.addEventListener('wallet-standard:register-wallet', function (e) { if (typeof e.detail === 'function') e.detail(api); });
-    window.dispatchEvent(new CustomEvent('wallet-standard:app-ready', { detail: api }));
-  } catch (e) {}
-  var solWallet = function () {
-    var std = null, i = 0;
-    for (; i < solStd.length; i++) {
-      var f = solStd[i].features || {};
-      if (f['standard:connect'] && f['solana:signMessage'] && (solStd[i].chains || []).indexOf('solana:mainnet') >= 0) { std = solStd[i]; break; }
-    }
-    if (std) {
-      var acct = null;
-      return {
-        tap: false,
-        connect: function () {
-          return std.features['standard:connect'].connect().then(function (r) {
-            acct = r.accounts[0];
-            if (!acct) throw new Error('no account');
-            return acct.address;
-          });
-        },
-        sign: function (msg) {
-          return std.features['solana:signMessage'].signMessage({ message: new TextEncoder().encode(msg), account: acct }).then(function (r) { return toHex(r[0].signature); });
-        },
-      };
-    }
-    var sol = window.solana || (window.phantom && window.phantom.solana) || window.solflare;
-    if (!sol || !sol.signMessage) return null;
-    return {
-      tap: false,
-      connect: function () { return sol.connect().then(function (r) { return (r && r.publicKey ? r.publicKey : sol.publicKey).toString(); }); },
-      sign: function (msg) { return sol.signMessage(new TextEncoder().encode(msg), 'utf8').then(function (r) { return toHex(r.signature); }); },
-    };
   };
   var w = null;
   var post = function (path, body) {
@@ -182,48 +142,29 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
 
   // what the next tap does; each step is called synchronously from the click, so a sign keeps the gesture
   var next = start;
-  var sol = $('yc-sol');
-  var run = function (step) {
-    btn.disabled = true; sol.disabled = true;
+  btn.onclick = function () {
+    btn.disabled = true;
     var p;
-    try { p = Promise.resolve(step()); } catch (e) { p = Promise.reject(e); }
+    try { p = Promise.resolve(next()); } catch (e) { p = Promise.reject(e); }
     p.catch(function (e) {
       status(e && (e.shortMessage || e.message) ? (e.shortMessage || e.message) : String(e), true);
-      btn.disabled = false; sol.disabled = false;
+      btn.disabled = false;
     });
   };
-  btn.onclick = function () { run(next); };
-  sol.onclick = function () { run(startSol); };
 
   function start() {
     status('Waiting for the wallet\\u2026');
     return wallet().then(function (got) {
       if (!got) return none();
-      return connected(got);
+      w = got;
+      return w.connect().then(function (a) {
+        address = a;
+        return fetch('/gate/check?address=' + address).then(function (r) { return r.json(); });
+      }).then(function (out) { return out.listed ? (w.tap ? ready() : enter()) : out.waitlisted ? waiting() : lineup(); });
     });
   }
-  function startSol() {
-    var got = solWallet();
-    if (!got) return noneSol();
-    status('Waiting for the wallet\\u2026');
-    return connected(got);
-  }
-  /** One wallet chosen: from here the flow is the same, on the primary button */
-  function connected(got) {
-    w = got;
-    sol.hidden = true;
-    return w.connect().then(function (a) {
-      address = a;
-      return fetch('/gate/check?address=' + address).then(function (r) { return r.json(); });
-    }).then(function (out) { return out.listed ? (w.tap ? ready() : enter()) : out.waitlisted ? waiting() : lineup(); });
-  }
-  /** No Solana wallet in this browser: Phantom's in-app browser is the way in. */
-  function noneSol() {
-    $('yc-row').innerHTML = '<a class="yc-btn" href="https://phantom.app/ul/browse/' + encodeURIComponent(location.href) + '?ref=' + encodeURIComponent(location.origin) + '">Open in Phantom</a>';
-    status('No Solana wallet in this browser. Open this page in your wallet app\\u2019s browser (Phantom, Solflare, Backpack\\u2026), or on a desktop with a wallet extension.');
-  }
 
-  /** No injected wallet and no WalletConnect on this build: the wallet's own browser is the way in. */
+  /** The bundle never registered and there is no injected wallet: the wallet's own browser is the way in. */
   function none() {
     var here = location.host + location.pathname + location.search;
     $('yc-row').innerHTML = '<a class="yc-btn" href="https://metamask.app.link/dapp/' + here + '">Open in MetaMask</a>';

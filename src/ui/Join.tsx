@@ -27,6 +27,11 @@ const SLOTS = [{ x: 15, y: 24 }, { x: 83, y: 20 }, { x: 11, y: 70 }, { x: 86, y:
 /** the back row: smaller, blurred, no card — the board fills them */
 const BACK = [{ x: 6, y: 44 }, { x: 94, y: 42 }, { x: 24, y: 88 }, { x: 74, y: 10 }, { x: 40, y: 8 }, { x: 60, y: 7 }, { x: 4, y: 90 }, { x: 95, y: 88 }, { x: 36, y: 94 }, { x: 64, y: 94 }, { x: 20, y: 50 }, { x: 80, y: 50 }]
 
+/** one clip is 7 s (video/src/Pnl.tsx PNL_FRAMES / FPS); the tour waits for the finish and a beat */
+const CLIP_MS = 8500
+/** no hover or tap for this long and the tour resumes */
+const IDLE_MS = 20_000
+
 const usd = (v: number) => `${v < 0 ? '−' : '+'}$${Math.abs(v).toLocaleString('en-US')}`
 
 /** The gate's card, shipped hidden by the middleware; absent in a build without the gate. */
@@ -42,6 +47,29 @@ export function Join() {
   const [open, setOpen] = React.useState<string | null>(null)
   // a phone has no hover and no room beside an orb: the card is a sheet at the bottom instead
   const phone = useViewport() === 'phone'
+  /**
+   * The tour: left alone, the page plays one farmer's clip after another, a
+   * random one each time, so the proof moves before anyone hovers. The first
+   * hover or tap ends it; it comes back after a while without one.
+   */
+  const touched = React.useRef(0)
+  const pick = React.useCallback((name: string | null, byHand = true) => {
+    if (byHand) touched.current = Date.now()
+    setOpen(name)
+  }, [])
+  React.useEffect(() => {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches || showcase.length < 2) return
+    let last: string | null = null
+    const step = () => {
+      if (Date.now() - touched.current < IDLE_MS) return
+      const rest = showcase.filter((p) => p.name !== last)
+      last = rest[Math.floor(Math.random() * rest.length)].name
+      setOpen(last)
+    }
+    const t0 = setTimeout(step, 1800)
+    const t = setInterval(step, CLIP_MS)
+    return () => { clearTimeout(t0); clearInterval(t) }
+  }, [])
   const board = useEarners({ by: 'position', sort: 'perDay', people: true, limit: 40 })
   // the board's wallets that are not already in the showcase, one per wallet, loops first
   const back = React.useMemo(() => {
@@ -62,7 +90,7 @@ export function Join() {
   const pass = inside && onAccessCode()
 
   return (
-    <div className={`join${inside ? ' has-banner' : ''}`} onClick={() => setOpen(null)}>
+    <div className={`join${inside ? ' has-banner' : ''}`} onClick={() => pick(null)}>
       <div className="join-glow" aria-hidden="true" />
       <header className="join-top"><Logo height={30} href="#/join" /></header>
       {inside && (
@@ -80,7 +108,7 @@ export function Join() {
             <span className="join-tag"><b>{b.pair}</b>{b.apr != null && <i>{b.apr.toFixed(1)}%</i>}</span>
           </div>
         ))}
-        {showcase.map((p, i) => <Orb key={p.name} p={p} slot={SLOTS[i % SLOTS.length]} i={i} open={open === p.name} inline={!phone} setOpen={setOpen} />)}
+        {showcase.map((p, i) => <Orb key={p.name} p={p} slot={SLOTS[i % SLOTS.length]} i={i} open={open === p.name} inline={!phone} setOpen={pick} />)}
       </div>
 
       <main className="join-hero">

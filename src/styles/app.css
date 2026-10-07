@@ -1968,7 +1968,7 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .join-foot{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:11px;color:var(--tx40);z-index:2;pointer-events:none}
 /* the field */
 .join-field{position:absolute;inset:0;z-index:1}
-.join-orb{position:absolute;left:var(--x);top:var(--y);transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;animation:join-drift ease-in-out infinite;will-change:transform}
+.join-orb{position:absolute;left:var(--x);top:var(--y);transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:11px;cursor:pointer;animation:join-drift ease-in-out infinite;will-change:transform}
 .join-orb .chr{border-radius:50%;box-shadow:0 0 0 3px var(--bg),0 0 0 4px var(--line2),0 0 32px rgba(63,191,127,.25);transition:transform .25s,filter .25s,box-shadow .25s}
 .join-orb:hover .chr,.join-orb.open .chr{transform:scale(1.12);box-shadow:0 0 0 3px var(--bg),0 0 0 4px var(--success),0 0 48px rgba(63,191,127,.6)}
 .join-orb.back{filter:blur(2px);opacity:.65;cursor:default;pointer-events:none;transform:translate(-50%,-50%) scale(.85)}
@@ -1980,21 +1980,25 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .join-orb:hover,.join-orb.open{animation-play-state:paused;z-index:5}
 @media (prefers-reduced-motion:reduce){.join-orb{animation:none}}
 /* the card: 16:9 clip + a footer line, opening away from the nearest edges (r/l = opens right/left, d/u = down/up) */
-.join-card{--cw:min(340px,50vw - 344px);position:absolute;width:var(--cw);left:50%;border:1px solid var(--line2);border-radius:14px;overflow:hidden;background:#0a0a0a;box-shadow:0 24px 80px rgba(0,0,0,.8),0 0 0 1px rgba(63,191,127,.15);cursor:default;animation:join-pop .18s ease-out}
-.join-card video{display:block;width:100%;aspect-ratio:16/9;background:#0a0a0a}
+.join-card{--cw:min(340px,50vw - 344px);--ml:calc(var(--cw) / -2);position:absolute;width:var(--cw);left:50%;margin-left:var(--ml);border:1px solid var(--line2);border-radius:14px;background:#0a0a0a;box-shadow:0 24px 80px rgba(0,0,0,.8),0 0 0 1px rgba(63,191,127,.15);cursor:default;animation:join-pop .18s ease-out}
+.join-card video{display:block;width:100%;aspect-ratio:16/9;background:#0a0a0a;border-radius:13px 13px 0 0}
 .join-card-f{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;font-family:var(--mono);font-size:11.5px;color:var(--tx50);white-space:nowrap;overflow:hidden}
 .join-card-f span:first-child{overflow:hidden;text-overflow:ellipsis;min-width:0}.join-card-f span:last-child{flex:none}
 .join-card-f b{color:var(--success);font-weight:500}
 /* under a top orb (d), over a bottom one (u); centred on it, but the margin keeps it off the hero (640px wide in the middle) and inside the viewport */
-.join-orb.d .join-card{top:calc(100% + 10px)}
-.join-orb.u .join-card{bottom:calc(100% + 10px)}
-.join-orb.l .join-card{margin-left:clamp(calc(16px - var(--xv)),calc(var(--cw) / -2),calc(50vw - 328px - var(--cw) - var(--xv)))}
-.join-orb.r .join-card{margin-left:clamp(calc(50vw + 328px - var(--xv)),calc(var(--cw) / -2),calc(100vw - 16px - var(--cw) - var(--xv)))}
+/* a speech bubble: the tail sits on the orb's centre line, wherever the clamp has pushed the card */
+.join-orb.d .join-card{top:calc(100% + 22px)}
+.join-orb.u .join-card{bottom:calc(100% + 18px)}
+.join-orb.l .join-card{--ml:clamp(calc(16px - var(--xv)),calc(var(--cw) / -2),calc(50vw - 328px - var(--cw) - var(--xv)))}
+.join-orb.r .join-card{--ml:clamp(calc(50vw + 328px - var(--xv)),calc(var(--cw) / -2),calc(100vw - 16px - var(--cw) - var(--xv)))}
+.join-card::before{content:'';position:absolute;width:14px;height:14px;left:calc(var(--ml) * -1 - 8px);background:#0a0a0a;border:1px solid var(--line2);transform:rotate(45deg)}
+.join-orb.d .join-card::before{top:-8px;border-right:0;border-bottom:0}
+.join-orb.u .join-card::before{bottom:-8px;border-left:0;border-top:0}
 @keyframes join-pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
 /* no room beside the hero: the card is a sheet — in the bottom-right corner, full width on a phone */
 .join-sheet{position:fixed;left:16px;right:16px;bottom:16px;z-index:9}
 .join-sheet.corner{left:auto;width:340px}
-.join-sheet .join-card{position:static;width:auto;margin-left:0}
+.join-sheet .join-card{position:static;width:auto;margin-left:0}.join-sheet .join-card::before{display:none}
 @media (max-width:720px){
   .join-orb{left:var(--xp);top:var(--yp)}
   .join-orb .chr{width:48px!important;height:48px!important}

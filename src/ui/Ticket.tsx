@@ -14,6 +14,7 @@ import { slippageFor, useSettings } from '../state/Settings'
 import { SlippagePicker } from './SettingsPanel'
 import { DecimalInput, Info, KindPill, LegsPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
 import { Who } from './social-bits'
+import { LossAck, ValueRow, cents, useValueCheck } from './ValueCheck'
 import { isSvmChain, normAddr } from '../model/address'
 import { useProfiles } from '../social/queries'
 import { stepsFrom, useLadder, type Ladder, type Step } from './useLadder'
@@ -437,6 +438,8 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
     return stepsFrom(env.actions, `Open ${num(L, 2)}× loop${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)} term` : s.dueAt ? ` · due ${due}` : ''}`, s.chainId)
     // the swap's leftover lands in the wallet as either leg's token (Jupiter's exact-in fill on Solana)
   }, [s.marketLongUid, s.marketShortUid], [{ address: chosen?.address, symbol: chosen?.symbol }, { address: s.collateralAddress, symbol: s.holds }, { address: s.debtAddress, symbol: s.debt }])
+  // the open at market prices: your equity right after it is what you put in less the entry cost (`ValueCheck.tsx`)
+  const vc = useValueCheck(E, econ && E > 0 ? E - cost : 0, `${key}|${cost}`)
   const more = !!bal && amount > bal.amount
   return (
     <>
@@ -483,7 +486,11 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
             <span className={`tr ${n >= 3 ? 'ok' : n < 0 ? 'bad' : ''}`}>{pct(n)}</span>
             <span className={`tl ${d < 0.05 ? 'bad' : d < 0.1 ? 'warn' : ''}`} title={`${num(l, 2)}× leverage · liquidated if the collateral falls ${pct(d * 100, 1)} against the debt`}>{num(l, 2)}× · −{pct(d * 100, d < 0.1 ? 1 : 0)}</span>
           </button>) })}</div>}
-
+        {econ && <>
+          <ValueRow v={vc} labels={['You put in', 'Equity after', 'Value change']} missing={chosen?.symbol}
+            info={<>Your equity right after the open, at market prices: what you put in less the entry cost — the swap's slippage on the whole {num(L, 2)}× position, fees and the network fee. A loop earns it back over time (Break-even below).</>} />
+          <LossAck v={vc} what="Opening this loop" advice="Lower the leverage or the amount: the swap is sized on the whole position, not on what you put in." />
+        </>}
       </div>
       <div className="tsec"><div className="cells">
         <div className="c hero"><span className="k">Net yield</span><span className={`v ${net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{pct(net)}</span><span className="s">earn {pct(dep)} on {num(L, 1)}× · pay {pct(bor)} on {num(L - 1, 1)}×{term ? ` fixed to ${ends}` : tenor ? ` fixed for ${tenorWord(tenor)}` : s.dueAt ? ` fixed to ${due}` : Math.abs(bor - s.borSpot) >= 0.05 ? ` (${pct(s.borSpot)} now)` : ''}</span></div>
@@ -531,7 +538,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
         {s.rewardsLong + s.rewardsShort > 0.05 && <li><i /><span>Part of the rate is incentives that can stop without notice.</span></li>}
       </ul></div>
       {noRoute && <div className="err" style={{ margin: '0 0 10px' }}>{NO_ROUTE}</div>}
-      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute} chainId={s.chainId} />
+      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={s.chainId} />
     </>
   )
 }
@@ -671,6 +678,11 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const backUsd = !sale ? null : keep ? (keepOk ? (backColl! * rate! + leftover) * pDebt : null) : backDebt! * pDebt
   const closeBlock = !closing ? null : cq.isPending ? 'pricing' : !sale ? 'no-route' : !covers ? 'short' : keep && !keepOk ? 'keep-short' : null
   const key = [s?.id ?? h.key, 'manage', L, keep ? 'keep' : 'sell', actor ?? '', slip].join('|')
+  // a full close at market prices against the equity the venue's oracle says it holds: the sale's
+  // slippage and fees, and any gap between the oracle and the market (`ValueCheck.tsx`). Only for the
+  // loop's own pair — other legs stay where they are, so the account's equity is not what comes back.
+  const valued = closing && !closeBlock && !h.others?.length && h.valueUsd > 0 && backUsd != null && backUsd > 0
+  const vc = useValueCheck(valued ? h.valueUsd : 0, valued ? backUsd! : 0, `${key}|${backUsd}`)
   const ladder = useLadder(key, h.chainId, async () => {
     if (down || !s) {
       const amountRaw = closing && !keep ? allRaw : toRaw(closing ? sellKeep! : sellTok, h.decimals)
@@ -709,6 +721,11 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
         {closeBlock === 'short' && !otherColl.length && <div className="err" style={{ marginTop: 8 }}>A close would revert: the sale cannot repay the debt. {h.venue} values your {holds} at its own oracle ({usd(h.valueUsd)} of equity), above what it sells for right now{sale && owed > 0 ? <>, which leaves you about <b>{num(owed * (1 + CLOSE_INTEREST_PAD) - sale.output, 4)} {debt}</b> short</> : ''}. Repay that much {debt} on the venue first, or wait for {holds} to trade closer to its oracle.</div>}
         {closeBlock === 'keep-short' && <div className="err" style={{ marginTop: 8 }}>Repaying {num(owed, 4)} {debt} with a 1% margin for the fill takes ≈ {num(sellKeep!, 4)} {holds}, more than the {num(h.amount, 4)} you hold. Take the payout in {debt} instead.</div>}
         {tight && !closeBlock && <div className="plain warn" style={{ marginTop: 6 }}>Tight: a fill at the worst the {slip / 100}% slippage allows would not cover the debt, and the close would revert (only gas is lost).</div>}
+        {valued && <>
+          <ValueRow v={vc} labels={['Equity', 'You get back', 'Value change']}
+            info={<>What the close pays out at market prices, against the equity {h.venue} values the position at with its own oracle. The difference is the sale's slippage and fees, plus any gap between the oracle and what {holds} sells for.</>} />
+          <LossAck v={vc} what="Closing now" advice={!keep && !sameToken && !venueKeeps ? `Taking the payout in ${holds} sells less of it; or wait for ${holds} to trade closer to its oracle.` : `It can be worth waiting for ${holds} to trade closer to its oracle.`} />
+        </>}
         {h.valueUsd <= 0 && closeBlock !== 'short' && <div className="err" style={{ marginTop: 8 }}>This loop has no equity left: the collateral is worth less than the debt, so selling it cannot repay everything. Closing may fail; add {debt} on the venue to repay first.</div>}
       </div>
       <div className="tsec"><div className="cells">
@@ -723,7 +740,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
           <div className="c"><span className="k">Buffer after</span><span className={`v ${drop == null ? '' : drop < 0.05 ? 'bad' : drop < 0.1 ? 'warn' : ''}`}>{drop == null ? '—' : `−${pct(drop * 100, 1)}`}</span><span className="s">{drop == null ? '' : `${holds} fall that liquidates`}</span></div>
         </>}
       </div></div>
-      <Action ladder={ladder} label={same ? 'Nothing to change' : closing ? (keep ? `Close · sell ≈ ${num(sellKeep ?? 0, 4)} ${holds}, keep the rest` : `Close · sell all ${holds} for ${debt}`) : down ? `Deleverage to ${num(L, 2)}× · sell ${num(sellTok, 4)} ${holds}` : `Increase to ${num(L, 2)}× · borrow ${num(borrowTok, 4)} ${debt}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock} chainId={h.chainId} />
+      <Action ladder={ladder} label={same ? 'Nothing to change' : closing ? (keep ? `Close · sell ≈ ${num(sellKeep ?? 0, 4)} ${holds}, keep the rest` : `Close · sell all ${holds} for ${debt}`) : down ? `Deleverage to ${num(L, 2)}× · sell ${num(sellTok, 4)} ${holds}` : `Increase to ${num(L, 2)}× · borrow ${num(borrowTok, 4)} ${debt}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} />
     </>
   )
 }
@@ -779,7 +796,7 @@ function AmountBox({ unit, value, onChange, onMax }: { unit: string; value: numb
 }
 
 /** The sticky bottom of the ticket: one button, then the ladder once built. */
-function Action({ ladder: l, label, account, isConnected, disabled, chainId }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; chainId: string }) {
+function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string }) {
   const { setViewAs } = useApp()
   const { thread } = React.useContext(TicketCtx)
   const viewing = !!account && !isConnected
@@ -796,7 +813,7 @@ function Action({ ladder: l, label, account, isConnected, disabled, chainId }: {
         : !account ? <button className="btn wide pri" onClick={() => setViewAs(undefined)} disabled>Connect a wallet to continue</button>
         : viewing ? <button className="btn wide" disabled>Viewing {account.slice(0, 6)}… · connect to sign</button>
         : !l.isConnected ? <button className="btn wide" disabled>{isSvmChain(chainId) ? 'Connect a Solana wallet (Phantom, Solflare, Backpack) to sign' : 'Connect a wallet to sign'}</button>
-        : <button className="btn wide pri" disabled={disabled || l.busy} onClick={() => l.start(label)}>{l.busy ? 'Building…' : label}</button>}
+        : <button className={`btn wide pri ${risky ? 'risky' : ''}`} disabled={disabled || l.busy} onClick={() => l.start(label)}>{l.busy ? 'Building…' : blockedNote ?? (risky ? `${label} anyway` : label)}</button>}
       {!viewing && <SayWhy on={thread ?? null} />}
       <div className="foot" style={{ marginTop: 8 }}>The API builds the exact calls (approvals, then the action); nothing is sent until you sign each one. Gas on {chainLabel(chainId)}.</div>
     </div>

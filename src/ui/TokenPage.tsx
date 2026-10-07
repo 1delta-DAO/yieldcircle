@@ -153,8 +153,14 @@ const SLICE_MODES: { id: SliceMode; label: string; note: string }[] = [
 
 export function TokenPage({ group }: { group: string }) {
   const { chainIds, allChains, chainLabelFor } = useApp()
-  const chainsParam = allChains ? undefined : chainIds.join(',')
-  const a = useAsset(group, chainsParam)
+  const scope = allChains ? undefined : chainIds.join(',')
+  const scoped = useAsset(group, scope)
+  // the index 404s an asset that has nothing on the chains in scope (nOPAL with only Solana picked):
+  // the page then reads every chain and says so, rather than reading as "the index could not answer"
+  const outOfScope = !!scope && scoped.isError && /on these chains/.test((scoped.error as Error).message)
+  const wide = useAsset(outOfScope ? group : undefined)
+  const a = outOfScope ? wide : scoped
+  const chainsParam = outOfScope ? undefined : scope
   const hist = useAssetHistory(group, 90, chainsParam)
   const holders = useAssetHolders(group, 20, chainsParam)
   // the tape files a Solana token under its chain-local key, the page under the cross-chain one: ask for both
@@ -228,7 +234,7 @@ export function TokenPage({ group }: { group: string }) {
           <h1>{d?.name ?? (a.isLoading ? sym : group)}{d?.name && d.symbol && d.name !== d.symbol ? <span className="t50" style={{ fontWeight: 400 }}> · {d.symbol}</span> : null}</h1>
           <div className="sub">
             {d ? marketsLine(d.marketCount ?? markets.length, d.chainCount ?? new Set(markets.map((m) => m.chainId)).size) : a.isLoading ? <Sk w={160} /> : null}
-            {!allChains && ` · ${chainLabelFor()}`}
+            {!allChains && !outOfScope && ` · ${chainLabelFor()}`}
             {desk && <> · <DeskChips x={desk} max={3} /></>}
           </div>
         </div>
@@ -237,6 +243,12 @@ export function TokenPage({ group }: { group: string }) {
           <Comments n={nComments} onClick={() => threadRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
         </div>
       </header>
+
+      {outOfScope && (
+        <div className="note">
+          The index has no {sym} on {chainLabelFor()}, so the figures below cover every chain it indexes.
+        </div>
+      )}
 
       <div className="cstats">
         <div className="cstat">
@@ -363,7 +375,7 @@ export function TokenPage({ group }: { group: string }) {
         </div>
         <div className="card tk-scroll">
           {a.isLoading && <div className="empty"><Sk w={220} /></div>}
-          {d && !markets.length && <div className="empty">No market in the index lends or accepts this asset{allChains ? '' : ' on these chains'}.</div>}
+          {d && !markets.length && <div className="empty">No market in the index lends or accepts this asset{allChains || outOfScope ? '' : ' on these chains'}.</div>}
           {markets.length > 0 && (
             <table className="tbl tk-markets">
               <thead><tr>

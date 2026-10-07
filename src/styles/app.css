@@ -1980,20 +1980,25 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .join-orb:hover,.join-orb.open{animation-play-state:paused;z-index:5}
 @media (prefers-reduced-motion:reduce){.join-orb{animation:none}}
 /* the card: 16:9 clip + a footer line, opening away from the nearest edges (r/l = opens right/left, d/u = down/up) */
-.join-card{position:absolute;width:min(380px,calc(100vw - 32px));border:1px solid var(--line2);border-radius:14px;overflow:hidden;background:#0a0a0a;box-shadow:0 24px 80px rgba(0,0,0,.8),0 0 0 1px rgba(63,191,127,.15);cursor:default;animation:join-pop .18s ease-out}
+.join-card{--cw:min(340px,50vw - 344px);position:absolute;width:var(--cw);left:50%;border:1px solid var(--line2);border-radius:14px;overflow:hidden;background:#0a0a0a;box-shadow:0 24px 80px rgba(0,0,0,.8),0 0 0 1px rgba(63,191,127,.15);cursor:default;animation:join-pop .18s ease-out}
 .join-card video{display:block;width:100%;aspect-ratio:16/9;background:#0a0a0a}
 .join-card-f{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;font-family:var(--mono);font-size:11.5px;color:var(--tx50);white-space:nowrap;overflow:hidden}
+.join-card-f span:first-child{overflow:hidden;text-overflow:ellipsis;min-width:0}.join-card-f span:last-child{flex:none}
 .join-card-f b{color:var(--success);font-weight:500}
-.join-orb.rd .join-card{left:calc(100% + 10px);top:0}
-.join-orb.ld .join-card{right:calc(100% + 10px);top:0}
-.join-orb.ru .join-card{left:calc(100% + 10px);bottom:0}
-.join-orb.lu .join-card{right:calc(100% + 10px);bottom:0}
+/* under a top orb (d), over a bottom one (u); centred on it, but the margin keeps it off the hero (640px wide in the middle) and inside the viewport */
+.join-orb.d .join-card{top:calc(100% + 10px)}
+.join-orb.u .join-card{bottom:calc(100% + 10px)}
+.join-orb.l .join-card{margin-left:clamp(calc(16px - var(--xv)),calc(var(--cw) / -2),calc(50vw - 328px - var(--cw) - var(--xv)))}
+.join-orb.r .join-card{margin-left:clamp(calc(50vw + 328px - var(--xv)),calc(var(--cw) / -2),calc(100vw - 16px - var(--cw) - var(--xv)))}
 @keyframes join-pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+/* no room beside the hero: the card is a sheet — in the bottom-right corner, full width on a phone */
+.join-sheet{position:fixed;left:16px;right:16px;bottom:16px;z-index:9}
+.join-sheet.corner{left:auto;width:340px}
+.join-sheet .join-card{position:static;width:auto;margin-left:0}
 @media (max-width:720px){
   .join-orb{left:clamp(20%,var(--x),80%);top:clamp(9%,var(--y),76%)}
   .join-orb .chr{width:48px!important;height:48px!important}
   .join-orb.back:nth-child(n+7){display:none}
-  .join-sheet{position:fixed;left:16px;right:16px;bottom:16px;z-index:9}.join-sheet .join-card{position:static;width:auto}
 }
 
 /* ---- the wallet sheet's list (src/wallet/ConnectSheet.tsx): one row per wallet, its icon, the VMs it speaks */

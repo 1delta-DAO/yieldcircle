@@ -22,10 +22,10 @@ declare global { interface Window { ycGated?: boolean } }
 export const gated = () => window.ycGated === true
 
 type Pick = (typeof showcase)[number]
-/** where the showcase orbs sit (% of the viewport), clear of the middle column; the card opens away from the nearest edge */
-const SLOTS = [{ x: 15, y: 24 }, { x: 83, y: 20 }, { x: 11, y: 70 }, { x: 86, y: 68 }, { x: 50, y: 82 }, { x: 30, y: 12 }, { x: 68, y: 90 }]
+/** where the showcase orbs sit (% of the viewport), clear of the middle column; the card opens below a top orb, above a bottom one, never over the hero */
+const SLOTS = [{ x: 15, y: 24 }, { x: 83, y: 20 }, { x: 11, y: 70 }, { x: 86, y: 68 }, { x: 32, y: 88 }, { x: 68, y: 90 }, { x: 30, y: 10 }]
 /** the back row: smaller, blurred, no card — the board fills them */
-const BACK = [{ x: 6, y: 44 }, { x: 94, y: 42 }, { x: 24, y: 88 }, { x: 74, y: 10 }, { x: 40, y: 8 }, { x: 60, y: 7 }, { x: 4, y: 90 }, { x: 95, y: 88 }, { x: 36, y: 94 }, { x: 64, y: 94 }, { x: 20, y: 50 }, { x: 80, y: 50 }]
+const BACK = [{ x: 6, y: 44 }, { x: 94, y: 42 }, { x: 24, y: 88 }, { x: 74, y: 10 }, { x: 40, y: 8 }, { x: 60, y: 7 }, { x: 4, y: 86 }, { x: 95, y: 86 }, { x: 44, y: 90 }, { x: 58, y: 88 }, { x: 20, y: 50 }, { x: 80, y: 50 }]
 
 /** one clip is 7 s (video/src/Pnl.tsx PNL_FRAMES / FPS); the tour waits for the finish and a beat */
 const CLIP_MS = 8500
@@ -45,7 +45,8 @@ function openGate(): boolean {
 
 export function Join() {
   const [open, setOpen] = React.useState<string | null>(null)
-  // a phone has no hover and no room beside an orb: the card is a sheet at the bottom instead
+  // under 1280px there is no room beside the hero for a card: it is a sheet in the corner instead (full width on a phone)
+  const wide = useWide()
   const phone = useViewport() === 'phone'
   /**
    * The tour: left alone, the page plays one farmer's clip after another, a
@@ -104,11 +105,11 @@ export function Join() {
       <div className="join-field" aria-hidden={open ? undefined : true}>
         {back.map((b, i) => (
           <div key={b.account} className="join-orb back" style={{ '--x': `${BACK[i].x}%`, '--y': `${BACK[i].y}%`, animationDelay: `${-i * 1.7}s`, animationDuration: `${9 + (i % 4) * 2}s` } as React.CSSProperties} title={`${b.pair} · ${b.apr?.toFixed(1) ?? '—'}% APR`}>
-            <Character addr={b.account} size={44} />
+            <Character addr={b.account} size={44} title="" />
             <span className="join-tag"><b>{b.pair}</b>{b.apr != null && <i>{b.apr.toFixed(1)}%</i>}</span>
           </div>
         ))}
-        {showcase.map((p, i) => <Orb key={p.name} p={p} slot={SLOTS[i % SLOTS.length]} i={i} open={open === p.name} inline={!phone} setOpen={pick} />)}
+        {showcase.map((p, i) => <Orb key={p.name} p={p} slot={SLOTS[i % SLOTS.length]} i={i} open={open === p.name} inline={wide} setOpen={pick} />)}
       </div>
 
       <main className="join-hero">
@@ -124,21 +125,33 @@ export function Join() {
         </>}
       </main>
 
-      {phone && open && <div className="join-sheet"><Card p={showcase.find((p) => p.name === open)!} /></div>}
+      {!wide && open && <div className={`join-sheet${phone ? '' : ' corner'}`}><Card p={showcase.find((p) => p.name === open)!} /></div>}
       <footer className="join-foot">Realized PnL from on-chain records as of {showcase[0]?.at} · hover a farmer</footer>
     </div>
   )
 }
 
+const WIDE = '(min-width: 1280px)'
+function useWide() {
+  const [wide, setWide] = React.useState(() => matchMedia(WIDE).matches)
+  React.useEffect(() => {
+    const q = matchMedia(WIDE)
+    const f = () => setWide(q.matches)
+    q.addEventListener('change', f)
+    return () => q.removeEventListener('change', f)
+  }, [])
+  return wide
+}
+
 function Orb({ p, slot, i, open, inline, setOpen }: { p: Pick; slot: { x: number; y: number }; i: number; open: boolean; inline: boolean; setOpen: (n: string | null) => void }) {
   const pair = p.legs.map((l) => l.symbol).join(' / ')
-  const side = `${slot.x > 55 ? 'l' : 'r'}${slot.y > 55 ? 'u' : 'd'}`
+  const side = `${slot.y > 50 ? 'u' : 'd'} ${slot.x > 50 ? 'r' : 'l'}`
   return (
-    <div className={`join-orb${open ? ' open' : ''} ${side}`} style={{ '--x': `${slot.x}%`, '--y': `${slot.y}%`, animationDelay: `${-i * 2.3}s`, animationDuration: `${11 + (i % 3) * 2}s` } as React.CSSProperties}
+    <div className={`join-orb${open ? ' open' : ''} ${side}`} style={{ '--x': `${slot.x}%`, '--y': `${slot.y}%`, '--xv': `${slot.x}vw`, animationDelay: `${-i * 2.3}s`, animationDuration: `${11 + (i % 3) * 2}s` } as React.CSSProperties}
       // hover is a MOUSE thing: a finger lifting fires a leave too, which would shut what the tap just opened
       onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(p.name)} onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}
       onClick={(e) => { e.stopPropagation(); setOpen(p.name) }}>
-      <Character addr={p.account} size={64} />
+      <Character addr={p.account} size={64} title="" />
       <span className="join-tag"><b className="up">{usd(p.pnl)}</b><i>{pair}</i></span>
       {open && inline && <Card p={p} />}
     </div>

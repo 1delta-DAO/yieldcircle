@@ -1996,9 +1996,15 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .join-sheet.corner{left:auto;width:340px}
 .join-sheet .join-card{position:static;width:auto;margin-left:0}
 @media (max-width:720px){
-  .join-orb{left:clamp(20%,var(--x),80%);top:clamp(9%,var(--y),76%)}
+  .join-orb{left:var(--xp);top:var(--yp)}
   .join-orb .chr{width:48px!important;height:48px!important}
-  .join-orb.back:nth-child(n+7){display:none}
+  .join-orb.back{display:none}
+  .join-pill{display:none} /* the banner already says it, and the top band of orbs needs the room */
+}
+/* a short phone (SE, landscape): a tighter hero and smaller orbs, so the bands still clear it */
+@media (max-width:720px) and (max-height:640px){
+  .join-hero{gap:12px}.join-hero h1{font-size:30px}.join-hero p{font-size:14px}.join-cta{min-height:48px;font-size:15px;margin-top:4px}
+  .join-orb .chr{width:40px!important;height:40px!important}.join-tag{font-size:11px}.join-tag i{font-size:10px}
 }
 
 /* ---- the wallet sheet's list (src/wallet/ConnectSheet.tsx): one row per wallet, its icon, the VMs it speaks */

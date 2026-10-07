@@ -49,6 +49,8 @@ export interface Route {
   t?: string
   /** the board's unit: a position, or a whole wallet (`?by=wallet`) */
   by?: string
+  /** the board's exposure chip (`?x=eth`, pos-indexer tickets/0072) */
+  x?: string
   /** who is being copied, when the ticket was opened from a feed card */
   copy?: string
   /** an off-menu row's narrowing token (`OffMenuRef.by`): `s=` names a row the catalogue does not hold */
@@ -74,6 +76,7 @@ export function parseRoute(hash = location.hash): Route {
     m: m === 'reduce' || m === 'close' || m === 'manage' ? (m as Mode) : m === 'add' ? ('add' as Mode) : undefined,
     t: p.get('t') ?? undefined,
     by: p.get('by') ?? undefined,
+    x: p.get('x') ?? undefined,
     copy: p.get('copy') ?? undefined,
     oa: p.get('oa') ?? undefined,
     pos: p.get('pos') ?? undefined,

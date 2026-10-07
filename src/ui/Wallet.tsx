@@ -86,7 +86,8 @@ export function Wallet({ addr }: { addr: string }) {
   const inScope = React.useCallback((id: string) => allChains || chainIds.includes(id), [allChains, chainIds])
   // your own page: sync first, then the index (pos-indexer tickets/0071)
   const sync = useAccountSync(isMe && isEvmAddr(addr) ? addr : undefined)
-  const syncing = isMe && sync.isLoading
+  // waiting for the chip's live read counts as syncing: the call has not been sent yet
+  const syncing = isMe && isEvmAddr(addr) && !sync.data && !sync.isError
   // hidden = your own page with no synced answer to show (Solana, or the sync failed)
   const hidden = isMe && !sync.data && !syncing
   const pos = useIndexPositions(!isMe || sync.data ? addr : undefined, one)

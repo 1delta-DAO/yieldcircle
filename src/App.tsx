@@ -35,7 +35,7 @@ export default function App() {
         : r.view === 'market' && r.uid ? <Market key={r.uid} uid={r.uid} />
         : r.view === 'curator' && r.curatorId ? <Curator key={r.curatorId} id={r.curatorId} />
         : r.view === 'token' ? (r.token ? <TokenPage key={r.token} group={r.token} /> : <TokenBook />)
-        : r.view === 'board' ? <Board window={r.t} by={r.by} />
+        : r.view === 'board' ? <Board window={r.t} by={r.by} x={r.x} />
         : r.view === 'me' ? <ProfilePage />
         : r.view === 'alerts' ? <Alerts />
         : group ? <AssetPage key={group.id} group={group} route={r} />

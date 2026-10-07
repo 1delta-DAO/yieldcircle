@@ -415,6 +415,8 @@ export interface EarnerLeg {
   aprEffective: number | null
   symbol: string | null
   assetGroup: string | null
+  /** the money this leg's token is in (pos-indexer tickets/0072); null = none named */
+  exposure?: Exposure | null
   valueStatus?: string | null
   faceUsd?: number | null
 }
@@ -447,6 +449,8 @@ export interface EarnerRow {
   risk: string[]
   riskDetail: Record<string, unknown> | null
   legs: EarnerLeg[]
+  /** the money of the supply side — what the board's exposure chips cut on */
+  exposure?: PositionExposure
   wallet: WalletTotal | null
   accountKind?: AccountKind
   accountLabel?: string | null
@@ -472,6 +476,10 @@ export interface WalletEarnerRow {
   best: { key: string; aprPct: number | null; marketName: string | null } | null
   /** realized POOL yield over 7 d — a token's own appreciation (PT, LST, savings) is in its price, not here */
   poolRealized7dUsd: number | null
+  /** the exposure the figures above are cut to (`exposure=`); null / absent = the whole wallet */
+  exposure?: string | null
+  /** with an exposure: the whole wallet's figure beside its book in that exposure */
+  wallet?: WalletTotal | null
   accountKind?: AccountKind
   accountLabel?: string | null
   accountLabelSource?: string | null
@@ -481,6 +489,8 @@ interface EarnersEnvelope {
   window: string
   direction: string
   exclude: string[]
+  /** the `exposure=` the index applied, echoed; absent on an index that predates tickets/0072 */
+  exposure?: string | null
   /** positions: what the preset hid, per flag. wallets: wallets whose figure leaves out a position with that flag */
   hidden: Record<string, number>
   ratingFlags: { status: 'ok' | 'stale' | 'unavailable'; computedAt: string | null; nSubjects: number | null }
@@ -488,19 +498,28 @@ interface EarnersEnvelope {
 }
 export interface EarnersResponse extends EarnersEnvelope { by: 'position'; rows: EarnerRow[] }
 export interface WalletEarnersResponse extends EarnersEnvelope { by: 'wallet'; rows: WalletEarnerRow[] }
+/**
+ * The money a position's supply side is in (pos-indexer tickets/0072). The
+ * board's chips are `usd · eth · btc · sol · hype` and `more` (everything
+ * else, the index spells it out); a row says which of these it is.
+ */
+export type Exposure = 'usd' | 'eth' | 'btc' | 'sol' | 'hype' | 'bnb' | 'avax' | 'mon' | 'eur' | 'xau'
+export type PositionExposure = Exposure | 'mixed' | 'other'
+export type ExposureChip = 'usd' | 'eth' | 'btc' | 'sol' | 'hype' | 'more'
 export interface EarnersQuery {
   sort?: 'perDay' | 'apr'
   preset?: 'all'
   people?: boolean
   chainIds?: string
+  exposure?: ExposureChip
   limit?: number
 }
 /**
  * The URL is the server's cache key, and the index PRE-WARMS the app's default
  * board URLs after every tick (pos-indexer `EARNERS_PREWARM_URLS`) — so the
  * parameters are written in ONE fixed order: by, sort, preset, people,
- * chainIds, limit. Reordering them here silently turns every pre-warmed hit
- * into a cold query.
+ * chainIds, exposure, limit. Reordering them here silently turns every
+ * pre-warmed hit into a cold query; an absent exposure leaves the URL as it was.
  */
 const earnersParams = (by: 'wallet' | undefined, p: EarnersQuery): Params => ({
   by,
@@ -508,8 +527,22 @@ const earnersParams = (by: 'wallet' | undefined, p: EarnersQuery): Params => ({
   preset: p.preset,
   people: p.people ? '1' : undefined,
   chainIds: p.chainIds,
+  exposure: p.exposure,
   limit: p.limit,
 })
+/**
+ * Which index can hold an exposure (pos-indexer tickets/0072): ether, bitcoin
+ * and HYPE positions are EVM-only, so those chips never ask the Solana index;
+ * SOL, dollars and the rest ask both.
+ */
+const SOL_EXPOSURES = new Set<ExposureChip | undefined>([undefined, 'sol', 'usd', 'more'])
+/**
+ * An index that predates the exposure cut ignores `exposure=` and answers its
+ * whole board — which under an ETH chip would be a lie. It echoes no
+ * `exposure`, so such a half is dropped (Solana) or refused (EVM) instead.
+ */
+const cutAsAsked = (r: EarnersEnvelope | null, exposure: ExposureChip | undefined) =>
+  !r || !exposure || r.exposure === exposure
 /**
  * The board over BOTH indexes (pos-indexer tickets/0036 + the Solana twin in
  * `apps/sol-indexer/src/api/earners.ts`, the same shape): each answers its
@@ -526,13 +559,21 @@ async function bothBoards<R extends { annualUsd: number | null; apr24hPct: numbe
 ): Promise<EarnersEnvelope & { rows: R[] }> {
   const { evm, sol } = splitScope(p.chainIds)
   type Resp = EarnersEnvelope & { rows: R[] }
-  const [a, b] = await Promise.all([
+  const [a, b0] = await Promise.all([
     evm !== null ? get<Resp>('/earners', earnersParams(by, { ...p, chainIds: evm })) : Promise.resolve(null),
-    sol
+    sol && SOL_EXPOSURES.has(p.exposure)
       ? get<Resp>('/earners', earnersParams(by, { ...p, chainIds: undefined }), undefined, SOL_INDEX_BASE_URL).catch(() => null)
       : Promise.resolve(null),
   ])
+  if (!cutAsAsked(a, p.exposure)) throw new Error('this deploy of the index cannot cut the board by exposure yet')
+  const b = cutAsAsked(b0, p.exposure) ? b0 : null
   const halves = [a, b].filter((x): x is Resp => !!x && Array.isArray(x.rows))
+  // Solana alone in scope under a chip it cannot hold (ETH on Solana): nothing, not an error
+  if (!halves.length && evm === null && !SOL_EXPOSURES.has(p.exposure))
+    return {
+      sort: p.sort ?? 'perDay', window: '24h', direction: 'earning', exclude: [], exposure: p.exposure, hidden: {},
+      ratingFlags: { status: 'ok', computedAt: null, nSubjects: null }, computedAt: null, rows: [],
+    }
   // only the Solana index in scope and it has no board yet: say so, as the EVM one would
   if (!halves.length) throw new Error('no earners board for this chain selection yet')
   if (halves.length === 1) return halves[0]

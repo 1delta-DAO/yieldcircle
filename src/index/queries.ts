@@ -1,4 +1,5 @@
-import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useIsFetching, useQueries, useQuery, useQueryClient, type Query } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { hintLegs } from '../sdk/queries'
 import type { EarnPositionsResponse } from '../sdk/types'
 import { isEvmAddr, isSolAddr, normAddr } from '../model/address'
@@ -71,17 +72,33 @@ export function useIndexPositions(account: string | undefined, chainId?: string)
  * The connected wallet, synced before its own page shows the index (pos-indexer tickets/0071):
  * the live read the header chip already made (`earn-positions` in the cache) goes along as hints,
  * the index reads whatever it is missing and answers once those reads have landed, and the
- * positions query is refetched on the synced state. A wallet with no live read cached yet syncs
- * on its ledger alone. Up to ~20 s for a wallet with gaps; seconds once it is in sync.
+ * positions query is refetched on the synced state. Up to ~20 s for a wallet with gaps; seconds
+ * once it is in sync.
+ *
+ * It REUSES the chip's read, never makes its own: it starts once the chip's `earn-positions`
+ * buckets for this account have settled, so the hints are complete. Sent earlier it would carry
+ * none, and the chip's own hint post would land inside the index's per-account cooldown and be
+ * reported, not read. After 8 s with no live read (the chip failed or is off) it syncs on the
+ * ledger alone.
  */
 export function useAccountSync(account: string | undefined) {
   const qc = useQueryClient()
+  const live = (q: Query) => q.queryKey[0] === 'earn-positions' && normAddr(String(q.queryKey[1])) === account
+  const fetching = useIsFetching({ predicate: live })
+  const answered = qc.getQueryCache().findAll({ predicate: live }).some((q) => q.state.dataUpdatedAt > 0 || q.state.status === 'error')
+  const [gaveUp, setGaveUp] = useState(false)
+  useEffect(() => {
+    setGaveUp(false)
+    if (!account) return
+    const t = setTimeout(() => setGaveUp(true), 8_000)
+    return () => clearTimeout(t)
+  }, [account])
   return useQuery({
-    enabled: !!account && isEvmAddr(account),
+    enabled: !!account && isEvmAddr(account) && ((answered && fetching === 0) || gaveUp),
     queryKey: ['idx-sync', account],
     queryFn: async ({ signal }) => {
       const items = qc
-        .getQueriesData<EarnPositionsResponse>({ predicate: (q) => q.queryKey[0] === 'earn-positions' && normAddr(String(q.queryKey[1])) === account })
+        .getQueriesData<EarnPositionsResponse>({ predicate: live })
         .flatMap(([, d]) => d?.items ?? [])
       const r = await api.syncAccount(account!, hintLegs(items), 20_000, signal)
       await qc.invalidateQueries({ queryKey: ['idx-positions', account] })
@@ -315,12 +332,14 @@ export interface EarnersKey {
   preset?: 'all'
   people: boolean
   chainIds?: string
+  /** the money of the supply side (pos-indexer tickets/0072); absent = every position */
+  exposure?: api.ExposureChip
   limit?: number
 }
 export function earnersQuery(k: EarnersKey) {
-  const p: api.EarnersQuery = { sort: k.sort, preset: k.preset, people: k.people, chainIds: k.chainIds, limit: k.limit ?? 50 }
+  const p: api.EarnersQuery = { sort: k.sort, preset: k.preset, people: k.people, chainIds: k.chainIds, exposure: k.exposure, limit: k.limit ?? 50 }
   return {
-    queryKey: ['earners', k.by, k.sort, k.preset ?? 'default', k.people, k.chainIds ?? 'all', k.limit ?? 50] as const,
+    queryKey: ['earners', k.by, k.sort, k.preset ?? 'default', k.people, k.chainIds ?? 'all', k.exposure ?? 'all', k.limit ?? 50] as const,
     queryFn: (): Promise<api.EarnersResponse | api.WalletEarnersResponse> =>
       k.by === 'wallet' ? api.walletEarners(p) : api.earners(p),
     staleTime: MIN,

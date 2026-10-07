@@ -28,6 +28,25 @@ import { ChainChip } from './ChainPicker'
 type Sort = 'perDay' | 'apr'
 type By = 'position' | 'wallet'
 
+/**
+ * The exposure chips (pos-indexer tickets/0072): what money a position's
+ * supply side is in — a wstETH/USDC loop is ETH, an sUSDe/USDC loop a dollar,
+ * and the debt never decides it. `More` is every money without a chip, and
+ * mixed or unnamed books. Wallets rank on their book IN that exposure.
+ */
+const CHIPS: { id: idx.ExposureChip | undefined; word: string; title: string }[] = [
+  { id: undefined, word: 'All', title: 'every position' },
+  { id: 'usd', word: 'Dollar', title: 'dollars and their savings, PTs and vaults' },
+  { id: 'eth', word: 'ETH', title: 'ether and staked ether — whatever is borrowed against it' },
+  { id: 'btc', word: 'BTC', title: 'bitcoin wrappers and staked bitcoin' },
+  { id: 'sol', word: 'SOL', title: 'SOL and its liquid-staking tokens' },
+  { id: 'hype', word: 'HYPE', title: 'HYPE and staked HYPE' },
+  { id: 'more', word: 'More', title: 'BNB, AVAX, MON, euro, gold, baskets (JLP, GM) and mixed books' },
+]
+const chipOf = (x: string | undefined): idx.ExposureChip | undefined =>
+  CHIPS.find((c) => c.id === x)?.id
+const EXPOSURE_WORD: Record<string, string> = { usd: 'dollar', eth: 'ETH', btc: 'BTC', sol: 'SOL', hype: 'HYPE', more: 'other-money' }
+
 const FLAG_TITLES: Record<string, string> = {
   phantom: 'a market that cannot pay this claim — its value is out of every sum',
   'illiquid-exit': 'bigger than the market’s available cash, or utilization ≥ 98%',
@@ -107,6 +126,7 @@ interface BoardKey {
   showAll: boolean
   people: boolean
   chains: string | undefined
+  exposure: idx.ExposureChip | undefined
 }
 
 /**
@@ -116,7 +136,7 @@ interface BoardKey {
  * so a toggle never waits.
  */
 const boardQuery = (k: BoardKey) =>
-  earnersQuery({ by: k.by, sort: k.sort, preset: k.showAll ? 'all' : undefined, people: k.people, chainIds: k.chains })
+  earnersQuery({ by: k.by, sort: k.sort, preset: k.showAll ? 'all' : undefined, people: k.people, chainIds: k.chains, exposure: k.exposure })
 
 /**
  * Who wears the crowns for what the board is showing: the overall podium,
@@ -145,19 +165,20 @@ function Reigning({ scope }: { scope: string }) {
   )
 }
 
-export function Board({ window: w, by: b }: { window?: string; by?: string }) {
+export function Board({ window: w, by: b, x }: { window?: string; by?: string; x?: string }) {
   const { chainIds, allChains } = useApp()
   const sort: Sort = w === 'day' ? 'perDay' : 'apr'
   const by: By = b === 'wallet' ? 'wallet' : 'position'
+  const exposure = chipOf(x)
   const [showAll, setShowAll] = React.useState(false)
   const [contracts, setContracts] = React.useState(false)
   const chains = allChains ? undefined : chainIds.join(',')
-  const key: BoardKey = { by, sort, showAll, people: !contracts, chains }
+  const key: BoardKey = { by, sort, showAll, people: !contracts, chains, exposure }
 
   const q = useQuery({ ...boardQuery(key), placeholderData: keepPreviousData })
 
-  // the three sibling views (other sort, other unit) on idle, once this one
-  // has painted — so every toggle is answered from the browser's cache
+  // the sibling views (other sort, other unit, the main chips) on idle, once
+  // this one has painted — so every toggle is answered from the browser's cache
   const qc = useQueryClient()
   const painted = !!q.data && !q.isPlaceholderData
   React.useEffect(() => {
@@ -166,13 +187,16 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
       { ...key, sort: sort === 'apr' ? 'perDay' : 'apr' },
       { ...key, by: by === 'wallet' ? 'position' : 'wallet' },
       { ...key, by: by === 'wallet' ? 'position' : 'wallet', sort: sort === 'apr' ? 'perDay' : 'apr' },
+      // the chips the index pre-warms, for this view: a tap on one is a cache hit
+      ...(['eth', 'usd', 'btc'] as const).filter((e) => e !== exposure).map((e) => ({ ...key, exposure: e })),
+      ...(exposure ? [{ ...key, exposure: undefined }] : []),
     ]
     const run = () => siblings.forEach((s) => void qc.prefetchQuery(boardQuery(s)))
     // Safari has no requestIdleCallback
     const ric = typeof requestIdleCallback === 'function'
     const id = ric ? requestIdleCallback(run, { timeout: 2000 }) : setTimeout(run, 300)
     return () => (ric ? cancelIdleCallback(id as number) : clearTimeout(id as ReturnType<typeof setTimeout>))
-  }, [painted, by, sort, showAll, contracts, chains])
+  }, [painted, by, sort, showAll, contracts, chains, exposure])
 
   const data = q.data
   const positions = data?.by !== 'wallet' ? ((data?.rows ?? []) as idx.EarnerRow[]) : []
@@ -184,7 +208,8 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
   // the podium for this view: one chain picked → that chain's, else overall
   const scope = !allChains && chainIds.length === 1 ? chainIds[0] : 'all'
   const crowns = useCrowns().data?.crowns
-  const crownOf = (a: string) => crowns?.find((c) => c.scope === scope && c.account === a.toLowerCase())
+  // the crowns are the whole-wallet board's: never worn inside an exposure cut
+  const crownOf = (a: string) => (exposure ? undefined : crowns?.find((c) => c.scope === scope && c.account === a.toLowerCase()))
   // a wallet with several positions on the list wears it on its first row only
   const firstRow = new Map<string, number>()
   accounts.forEach((a, i) => { if (!firstRow.has(a)) firstRow.set(a, i) })
@@ -194,8 +219,13 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
       ? <span className="rank lead crowned" title={crownTitle(c)}><CrownIcon place={c.place} size={16} /></span>
       : <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
   }
-  const nav = (p: { t?: Sort; by?: By }) =>
-    go('board', { t: (p.t ?? sort) === 'perDay' ? 'day' : undefined, by: (p.by ?? by) === 'wallet' ? 'wallet' : undefined })
+  const nav = (p: { t?: Sort; by?: By; x?: idx.ExposureChip | null }) =>
+    go('board', {
+      t: (p.t ?? sort) === 'perDay' ? 'day' : undefined,
+      by: (p.by ?? by) === 'wallet' ? 'wallet' : undefined,
+      x: p.x === null ? undefined : (p.x ?? exposure),
+    })
+  const inWord = exposure ? EXPOSURE_WORD[exposure] : null
 
   return (
     <>
@@ -213,7 +243,17 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
         </div>
       </div>
 
+      <div className="denoms" role="group" aria-label="What the position is held in">
+        <span className="denoms-lbl t50">Held in</span>
+        {CHIPS.map((c) => (
+          <button key={c.word} className="dchip" aria-pressed={exposure === c.id} title={c.title} onClick={() => nav({ x: c.id ?? null })}>{c.word}</button>
+        ))}
+      </div>
+
       <div className="note">
+        {inWord && (by === 'wallet'
+          ? <>Each wallet is ranked on its <b>{inWord}</b> book alone — the positions whose supply side is {inWord}, never what they borrow. </>
+          : <>Positions whose supply side is <b>{inWord}</b> — what is borrowed against it does not decide. </>)}
         {by === 'wallet' ? (
           <>
             What wallets <b>earn now</b>: every position’s net carry weighted by its equity — Σ yearly carry ÷ Σ NAV, at today’s rates.
@@ -242,11 +282,13 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
 
       <div className={`card${q.isPlaceholderData ? ' refetching' : ''}`}>
         {q.isLoading && <div className="empty"><Sk w={240} /></div>}
-        {q.isError && <div className="empty">This deploy of the index has no earners board yet — it appears the moment the position-carry job runs.</div>}
+        {q.isError && <div className="empty">{exposure
+          ? 'This deploy of the index cannot cut the board by what positions are held in yet — All still works.'
+          : 'This deploy of the index has no earners board yet — it appears the moment the position-carry job runs.'}</div>}
         {!q.isLoading && !q.isError && !accounts.length && (
           <div className="empty">{!allChains && chainIds.every((id) => isSvmChain(id))
             ? 'Nothing on Solana to rank with these filters.'
-            : 'Nothing to rank with these filters.'}</div>
+            : inWord ? `No ${inWord} positions to rank with these filters.` : 'Nothing to rank with these filters.'}</div>
         )}
         <div className="list">
           {data?.by === 'wallet'
@@ -256,7 +298,8 @@ export function Board({ window: w, by: b }: { window?: string; by?: string }) {
                   <Who account={r.account} profile={profile(r.account)} idx={r} plain
                     sub={
                       <>
-                        {usdShort(r.navUsd)} NAV · {r.nCounted} position{r.nCounted === 1 ? '' : 's'}
+                        {usdShort(r.navUsd)} {inWord ? `in ${inWord}` : 'NAV'} · {r.nCounted} position{r.nCounted === 1 ? '' : 's'}
+                        {inWord && r.wallet && r.wallet.navUsd > r.navUsd * 1.005 && <span className="t40"> · of {usdShort(r.wallet.navUsd)} at {pct(r.wallet.apr24hPct ?? r.wallet.netAprPct)}</span>}
                         {r.best?.marketName && r.nCounted > 1 && <> · best {r.best.marketName} {pct(r.best.aprPct)}</>}
                         {r.flaggedNavUsd > 0 && <span className="t40"> · {usdShort(r.flaggedNavUsd)} flagged, not counted</span>}
                       </>

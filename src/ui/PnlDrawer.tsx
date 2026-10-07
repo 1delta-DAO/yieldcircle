@@ -24,7 +24,6 @@ import { chainLabel } from '../sdk/queries'
 import { marketHref } from '../state/AppState'
 import { moneyOf } from '../model/desk'
 import { protocolKeyOf } from '../model/uid'
-import { isLoopscale } from '../model/strategies'
 import { prettyProtocol } from './ProtocolFilter'
 import { useSticky } from '../state/sticky'
 
@@ -51,8 +50,12 @@ const KIND_CLASS: Record<string, string> = {
   borrow: 'k-borrow', liquidated: 'k-liq', redeemed: 'k-liq',
 }
 const day = (t: string) => t.slice(0, 10)
-/** The venue by name: `MORPHO_BLUE` → Morpho Markets; a Loopscale pair's key names its two mints and reads as Loopscale. */
-const venueOf = (lk: string | undefined) => (lk ? prettyProtocol(isLoopscale(lk) ? 'LOOPSCALE' : protocolKeyOf(lk)) : '')
+/**
+ * The venue by name: `MORPHO_BLUE` → Morpho Markets. A Solana lender key carries its market's
+ * addresses (`KAMINO_<lending market>`, a Loopscale pair's `LOOPSCALE_<mint>_<mint>`): they go,
+ * so it reads Kamino, Loopscale.
+ */
+const venueOf = (lk: string | undefined) => (lk ? prettyProtocol(protocolKeyOf(lk.replace(/(_[1-9A-HJ-NP-Za-km-z]{32,44})+$/, ''))) : '')
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : Math.abs(n) >= 1 ? 2 : 6 })
 const daysTxt = (d: number) => (d >= 1 ? `${d.toFixed(d >= 10 ? 0 : 1)} days` : d * 24 >= 1 ? `${(d * 24).toFixed(0)} h` : `${Math.max(1, Math.round(d * 1440))} min`)
 

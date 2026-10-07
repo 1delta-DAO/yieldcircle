@@ -13,6 +13,9 @@
  * `waitlist: true` is the same flow for a visitor already in on an access
  * code (`/?waitlist`, linked from the app's nudge): different words, a way
  * back to the app, and nothing here is blocking them.
+ *
+ * `hidden: true` ships it closed behind the app's landing (`src/ui/Join.tsx`
+ * opens it; "Not now" closes it again) — nothing is frosted over any more.
  */
 
 /** The messages both sides build; the middleware recovers the signer from them. */
@@ -21,8 +24,8 @@ export const message = (address: string, issued: string, email?: string) =>
     ? `YieldCircle beta access\n\nAddress: ${address.toLowerCase()}\nIssued: ${issued}`
     : `YieldCircle waitlist\n\nAddress: ${address.toLowerCase()}\nEmail: ${email}\nIssued: ${issued}`
 
-export const overlay = ({ waitlist = false } = {}) => `
-<div id="yc-gate">
+export const overlay = ({ waitlist = false, hidden = false } = {}) => `
+<div id="yc-gate"${hidden ? ' style="display:none"' : ''}>
 <style>
   #yc-gate { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: center; padding: 24px 16px;
     background: rgba(0,0,0,.55); -webkit-backdrop-filter: blur(14px) saturate(.8); backdrop-filter: blur(14px) saturate(.8);
@@ -55,7 +58,8 @@ export const overlay = ({ waitlist = false } = {}) => `
     <button id="yc-go">Connect wallet</button>
   </div>
   <div id="yc-status"></div>${waitlist ? `
-  <a class="back" href="/">Back to the app</a>` : ''}
+  <a class="back" href="/">Back to the app</a>` : hidden ? `
+  <a class="back" href="#" onclick="document.getElementById('yc-gate').style.display='none';return false">Not now</a>` : ''}
 </div>
 <script>
 (() => {

@@ -1,0 +1,117 @@
+[
+  {
+    "name": "kamino-auto",
+    "chainId": "solana",
+    "account": "HGpYjXi9nrFxJikYyFpvRfwk2XstrvhbUpYyd9guZvzs",
+    "lender": "Kamino AUTO Market",
+    "legs": [
+      {
+        "side": "supply",
+        "symbol": "AUTO",
+        "logo": "https://storage.googleapis.com/hastra-cdn-prod/spl/autotoken.png"
+      },
+      {
+        "side": "borrow",
+        "symbol": "PYUSD",
+        "logo": "https://424565.fs1.hubspotusercontent-na1.net/hubfs/424565/PYUSDLOGO.png"
+      }
+    ],
+    "pnl": 6295,
+    "aprPct": 10.6,
+    "days": 70,
+    "at": "2026-10-07"
+  },
+  {
+    "name": "morpho-pst",
+    "chainId": "1",
+    "account": "0x35acb93071c9a98ee0940d91cd2c0e94313abd95",
+    "lender": "Morpho PST-PYUSD 86",
+    "legs": [
+      {
+        "side": "collateral",
+        "symbol": "PST",
+        "logo": "https://meta.huma.finance/pst.svg"
+      },
+      {
+        "side": "borrow",
+        "symbol": "PYUSD",
+        "logo": "https://assets.coingecko.com/coins/images/31212/large/PYUSD_Logo_%282%29.png?1691458314"
+      }
+    ],
+    "pnl": 78603,
+    "aprPct": 9.5,
+    "days": 26,
+    "at": "2026-10-07"
+  },
+  {
+    "name": "hyper-ahype",
+    "chainId": "143",
+    "account": "0x357d2614095e05ce2aaaeeec72d52f2b29ff7384",
+    "lender": "Morpho aHYPER-USDC 77",
+    "legs": [
+      {
+        "side": "collateral",
+        "symbol": "aHYPER",
+        "logo": "https://cdn.morpho.org/assets/logos/ahyper.svg"
+      },
+      {
+        "side": "borrow",
+        "symbol": "USDC",
+        "logo": "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png"
+      }
+    ],
+    "pnl": 339265,
+    "aprPct": 22.6,
+    "days": 85,
+    "at": "2026-10-07"
+  },
+  {
+    "name": "horizon-rlusd",
+    "chainId": "1",
+    "account": "0x971b34b997843b82051b3e781d6a6d5a21bbdda0",
+    "lender": "Aave V3 Horizon",
+    "legs": [
+      {
+        "side": "supply",
+        "symbol": "USCC",
+        "logo": "https://assets.coingecko.com/coins/images/39326/thumb/superstate.jpg?1721724143"
+      },
+      {
+        "side": "borrow",
+        "symbol": "GHO",
+        "logo": "https://assets.coingecko.com/coins/images/30663/thumb/gho-token-logo.png?1720517092"
+      },
+      {
+        "side": "borrow",
+        "symbol": "RLUSD",
+        "logo": "https://assets.coingecko.com/coins/images/39651/thumb/RLUSD_200x200_%281%29.png?1727376633"
+      }
+    ],
+    "pnl": 199346,
+    "aprPct": 10.3,
+    "days": 279,
+    "at": "2026-10-07"
+  },
+  {
+    "name": "jupiter-pst",
+    "chainId": "solana",
+    "account": "HGLosmCDk1fbgioWVsjgPdYrnhk5u39ox7ntjBAhuWsZ",
+    "lender": "Jupiter Lend PST / JupUSD",
+    "legs": [
+      {
+        "side": "collateral",
+        "symbol": "PST",
+        "logo": "https://meta.huma.finance/pst.svg"
+      },
+      {
+        "side": "borrow",
+        "symbol": "JupUSD",
+        "logo": "https://static.jup.ag/jupUSD/icon.png"
+      }
+    ],
+    "pnl": 54002,
+    "aprPct": 16.3,
+    "days": 21,
+    "at": "2026-10-07"
+  }
+]

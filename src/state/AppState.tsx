@@ -27,7 +27,7 @@ import { readFeedLink } from './feedLink'
  * `#/feed` is the home (the feed moved onto it) and `#/explore` is `#/earn`.
  */
 export type Mode = 'add' | 'reduce' | 'close' | 'manage'
-export type View = 'home' | 'start' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'landing' | 'deck'
+export type View = 'home' | 'start' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'landing' | 'deck' | 'join'
 export interface Route {
   view: View
   group?: string
@@ -87,6 +87,7 @@ export function parseRoute(hash = location.hash): Route {
   if (head === 'landing') return { view: 'landing', ...base }
   // the investor deck (src/ui/Deck.tsx) — also deep link only
   if (head === 'deck') return { view: 'deck', ...base }
+  if (head === 'join') return { view: 'join', ...base }
   if (head === 'board') return { view: 'board', ...base }
   if (head === 'me') return { view: 'me', ...base }
   if (head === 'alerts') return { view: 'alerts', ...base }

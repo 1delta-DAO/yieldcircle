@@ -1,0 +1,114 @@
+/**
+ * #/join — where a visitor WITHOUT beta access lands (`functions/_middleware.ts`
+ * marks their HTML with `window.ycGated` and ships the gate overlay hidden).
+ * One button in the middle, the join flow is the overlay's own card, and the
+ * field behind it is real farmers: the showcase positions (`src/data/showcase.json`,
+ * rendered by `video/scripts/showcase.sh` — hover one and its PnL plays) plus the
+ * live board's top earners (`useEarners`) drifting further back, blurred.
+ * Deep-linkable in any build for a look (`#/join`); without the overlay on the
+ * page the button just opens the app.
+ */
+import React from 'react'
+import showcase from '../data/showcase.json'
+import { Logo } from './Logo'
+import { Character } from '../identity/character'
+import { useEarners } from '../index/queries'
+import { chainLabel } from '../sdk/queries'
+import { useViewport } from './useViewport'
+
+declare global { interface Window { ycGated?: boolean } }
+export const gated = () => window.ycGated === true
+
+type Pick = (typeof showcase)[number]
+/** where the showcase orbs sit (% of the viewport), clear of the middle column; the card opens away from the nearest edge */
+const SLOTS = [{ x: 15, y: 24 }, { x: 83, y: 20 }, { x: 11, y: 70 }, { x: 86, y: 68 }, { x: 50, y: 82 }, { x: 30, y: 12 }, { x: 68, y: 90 }]
+/** the back row: smaller, blurred, no card — the board fills them */
+const BACK = [{ x: 6, y: 44 }, { x: 94, y: 42 }, { x: 24, y: 88 }, { x: 74, y: 10 }, { x: 40, y: 8 }, { x: 60, y: 7 }, { x: 4, y: 90 }, { x: 95, y: 88 }, { x: 36, y: 94 }, { x: 64, y: 94 }, { x: 20, y: 50 }, { x: 80, y: 50 }]
+
+const usd = (v: number) => `${v < 0 ? '−' : '+'}$${Math.abs(v).toLocaleString('en-US')}`
+
+/** The gate's card, shipped hidden by the middleware; absent in a build without the gate. */
+function openGate(): boolean {
+  const el = document.getElementById('yc-gate')
+  if (!el) return false
+  el.style.display = ''
+  el.querySelector<HTMLButtonElement>('#yc-go')?.focus()
+  return true
+}
+
+export function Join() {
+  const [open, setOpen] = React.useState<string | null>(null)
+  // a phone has no hover and no room beside an orb: the card is a sheet at the bottom instead
+  const phone = useViewport() === 'phone'
+  const board = useEarners({ by: 'position', sort: 'perDay', people: true, limit: 40 })
+  // the board's wallets that are not already in the showcase, one per wallet, loops first
+  const back = React.useMemo(() => {
+    const have = new Set(showcase.map((p) => p.account.toLowerCase()))
+    const rows = board.data?.by === 'position' ? board.data.rows : []
+    const out: { account: string; pair: string; apr: number | null }[] = []
+    for (const r of [...rows].sort((a, b) => b.legs.length - a.legs.length)) {
+      const a = r.account.toLowerCase()
+      if (have.has(a) || out.length >= BACK.length) continue
+      have.add(a)
+      out.push({ account: r.account, pair: r.legs.map((l) => l.symbol ?? '?').join(' / '), apr: r.apr24hPct })
+    }
+    return out
+  }, [board.data])
+
+  const join = (e: React.MouseEvent) => { if (openGate()) e.preventDefault() }
+
+  return (
+    <div className="join" onClick={() => setOpen(null)}>
+      <div className="join-glow" aria-hidden="true" />
+      <header className="join-top"><Logo height={30} href="#/join" /></header>
+
+      <div className="join-field" aria-hidden={open ? undefined : true}>
+        {back.map((b, i) => (
+          <div key={b.account} className="join-orb back" style={{ '--x': `${BACK[i].x}%`, '--y': `${BACK[i].y}%`, animationDelay: `${-i * 1.7}s`, animationDuration: `${9 + (i % 4) * 2}s` } as React.CSSProperties} title={`${b.pair} · ${b.apr?.toFixed(1) ?? '—'}% APR`}>
+            <Character addr={b.account} size={44} />
+            <span className="join-tag"><b>{b.pair}</b>{b.apr != null && <i>{b.apr.toFixed(1)}%</i>}</span>
+          </div>
+        ))}
+        {showcase.map((p, i) => <Orb key={p.name} p={p} slot={SLOTS[i % SLOTS.length]} i={i} open={open === p.name} inline={!phone} setOpen={setOpen} />)}
+      </div>
+
+      <main className="join-hero">
+        <h1>Everything you hold, <span className="land-grad">earning.</span></h1>
+        <p>See what real yield farmers actually make — the PnL the chain can prove, not the APR on the poster — and copy them in one tap.</p>
+        <a className="join-cta" href="#/" onClick={join}>Join the waitlist</a>
+        <a className="join-in" href="#/" onClick={join}>Already on the list? Sign in</a>
+      </main>
+
+      {phone && open && <div className="join-sheet"><Card p={showcase.find((p) => p.name === open)!} /></div>}
+      <footer className="join-foot">Realized PnL from on-chain records as of {showcase[0]?.at} · hover a farmer</footer>
+    </div>
+  )
+}
+
+function Orb({ p, slot, i, open, inline, setOpen }: { p: Pick; slot: { x: number; y: number }; i: number; open: boolean; inline: boolean; setOpen: (n: string | null) => void }) {
+  const pair = p.legs.map((l) => l.symbol).join(' / ')
+  const side = `${slot.x > 55 ? 'l' : 'r'}${slot.y > 55 ? 'u' : 'd'}`
+  return (
+    <div className={`join-orb${open ? ' open' : ''} ${side}`} style={{ '--x': `${slot.x}%`, '--y': `${slot.y}%`, animationDelay: `${-i * 2.3}s`, animationDuration: `${11 + (i % 3) * 2}s` } as React.CSSProperties}
+      // hover is a MOUSE thing: a finger lifting fires a leave too, which would shut what the tap just opened
+      onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(p.name)} onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}
+      onClick={(e) => { e.stopPropagation(); setOpen(p.name) }}>
+      <Character addr={p.account} size={64} />
+      <span className="join-tag"><b className="up">{usd(p.pnl)}</b><i>{pair}</i></span>
+      {open && inline && <Card p={p} />}
+    </div>
+  )
+}
+
+/** The clip (video/scripts/showcase.sh) and one line under it */
+function Card({ p }: { p: Pick }) {
+  return (
+    <div className="join-card" onClick={(e) => e.stopPropagation()}>
+      <video src={`/pnl/${p.name}.mp4`} poster={`/pnl/${p.name}.jpg`} autoPlay muted loop playsInline preload="none" />
+      <div className="join-card-f">
+        <span>{p.lender} · {chainLabel(p.chainId)}</span>
+        <span>{p.aprPct != null && <b>{p.aprPct}% APR</b>} · {p.days} days</span>
+      </div>
+    </div>
+  )
+}

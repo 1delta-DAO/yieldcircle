@@ -118,8 +118,11 @@ function Body({ s, money, f: unitOf, toggle }: {
   const sinceByT = React.useMemo(() => {
     const m = new Map<string, number | null>()
     let prev: number | null = 0
-    for (const t of [...new Set(s.events.map((e) => e.t))].sort()) {
-      const cur = s.events.find((e) => e.t === t)?.pnl ?? null
+    // a transaction's moves share one snapshot: the first one's (one pass, not a find per time)
+    const firstAt = new Map<string, number | null>()
+    for (const e of s.events) if (!firstAt.has(e.t)) firstAt.set(e.t, e.pnl)
+    for (const t of [...firstAt.keys()].sort()) {
+      const cur = firstAt.get(t) ?? null
       m.set(t, cur != null && prev != null ? cur - prev : null)
       prev = cur
     }
@@ -195,7 +198,7 @@ function Body({ s, money, f: unitOf, toggle }: {
         <div className="note">Not in the record: {s.unanchored.map((u) => `${u.rows} ${u.side} row${u.rows === 1 ? '' : 's'} in ${u.marketUid.split(':')[0]}`).join(', ')} — no read has anchored that leg yet.</div>
       )}
 
-      <h3 className="pnl-t">Moves <span className="t50">({s.events.length}) · newest first</span></h3>
+      <h3 className="pnl-t">Moves <span className="t50">({(s.eventsTotal ?? s.events.length) > s.events.length ? `newest ${s.events.length} of ${s.eventsTotal}` : s.events.length}) · newest first</span></h3>
       <div className="pnl-ev">
         <div className="pnl-e pnl-eh t50">
           <span>time</span><span>move</span><span>amount</span><span className="r">value</span>

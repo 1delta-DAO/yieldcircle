@@ -320,8 +320,13 @@ export interface PositionSeries {
   since: string | null
   exact: boolean
   points: SeriesPoint[]
+  /** the newest moves (pos-indexer answers 1 000 unless asked for more); `eventsTotal` counts them all */
   events: SeriesEvent[]
+  /** the newest holding periods, as many as `events`; `intervalsTotal` counts them all */
   intervals: SeriesInterval[]
+  /** every move / holding period of the record (absent from an older index, which answered them all) */
+  eventsTotal?: number
+  intervalsTotal?: number
   summary: SeriesSummary
   legs: SeriesLeg[]
   unpriced: number

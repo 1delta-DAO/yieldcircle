@@ -11,6 +11,7 @@ import { ProfilePage } from './ui/Profile'
 import { Alerts } from './ui/Alerts'
 import { Landing } from './ui/Landing'
 import { Deck } from './ui/Deck'
+import { Join, gated } from './ui/Join'
 import { Start, startSeen } from './ui/Start'
 import { parseRoute, useRoute } from './state/AppState'
 import { GROUPS } from './model/assets'
@@ -23,6 +24,8 @@ export default function App() {
   // the browser, so the Home tab is the feed from then on.
   React.useState(() => { if (!startSeen() && parseRoute().view === 'home') location.hash = '#/start' })
   const r = useRoute()
+  // no beta access: the landing, whatever the hash (the hash survives — the gate reloads into it)
+  if (gated() || r.view === 'join') return <Join />
   const group = GROUPS.find((g) => g.id === r.group)
   if (r.view === 'landing') return <Landing /> // full-bleed, no Shell — a pitch, not a page of the app
   if (r.view === 'deck') return <Deck /> // same deal: the investor deck presents without the Shell

@@ -1054,7 +1054,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .drawer-b{flex:1;overflow-y:auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom));overscroll-behavior:contain}
 @media (prefers-reduced-motion:reduce){ .drawer{animation:none} }
 
-.ps{display:flex;flex-direction:column;gap:18px}
+.ps{display:flex;flex-direction:column;gap:18px;min-height:100%}
 .ps-head{display:flex;flex-direction:column;gap:12px}
 .ps-head .who .wn b{font-size:16px}
 .ps-p{margin:0;font-size:13px;line-height:1.5;color:var(--tx70)}
@@ -1069,6 +1069,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .ps-links a:first-child{border-top:0}
 .ps-links a:hover{background:var(--b300);color:var(--tx)}
 .ps-sec{display:flex;flex-direction:column;gap:6px}
+.ps-social{align-self:center;margin-top:auto}
 .ps-fold{display:flex;align-items:center;gap:10px;min-height:48px;padding:0 14px;border:1px solid var(--line);border-radius:var(--r);color:var(--tx50);text-align:left}
 .ps-fold:hover{border-color:var(--line2);color:var(--tx)}
 .ps-fold .ps-state{font-size:13px;color:var(--tx70);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1951,7 +1952,8 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 /* ---- #/join — the gated visitor's landing: one button, real farmers drifting behind it (src/ui/Join.tsx) */
 .join{position:relative;height:100dvh;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center}
 .join-glow{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(760px,110vw);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(47,211,232,.14),transparent 62%);pointer-events:none}
-.join-top{position:absolute;top:18px;left:var(--gutter);z-index:3}
+.join-top{position:absolute;top:18px;left:var(--gutter);right:var(--gutter);z-index:3;display:flex;align-items:center;justify-content:space-between;gap:12px;pointer-events:none}
+.join-top>*{pointer-events:auto}
 .join-banner{position:absolute;top:0;left:0;right:0;z-index:4;padding:9px 72px 9px calc(var(--gutter) + 180px);text-align:center;font-size:13px;color:var(--tx70);background:linear-gradient(90deg,rgba(11,143,181,.22),rgba(124,233,245,.12));border-bottom:1px solid rgba(124,233,245,.25);backdrop-filter:blur(6px)}
 .join-banner b{color:var(--tx);font-weight:600}.join-banner a{color:var(--primary);border-bottom:1px solid rgba(47,211,232,.4)}
 .join.has-banner .join-top{top:56px}
@@ -2032,3 +2034,13 @@ button.wl-vm:hover:not(:disabled){border-color:var(--primary);color:var(--primar
 .wl-wait .spin{width:10px;height:10px;border-radius:50%;border:2px solid var(--line2);border-top-color:var(--primary);animation:wl-spin .8s linear infinite;flex:none}
 .wl-wait .lnk{color:var(--primary);text-decoration:underline}
 @keyframes wl-spin{to{transform:rotate(360deg)}}
+
+/* the community links (src/ui/Socials.tsx): the Telegram pill, its mark in its own blue, and X as an icon button beside it */
+.socials{display:flex;align-items:center;gap:8px}
+.tg-link{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px 0 11px;border-radius:999px;border:1px solid rgba(38,165,228,.35);background:rgba(38,165,228,.08);color:var(--tx);font-size:13px;font-weight:500;white-space:nowrap;transition:border-color .15s,background .15s,transform .15s}
+.tg-link:hover{border-color:rgba(38,165,228,.7);background:rgba(38,165,228,.16);transform:translateY(-1px)}
+.tg-link svg{flex:none;width:18px;height:18px}
+.x-link{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:999px;border:1px solid var(--line2);background:var(--bg);color:var(--tx);transition:border-color .15s,transform .15s}
+.x-link:hover{border-color:var(--tx50);transform:translateY(-1px)}
+.join-social a{background:rgba(0,0,0,.45);backdrop-filter:blur(6px)}
+.join-social .tg-link{background:rgba(38,165,228,.1)}

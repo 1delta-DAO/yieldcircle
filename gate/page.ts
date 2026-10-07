@@ -20,6 +20,7 @@
  */
 
 import { MARK_D, MARK_VIEWBOX } from '../src/ui/brand.generated'
+import { TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL, X_D, X_URL } from '../src/config/links'
 
 /** The key an address is stored and signed under: EVM lower-cased, a Solana pubkey as is (base58 is case-sensitive). */
 export const norm = (address: string) => (address.startsWith('0x') ? address.toLowerCase() : address)
@@ -29,6 +30,8 @@ export const message = (address: string, issued: string, email?: string) =>
   email === undefined
     ? `YieldCircle beta access\n\nAddress: ${norm(address)}\nIssued: ${issued}`
     : `YieldCircle waitlist\n\nAddress: ${norm(address)}\nEmail: ${email}\nIssued: ${issued}`
+
+const tgMark = (fill: string) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${TELEGRAM_D}" fill="${fill}"/></svg>`
 
 export const overlay = ({ waitlist = false, hidden = false } = {}) => `
 <div id="yc-gate"${hidden ? ' style="display:none"' : ''}>
@@ -65,6 +68,23 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
   #yc-gate .yc-err { color: #ff8a7a !important; }
   #yc-gate .yc-back { display: inline-block; margin-top: 12px; font-size: 13px; color: rgba(232,232,232,.5); text-decoration: none; border-bottom: 1px solid transparent; }
   #yc-gate .yc-back:hover { color: #e8e8e8; border-color: rgba(232,232,232,.5); }
+  /* the community: a quiet pill under the flow; once they're in line it becomes the main action */
+  #yc-gate .yc-social { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px; }
+  #yc-gate .yc-tg { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px 9px 12px; border-radius: 999px;
+    border: 1px solid rgba(38,165,228,.35); background: rgba(38,165,228,.08); color: #e8e8e8; font-size: 13.5px; font-weight: 500; white-space: nowrap;
+    text-decoration: none; transition: border-color .15s, background .15s, transform .15s; }
+  #yc-gate .yc-tg:hover { border-color: rgba(38,165,228,.7); background: rgba(38,165,228,.16); transform: translateY(-1px); }
+  #yc-gate .yc-tg svg { width: 18px; height: 18px; flex: none; }
+  #yc-gate .yc-x { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 999px; border: 1px solid #2a2a2a;
+    background: #000; color: #e8e8e8; transition: border-color .15s, transform .15s; }
+  #yc-gate .yc-x:hover { border-color: rgba(232,232,232,.5); transform: translateY(-1px); }
+  #yc-gate .yc-x svg { width: 15px; height: 15px; }
+  #yc-gate .yc-btn.yc-tg-btn { display: flex; align-items: center; justify-content: center; gap: 10px; color: #fff;
+    background: linear-gradient(90deg, #1c8fd0, #2aabee); box-shadow: 0 0 0 1px rgba(42,171,238,.45), 0 0 32px rgba(42,171,238,.35); }
+  #yc-gate .yc-btn.yc-tg-btn:hover { box-shadow: 0 0 0 1px rgba(42,171,238,.7), 0 0 48px rgba(42,171,238,.5); }
+  #yc-gate .yc-btn.yc-tg-btn svg { width: 20px; height: 20px; flex: none; }
+  #yc-gate .yc-btn.yc-ghost { padding: 16px; background: transparent; color: #e8e8e8; border: 1px solid #2a2a2a; box-shadow: none; }
+  #yc-gate .yc-btn.yc-ghost:hover { border-color: rgba(232,232,232,.5); box-shadow: none; }
   #yc-gate .yc-foot { margin-top: 18px; padding-top: 14px; border-top: 1px solid #1c1c1c; font: 11px/1.5 'IBM Plex Mono', monospace; color: rgba(232,232,232,.35); }
 </style>
 <div class="yc-card">
@@ -78,13 +98,15 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
     <input id="yc-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" hidden />
     <button class="yc-btn" id="yc-go">Connect wallet</button>
   </div>
-  <div id="yc-status"></div>${waitlist ? `
+  <div id="yc-status"></div>
+  <div class="yc-social" id="yc-social"><a class="yc-tg" href="${TELEGRAM_URL}" target="_blank" rel="noopener noreferrer">${tgMark(TELEGRAM_BLUE)}Join us on Telegram</a><a class="yc-x" href="${X_URL}" target="_blank" rel="noopener noreferrer" aria-label="YieldCircle on X" title="YieldCircle on X"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${X_D}" fill="currentColor"/></svg></a></div>${waitlist ? `
   <a class="yc-back" href="/">Back to the app</a>` : hidden ? `
   <a class="yc-back" href="#" onclick="document.getElementById('yc-gate').style.display='none';return false">Not now</a>` : ''}
   <div class="yc-foot">Free to join &middot; a signature, never a transaction</div>
 </div>
 <script>
 (() => {
+  var TG = ${JSON.stringify(`<a class="yc-btn yc-tg-btn" target="_blank" rel="noopener noreferrer" href="${TELEGRAM_URL}">${tgMark('#fff')}Join the Telegram</a>`)};
   var T_VERIFY = ${JSON.stringify(message('__a__', '__i__'))};
   var T_REQUEST = ${JSON.stringify(message('__a__', '__i__', '__e__'))};
   var $ = function (id) { return document.getElementById(id); };
@@ -203,9 +225,11 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
 
   function waiting(email) {
     $('yc-title').textContent = 'You\\u2019re on the waitlist';
-    $('yc-sub').textContent = (email ? 'We\\u2019ll email ' + email : 'This wallet is in line. We\\u2019ll email you') + ' the moment access reaches it \\u2014 it opens in waves.';
+    $('yc-sub').textContent = (email ? 'We\\u2019ll email ' + email : 'This wallet is in line. We\\u2019ll email you') + ' the moment access reaches it \\u2014 it opens in waves. Until then, come say hi on Telegram.';
     var text = encodeURIComponent('On the YieldCircle waitlist \\u{1F440} ' + location.origin);
-    $('yc-row').innerHTML = '<a class="yc-btn" target="_blank" rel="noopener" href="https://x.com/intent/post?text=' + text + '">Share on X</a>';
+    // in line, the community is the next step: Telegram leads, sharing follows, and the quiet row goes
+    $('yc-row').innerHTML = TG + '<a class="yc-btn yc-ghost" target="_blank" rel="noopener" href="https://x.com/intent/post?text=' + text + '">Share on X</a>';
+    $('yc-social').style.display = 'none';
     status(address);
   }
 

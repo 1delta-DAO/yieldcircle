@@ -20,6 +20,7 @@ import { SettingsPanel } from './SettingsPanel'
 import { useUnseen } from './Alerts'
 import { MyStats } from './Stats'
 import { useSettings } from '../state/Settings'
+import { Socials } from './Socials'
 
 export function ProfileSheet() {
   const { account, signer, solSigner, viewAs, allChains, chainLabelFor } = useApp()
@@ -51,6 +52,7 @@ export function ProfileSheet() {
       <Fold label="Filters" state={widened ? `${widened} widened` : 'Curated'} on={widened > 0}><SettingsPanel /></Fold>
       {/* a Solana-only wallet follows the same way: its queue is signed ed25519 */}
       {(signer ?? solSigner) && <PendingChanges />}
+      <Socials className="ps-social" label="Join the community on Telegram" />
     </div>
   )
 }

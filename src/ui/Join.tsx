@@ -17,6 +17,7 @@ import { useEarners } from '../index/queries'
 import { chainLabel } from '../sdk/queries'
 import { readTouch, useViewport } from './useViewport'
 import { WAITLIST_HREF, onAccessCode } from '../wallet/gate'
+import { Socials } from './Socials'
 
 declare global { interface Window { ycGated?: boolean } }
 export const gated = () => window.ycGated === true
@@ -116,7 +117,7 @@ export function Join() {
   return (
     <div className={`join${inside ? ' has-banner' : ''}`} onClick={() => pick(null)}>
       <div className="join-glow" aria-hidden="true" />
-      <header className="join-top"><Logo height={30} href="#/join" /></header>
+      <header className="join-top"><Logo height={30} href="#/join" /><Socials className="join-social" label="Telegram" /></header>
       {inside && (
         <div className="join-banner">
           {pass

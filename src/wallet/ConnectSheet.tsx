@@ -22,8 +22,14 @@ const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
  * are ordered by how good the outcome is — an injected provider (a wallet's own
  * in-app browser) beats a hand-off, and a hand-off beats a QR code.
  */
-/** `gate`: opened by the beta gate to pick a wallet to sign with — viewing as someone is not that, so it is left out */
-export function ConnectSheet({ onClose, gate = false }: { onClose: () => void; gate?: boolean }) {
+/**
+ * `onPick`: opened by the beta gate to choose the wallet that joins or signs in.
+ * Nothing is taken for granted there: a wallet the app reconnected on its own
+ * is offered as "Continue with …", never used unasked, and viewing as someone
+ * (which cannot sign) is left out.
+ */
+export function ConnectSheet({ onClose, onPick }: { onClose: () => void; onPick?: (address: string) => void }) {
+  const gate = !!onPick
   const { account, isConnected, viewAs, setViewAs } = useApp()
   const { connector: active } = useAccount()
   const { disconnect } = useDisconnect()
@@ -37,7 +43,14 @@ export function ConnectSheet({ onClose, gate = false }: { onClose: () => void; g
       <div className="modal" ref={box} tabIndex={-1} onPointerDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Wallet">
         <div className="th"><span className="n">Wallet</span><span className="sp" /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
 
-        {isConnected ? (
+        {isConnected && gate && account ? (
+          <div className="tsec">
+            <div className="actions">
+              <button className="btn pri" onClick={() => onPick!(account)}>Continue with {short(account)}</button>
+              <button className="btn" onClick={() => { disconnect(); forgetWallet() }}>Use a different wallet</button>
+            </div>
+          </div>
+        ) : isConnected ? (
           <div className="tsec">
             <div className="actions">
               <span className="addr" style={{ alignSelf: 'center' }}>{short(account ?? '')}</span>
@@ -54,7 +67,7 @@ export function ConnectSheet({ onClose, gate = false }: { onClose: () => void; g
           <div className="tsec"><p className="err" style={{ margin: 0 }}>{f.error.message.split('\n')[0]}</p></div>
         )}
 
-        <SolanaSection />
+        <SolanaSection onPick={onPick} />
 
         {!gate && <div className="tsec">
           <span className="lbl">View as</span>
@@ -73,12 +86,17 @@ export function ConnectSheet({ onClose, gate = false }: { onClose: () => void; g
  * extensions in THIS browser (Phantom, Solflare, Backpack); a phone connects
  * from the wallet app's own browser, the same answer the EVM list gives.
  */
-function SolanaSection() {
+function SolanaSection({ onPick }: { onPick?: (address: string) => void }) {
   const sol = useSolWallet()
   return (
     <div className="tsec">
       <span className="lbl">Solana</span>
-      {sol.account ? (
+      {sol.account && onPick ? (
+        <div className="actions">
+          <button className="btn pri" onClick={() => onPick(sol.account!.address)}>Continue with {short(sol.account.address)}</button>
+          <button className="btn" onClick={() => sol.disconnect()}>Use a different wallet</button>
+        </div>
+      ) : sol.account ? (
         <div className="actions">
           <span className="addr" style={{ alignSelf: 'center' }}>{short(sol.account.address)}</span>
           <button className="btn" onClick={() => sol.disconnect()}>Disconnect</button>

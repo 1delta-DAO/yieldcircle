@@ -17,9 +17,11 @@ import { solAddress, solSignMessage, useSolWallet } from './solana'
  * WalletConnect (deep links on a phone, a QR code on a desktop), and the
  * Solana wallets — through `window.ycGate`:
  *
- *   connect() → the sheet opens; resolves with the first address that
- *               connects, EVM or Solana (a wallet already connected answers
- *               at once); rejects when the sheet is closed without one
+ *   connect() → the sheet opens, always: a wallet the app reconnected by
+ *               itself is offered there as "Continue with …", never taken
+ *               unasked. Resolves with the address the visitor picks or
+ *               newly connects, EVM or Solana; rejects when the sheet is
+ *               closed without one
  *   sign(msg) → personal_sign through the EVM wallet, or ed25519 over the
  *               UTF-8 text through the Solana one, both as hex. Call it
  *               straight from a tap: it foregrounds the wallet app first
@@ -35,7 +37,8 @@ interface GateWallet {
 const toHex = (b: Uint8Array) => '0x' + Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
 declare global { interface Window { ycGate?: GateWallet } }
 
-type Pending = { resolve: (a: string) => void; reject: (e: Error) => void }
+/** `had`: the addresses connected when the sheet opened — only a NEW one, or an explicit pick, answers */
+type Pending = { resolve: (a: string) => void; reject: (e: Error) => void; had: string[] }
 
 export function GateBridge() {
   const config = useConfig()
@@ -47,9 +50,7 @@ export function GateBridge() {
     if (!document.getElementById('yc-gate')) return
     window.ycGate = {
       connect: () => new Promise<string>((resolve, reject) => {
-        const a = getAccount(config).address ?? solAddress()
-        if (a) resolve(a)
-        else setPending({ resolve, reject })
+        setPending({ resolve, reject, had: [getAccount(config).address, solAddress()].filter((x): x is string => !!x) })
       }),
       sign: (message, who) => {
         if (isSolAddr(who)) return solSignMessage(message).then(toHex)
@@ -62,12 +63,13 @@ export function GateBridge() {
     return () => { delete window.ycGate }
   }, [config])
 
-  // whichever side connects first is the gate's wallet
+  // a wallet connected while the sheet is up is the pick; one that was already there needs the button
   React.useEffect(() => {
-    const a = address ?? sol
-    if (pending && a) { pending.resolve(a); setPending(undefined) }
+    if (!pending) return
+    const a = [address, sol].find((x) => x && !pending.had.includes(x))
+    if (a) { pending.resolve(a); setPending(undefined) }
   }, [pending, address, sol])
 
   if (!pending) return null
-  return <ConnectSheet gate onClose={() => { pending.reject(new Error('No wallet connected.')); setPending(undefined) }} />
+  return <ConnectSheet onPick={(a) => { pending.resolve(a); setPending(undefined) }} onClose={() => { pending.reject(new Error('No wallet connected.')); setPending(undefined) }} />
 }

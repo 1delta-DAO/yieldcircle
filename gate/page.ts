@@ -18,6 +18,8 @@
  * opens it; "Not now" closes it again) — nothing is frosted over any more.
  */
 
+import { MARK_D, MARK_VIEWBOX } from '../src/ui/brand.generated'
+
 /** The messages both sides build; the middleware recovers the signer from them. */
 export const message = (address: string, issued: string, email?: string) =>
   email === undefined
@@ -28,45 +30,61 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
 <div id="yc-gate"${hidden ? ' style="display:none"' : ''}>
 <style>
   #yc-gate { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: center; padding: 24px 16px;
-    background: rgba(0,0,0,.55); -webkit-backdrop-filter: blur(14px) saturate(.8); backdrop-filter: blur(14px) saturate(.8);
+    background: rgba(0,0,0,.6); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     font: 15px/1.5 'IBM Plex Sans', system-ui, sans-serif; color: #e8e8e8; }
-  #yc-gate .card { width: 100%; max-width: 400px; text-align: center; background: rgba(10,10,10,.92);
-    border: 1px solid #2a2a2a; border-radius: 16px; padding: 32px 24px 24px; box-shadow: 0 24px 80px rgba(0,0,0,.6); }
-  #yc-gate .tag { display: inline-block; font: 500 11px/1 'IBM Plex Mono', monospace; letter-spacing: .12em;
-    text-transform: uppercase; color: #8a8a8a; border: 1px solid #2a2a2a; border-radius: 999px; padding: 6px 10px; margin-bottom: 16px; }
-  #yc-gate h1 { font-size: 24px; font-weight: 600; letter-spacing: -.02em; margin: 0 0 8px; }
-  #yc-gate p { color: #8a8a8a; margin: 0 0 22px; }
-  #yc-gate .row { display: grid; gap: 10px; }
-  #yc-gate input { width: 100%; box-sizing: border-box; font: 15px/1 'IBM Plex Sans', sans-serif; padding: 14px;
-    border-radius: 12px; border: 1px solid #2a2a2a; background: #000; color: #e8e8e8; outline: none; }
-  #yc-gate input:focus { border-color: #8a8a8a; }
-  #yc-gate button, #yc-gate .btn { display: block; width: 100%; box-sizing: border-box; font: 600 15px/1 'IBM Plex Sans', sans-serif;
-    padding: 14px; border-radius: 12px; border: 1px solid #e8e8e8; background: #e8e8e8; color: #000; cursor: pointer; text-decoration: none; }
-  #yc-gate button:disabled { opacity: .5; cursor: default; }
-  #yc-gate #yc-status { min-height: 1.5em; margin: 16px 0 0; font: 12px/1.5 'IBM Plex Mono', monospace; color: #8a8a8a; overflow-wrap: anywhere; }
-  #yc-gate .err { color: #ff8a7a !important; }
-  #yc-gate .back { display: inline-block; margin-top: 14px; font-size: 13px; color: #8a8a8a; }
+  #yc-gate * { box-sizing: border-box; }
+  #yc-gate .yc-card { position: relative; width: 100%; max-width: 420px; text-align: center; background: #0a0a0a;
+    border-radius: 22px; padding: 36px 28px 22px; box-shadow: 0 30px 100px rgba(0,0,0,.8), 0 0 80px rgba(47,211,232,.12);
+    animation: yc-pop .22s ease-out; }
+  /* a hairline that carries the brand gradient round the card */
+  #yc-gate .yc-card::before { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: linear-gradient(160deg, rgba(124,233,245,.55), rgba(11,143,181,.15) 40%, #262626 70%, #262626);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; }
+  @keyframes yc-pop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+  #yc-gate .yc-mark { width: 56px; height: 56px; margin: 0 auto 18px; display: block; filter: drop-shadow(0 0 18px rgba(47,211,232,.45)); }
+  #yc-gate .yc-tag { display: inline-block; font: 500 10.5px/1 'IBM Plex Mono', monospace; letter-spacing: .14em;
+    text-transform: uppercase; color: #2fd3e8; border: 1px solid rgba(47,211,232,.35); background: rgba(47,211,232,.08); border-radius: 999px; padding: 6px 11px; margin-bottom: 14px; }
+  #yc-gate h1 { font-size: 26px; font-weight: 600; letter-spacing: -.025em; line-height: 1.15; margin: 0 0 10px; }
+  #yc-gate p { color: rgba(232,232,232,.6); font-size: 14.5px; margin: 0 auto 24px; max-width: 30em; }
+  #yc-gate .yc-row { display: grid; gap: 10px; }
+  #yc-gate input { width: 100%; font: 15px/1 'IBM Plex Sans', sans-serif; padding: 15px 16px; border-radius: 999px;
+    border: 1px solid #2a2a2a; background: #000; color: #e8e8e8; outline: none; text-align: center; transition: border-color .15s, box-shadow .15s; }
+  #yc-gate input::placeholder { color: rgba(232,232,232,.35); }
+  #yc-gate input:focus { border-color: #2fd3e8; box-shadow: 0 0 0 3px rgba(47,211,232,.18); }
+  #yc-gate .yc-btn { display: block; width: 100%; font: 600 15.5px/1 'IBM Plex Sans', sans-serif; padding: 17px; border-radius: 999px; border: 0;
+    background: linear-gradient(90deg, #0b8fb5, #7ce9f5); color: #042028; cursor: pointer; text-decoration: none;
+    box-shadow: 0 0 0 1px rgba(124,233,245,.35), 0 0 32px rgba(47,211,232,.35); transition: transform .15s, box-shadow .15s; }
+  #yc-gate .yc-btn:hover { transform: translateY(-1px); box-shadow: 0 0 0 1px rgba(124,233,245,.55), 0 0 48px rgba(47,211,232,.5); }
+  #yc-gate .yc-btn:disabled { opacity: .55; cursor: default; transform: none; box-shadow: none; }
+  #yc-gate #yc-status { min-height: 1.5em; margin: 14px 0 0; font: 12px/1.5 'IBM Plex Mono', monospace; color: rgba(232,232,232,.5); overflow-wrap: anywhere; }
+  #yc-gate .yc-err { color: #ff8a7a !important; }
+  #yc-gate .yc-back { display: inline-block; margin-top: 12px; font-size: 13px; color: rgba(232,232,232,.5); text-decoration: none; border-bottom: 1px solid transparent; }
+  #yc-gate .yc-back:hover { color: #e8e8e8; border-color: rgba(232,232,232,.5); }
+  #yc-gate .yc-foot { margin-top: 18px; padding-top: 14px; border-top: 1px solid #1c1c1c; font: 11px/1.5 'IBM Plex Mono', monospace; color: rgba(232,232,232,.35); }
 </style>
-<div class="card">
-  <div class="tag">${waitlist ? 'Access code' : 'Closed beta'}</div>
+<div class="yc-card">
+  <svg class="yc-mark" viewBox="${MARK_VIEWBOX}" aria-hidden="true"><defs><linearGradient id="yc-g" gradientUnits="userSpaceOnUse" x1="16" y1="88" x2="86" y2="14"><stop offset="0" stop-color="#0b8fb5"/><stop offset="1" stop-color="#7ce9f5"/></linearGradient></defs><path d="${MARK_D}" fill-rule="evenodd" fill="url(#yc-g)"/></svg>
+  <div class="yc-tag">${waitlist ? 'Access code' : 'Closed beta'}</div>
   <h1 id="yc-title">Join the waitlist</h1>
   <p id="yc-sub">${waitlist
     ? 'You&rsquo;re in on an access code, which isn&rsquo;t yours to keep. Connect your wallet and leave an email to hold a place of your own &mdash; access opens in waves.'
     : 'Everything you see is live. Access opens in waves down the waitlist &mdash; connect your wallet to join it, or to walk in if it&rsquo;s your turn.'}</p>
-  <div class="row" id="yc-row">
+  <div class="yc-row" id="yc-row">
     <input id="yc-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" hidden />
-    <button id="yc-go">Connect wallet</button>
+    <button class="yc-btn" id="yc-go">Connect wallet</button>
   </div>
   <div id="yc-status"></div>${waitlist ? `
-  <a class="back" href="/">Back to the app</a>` : hidden ? `
-  <a class="back" href="#" onclick="document.getElementById('yc-gate').style.display='none';return false">Not now</a>` : ''}
+  <a class="yc-back" href="/">Back to the app</a>` : hidden ? `
+  <a class="yc-back" href="#" onclick="document.getElementById('yc-gate').style.display='none';return false">Not now</a>` : ''}
+  <div class="yc-foot">Free to join &middot; a signature, never a transaction</div>
 </div>
 <script>
 (() => {
   var T_VERIFY = ${JSON.stringify(message('__a__', '__i__'))};
   var T_REQUEST = ${JSON.stringify(message('__a__', '__i__', '__e__'))};
   var $ = function (id) { return document.getElementById(id); };
-  var status = function (t, err) { $('yc-status').textContent = t || ''; $('yc-status').className = err ? 'err' : ''; };
+  var status = function (t, err) { $('yc-status').textContent = t || ''; $('yc-status').className = err ? 'yc-err' : ''; };
   var eth = window.ethereum;
   var address = null;
   var btn = $('yc-go');
@@ -142,7 +160,7 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
   /** No injected wallet and no WalletConnect on this build: the wallet's own browser is the way in. */
   function none() {
     var here = location.host + location.pathname + location.search;
-    $('yc-row').innerHTML = '<a class="btn" href="https://metamask.app.link/dapp/' + here + '">Open in MetaMask</a>';
+    $('yc-row').innerHTML = '<a class="yc-btn" href="https://metamask.app.link/dapp/' + here + '">Open in MetaMask</a>';
     status('No wallet in this browser. Open this page in your wallet app\\u2019s browser (MetaMask, Rabby, Coinbase Wallet\\u2026), or on a desktop with a wallet extension.');
   }
 
@@ -159,7 +177,12 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
     status('Sign to enter \\u2014 free, no transaction.');
     return w.sign(T_VERIFY.replace('__a__', address.toLowerCase()).replace('__i__', issued)).then(function (signature) {
       return post('/gate/verify', { address: address, issued: issued, signature: signature });
-    }).then(function () { status('You\\u2019re in.'); ${waitlist ? "location.replace('/' + location.hash)" : 'location.reload()'}; });
+    }).then(function () {
+      status('You\\u2019re in.');
+      // a deep link keeps its route; everyone else lands on the welcome (src/ui/Join.tsx, the in-variant)
+      var h = location.hash; if (!h || h === '#/' || h === '#/start' || h === '#/join') location.hash = '#/join';
+      ${waitlist ? "location.replace('/' + location.hash)" : 'location.reload()'};
+    });
   }
 
   function lineup() {
@@ -175,7 +198,7 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
     $('yc-title').textContent = 'You\\u2019re on the waitlist';
     $('yc-sub').textContent = (email ? 'We\\u2019ll email ' + email : 'This wallet is in line. We\\u2019ll email you') + ' the moment access reaches it \\u2014 it opens in waves.';
     var text = encodeURIComponent('On the YieldCircle waitlist \\u{1F440} ' + location.origin);
-    $('yc-row').innerHTML = '<a class="btn" target="_blank" rel="noopener" href="https://x.com/intent/post?text=' + text + '">Share on X</a>';
+    $('yc-row').innerHTML = '<a class="yc-btn" target="_blank" rel="noopener" href="https://x.com/intent/post?text=' + text + '">Share on X</a>';
     status(address);
   }
 

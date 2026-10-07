@@ -5,8 +5,9 @@
  * field behind it is real farmers: the showcase positions (`src/data/showcase.json`,
  * rendered by `video/scripts/showcase.sh` — hover one and its PnL plays) plus the
  * live board's top earners (`useEarners`) drifting further back, blurred.
- * Deep-linkable in any build for a look (`#/join`); without the overlay on the
- * page the button just opens the app.
+ * A visitor who is IN (whitelisted, or the gate is off) sees the same page at
+ * `#/join` with a banner instead of the waitlist — the gate lands them here
+ * after the signature — and an access-code holder gets the nudge to join.
  */
 import React from 'react'
 import showcase from '../data/showcase.json'
@@ -15,6 +16,7 @@ import { Character } from '../identity/character'
 import { useEarners } from '../index/queries'
 import { chainLabel } from '../sdk/queries'
 import { useViewport } from './useViewport'
+import { WAITLIST_HREF, onAccessCode } from '../wallet/gate'
 
 declare global { interface Window { ycGated?: boolean } }
 export const gated = () => window.ycGated === true
@@ -56,11 +58,20 @@ export function Join() {
   }, [board.data])
 
   const join = (e: React.MouseEvent) => { if (openGate()) e.preventDefault() }
+  const inside = !gated()
+  const pass = inside && onAccessCode()
 
   return (
-    <div className="join" onClick={() => setOpen(null)}>
+    <div className={`join${inside ? ' has-banner' : ''}`} onClick={() => setOpen(null)}>
       <div className="join-glow" aria-hidden="true" />
       <header className="join-top"><Logo height={30} href="#/join" /></header>
+      {inside && (
+        <div className="join-banner">
+          {pass
+            ? <><b>You're in on an access code.</b> It isn't yours to keep — <a href={WAITLIST_HREF} target="_blank" rel="noopener">join the waitlist</a> to hold a place of your own.</>
+            : <><b>You're in.</b> The beta is open to this wallet — everything you see is live.</>}
+        </div>
+      )}
 
       <div className="join-field" aria-hidden={open ? undefined : true}>
         {back.map((b, i) => (
@@ -73,10 +84,16 @@ export function Join() {
       </div>
 
       <main className="join-hero">
+        {inside && <span className="join-pill">{pass ? 'Access code' : 'Welcome to the beta'}</span>}
         <h1>Everything you hold, <span className="land-grad">earning.</span></h1>
         <p>See what real yield farmers actually make — the PnL the chain can prove, not the APR on the poster — and copy them in one tap.</p>
-        <a className="join-cta" href="#/" onClick={join}>Join the waitlist</a>
-        <a className="join-in" href="#/" onClick={join}>Already on the list? Sign in</a>
+        {inside ? <>
+          <a className="join-cta" href="#/">Open the app</a>
+          <a className="join-in" href="#/board">See the leaderboard</a>
+        </> : <>
+          <a className="join-cta" href="#/" onClick={join}>Join the waitlist</a>
+          <a className="join-in" href="#/" onClick={join}>Already on the list? Sign in</a>
+        </>}
       </main>
 
       {phone && open && <div className="join-sheet"><Card p={showcase.find((p) => p.name === open)!} /></div>}

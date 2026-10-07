@@ -1876,7 +1876,6 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .pnl-dot{fill:none;stroke:var(--primary);stroke-width:7;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .pnl-dot.up{stroke:var(--success)}.pnl-dot.down{stroke:var(--error)}
 .pnl-svg.pnl-r{height:120px}
-.pnl-rread{margin-top:10px;margin-bottom:2px}
 .pnl-rwrap{position:relative}
 .pnl-ax{position:absolute;right:6px;transform:translateY(-50%);font-size:10.5px;line-height:1.35;padding:0 4px;border-radius:3px;background:rgba(10,10,10,.78);pointer-events:none;font-variant-numeric:tabular-nums}
 .pnl-net{fill:none;stroke:var(--primary);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
@@ -1885,7 +1884,7 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .sw.rnet{background:var(--primary)}.sw.rrec{background:var(--tx50)}.sw.rdep{background:var(--success)}.sw.rdebt{background:var(--warning)}
 .pnl-carry{margin-top:4px;height:70px}
 .pnl-rwrap + .pnl-legend{margin-top:2px}
-.pnl-carry-read{margin-top:10px;margin-bottom:2px}
+.pnl-carry-read{margin-top:8px;margin-bottom:2px}
 .pnl-gap{stroke:none}.pnl-gap.pos{fill:var(--success);opacity:.22}.pnl-gap.neg{fill:var(--error);opacity:.28}
 .pnl-spike{stroke:var(--error);stroke-width:2;vector-effect:non-scaling-stroke;opacity:.85}
 .sw.gpos{background:var(--success);opacity:.45}.sw.gneg{background:var(--error);opacity:.55}.sw.spike{background:var(--error);width:3px!important;height:10px!important}
@@ -1920,6 +1919,17 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .pnl-fold-b{display:flex;flex-direction:column;border-top:1px solid var(--line)}
 .pnl-fold .pnl-ev{border:0;border-radius:0;max-height:420px}
 .pnl-fold .pnl-more{margin:8px 12px}
+/* a fold whose body is cards and charts, not a list: padded */
+.pnl-fold-in{display:flex;flex-direction:column;gap:6px;padding:12px}
+/* the chart's own fold (interest & carry) sits under its legend, 8px above the next fold */
+.pnl-chart > .pnl-fold{margin-top:10px}
+.pnl-chart + .pnl-folds{margin-top:-4px}
+/* a detail switch in a chart legend */
+.pnl-opt{display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:1px 8px 1px 6px;border:1px solid var(--line2);border-radius:999px;user-select:none}
+.pnl-opt:hover{color:var(--tx70);border-color:var(--tx40)}
+.pnl-opt input{margin:0;width:12px;height:12px;accent-color:var(--primary)}
+.pnl-leg-amt{font-size:13.5px;font-variant-numeric:tabular-nums}
+.pnl-leg-amt b{font-weight:600}
 @media (prefers-reduced-motion:reduce){ .pnl-fold-h .chev{transition:none} }
 .pnl-e>span{min-width:0;overflow-wrap:break-word}
 .drawer.wide .drawer-b{overflow-x:hidden}

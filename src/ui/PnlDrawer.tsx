@@ -26,6 +26,7 @@ import { moneyOf } from '../model/desk'
 import { protocolKeyOf } from '../model/uid'
 import { isLoopscale } from '../model/strategies'
 import { prettyProtocol } from './ProtocolFilter'
+import { useSticky } from '../state/sticky'
 
 const FLAG_WORDS: Record<string, string> = {
   'negative-units': 'the ledger misses a move here: walked back, the balance goes below zero (drawn at zero)',
@@ -133,6 +134,16 @@ function Body({ s, money, f: unitOf, toggle }: {
     }
     return m
   }, [s.events])
+  /** what each leg holds now — its newest amount, in its own asset, and that at its price */
+  const holdings = React.useMemo(() => s.legs.map((_, li) => {
+    for (let k = s.points.length - 1; k >= 0; k--) {
+      const a = s.points[k].legs[li]
+      if (a == null) continue
+      const px = s.points[k].prices?.[li]
+      return { amount: a, value: px == null ? null : Math.abs(a) * px }
+    }
+    return { amount: null, value: null }
+  }), [s])
   return (
     <div className="pnl">
       <div className="pnl-h">
@@ -165,7 +176,7 @@ function Body({ s, money, f: unitOf, toggle }: {
       </div>
 
       <div className={`pnl-exact ${s.exact ? 'ok' : 'warn'}`}>
-        {s.exact ? 'Exact: every leg walks on its own units and the lender’s own index.' : 'Approximate — see the legs under the chart for why.'}
+        {s.exact ? 'Exact: every leg walks on its own units and the lender’s own index.' : 'Approximate — open Legs below for why.'}
         {m.coveredShare != null && m.coveredShare < 0.999 && <span className="t50"> · {pct((1 - m.coveredShare) * 100, 1)} of the time had no price and is left out.</span>}
         {' '}<span className="t50">Rewards are not included.</span>
       </div>
@@ -178,41 +189,50 @@ function Body({ s, money, f: unitOf, toggle }: {
       )}
       <Chart s={s} f={f} unitLabel={unitOf.label} rates={!priceBet} />
 
-      <h3 className="pnl-t">Legs <span className="t50">· tap one for its market</span></h3>
-      <div className="pnl-legc">
-        {s.legs.map((l, i) => {
-          const debt = isDebtSide(l.side)
-          return (
-            <button type="button" key={i} className="pnl-leg-c" onClick={() => { location.hash = marketHref(l.marketUid) }}>
-              <span className="pnl-leg-h">
-                <Tok sym={l.symbol ?? '?'} size={18} />
-                <b title={l.symbol ?? undefined}>{l.symbol ?? '?'}</b>
-                <span className={`pill ${debt ? 'debt' : 'dep'}`}>{debt ? 'debt' : l.side}</span>
-                <span className="sp" />
-                <span className={`pnl-chk ${l.exact ? 'ok' : 'warn'}`}>{l.exact ? '✓ exact' : '≈ approx'}</span>
-              </span>
-              <span className="t70" title={`unit kind ${l.unitKind}`}>
-                {l.walk === 'units' ? 'units' : 'amount'} · {l.indexSource === 'log' ? 'lender’s index' : l.indexSource === 'cache' ? 'hourly index' : 'no index'}
-                {l.priceSource === 'pendle' && ' · priced at Pendle’s market'}
-              </span>
-              <span className="t50">
-                {l.rows} row{l.rows === 1 ? '' : 's'} · {l.closed ? 'closed — its moves net to zero' : l.openedInRange ? 'walks back to 0 ✓' : `older (${pct(l.openResidual * 100, 1)} before first row)`}
-              </span>
-              {(l.flags.length > 0 || (l.unpricedPoints ?? 0) > 0) && (
-                <span className="pnl-flags">
-                  {l.flags.map((x) => <span key={x} className="t50 pnl-flag">{FLAG_WORDS[x] ?? x}</span>)}
-                  {(l.unpricedPoints ?? 0) > 0 && <span className="warn pnl-flag">no price for {l.symbol ?? 'this asset'} on {l.unpricedPoints} day{l.unpricedPoints === 1 ? '' : 's'} — a hole in the price record, left out</span>}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-      {s.unanchored.length > 0 && (
-        <div className="note">Not in the record: {s.unanchored.map((u) => `${u.rows} ${u.side} row${u.rows === 1 ? '' : 's'} in ${u.marketUid.split(':')[0]}`).join(', ')} — no read has anchored that leg yet.</div>
-      )}
-
       <div className="pnl-folds">
+        <Fold title="Legs" sub="what it holds and owes · tap one for its market"
+          count={<>{s.legs.length} · <span className={s.exact ? 'ok' : 'warn'}>{s.exact ? 'exact' : 'approx'}</span></>}>
+          <div className="pnl-fold-in">
+          <div className="pnl-legc">
+            {s.legs.map((l, i) => {
+              const debt = isDebtSide(l.side)
+              const held = holdings[i]
+              return (
+                <button type="button" key={i} className="pnl-leg-c" onClick={() => { location.hash = marketHref(l.marketUid) }}>
+                  <span className="pnl-leg-h">
+                    <Tok sym={l.symbol ?? '?'} size={18} />
+                    <b title={l.symbol ?? undefined}>{l.symbol ?? '?'}</b>
+                    <span className={`pill ${debt ? 'debt' : 'dep'}`}>{debt ? 'debt' : l.side}</span>
+                    <span className="sp" />
+                    <span className={`pnl-chk ${l.exact ? 'ok' : 'warn'}`}>{l.exact ? '✓ exact' : '≈ approx'}</span>
+                  </span>
+                  <span className="pnl-leg-amt">
+                    {l.closed || held.amount == null || held.amount === 0
+                      ? <span className="t50">0 {l.symbol ?? ''}</span>
+                      : <><b>{fmtAmt(Math.abs(held.amount))}</b> <span className="t70">{l.symbol ?? ''}</span>{held.value != null && <span className="t50"> · {f.v(held.value)}</span>}</>}
+                  </span>
+                  <span className="t70" title={`unit kind ${l.unitKind}`}>
+                    {l.walk === 'units' ? 'units' : 'amount'} · {l.indexSource === 'log' ? 'lender’s index' : l.indexSource === 'cache' ? 'hourly index' : 'no index'}
+                    {l.priceSource === 'pendle' && ' · priced at Pendle’s market'}
+                  </span>
+                  <span className="t50">
+                    {l.rows} row{l.rows === 1 ? '' : 's'} · {l.closed ? 'closed — its moves net to zero' : l.openedInRange ? 'walks back to 0 ✓' : `older (${pct(l.openResidual * 100, 1)} before first row)`}
+                  </span>
+                  {(l.flags.length > 0 || (l.unpricedPoints ?? 0) > 0) && (
+                    <span className="pnl-flags">
+                      {l.flags.map((x) => <span key={x} className="t50 pnl-flag">{FLAG_WORDS[x] ?? x}</span>)}
+                      {(l.unpricedPoints ?? 0) > 0 && <span className="warn pnl-flag">no price for {l.symbol ?? 'this asset'} on {l.unpricedPoints} day{l.unpricedPoints === 1 ? '' : 's'} — a hole in the price record, left out</span>}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          {s.unanchored.length > 0 && (
+            <div className="note">Not in the record: {s.unanchored.map((u) => `${u.rows} ${u.side} row${u.rows === 1 ? '' : 's'} in ${u.marketUid.split(':')[0]}`).join(', ')} — no read has anchored that leg yet.</div>
+          )}
+          </div>
+        </Fold>
         <Statement intervals={s.intervals} f={f} />
         <Fold title="Moves" sub="newest first" count={(s.eventsTotal ?? s.events.length) > s.events.length ? `newest ${s.events.length} of ${s.eventsTotal}` : String(s.events.length)}>
           <div className="pnl-ev">
@@ -284,7 +304,7 @@ function Statement({ intervals, f }: { intervals: SeriesInterval[]; f: Fmt }) {
  * 0fr→1fr grid track (the positions card's). The body mounts on first open —
  * hundreds of move rows are not rendered for a drawer that is only glanced at.
  */
-function Fold({ title, sub, count, children }: { title: string; sub?: string; count?: string; children: React.ReactNode }) {
+function Fold({ title, sub, count, children }: { title: string; sub?: string; count?: React.ReactNode; children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false)
   const [seen, setSeen] = React.useState(false)
   return (
@@ -292,7 +312,7 @@ function Fold({ title, sub, count, children }: { title: string; sub?: string; co
       <button type="button" className="pnl-fold-h" aria-expanded={open} onClick={() => { setOpen((o) => !o); setSeen(true) }}>
         <span className="pnl-fold-t"><b>{title}</b>{sub && <small className="t50">{sub}</small>}</span>
         <span className="sp" />
-        {count && <span className="pnl-fold-n mono t50">{count}</span>}
+        {count != null && <span className="pnl-fold-n mono t50">{count}</span>}
         <svg className="chev" viewBox="0 0 12 12" width="12" height="12" aria-hidden><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
       <div className={`gsum-x${open ? ' open' : ''}`} inert={!open}>
@@ -374,7 +394,11 @@ function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabe
   const W = 640, H = 200, CH = 90, RH = 120, padL = 8, padR = 8
   const pts = s.points
   const [hover, setHover] = React.useState<number | null>(null)
+  // the move ticks are detail: off until asked for, and kept for the tab
+  const [moves, setMoves] = useSticky('pnl-moves', false)
   const gid = React.useId().replace(/:/g, '')
+  const hasRates = rates && pts.some((p) => p.aprWindowPct != null)
+  const cr = React.useMemo(() => (hasRates ? carryOf(s) : null), [s, hasRates])
   if (pts.length < 2) return <div className="empty">Not enough history to draw yet.</div>
   // the time axis starts at the first priced point: a record counted from the
   // ledger's floor with no price for months drew all its amounts in the last sliver
@@ -420,7 +444,7 @@ function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabe
   const cv = [...nav, ...con].filter((v): v is number => v != null)
   let clo = Math.min(0, ...cv), chi = Math.max(0, ...cv)
   if (chi - clo < 1e-12) chi = clo + 1
-  const cy = (v: number) => 6 + ((chi - v) / (chi - clo)) * (CH - 22)
+  const cy = (v: number) => 6 + ((chi - v) / (chi - clo)) * (CH - (moves ? 22 : 12))
 
   const onMove = (ev: React.PointerEvent<SVGSVGElement>) => {
     const r = ev.currentTarget.getBoundingClientRect()
@@ -464,24 +488,34 @@ function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabe
           <line className="pnl-zero" x1={padL} x2={W - padR} y1={cy(0)} y2={cy(0)} />
           <path className="pnl-con" d={path(con, cy, true)} />
           <path className="pnl-nav" d={path(nav, cy)} />
-          {s.events.map((e, i) => {
+          {moves && s.events.map((e, i) => {
             const X = x(Date.parse(e.t))
             const c = e.flow == null ? 'liq' : e.flow > 0 ? 'in' : e.flow < 0 ? 'out' : 'liq'
             return <line key={i} className={`pnl-tick ${c}`} x1={X} x2={X} y1={CH - 12} y2={CH - 3}><title>{`${e.t.slice(0, 16)} ${e.kind} ${f.vs(e.value)}`}</title></line>
           })}
-          {hoverLine(2, CH - 14)}
+          {hoverLine(2, moves ? CH - 14 : CH - 2)}
         </svg>
         {yLabels([chi], cy, CH, f.vs)}
       </div>
-      {rates && <Rates s={s} xi={xi} W={W} H={RH} padL={padL} padR={padR} hover={hover} onMove={onMove} onLeave={() => setHover(null)} at={hover ?? (lastI >= 0 ? lastI : pts.length - 1)} />}
       <div className="pnl-legend t50">
         <span><i className={`sw pnl ${dir}`} /> PnL so far</span>
         <span><i className="sw nav" /> value</span>
         <span><i className="sw con" /> in it (value − PnL)</span>
-        <span><i className="sw tin" /> in</span><span><i className="sw tout" /> out</span><span><i className="sw tliq" /> liquidation</span>
+        {moves && <><span><i className="sw tin" /> in</span><span><i className="sw tout" /> out</span><span><i className="sw tliq" /> liquidation</span></>}
+        <label className="pnl-opt" title="a tick on the value chart for every move: green in, amber out, red a liquidation">
+          <input type="checkbox" checked={moves} onChange={(e) => setMoves(e.target.checked)} /> moves
+        </label>
         <span className="sp" />
         <span className="mono" title={i0 > 0 ? `the record runs from ${day(pts[0].t)}; it has no price before ${day(pts[i0].t)}` : undefined}>{day(pts[i0].t)} → {day(pts[pts.length - 1].t)}</span>
       </div>
+      {hasRates && (
+        <Fold title="Interest & carry" sub="what it earned at the time, and what each leg earned or cost"
+          count={cr && cr.spikes.length > 0 ? <span className="bad">{cr.spikes.length} debt-cost spike{cr.spikes.length === 1 ? '' : 's'}</span> : undefined}>
+          <div className="pnl-fold-in">
+            <Rates s={s} cr={cr} xi={xi} W={W} H={RH} padL={padL} padR={padR} hover={hover} onMove={onMove} onLeave={() => setHover(null)} at={hover ?? (lastI >= 0 ? lastI : pts.length - 1)} />
+          </div>
+        </Fold>
+      )}
     </div>
   )
 }
@@ -496,8 +530,9 @@ function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabe
  * is held to the middle of the values (a position's first days on a sliver of
  * equity swing to thousands of %); a point outside it sits on the edge.
  */
-function Rates({ s, xi, W, H, padL, padR, hover, onMove, onLeave, at }: {
+function Rates({ s, cr, xi, W, H, padL, padR, hover, onMove, onLeave, at }: {
   s: PositionSeries
+  cr: { points: (CarryPoint | null)[]; spikes: number[] } | null
   xi: (i: number) => number
   W: number; H: number; padL: number; padR: number
   hover: number | null
@@ -530,13 +565,12 @@ function Rates({ s, xi, W, H, padL, padR, hover, onMove, onLeave, at }: {
   const legName = (li: number) => `${s.legs[li].symbol ?? '?'} ${isDebtSide(s.legs[li].side) ? 'cost' : 'earned'}`
   const w = s.aprWindowDays ?? 7
   const pc = (v: number | null | undefined) => (v == null ? '—' : pct(v))
-  const cr = carryOf(s)
   const hc = cr?.points[at] ?? null
   const spikes = cr ? cr.spikes.length : 0
   const sp = hc?.debt != null ? hc.dep - hc.debt : null
   return (
     <>
-      <div className="pnl-cells pnl-rread">
+      <div className="pnl-cells">
         <Cell k={`Net APR, trailing ${w} d`} v={pc(hp.aprWindowPct)} c={(hp.aprWindowPct ?? 0) < 0 ? 'bad' : 'ok'} />
         {s.legs.map((_, li) => <Cell key={li} k={legName(li)} v={pc(hp.legRates?.[li])} />)}
         <Cell k="Record so far" v={pc(hp.aprPct)} />

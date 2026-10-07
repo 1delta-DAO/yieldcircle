@@ -10,8 +10,10 @@
  * admin term; the visitor only ever hears "waitlist".
  *
  * Bindings (Pages → Settings → Bindings / Variables, Production AND Preview):
- *   WHITELIST       KV namespace — `wl:<lowercase address>` = whitelisted,
- *                   `wait:<lowercase address>` = waitlisted (email in metadata)
+ *   WHITELIST       KV namespace — `wl:<address>` = whitelisted, `wait:<address>` = waitlisted
+ *                   (email in metadata). An EVM address is lower-cased; a Solana pubkey is
+ *                   stored as is (base58 is case-sensitive) and proves itself with an ed25519
+ *                   signature over the same text instead of EIP-191
  *   GATE_SECRET     Secret — HMAC key for the cookie; rotating it logs everyone out
  *   RESEND_API_KEY  Secret, optional — emails each new request to NOTIFY_EMAIL
  *   NOTIFY_EMAIL    optional, where requests are mailed (default below)
@@ -26,7 +28,8 @@
  * normally — a misconfiguration must never take the site down.
  */
 import { recoverMessageAddress, isAddress, isHex } from 'viem'
-import { overlay, message } from '../gate/page'
+import { overlay, message, norm } from '../gate/page'
+import { isSolAddr, base58Decode } from '../src/model/address'
 
 interface KV {
   get(key: string): Promise<string | null>
@@ -86,8 +89,8 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
 /** GET /gate/check?address=0x… — whitelisted, waitlisted, or neither (membership is not a secret) */
 async function check(url: URL, env: Gated): Promise<Response> {
   const address = url.searchParams.get('address') ?? ''
-  if (!isAddress(address)) return json({ error: 'bad address' }, 400)
-  const account = address.toLowerCase()
+  if (!okAddress(address)) return json({ error: 'bad address' }, 400)
+  const account = norm(address)
   if (await env.WHITELIST.get(`wl:${account}`)) return json({ listed: true })
   return json({ listed: false, waitlisted: !!(await env.WHITELIST.get(`wait:${account}`)) })
 }
@@ -97,14 +100,17 @@ async function verify(request: Request, env: Gated, mode: 'request' | null, wait
   const body = (await request.json().catch(() => null)) as { address?: string; issued?: string; signature?: string; email?: string } | null
   const { address, issued, signature } = body ?? {}
   const email = mode === 'request' ? body?.email?.trim().toLowerCase() ?? '' : undefined
-  if (!address || !isAddress(address) || !issued || !signature || !isHex(signature)) return json({ error: 'bad request' }, 400)
+  if (!address || !okAddress(address) || !issued || !signature || !isHex(signature)) return json({ error: 'bad request' }, 400)
   if (email !== undefined && !EMAIL.test(email)) return json({ error: 'enter a valid email address' }, 400)
   const age = Date.now() - Date.parse(issued)
   if (!(age >= -60_000 && age < SIGNATURE_MAX_AGE_MS)) return json({ error: 'signature expired, try again' }, 400)
 
-  const signer = await recoverMessageAddress({ message: message(address, issued, email), signature }).catch(() => null)
-  const account = address.toLowerCase()
-  if (signer?.toLowerCase() !== account) return json({ error: 'signature does not match the address' }, 401)
+  const account = norm(address)
+  const text = message(address, issued, email)
+  const ok = isSolAddr(address)
+    ? await verifySol(address, text, signature).catch(() => false)
+    : (await recoverMessageAddress({ message: text, signature }).catch(() => null))?.toLowerCase() === account
+  if (!ok) return json({ error: 'signature does not match the address' }, 401)
 
   if (await env.WHITELIST.get(`wl:${account}`)) return admit(account, env)
   if (email === undefined) return json({ listed: false })
@@ -117,6 +123,17 @@ async function verify(request: Request, env: Gated, mode: 'request' | null, wait
     if (env.RESEND_API_KEY) waitUntil(notify(env, account, email, ts))
   }
   return json({ listed: false, requested: true, again: !!before })
+}
+
+const okAddress = (a: string) => isAddress(a) || isSolAddr(a)
+
+/** A Solana wallet signs the raw UTF-8 text with its ed25519 key — the pubkey IS the address. */
+export async function verifySol(address: string, text: string, signatureHex: string): Promise<boolean> {
+  const pub = base58Decode(address)
+  const sig = Uint8Array.from(signatureHex.slice(2).match(/../g) ?? [], (h) => parseInt(h, 16))
+  if (!pub || pub.length !== 32 || sig.length !== 64) return false
+  const key = await crypto.subtle.importKey('raw', pub, { name: 'Ed25519' }, false, ['verify'])
+  return crypto.subtle.verify('Ed25519', key, sig, new TextEncoder().encode(text))
 }
 
 async function admit(account: string, env: Gated): Promise<Response> {

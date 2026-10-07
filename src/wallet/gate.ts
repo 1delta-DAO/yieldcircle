@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { isEvmAddr } from '../model/address'
+import { isAddr } from '../model/address'
 
 /**
  * The beta gate as the app sees it (`functions/_middleware.ts`). A visitor who
@@ -26,7 +26,7 @@ async function gateCheck(address: string): Promise<{ listed: boolean; waitlisted
 }
 
 export function useOnList(address: string | undefined) {
-  const on = !!address && isEvmAddr(address) && onAccessCode()
+  const on = !!address && isAddr(address) && onAccessCode()
   return useQuery({
     queryKey: ['gate-check', address?.toLowerCase()],
     queryFn: () => gateCheck(address!),

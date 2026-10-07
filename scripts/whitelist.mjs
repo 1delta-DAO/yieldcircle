@@ -11,7 +11,7 @@
 // Both layers in one go (the wait: row is kept for the record; wl: wins):
 //   node scripts/whitelist.mjs wait 0xabc… --email you@x.y && node scripts/whitelist.mjs add 0xabc…
 //
-// Keys are always lower-cased: the gate looks up `wl:<lowercase address>`.
+// Keys: an EVM address lower-cased, a Solana pubkey as is (base58 is case-sensitive) — the gate looks up `wl:<key>`.
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -31,8 +31,8 @@ const [cmd, ...rest] = process.argv.slice(2)
 const flag = (name) => { const i = rest.indexOf(`--${name}`); return i < 0 ? undefined : rest.splice(i, 2)[1] }
 
 const addresses = (list) => {
-  const out = list.map((a) => a.trim().toLowerCase()).filter(Boolean)
-  const bad = out.filter((a) => !/^0x[0-9a-f]{40}$/.test(a))
+  const out = list.map((a) => a.trim()).filter(Boolean).map((a) => (a.startsWith('0x') ? a.toLowerCase() : a))
+  const bad = out.filter((a) => !/^0x[0-9a-f]{40}$/.test(a) && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(a))
   if (bad.length) { console.error(`not an address: ${bad.join(', ')}`); process.exit(1) }
   return [...new Set(out)]
 }

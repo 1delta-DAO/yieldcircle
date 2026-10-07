@@ -1878,7 +1878,7 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .pnl-svg.pnl-r{height:120px}
 .pnl-rread{margin-top:10px;margin-bottom:2px}
 .pnl-rwrap{position:relative}
-.pnl-ax{position:absolute;right:6px;transform:translateY(-50%);font-size:10.5px;pointer-events:none;font-variant-numeric:tabular-nums}
+.pnl-ax{position:absolute;right:6px;transform:translateY(-50%);font-size:10.5px;line-height:1.35;padding:0 4px;border-radius:3px;background:rgba(10,10,10,.78);pointer-events:none;font-variant-numeric:tabular-nums}
 .pnl-net{fill:none;stroke:var(--primary);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
 .pnl-rec{fill:none;stroke:var(--tx50);stroke-width:1.2;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
 .pnl-leg{fill:none;stroke-width:1;opacity:.75;vector-effect:non-scaling-stroke;stroke-linejoin:round}.pnl-leg.dep{stroke:var(--success)}.pnl-leg.debt{stroke:var(--warning)}

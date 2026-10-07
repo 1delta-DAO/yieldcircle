@@ -23,6 +23,9 @@ import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { chainLabel } from '../sdk/queries'
 import { marketHref } from '../state/AppState'
 import { moneyOf } from '../model/desk'
+import { protocolKeyOf } from '../model/uid'
+import { isLoopscale } from '../model/strategies'
+import { prettyProtocol } from './ProtocolFilter'
 
 const FLAG_WORDS: Record<string, string> = {
   'negative-units': 'the ledger misses a move here: walked back, the balance goes below zero (drawn at zero)',
@@ -47,6 +50,8 @@ const KIND_CLASS: Record<string, string> = {
   borrow: 'k-borrow', liquidated: 'k-liq', redeemed: 'k-liq',
 }
 const day = (t: string) => t.slice(0, 10)
+/** The venue by name: `MORPHO_BLUE` → Morpho Markets; a Loopscale pair's key names its two mints and reads as Loopscale. */
+const venueOf = (lk: string | undefined) => (lk ? prettyProtocol(isLoopscale(lk) ? 'LOOPSCALE' : protocolKeyOf(lk)) : '')
 const fmtAmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : Math.abs(n) >= 1 ? 2 : 6 })
 const daysTxt = (d: number) => (d >= 1 ? `${d.toFixed(d >= 10 ? 0 : 1)} days` : d * 24 >= 1 ? `${(d * 24).toFixed(0)} h` : `${Math.max(1, Math.round(d * 1440))} min`)
 
@@ -131,7 +136,7 @@ function Body({ s, money, f: unitOf, toggle }: {
   return (
     <div className="pnl">
       <div className="pnl-h">
-        <b>{syms.join(' / ')}</b> <span className="t50">· {s.legs[0]?.lenderKey} · {chainLabel(s.chainId)}</span>
+        <b>{syms.join(' / ')}</b> <span className="t50" title={s.legs[0]?.lenderKey}>· {venueOf(s.legs[0]?.lenderKey)} · {chainLabel(s.chainId)}</span>
         <div className="t50 pnl-sub">
           {s.since ? <>older than the ledger — counted from {day(s.since)}, as if opened that day</> : s.start ? <>opened {day(s.start)}</> : 'no history'}
         </div>
@@ -161,7 +166,7 @@ function Body({ s, money, f: unitOf, toggle }: {
 
       <div className={`pnl-exact ${s.exact ? 'ok' : 'warn'}`}>
         {s.exact ? 'Exact: every leg walks on its own units and the lender’s own index.' : 'Approximate — see the legs under the chart for why.'}
-        {m.coveredShare != null && m.coveredShare < 0.999 && <span className="t50"> · {pct((1 - m.coveredShare) * 100, 1)} of the time had no price and is left out</span>}
+        {m.coveredShare != null && m.coveredShare < 0.999 && <span className="t50"> · {pct((1 - m.coveredShare) * 100, 1)} of the time had no price and is left out.</span>}
         {' '}<span className="t50">Rewards are not included.</span>
       </div>
 
@@ -317,6 +322,21 @@ function EventRow({ e, s, f, since }: { e: SeriesEvent; s: PositionSeries; f: Fm
   )
 }
 
+/**
+ * The amount scale on a chart's right edge: a label at each value, placed
+ * where the chart draws it. In order of priority — a label that would sit on
+ * one already placed (the zero line just above the low) is left out.
+ */
+function yLabels(vs: number[], y: (v: number) => number, h: number, fmt: (v: number) => string) {
+  const placed: number[] = []
+  return vs.map((v, i) => {
+    const at = y(v)
+    if (placed.some((p) => Math.abs(p - at) < 16)) return null
+    placed.push(at)
+    return <span key={i} className="pnl-ax t40" style={{ top: `${(at / h) * 100}%` }}>{fmt(v)}</span>
+  })
+}
+
 /** The legs' prices on a day (one entry per token), so a swing in the PnL can be read off the price that made it. */
 function priceLine(s: PositionSeries, prices: (number | null)[], unit: string, label: string): string {
   const seen = new Set<string>()
@@ -356,7 +376,10 @@ function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabe
   const [hover, setHover] = React.useState<number | null>(null)
   const gid = React.useId().replace(/:/g, '')
   if (pts.length < 2) return <div className="empty">Not enough history to draw yet.</div>
-  const t0 = Date.parse(pts[0].t), t1 = Date.parse(pts[pts.length - 1].t)
+  // the time axis starts at the first priced point: a record counted from the
+  // ledger's floor with no price for months drew all its amounts in the last sliver
+  const i0 = Math.max(0, pts.findIndex((p) => p.nav != null))
+  const t0 = Date.parse(pts[i0].t), t1 = Date.parse(pts[pts.length - 1].t)
   const x = (t: number) => padL + ((t - t0) / Math.max(1, t1 - t0)) * (W - padL - padR)
   const xi = (i: number) => x(Date.parse(pts[i].t))
   const pnl = pts.map((p) => (p.nav == null ? null : p.pnl))
@@ -402,8 +425,8 @@ function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabe
   const onMove = (ev: React.PointerEvent<SVGSVGElement>) => {
     const r = ev.currentTarget.getBoundingClientRect()
     const tx = t0 + ((ev.clientX - r.left) / r.width * W - padL) / (W - padL - padR) * (t1 - t0)
-    let best = 0
-    pts.forEach((p, i) => { if (Math.abs(Date.parse(p.t) - tx) < Math.abs(Date.parse(pts[best].t) - tx)) best = i })
+    let best = i0
+    pts.forEach((p, i) => { if (i > i0 && Math.abs(Date.parse(p.t) - tx) < Math.abs(Date.parse(pts[best].t) - tx)) best = i })
     setHover(best)
   }
   const hp = pts[hover ?? (lastI >= 0 ? lastI : pts.length - 1)]
@@ -419,38 +442,45 @@ function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabe
           <span className="t50 pnl-one pnl-px">{(hp.prices && priceLine(s, hp.prices, s.unit, unitLabel)) || '\u00a0'}</span>
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg" onPointerMove={onMove} onPointerLeave={() => setHover(null)} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" className={`pnl-gs0 ${dir}`} />
-            <stop offset="1" className={`pnl-gs1 ${dir}`} />
-          </linearGradient>
-        </defs>
-        <path className="pnl-area" fill={`url(#${gid})`} d={area(pnl, py)} />
-        <line className="pnl-zero" x1={padL} x2={W - padR} y1={py(0)} y2={py(0)} />
-        <path className={`pnl-line ${dir}`} d={path(pnl, py)} />
-        {lastI >= 0 && hover == null && <line className={`pnl-dot ${dir}`} x1={xi(lastI)} x2={xi(lastI)} y1={py(pnl[lastI]!)} y2={py(pnl[lastI]!)} />}
-        {hover != null && pnl[hover] != null && <line className={`pnl-dot ${dir}`} x1={xi(hover)} x2={xi(hover)} y1={py(pnl[hover]!)} y2={py(pnl[hover]!)} />}
-        {hoverLine(4, H - 4)}
-      </svg>
-      <svg viewBox={`0 0 ${W} ${CH}`} className="pnl-svg pnl-p" onPointerMove={onMove} onPointerLeave={() => setHover(null)} preserveAspectRatio="none">
-        <line className="pnl-zero" x1={padL} x2={W - padR} y1={cy(0)} y2={cy(0)} />
-        <path className="pnl-con" d={path(con, cy, true)} />
-        <path className="pnl-nav" d={path(nav, cy)} />
-        {s.events.map((e, i) => {
-          const X = x(Date.parse(e.t))
-          const c = e.flow == null ? 'liq' : e.flow > 0 ? 'in' : e.flow < 0 ? 'out' : 'liq'
-          return <line key={i} className={`pnl-tick ${c}`} x1={X} x2={X} y1={CH - 12} y2={CH - 3}><title>{`${e.t.slice(0, 16)} ${e.kind} ${f.vs(e.value)}`}</title></line>
-        })}
-        {hoverLine(2, CH - 14)}
-      </svg>
+      <div className="pnl-rwrap">
+        <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg" onPointerMove={onMove} onPointerLeave={() => setHover(null)} preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" className={`pnl-gs0 ${dir}`} />
+              <stop offset="1" className={`pnl-gs1 ${dir}`} />
+            </linearGradient>
+          </defs>
+          <path className="pnl-area" fill={`url(#${gid})`} d={area(pnl, py)} />
+          <line className="pnl-zero" x1={padL} x2={W - padR} y1={py(0)} y2={py(0)} />
+          <path className={`pnl-line ${dir}`} d={path(pnl, py)} />
+          {lastI >= 0 && hover == null && <line className={`pnl-dot ${dir}`} x1={xi(lastI)} x2={xi(lastI)} y1={py(pnl[lastI]!)} y2={py(pnl[lastI]!)} />}
+          {hover != null && pnl[hover] != null && <line className={`pnl-dot ${dir}`} x1={xi(hover)} x2={xi(hover)} y1={py(pnl[hover]!)} y2={py(pnl[hover]!)} />}
+          {hoverLine(4, H - 4)}
+        </svg>
+        {yLabels([phi, plo, 0], py, H, (v) => (v === 0 ? f.vs(0) : `${v > 0 ? '+' : '−'}${f.vs(Math.abs(v))}`))}
+      </div>
+      <div className="pnl-rwrap">
+        <svg viewBox={`0 0 ${W} ${CH}`} className="pnl-svg pnl-p" onPointerMove={onMove} onPointerLeave={() => setHover(null)} preserveAspectRatio="none">
+          <line className="pnl-zero" x1={padL} x2={W - padR} y1={cy(0)} y2={cy(0)} />
+          <path className="pnl-con" d={path(con, cy, true)} />
+          <path className="pnl-nav" d={path(nav, cy)} />
+          {s.events.map((e, i) => {
+            const X = x(Date.parse(e.t))
+            const c = e.flow == null ? 'liq' : e.flow > 0 ? 'in' : e.flow < 0 ? 'out' : 'liq'
+            return <line key={i} className={`pnl-tick ${c}`} x1={X} x2={X} y1={CH - 12} y2={CH - 3}><title>{`${e.t.slice(0, 16)} ${e.kind} ${f.vs(e.value)}`}</title></line>
+          })}
+          {hoverLine(2, CH - 14)}
+        </svg>
+        {yLabels([chi], cy, CH, f.vs)}
+      </div>
       {rates && <Rates s={s} xi={xi} W={W} H={RH} padL={padL} padR={padR} hover={hover} onMove={onMove} onLeave={() => setHover(null)} at={hover ?? (lastI >= 0 ? lastI : pts.length - 1)} />}
       <div className="pnl-legend t50">
         <span><i className={`sw pnl ${dir}`} /> PnL so far</span>
         <span><i className="sw nav" /> value</span>
         <span><i className="sw con" /> in it (value − PnL)</span>
         <span><i className="sw tin" /> in</span><span><i className="sw tout" /> out</span><span><i className="sw tliq" /> liquidation</span>
-        <span className="sp" /><span className="mono">{day(pts[0].t)} → {day(pts[pts.length - 1].t)}</span>
+        <span className="sp" />
+        <span className="mono" title={i0 > 0 ? `the record runs from ${day(pts[0].t)}; it has no price before ${day(pts[i0].t)}` : undefined}>{day(pts[i0].t)} → {day(pts[pts.length - 1].t)}</span>
       </div>
     </div>
   )

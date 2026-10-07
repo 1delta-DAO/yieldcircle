@@ -25,9 +25,10 @@ export function apiHeaders(): Record<string, string> {
 /**
  * The position index (`pos-indexer`), public at https://positions.1delta.io.
  * The ledger of who did what in which market, on the chains this app offers.
- * Read-only, CORS `*`, no key. It is NEVER asked for the connected user's own
- * positions — those stay on the live allocator path (`/v1/data/earn/positions`),
- * which is the index's own hard rule. This is for OTHER wallets and for history.
+ * CORS `*`, no key. The connected user's own positions are shown from it only
+ * after a sync (`syncAccount`, pos-indexer tickets/0071); every number the user
+ * ACTS on (a form, a max, health) stays on the live allocator path
+ * (`/v1/data/earn/positions`) — that is the hard rule.
  */
 export const INDEX_BASE_URL =
   (import.meta.env.VITE_INDEX_BASE_URL as string | undefined) ?? 'https://positions.1delta.io'

@@ -26,7 +26,7 @@ because a deposit is not a trade.
 |---|---|---|
 | Curated catalogue | `model/strategies.ts` | ~30 deposits + ~30 loops per asset, already risk- and size-filtered. **The set of things worth talking about.** |
 | Strategy identity | `SimpleStrategy.earnUid`, `LoopStrategy.marketLongUid` / `marketShortUid` | the thread keys (see §6) |
-| Your positions | `model/positions.ts` on `/v1/data/earn/positions` | the live path — stays live (pos-indexer's HARD RULE: never serve the connected user's own positions from the index) |
+| Your positions | `model/positions.ts` on `/v1/data/earn/positions` | the live path for every number you act on (pos-indexer's HARD RULE); your own Wallet page shows the index after a sync round trip (pos-indexer tickets/0071) |
 | Execution | `ui/Ticket.tsx` + `ui/useLadder.ts` | **copy-a-position in one tap, already written** |
 | Cross-chain funding | `ui/GetAsset.tsx` | a copier who holds the wrong token on the wrong chain still converts |
 | Routing | hash routes in `state/AppState.tsx` | every social object gets a URL for free |

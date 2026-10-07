@@ -2,11 +2,13 @@
  * A wallet as a person: character, name, badges, what they hold, what they
  * moved, and a thread on them.
  *
- * The index is the source here — and only here. **The connected wallet's own
- * positions are never read from it** (the index's own hard rule): they stay on
- * the live allocator path, which is what the balance chip in the header shows. On your
- * own page this shows your history, which is exactly what the index is for,
- * and points at that chip for the live numbers.
+ * The index is the source here. The connected wallet's own page shows the
+ * index too, but only AFTER a sync (pos-indexer tickets/0071): the live read
+ * the header chip made goes to the index as hints, the index reads whatever
+ * it is missing through its own reader, and the page renders the synced
+ * answer. Every number you ACT on (a form, a max, health) stays live — that
+ * is the hard rule now. A Solana wallet (no sync route on its index) and an
+ * index that cannot sync keep the old note pointing at the chip.
  */
 import React from 'react'
 import { accountCarry } from '../model/accountCarry'
@@ -16,13 +18,14 @@ import { ptMaturityOf, type Strategy } from '../model/strategies'
 import { useAccount } from 'wagmi'
 import { go, marketHref, parseRoute, useApp, useRoute, walletHref } from '../state/AppState'
 import { PnlDrawer } from './PnlDrawer'
-import { useAccountFlows, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
+import type { AccountSyncReport } from '../index/api'
+import { useAccountFlows, useAccountSync, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
 import { useFollowers, useProfile, useProfiles, useWalletLinks } from '../social/queries'
 import { AutoTag, Badges, FollowButton, Impaired, Money, Who, Ago, describeBundle, tokens } from './social-bits'
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
-import { isEvmChain, normAddr } from '../model/address'
+import { isEvmAddr, isEvmChain, normAddr } from '../model/address'
 import { AddrExplorers, CopyButton, MaturityNote, Sk, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
@@ -32,6 +35,17 @@ import { HIDES } from '../model/visibility'
 import { useQueryClient } from '@tanstack/react-query'
 import { primaryLeg } from './Feed'
 import { TokLink } from './TokenPage'
+
+/**
+ * Your own page after a sync: synced, still reading (the 20 s wait ran out), or a gap two reads
+ * could not close — in words, with the live chip as the fallback for exactly those positions.
+ */
+function SyncNote({ s }: { s: AccountSyncReport }) {
+  const gaps = s.legs.filter((l) => l.status === 'unresolved').length + s.hinted.filter((h) => h.status === 'unresolved').length
+  if (!s.synced) return <>synced with the chain as far as it got · still reading {s.inFlight} — the balance chip has the live numbers</>
+  if (gaps) return <>synced with the chain · {gaps} position{gaps === 1 ? '' : 's'} the index could not read — the balance chip has the live numbers</>
+  return <>synced with the chain just now</>
+}
 
 export function Wallet({ addr }: { addr: string }) {
   const { address } = useAccount()
@@ -70,7 +84,12 @@ export function Wallet({ addr }: { addr: string }) {
   const one = !allChains && chainIds.length === 1 ? chainIds[0] : undefined
   const cut = !allChains && !one
   const inScope = React.useCallback((id: string) => allChains || chainIds.includes(id), [allChains, chainIds])
-  const pos = useIndexPositions(isMe ? undefined : addr, one)
+  // your own page: sync first, then the index (pos-indexer tickets/0071)
+  const sync = useAccountSync(isMe && isEvmAddr(addr) ? addr : undefined)
+  const syncing = isMe && sync.isLoading
+  // hidden = your own page with no synced answer to show (Solana, or the sync failed)
+  const hidden = isMe && !sync.data && !syncing
+  const pos = useIndexPositions(!isMe || sync.data ? addr : undefined, one)
   // `?pos=<group key>`: a position's PnL history is open (pos-indexer tickets/0061)
   const route = useRoute()
   const closePnl = React.useCallback(() => {
@@ -196,9 +215,9 @@ export function Wallet({ addr }: { addr: string }) {
       {vaults.map((v) => <VaultCard key={v.marketUid} v={v} />)}
 
       <div className="wstats">
-        <Stat k="Net value" v={isMe ? '—' : usd(nav)} s={isMe ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={!isMe && pos.isLoading} />
-        <Stat k="Net APR" v={isMe ? '—' : carry.netAprPct == null ? '—' : <span className={carry.netAprPct >= 0 ? 'ok' : 'warn'}>{carry.exact ? '' : '≈ '}{pct(carry.netAprPct)}</span>}
-          s={isMe ? 'on the live path' : <AccountAprNote c={carry} />} loading={!isMe && pos.isLoading} />
+        <Stat k="Net value" v={hidden ? '—' : usd(nav)} s={hidden ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={syncing || (!hidden && pos.isLoading)} />
+        <Stat k="Net APR" v={hidden ? '—' : carry.netAprPct == null ? '—' : <span className={carry.netAprPct >= 0 ? 'ok' : 'warn'}>{carry.exact ? '' : '≈ '}{pct(carry.netAprPct)}</span>}
+          s={hidden ? 'on the live path' : <AccountAprNote c={carry} />} loading={syncing || (!hidden && pos.isLoading)} />
         <Stat k="Deposited · 30d" v={usdShort(f?.depositedUsd)} s={f ? `net ${usdShort(f.depositedUsd - f.withdrawnUsd)} in` : ''} loading={flows.isLoading} />
         <Stat k="Withdrawn · 30d" v={usdShort(f?.withdrawnUsd)} s="supply taken out" loading={flows.isLoading} />
         <Stat k="Borrowed · 30d" v={usdShort(f?.borrowedUsd)} s={f ? `net ${usdShort(f.borrowedUsd - f.repaidUsd)} drawn` : ''} loading={flows.isLoading} />
@@ -207,13 +226,13 @@ export function Wallet({ addr }: { addr: string }) {
       </div>
 
       <section className="sec">
-        <div className="sec-h"><h2>Positions</h2><span className="sub">{isMe ? 'Your own positions come from the live path, not the index.' : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago</> : 'from the index'}</span></div>
-        {isMe ? (
+        <div className="sec-h"><h2>Positions</h2><span className="sub">{hidden ? 'Your own positions come from the live path, not the index.' : syncing ? 'syncing your positions with the chain…' : isMe && sync.data ? <SyncNote s={sync.data} /> : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago</> : 'from the index'}</span></div>
+        {hidden ? (
           <div className="note">The index is for <b>other</b> wallets and for history — never for the connected user’s own positions. Yours are behind the balance in the top right, read live.</div>
         ) : (
           <div className="card">
-            {pos.isLoading && <div className="empty"><Sk w={220} /></div>}
-            {!pos.isLoading && !rows.length && <div className="empty">The index has no open position for this wallet on {allChains ? 'the chains it follows' : chainLabelFor()}.</div>}
+            {(syncing || pos.isLoading) && <div className="empty"><Sk w={220} /></div>}
+            {!syncing && !pos.isLoading && !rows.length && <div className="empty">The index has no open position for this wallet on {allChains ? 'the chains it follows' : chainLabelFor()}.</div>}
             {rows.length > 0 && <Book rows={rows} groups={groups} navUsd={carry.navUsd} copyOf={copyOf} who={addr} />}
           </div>
         )}

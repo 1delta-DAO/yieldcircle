@@ -1011,6 +1011,45 @@ export interface FindCatalogDoc {
 export const find = (p: { q: string; kinds?: string; chainIds?: string; per?: number }, signal?: AbortSignal) =>
   get<FindAnswer>('/find', p, signal)
 export const findCatalog = () => get<{ generation: string; docs: FindCatalogDoc[] }>('/find/catalog')
+/**
+ * Sync a wallet with the index (pos-indexer tickets/0071 → docs/account-sync.md): fetch → check →
+ * write → mark synced, in ONE request. `legs` are what a live read found (lender + market uid) —
+ * HINTS: the index reads every hinted leg it holds no row for, and every leg its ledger names
+ * without a balance, through its own reader on the chain, and never writes a number it was sent.
+ * `waitMs` holds the request until those reads have landed (`synced: true`, ≤ 30 s), so the
+ * answer that follows is the index's synced state.
+ */
+export interface SyncHintLeg { chainId: string; lender: string; marketUid?: string | null }
+export type SyncLegStatus = 'reading' | 'queued' | 'unread' | 'unswept' | 'closed' | 'unresolved'
+export interface AccountSyncReport {
+  account: string
+  /** complete = every leg read; syncing = reads in flight; gaps = a leg two reads could not find */
+  state: 'complete' | 'syncing' | 'gaps'
+  legs: { chainId: string; lenderKey: string; marketUid: string | null; side: string | null; status: SyncLegStatus }[]
+  hinted: { chainId: string; lender: string; marketUid: string | null; status: 'indexed' | 'missing' | 'unresolved' }[]
+  requested: number
+  inFlight: number
+  /** nothing more is on its way: the index's answer now is as synced as it gets */
+  synced?: boolean
+  waitedMs?: number
+}
+export async function syncAccount(account: string, legs: SyncHintLeg[], waitMs = 0, signal?: AbortSignal): Promise<AccountSyncReport> {
+  const r = await fetch(`${INDEX_BASE_URL}/accounts/${account}/sync${waitMs > 0 ? `?wait=${waitMs}` : ''}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ legs: legs.slice(0, 200) }), signal, keepalive: waitMs === 0,
+  })
+  const j = (await r.json().catch(() => ({}))) as AccountSyncReport & { error?: string }
+  if (!r.ok) throw new Error(j.error || `/accounts/${account}/sync \u2192 ${r.status}`)
+  return j
+}
+/** the same, fire and forget: once per account and leg set per five minutes (the index cools down per account too) */
+const syncSent = new Map<string, number>()
+export function syncHints(account: string, legs: SyncHintLeg[]): void {
+  const key = `${account.toLowerCase()}|${legs.map((l) => `${l.chainId}:${l.marketUid ?? l.lender}`).sort().join(',')}`
+  const at = syncSent.get(key)
+  if (at !== undefined && Date.now() - at < 5 * 60_000) return
+  syncSent.set(key, Date.now())
+  syncAccount(account, legs).catch(() => {})
+}
 export function findClick(docId: string): void {
   void fetch(`${INDEX_BASE_URL}/find/click`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ docId }), keepalive: true,

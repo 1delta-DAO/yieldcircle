@@ -1,4 +1,6 @@
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { hintLegs } from '../sdk/queries'
+import type { EarnPositionsResponse } from '../sdk/types'
 import { isEvmAddr, isSolAddr, normAddr } from '../model/address'
 import * as api from './api'
 import type { RecentQuery } from './api'
@@ -63,6 +65,30 @@ export function useIndexPositions(account: string | undefined, chainId?: string)
     queryFn: () => api.accountPositions(account!, { chainId }),
     staleTime: MIN,
     retry: retry404,
+  })
+}
+/**
+ * The connected wallet, synced before its own page shows the index (pos-indexer tickets/0071):
+ * the live read the header chip already made (`earn-positions` in the cache) goes along as hints,
+ * the index reads whatever it is missing and answers once those reads have landed, and the
+ * positions query is refetched on the synced state. A wallet with no live read cached yet syncs
+ * on its ledger alone. Up to ~20 s for a wallet with gaps; seconds once it is in sync.
+ */
+export function useAccountSync(account: string | undefined) {
+  const qc = useQueryClient()
+  return useQuery({
+    enabled: !!account && isEvmAddr(account),
+    queryKey: ['idx-sync', account],
+    queryFn: async ({ signal }) => {
+      const items = qc
+        .getQueriesData<EarnPositionsResponse>({ predicate: (q) => q.queryKey[0] === 'earn-positions' && normAddr(String(q.queryKey[1])) === account })
+        .flatMap(([, d]) => d?.items ?? [])
+      const r = await api.syncAccount(account!, hintLegs(items), 20_000, signal)
+      await qc.invalidateQueries({ queryKey: ['idx-positions', account] })
+      return r
+    },
+    staleTime: 5 * MIN,
+    retry: false,
   })
 }
 /**

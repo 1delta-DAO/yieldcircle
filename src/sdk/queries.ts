@@ -6,8 +6,8 @@ import { HIDES, hideDetail, softHide, type HideCode } from '../model/visibility'
 import { parseUid } from '../model/uid'
 import { EXPOSURE_ASSETS } from '../model/assets'
 import { useSettings, type Settings } from '../state/Settings'
-import type { LendingBook, OptimizerResponse, TokenBalance } from './types'
-import { indexBalances } from '../index/api'
+import type { EarnPositionsResponse, LendingBook, OptimizerResponse, TokenBalance } from './types'
+import { indexBalances, syncHints, type SyncHintLeg } from '../index/api'
 import type { IndexBalanceItem } from '../index/types'
 import { useLiveChains } from './liveBalances'
 import { isEvmAddr, isEvmChain, isSolAddr, isSvmChain, normAddr } from '../model/address'
@@ -479,9 +479,26 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
  * through `/lending/user-positions`' Solana branch, the vault half from the
  * owner's share-token balances (jl tokens, eUSX / strcUSX, Huma PST, LSTs,
  * Exponent PTs). Not served there: Loopscale vault LP and exit requests in
- * flight. The hard rule (never the index for the connected user) holds.
+ * flight. The hard rule holds: what the user acts on is read live.
  */
 export const SOL_POSITIONS_READY = true
+/**
+ * What the live read found, as the index's sync hints (pos-indexer tickets/0071): each lending leg
+ * by its lender + market uid, each vault by its `vault.*` uid. A leg holding nothing is left out.
+ */
+export function hintLegs(items: EarnPositionsResponse['items']): SyncHintLeg[] {
+  const out: SyncHintLeg[] = []
+  for (const p of items) {
+    if (!isEvmChain(p.chainId)) continue
+    if (p.venueKind === 'vault') {
+      if (p.earnUid?.startsWith('vault.')) out.push({ chainId: p.chainId, lender: p.earnUid.split(':')[0], marketUid: p.earnUid })
+      continue
+    }
+    for (const l of [...p.legs, ...p.subAccounts.flatMap((a) => a.legs)])
+      if (l.marketUid && (l.depositsUsd > 0 || l.debtUsd > 0 || l.deposits !== '0' || l.debt !== '0')) out.push({ chainId: p.chainId, lender: p.lender, marketUid: l.marketUid })
+  }
+  return out
+}
 /**
  * Positions, in the same buckets as the catalogue: the big chains alone, the
  * rest in one request. One request for every chain was the slowest answer on
@@ -499,7 +516,11 @@ export function useEarnPositions(accounts: VmAccounts, chainIds: string[]) {
     queries: reqs.map(({ account, ids }) => ({
       enabled: !!account && ids.length > 0,
       queryKey: ['earn-positions', account, ids.join(',')],
-      queryFn: () => fetchEarnPositions(account, ids),
+      queryFn: async () => {
+        const r = await fetchEarnPositions(account, ids)
+        if (isEvmAddr(account)) syncHints(account, hintLegs(r.items))
+        return r
+      },
       staleTime: 60_000,
     })),
   })

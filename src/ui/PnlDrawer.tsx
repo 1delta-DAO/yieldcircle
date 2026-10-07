@@ -19,7 +19,7 @@ import React from 'react'
 import { Drawer } from './Drawer'
 import { usePositionSeries } from '../index/queries'
 import type { PositionSeries, SeriesEvent, SeriesInterval } from '../index/api'
-import { Sk, TxLink, pct, usd, usdShort } from './bits'
+import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { chainLabel } from '../sdk/queries'
 import { marketHref } from '../state/AppState'
 import { moneyOf } from '../model/desk'
@@ -160,7 +160,7 @@ function Body({ s, money, f: unitOf, toggle }: {
       </div>
 
       <div className={`pnl-exact ${s.exact ? 'ok' : 'warn'}`}>
-        {s.exact ? 'Exact: every leg walks on its own units and the lender’s own index.' : 'Approximate — see the legs below for why.'}
+        {s.exact ? 'Exact: every leg walks on its own units and the lender’s own index.' : 'Approximate — see the legs under the chart for why.'}
         {m.coveredShare != null && m.coveredShare < 0.999 && <span className="t50"> · {pct((1 - m.coveredShare) * 100, 1)} of the time had no price and is left out</span>}
         {' '}<span className="t50">Rewards are not included.</span>
       </div>
@@ -173,44 +173,57 @@ function Body({ s, money, f: unitOf, toggle }: {
       )}
       <Chart s={s} f={f} unitLabel={unitOf.label} rates={!priceBet} />
 
-      <Statement intervals={s.intervals} f={f} />
-
-      <h3 className="pnl-t">Legs</h3>
-      <table className="tbl pnl-legs">
-        <thead><tr><th>Leg</th><th>Walk</th><th className="r">Rows</th><th>Check</th></tr></thead>
-        <tbody>
-          {s.legs.map((l, i) => (
-            <tr key={i} onClick={() => { location.hash = marketHref(l.marketUid) }}>
-              <td><b>{l.symbol ?? '?'}</b> <span className="t50">{l.side === 'borrow' ? 'debt' : l.side}</span></td>
-              <td className="t70" title={`unit kind ${l.unitKind}`}>{l.walk === 'units' ? 'units' : 'amount'} · {l.indexSource === 'log' ? 'lender’s index' : l.indexSource === 'cache' ? 'hourly index' : 'no index'}{l.priceSource === 'pendle' && <div className="t50">priced at Pendle’s market</div>}</td>
-              <td className="r">{l.rows}</td>
-              <td>
-                <span className={l.exact ? 'ok' : 'warn'}>{l.exact ? 'exact' : 'approx'}</span>
-                <span className="t50"> · {l.closed ? 'closed — its moves net to zero' : l.openedInRange ? 'walks back to 0 ✓' : `older (${pct(l.openResidual * 100, 1)} before first row)`}</span>
-                {l.flags.map((x) => <div key={x} className="t50 pnl-flag">{FLAG_WORDS[x] ?? x}</div>)}
-                {(l.unpricedPoints ?? 0) > 0 && <div className="warn pnl-flag">no price for {l.symbol ?? 'this asset'} on {l.unpricedPoints} day{l.unpricedPoints === 1 ? '' : 's'} — a hole in the price record, left out</div>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <h3 className="pnl-t">Legs <span className="t50">· tap one for its market</span></h3>
+      <div className="pnl-legc">
+        {s.legs.map((l, i) => {
+          const debt = isDebtSide(l.side)
+          return (
+            <button type="button" key={i} className="pnl-leg-c" onClick={() => { location.hash = marketHref(l.marketUid) }}>
+              <span className="pnl-leg-h">
+                <Tok sym={l.symbol ?? '?'} size={18} />
+                <b title={l.symbol ?? undefined}>{l.symbol ?? '?'}</b>
+                <span className={`pill ${debt ? 'debt' : 'dep'}`}>{debt ? 'debt' : l.side}</span>
+                <span className="sp" />
+                <span className={`pnl-chk ${l.exact ? 'ok' : 'warn'}`}>{l.exact ? '✓ exact' : '≈ approx'}</span>
+              </span>
+              <span className="t70" title={`unit kind ${l.unitKind}`}>
+                {l.walk === 'units' ? 'units' : 'amount'} · {l.indexSource === 'log' ? 'lender’s index' : l.indexSource === 'cache' ? 'hourly index' : 'no index'}
+                {l.priceSource === 'pendle' && ' · priced at Pendle’s market'}
+              </span>
+              <span className="t50">
+                {l.rows} row{l.rows === 1 ? '' : 's'} · {l.closed ? 'closed — its moves net to zero' : l.openedInRange ? 'walks back to 0 ✓' : `older (${pct(l.openResidual * 100, 1)} before first row)`}
+              </span>
+              {(l.flags.length > 0 || (l.unpricedPoints ?? 0) > 0) && (
+                <span className="pnl-flags">
+                  {l.flags.map((x) => <span key={x} className="t50 pnl-flag">{FLAG_WORDS[x] ?? x}</span>)}
+                  {(l.unpricedPoints ?? 0) > 0 && <span className="warn pnl-flag">no price for {l.symbol ?? 'this asset'} on {l.unpricedPoints} day{l.unpricedPoints === 1 ? '' : 's'} — a hole in the price record, left out</span>}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
       {s.unanchored.length > 0 && (
         <div className="note">Not in the record: {s.unanchored.map((u) => `${u.rows} ${u.side} row${u.rows === 1 ? '' : 's'} in ${u.marketUid.split(':')[0]}`).join(', ')} — no read has anchored that leg yet.</div>
       )}
 
-      <h3 className="pnl-t">Moves <span className="t50">({(s.eventsTotal ?? s.events.length) > s.events.length ? `newest ${s.events.length} of ${s.eventsTotal}` : s.events.length}) · newest first</span></h3>
-      <div className="pnl-ev">
-        <div className="pnl-e pnl-eh t50">
-          <span>time</span><span>move</span><span>amount</span><span className="r">value</span>
-          <span className="r" title="the position's value right after the transaction">position after</span>
-          <span className="r" title="interest and price on the balance held since the previous transaction — not the move itself: a deposit or a borrow is not a gain or a loss">earned before it</span>
-          <span />
-        </div>
-        {[...s.events].reverse().map((e, i, all) => (
-          // one transaction can be several moves (a deposit and a borrow):
-          // what the position earned before it is stated once, on its first row
-          <EventRow key={i} e={e} s={s} f={f} since={i > 0 && all[i - 1].t === e.t ? undefined : sinceByT.get(e.t)} />
-        ))}
+      <div className="pnl-folds">
+        <Statement intervals={s.intervals} f={f} />
+        <Fold title="Moves" sub="newest first" count={(s.eventsTotal ?? s.events.length) > s.events.length ? `newest ${s.events.length} of ${s.eventsTotal}` : String(s.events.length)}>
+          <div className="pnl-ev">
+            <div className="pnl-e pnl-eh t50">
+              <span>time</span><span>move</span><span>amount</span><span className="r">value</span>
+              <span className="r" title="the position's value right after the transaction">position after</span>
+              <span className="r" title="interest and price on the balance held since the previous transaction — not the move itself: a deposit or a borrow is not a gain or a loss">earned before it</span>
+              <span />
+            </div>
+            {[...s.events].reverse().map((e, i, all) => (
+              // one transaction can be several moves (a deposit and a borrow):
+              // what the position earned before it is stated once, on its first row
+              <EventRow key={i} e={e} s={s} f={f} since={i > 0 && all[i - 1].t === e.t ? undefined : sinceByT.get(e.t)} />
+            ))}
+          </div>
+        </Fold>
       </div>
       <div className="t40 pnl-key mono" title="the position key the index answered for">{s.key}</div>
     </div>
@@ -243,8 +256,7 @@ function Statement({ intervals, f }: { intervals: SeriesInterval[]; f: Fmt }) {
   if (!rows.length) return null
   const shown = all ? rows : rows.slice(0, 30)
   return (
-    <>
-      <h3 className="pnl-t">Holding periods <span className="t50">· from one transaction to the next, merged per day</span></h3>
+    <Fold title="Holding periods" sub="from one transaction to the next, merged per day" count={String(rows.length)}>
       <div className="pnl-ev">
         {shown.map((r) => (
           <div key={r.d} className="pnl-e pnl-iv">
@@ -258,7 +270,30 @@ function Statement({ intervals, f }: { intervals: SeriesInterval[]; f: Fmt }) {
         ))}
       </div>
       {rows.length > 30 && !all && <button className="lnk pnl-more" onClick={() => setAll(true)}>show all {rows.length} days</button>}
-    </>
+    </Fold>
+  )
+}
+
+/**
+ * A closed section: the header row is the button, the body expands as a
+ * 0fr→1fr grid track (the positions card's). The body mounts on first open —
+ * hundreds of move rows are not rendered for a drawer that is only glanced at.
+ */
+function Fold({ title, sub, count, children }: { title: string; sub?: string; count?: string; children: React.ReactNode }) {
+  const [open, setOpen] = React.useState(false)
+  const [seen, setSeen] = React.useState(false)
+  return (
+    <div className="pnl-fold">
+      <button type="button" className="pnl-fold-h" aria-expanded={open} onClick={() => { setOpen((o) => !o); setSeen(true) }}>
+        <span className="pnl-fold-t"><b>{title}</b>{sub && <small className="t50">{sub}</small>}</span>
+        <span className="sp" />
+        {count && <span className="pnl-fold-n mono t50">{count}</span>}
+        <svg className="chev" viewBox="0 0 12 12" width="12" height="12" aria-hidden><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      <div className={`gsum-x${open ? ' open' : ''}`} inert={!open}>
+        <div className="gsum-xi"><div className="pnl-fold-b">{seen && children}</div></div>
+      </div>
+    </div>
   )
 }
 
@@ -296,6 +331,11 @@ function priceLine(s: PositionSeries, prices: (number | null)[], unit: string, l
     out.push(`${sym} ${unit === 'USD' ? `$${n}` : `${n} ${label}`}`)
   })
   return out.join(' · ')
+}
+
+/** One number of a hover readout: the label over it, both one line, so the readout never reflows. */
+function Cell({ k, v, c }: { k: string; v: string; c?: string }) {
+  return <div className="pnl-cell" title={k}><span className="t50 pnl-one">{k}</span><b className={`pnl-one ${c ?? ''}`}>{v}</b></div>
 }
 
 function Stat({ k, v, s }: { k: string; v: React.ReactNode; s?: string }) {
@@ -371,10 +411,13 @@ function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabe
   const hoverLine = (y1: number, y2: number) => hover != null && <line className="pnl-hover" x1={xi(hover)} x2={xi(hover)} y1={y1} y2={y2} />
   return (
     <div className="pnl-chart">
+      {/* the readout keeps one shape under the cursor: every line is always there and never wraps, so the charts do not jump */}
       <div className="pnl-read">
         <b className={`pnl-big ${(hpPnl ?? 0) < 0 ? 'bad' : 'ok'}`}>{f.sg(hpPnl)}</b>
-        <span className="t70"><span className="mono">{day(hp.t)}</span> · value <b>{f.v(hp.nav)}</b> · in it <b>{f.v(hp.contrib)}</b></span>
-        {hp.prices && <span className="t50 pnl-px">{priceLine(s, hp.prices, s.unit, unitLabel)}</span>}
+        <span className="pnl-read-m">
+          <span className="t70 pnl-one"><span className="mono">{day(hp.t)}</span> · value <b>{f.v(hp.nav)}</b> · in it <b>{f.v(hp.contrib)}</b></span>
+          <span className="t50 pnl-one pnl-px">{(hp.prices && priceLine(s, hp.prices, s.unit, unitLabel)) || '\u00a0'}</span>
+        </span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg" onPointerMove={onMove} onPointerLeave={() => setHover(null)} preserveAspectRatio="none">
         <defs>
@@ -460,25 +503,27 @@ function Rates({ s, xi, W, H, padL, padR, hover, onMove, onLeave, at }: {
   const cr = carryOf(s)
   const hc = cr?.points[at] ?? null
   const spikes = cr ? cr.spikes.length : 0
+  const sp = hc?.debt != null ? hc.dep - hc.debt : null
   return (
     <>
-      <div className="pnl-read pnl-rread">
-        <span className="t70">Net APR, trailing {w} days: <b className={(hp.aprWindowPct ?? 0) < 0 ? 'bad' : 'ok'}>{pc(hp.aprWindowPct)}</b></span>
-        {s.legs.map((l, li) => <span key={li} className="t50">{legName(li)} <b className="t70">{pc(hp.legRates?.[li])}</b></span>)}
-        <span className="t50">record so far <b className="t70">{pc(hp.aprPct)}</b></span>
+      <div className="pnl-cells pnl-rread">
+        <Cell k={`Net APR, trailing ${w} d`} v={pc(hp.aprWindowPct)} c={(hp.aprWindowPct ?? 0) < 0 ? 'bad' : 'ok'} />
+        {s.legs.map((_, li) => <Cell key={li} k={legName(li)} v={pc(hp.legRates?.[li])} />)}
+        <Cell k="Record so far" v={pc(hp.aprPct)} />
       </div>
-      {hc && hc.debt != null && (
-        <div className="pnl-read pnl-carry-read">
-          <span className="t70">
-            Spread <b className={hc.dep - hc.debt < 0 ? 'bad' : 'ok'}>{signedPts(hc.dep - hc.debt)}</b>
-            {hc.lev != null && <> at <b>{hc.lev.toFixed(1)}×</b> leverage</>}
-          </span>
-          <span className="t50">
-            {hc.dep - hc.debt < 0
-              ? 'the debt costs more than the deposit earns — leverage multiplies the loss'
-              : 'the deposit earns more than the debt costs — leverage multiplies the gain'}
-          </span>
-          {spikes > 0 && <span className="bad">debt cost spiked on {spikes} day{spikes === 1 ? '' : 's'}</span>}
+      {/* there whenever the position has a carry — a point without one shows dashes rather than taking the block away */}
+      {cr && (
+        <div className="pnl-carry-read">
+          <div className="pnl-cells">
+            <Cell k="Spread" v={sp == null ? '—' : signedPts(sp)} c={sp == null ? undefined : sp < 0 ? 'bad' : 'ok'} />
+            <Cell k="Leverage" v={hc?.lev == null ? '—' : `${hc.lev.toFixed(1)}×`} />
+            <Cell k="Debt-cost spikes" v={spikes ? `${spikes} day${spikes === 1 ? '' : 's'}` : 'none'} c={spikes ? 'bad' : undefined} />
+          </div>
+          <div className="t50 pnl-one pnl-why">
+            {sp == null ? '\u00a0' : sp < 0
+              ? 'The debt costs more than the deposit earns — leverage multiplies the loss.'
+              : 'The deposit earns more than the debt costs — leverage multiplies the gain.'}
+          </div>
         </div>
       )}
       <div className="pnl-rwrap">
@@ -608,21 +653,23 @@ function Carry({ cr, xi, W, padL, padR, hover, onMove, onLeave }: {
     }
   }
   return (
-    <div className="pnl-rwrap">
-      <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg pnl-carry" onPointerMove={onMove} onPointerLeave={onLeave} preserveAspectRatio="none">
-        {fills.map((f, i) => <path key={i} className={`pnl-gap ${f.neg ? 'neg' : 'pos'}`} d={f.d} />)}
-        <path className="pnl-leg dep" d={line((c) => c.dep)} />
-        <path className="pnl-leg debt" d={line((c) => c.debt)} />
-        {cr.spikes.map((i) => (
-          <line key={i} className="pnl-spike" x1={xi(i)} x2={xi(i)} y1={1} y2={H - 1}>
-            <title>{`debt cost ${pct(cr.points[i]!.debt!)} — a spike over the previous week`}</title>
-          </line>
-        ))}
-        {hover != null && <line className="pnl-hover" x1={xi(hover)} x2={xi(hover)} y1={2} y2={H - 2} />}
-        <line className="pnl-zero" x1={padL} x2={W - padR} y1={y(0)} y2={y(0)} style={lo < 0 && hi > 0 ? undefined : { display: 'none' }} />
-      </svg>
-      <span className="pnl-ax t40" style={{ top: `${(y(hi - pad) / H) * 100}%` }}>{pct(hi - pad, 1)}</span>
-      <span className="pnl-ax t40" style={{ top: `${(y(lo + pad) / H) * 100}%` }}>{pct(lo + pad, 1)}</span>
+    <>
+      <div className="pnl-rwrap">
+        <svg viewBox={`0 0 ${W} ${H}`} className="pnl-svg pnl-carry" onPointerMove={onMove} onPointerLeave={onLeave} preserveAspectRatio="none">
+          {fills.map((f, i) => <path key={i} className={`pnl-gap ${f.neg ? 'neg' : 'pos'}`} d={f.d} />)}
+          <path className="pnl-leg dep" d={line((c) => c.dep)} />
+          <path className="pnl-leg debt" d={line((c) => c.debt)} />
+          {cr.spikes.map((i) => (
+            <line key={i} className="pnl-spike" x1={xi(i)} x2={xi(i)} y1={1} y2={H - 1}>
+              <title>{`debt cost ${pct(cr.points[i]!.debt!)} — a spike over the previous week`}</title>
+            </line>
+          ))}
+          {hover != null && <line className="pnl-hover" x1={xi(hover)} x2={xi(hover)} y1={2} y2={H - 2} />}
+          <line className="pnl-zero" x1={padL} x2={W - padR} y1={y(0)} y2={y(0)} style={lo < 0 && hi > 0 ? undefined : { display: 'none' }} />
+        </svg>
+        <span className="pnl-ax t40" style={{ top: `${(y(hi - pad) / H) * 100}%` }}>{pct(hi - pad, 1)}</span>
+        <span className="pnl-ax t40" style={{ top: `${(y(lo + pad) / H) * 100}%` }}>{pct(lo + pad, 1)}</span>
+      </div>
       <div className="pnl-legend t50">
         <span><i className="sw rdep" /> deposit earned</span>
         <span><i className="sw rdebt" /> debt cost</span>
@@ -630,6 +677,6 @@ function Carry({ cr, xi, W, padL, padR, hover, onMove, onLeave }: {
         <span><i className="sw gneg" /> costs more than it earns</span>
         {cr.spikes.length > 0 && <span><i className="sw spike" /> debt-cost spike</span>}
       </div>
-    </div>
+    </>
   )
 }

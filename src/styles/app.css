@@ -519,6 +519,25 @@ img.tok{object-fit:cover;background:#111;box-shadow:0 0 0 1px rgba(255,255,255,.
 .route .rt{color:var(--tx40)}
 @media (max-width:400px){ .route{grid-template-columns:80px 1fr 70px 50px} .route .rt{display:none} }
 
+/* Get: what the route is worth — dollars in → dollars out, and the difference, before it is signed.
+   Quiet while the fill is fair; amber past 1 %; red past 3 %, where the loss is confirmed first. */
+.qval{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px 10px;margin-top:8px;padding:8px 12px;border:1px solid var(--line2);border-radius:var(--r);background:var(--b200)}
+.qval .qv{display:flex;flex-direction:column;gap:2px;min-width:0}
+.qval small{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--tx40)}
+.qval b{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--tx);white-space:nowrap}
+.qval > i{font-style:normal;color:var(--tx40);font-size:12px;padding-bottom:1px}
+.qval .imp{margin-left:auto;align-items:flex-end;text-align:right}
+.qval .imp b{color:var(--tx70)}
+.qval.up .imp b{color:var(--success)}
+.qval.warn{border-color:#4a3a1a}.qval.warn .imp b,.qval.unk .imp b{color:var(--warning)}
+.qval.bad{border-color:#5a2626;background:#120a0a}.qval.bad .imp b{color:var(--error)}
+.qack{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:8px 12px;border:1px solid #5a2626;background:#120a0a;border-radius:var(--r);font-size:12.5px;line-height:1.5;color:var(--tx70)}
+.qack b{color:var(--error);font-weight:600}
+.qack .qck{display:flex;align-items:center;gap:8px;color:var(--tx);cursor:pointer}
+.qack input{width:16px;height:16px;accent-color:var(--error);margin:0}
+.qnote{margin-top:6px;font-size:12px;line-height:1.45}
+.btn.pri.risky:not(:disabled){background:var(--error);border-color:var(--error);color:#fff}
+
 /* popovers: ⓘ explanations and the route picker float over the content */
 .pop{position:fixed;z-index:70;background:var(--b300);border:1px solid var(--line2);border-radius:var(--r);box-shadow:0 12px 32px rgba(0,0,0,.6);animation:pop-in .12s ease-out}
 @keyframes pop-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
@@ -1830,8 +1849,18 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .pnl-exact{font-size:12.5px}
 .pnl-mode{align-self:flex-start}
 .pnl-chart{display:flex;flex-direction:column;gap:4px}
-.pnl-read{font-size:12.5px;min-height:18px;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
-.pnl-big{font-size:24px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+/* hover readouts: a fixed shape (no wrapping lines, no lines that come and go), so the charts under them never jump */
+.pnl-read{font-size:12.5px;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:2px 14px}
+.pnl-big{font-size:24px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;line-height:1.2;min-width:5.6em;white-space:nowrap}
+.pnl-read-m{display:flex;flex-direction:column;min-width:0;gap:1px}
+.pnl-read-m b{font-variant-numeric:tabular-nums}
+.pnl-one{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pnl-cells{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px 14px}
+.pnl-cell{display:flex;flex-direction:column;gap:1px;min-width:0;padding-left:8px;border-left:2px solid var(--line)}
+.pnl-cell span{font-size:11px}
+.pnl-cell b{font-size:13.5px;font-variant-numeric:tabular-nums}
+.pnl-why{font-size:11.5px;margin-top:4px}
+@media (max-width:600px){.pnl-read{grid-template-columns:minmax(0,1fr)}.pnl-big{min-width:0}.pnl-cells{grid-template-columns:repeat(auto-fit,minmax(96px,1fr));column-gap:10px}}
 .pnl-svg{width:100%;height:200px;touch-action:pan-y;display:block;border:1px solid var(--line);border-radius:var(--r);background:var(--b100,transparent)}
 .pnl-svg.pnl-p{height:90px}
 .pnl-zero{stroke:var(--line2);stroke-width:1;vector-effect:non-scaling-stroke}
@@ -1847,7 +1876,7 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .pnl-dot{fill:none;stroke:var(--primary);stroke-width:7;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .pnl-dot.up{stroke:var(--success)}.pnl-dot.down{stroke:var(--error)}
 .pnl-svg.pnl-r{height:120px}
-.pnl-rread{margin-top:6px}
+.pnl-rread{margin-top:10px;margin-bottom:2px}
 .pnl-rwrap{position:relative}
 .pnl-ax{position:absolute;right:6px;transform:translateY(-50%);font-size:10.5px;pointer-events:none;font-variant-numeric:tabular-nums}
 .pnl-net{fill:none;stroke:var(--primary);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
@@ -1855,7 +1884,8 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .pnl-leg{fill:none;stroke-width:1;opacity:.75;vector-effect:non-scaling-stroke;stroke-linejoin:round}.pnl-leg.dep{stroke:var(--success)}.pnl-leg.debt{stroke:var(--warning)}
 .sw.rnet{background:var(--primary)}.sw.rrec{background:var(--tx50)}.sw.rdep{background:var(--success)}.sw.rdebt{background:var(--warning)}
 .pnl-carry{margin-top:4px;height:70px}
-.pnl-carry-read{margin-top:8px;gap:10px;flex-wrap:wrap}
+.pnl-rwrap + .pnl-legend{margin-top:2px}
+.pnl-carry-read{margin-top:10px;margin-bottom:2px}
 .pnl-gap{stroke:none}.pnl-gap.pos{fill:var(--success);opacity:.22}.pnl-gap.neg{fill:var(--error);opacity:.28}
 .pnl-spike{stroke:var(--error);stroke-width:2;vector-effect:non-scaling-stroke;opacity:.85}
 .sw.gpos{background:var(--success);opacity:.45}.sw.gneg{background:var(--error);opacity:.55}.sw.spike{background:var(--error);width:3px!important;height:10px!important}
@@ -1865,10 +1895,32 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .sw.nav{background:var(--primary)}.sw.con{background:var(--tx50)}.sw.pnl{background:var(--success)}.sw.pnl.down{background:var(--error)}
 .sw.tin{background:var(--success)}.sw.tout{background:var(--warning)}.sw.tliq{background:var(--error)}
 .pnl-t{font-size:13px;margin:6px 0 0}
-.pnl-legs td{vertical-align:top;font-size:12.5px}.pnl-legs tr{cursor:pointer}
-/* the flags under a leg are sentences: let them wrap, or the table pushes the drawer sideways on a phone */
-.pnl-legs td{white-space:normal;overflow-wrap:break-word}
-.pnl-legs td:first-child,.pnl-legs td.r{white-space:nowrap}
+/* the legs, under the chart: one card each, tap → the market */
+.pnl-legc{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.pnl-leg-c{display:flex;flex-direction:column;gap:4px;min-width:0;padding:10px 12px;text-align:left;font-size:12.5px;line-height:1.4;border:1px solid var(--line);border-radius:var(--r);background:var(--b200,transparent);transition:border-color .12s ease,background .12s ease}
+.pnl-leg-c:hover{border-color:var(--line2);background:#131313}
+.pnl-leg-h{display:flex;align-items:center;gap:7px;min-width:0;margin-bottom:2px}
+.pnl-leg-h b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.pnl-leg-h .pill{flex:none}
+.pill.debt{border-color:#4a3a1a;color:var(--warning)}
+.pnl-chk{flex:none;font-size:11.5px;font-weight:600}
+/* the flags are sentences: let them wrap, or the card pushes the drawer sideways on a phone */
+.pnl-flags{display:flex;flex-direction:column;gap:3px;margin-top:2px;padding-top:6px;border-top:1px solid var(--line-soft);overflow-wrap:break-word}
+/* moves and holding periods: closed sections under the legs */
+.pnl-folds{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.pnl-fold{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.pnl-fold-h{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;text-align:left;background:linear-gradient(180deg,#101010,#0b0b0b);transition:background .12s ease}
+.pnl-fold-h:hover{background:#131313}
+.pnl-fold-t{display:flex;align-items:baseline;gap:8px;min-width:0;flex-wrap:wrap}
+.pnl-fold-t b{font-size:13.5px}
+.pnl-fold-t small{font-size:11.5px}
+.pnl-fold-n{font-size:11.5px;flex:none}
+.pnl-fold-h .chev{flex:none;color:var(--tx40);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+.pnl-fold-h[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.pnl-fold-b{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.pnl-fold .pnl-ev{border:0;border-radius:0;max-height:420px}
+.pnl-fold .pnl-more{margin:8px 12px}
+@media (prefers-reduced-motion:reduce){ .pnl-fold-h .chev{transition:none} }
 .pnl-e>span{min-width:0;overflow-wrap:break-word}
 .drawer.wide .drawer-b{overflow-x:hidden}
 .pnl-flag{font-size:11.5px;line-height:1.35}
@@ -1878,16 +1930,6 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .pnl-e:last-child{border-bottom:0}.pnl-e .r{text-align:right}
 .verb.k-liq{color:var(--error)}
 .pnl-key{font-size:10.5px;word-break:break-all}
-@media (max-width:600px){
-  /* a leg on a phone is a card: the leg and its row count, then how it walks, then the check, full width */
-  .pnl-legs thead{display:none}
-  .pnl-legs tr{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;padding:8px 10px;border-bottom:1px solid var(--line-soft)}
-  .pnl-legs tr:last-child{border-bottom:0}
-  .pnl-legs td{display:block;height:auto;padding:0;border:0}
-  .pnl-legs td:nth-child(2),.pnl-legs td:nth-child(4){grid-column:1/-1;margin-top:3px}
-  .pnl-legs td.r{grid-row:1;grid-column:2}
-  .pnl-legs td.r::after{content:' rows';color:var(--tx50)}
-}
 @media (max-width:600px){.pnl-stats{grid-template-columns:1fr}.pnl-e{grid-template-columns:86px 64px 1fr 72px 18px}.pnl-e>span:nth-child(4),.pnl-e>span:nth-child(5){display:none}}
 .pnl-e small{font-size:11px}
 .pnl-record{font-size:15px;line-height:1.5;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--b200,transparent)}
@@ -1895,7 +1937,7 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .pnl-e.pnl-iv{grid-template-columns:96px 120px 1fr 96px 64px 28px}
 .pnl-more{align-self:flex-start;font-size:12.5px;color:var(--primary)}
 @media (max-width:600px){.pnl-e.pnl-iv{grid-template-columns:82px 1fr 84px 56px 22px}.pnl-e.pnl-iv>span:nth-child(3){display:none}}
-.pnl-px{display:block;font-size:11.5px;margin-top:2px}
+.pnl-px{font-size:11.5px}
 /* under 420px a move and a holding period do not fit one line: the time drops under the move */
 @media (max-width:420px){
   .pnl-e{grid-template-columns:auto minmax(0,1fr) auto 18px;row-gap:1px}

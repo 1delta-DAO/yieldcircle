@@ -51,9 +51,9 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   const choose = (i: Idle | null) => { setPick(i); setSent(null); setPendingApprove(undefined) }
   // amount in the source token, prefilled with what covers the shortfall (plus 1 % for the route), capped at the balance
   const [amount, setAmount] = React.useState<number>(0)
-  // with no price for the source there is nothing to work backwards from (no oracle for a reverse
+  // with no price for either side there is nothing to work backwards from (no oracle for a reverse
   // quote): the amount starts empty, you say what to spend, and the forward quote says what it buys
-  React.useEffect(() => { if (src) setAmount(src.price > 0 ? Math.min(src.amount, +(need * target.price / src.price * 1.01).toFixed(6)) : 0) }, [src?.address, src?.chainId, need])
+  React.useEffect(() => { if (src) setAmount(src.price > 0 && target.price > 0 ? Math.min(src.amount, +(need * target.price / src.price * 1.01).toFixed(6)) : 0) }, [src?.address, src?.chainId, need])
   const [quote, setQuote] = React.useState<ApiEnvelope<SwapQuoteData, SwapQuoteActions> | null>(null)
   const [quoting, setQuoting] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
@@ -145,6 +145,19 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   }
   const out = best?.tradeOutput ?? 0
   const covers = out >= need * 0.995
+  // what the route is worth at market prices: dollars in against dollars out, so a bad fill (a thin
+  // pool, a greedy bridge) shows as money before it is signed. The difference includes the route's
+  // fees. Needs a price on both sides; without one it says so rather than guess.
+  const inUsd = src && src.price > 0 ? amount * src.price : 0
+  const outUsd = target.price > 0 ? out * target.price : 0
+  const priced = inUsd > 0 && outUsd > 0
+  const diffUsd = outUsd - inUsd, impact = priced ? outUsd / inUsd - 1 : 0
+  const sev = !priced ? 'unk' : impact <= -IMPACT_ACK ? 'bad' : impact <= -IMPACT_WARN ? 'warn' : impact > 0.001 ? 'up' : 'ok'
+  // a severe loss is signed only after saying so, once per quote: a re-quote or another route asks again
+  const quoteKey = `${sel}|${out}|${amount}`
+  const [acked, setAcked] = React.useState('')
+  const severe = sev === 'bad' && -diffUsd >= IMPACT_ACK_MIN_USD
+  const blocked = severe && acked !== quoteKey
   return (
     <div className="get" ref={panelRef}>
       <div className="gh2"><span className="lbl">Get {target.symbol} <Info label="How this works">Pay with anything you hold. The API swaps it on the same chain, or bridges it from another chain, into {target.symbol} on {chainLabel(target.chainId)}. It lands in your wallet; then you continue with the strategy.</Info></span><span className="sp" /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
@@ -191,6 +204,24 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
                     </button>) })}
                 </div>
               </Popover>
+              {best && !sent && (
+                <div className={`qval ${sev}`}>
+                  <span className="qv"><small>Pay</small><b>{inUsd > 0 ? cents(inUsd) : '—'}</b></span>
+                  <i aria-hidden>→</i>
+                  <span className="qv"><small>Receive</small><b>{outUsd > 0 ? cents(outUsd) : '—'}</b></span>
+                  <span className="qv imp">
+                    <small>Price impact <Info label="About price impact">What you receive is worth this much more or less than what you pay, both at market prices. It includes the route's fees{cross ? ' and the bridge\'s' : ''}. Over {pct(IMPACT_WARN)} it is amber; over {pct(IMPACT_ACK)} you confirm the loss before signing.</Info></small>
+                    <b>{priced ? <>{diffUsd < 0 ? '−' : '+'}{cents(Math.abs(diffUsd))} · {impact < 0 ? '−' : '+'}{pct(Math.abs(impact))}</> : `no price for ${inUsd > 0 ? target.symbol : src.symbol}`}</b>
+                  </span>
+                </div>
+              )}
+              {best && !sent && severe && (
+                <label className="qack">
+                  <span><b>This {cross ? 'route' : 'swap'} loses {cents(-diffUsd)} ({pct(-impact)})</b> of what you pay. Pay less, try another route, or pay with another asset.</span>
+                  <span className="qck"><input type="checkbox" checked={acked === quoteKey} onChange={(e) => setAcked(e.target.checked ? quoteKey : '')} /> I accept losing {cents(-diffUsd)}</span>
+                </label>
+              )}
+              {best && !sent && sev === 'unk' && <div className="qnote warn">The value of this {cross ? 'route' : 'swap'} can't be checked: compare what you pay and get yourself.</div>}
               {sent ? (
                 <div className="qline">
                   {arrived ? (sentTr!.note ? <span className="warn">{sentTr!.note}</span> : <span className="ok">Received. Your {target.symbol} balance is refreshed; go ahead with the strategy.</span>)
@@ -200,8 +231,8 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
                 </div>
               ) : (
                 <div className="actions" style={{ marginTop: 10 }}>
-                  <button className="btn pri" disabled={!tx || (busy && !remote) || switching || (!!pendingApprove && !approved) || amount > src.amount + 1e-9} onClick={busy ? () => openWallet(connector?.id) : go}>
-                    {switching ? 'Switching…' : busy && remote ? 'Open your wallet to confirm' : wrongChain ? `Switch wallet to ${chainLabel(src.chainId)}` : pendingApprove && !approved ? 'Approving…' : needsApprove ? `Approve ${src.symbol}` : busy ? 'Sending…' : `${cross ? 'Bridge' : 'Swap'} · ${num(amount, 4)} ${src.symbol}`}
+                  <button className={`btn pri ${severe ? 'risky' : ''}`} disabled={!tx || blocked || (busy && !remote) || switching || (!!pendingApprove && !approved) || amount > src.amount + 1e-9} onClick={busy ? () => openWallet(connector?.id) : go}>
+                    {switching ? 'Switching…' : busy && remote ? 'Open your wallet to confirm' : wrongChain ? `Switch wallet to ${chainLabel(src.chainId)}` : pendingApprove && !approved ? 'Approving…' : needsApprove ? `Approve ${src.symbol}` : busy ? 'Sending…' : `${cross ? 'Bridge' : 'Swap'}${severe ? ' anyway' : ''} · ${num(amount, 4)} ${src.symbol}`}
                   </button>
                   <button className="btn" onClick={onClose}>Cancel</button>
                 </div>
@@ -215,6 +246,12 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   )
 }
 const shortErr = (m: string) => (m.length > 140 ? m.slice(0, 140) + '…' : m)
+/** Price impact (fees included) past which the line turns amber, and past which the loss is confirmed before signing. */
+const IMPACT_WARN = 0.01, IMPACT_ACK = 0.03
+/** …unless the loss is pocket change: 4 % of a $10 swap is not worth a checkbox. */
+const IMPACT_ACK_MIN_USD = 1
+const cents = (x: number) => '$' + x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const pct = (x: number) => `${(x * 100).toFixed(x < 0.1 ? 2 : 1)}%`
 
 /**
  * Any token, by address. Looked up on the chosen chain through the balance route — symbol,

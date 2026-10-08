@@ -1,8 +1,8 @@
 /**
  * One search box for everything the app and the index name (pos-indexer tickets/0053):
- * people and wallets (signed profiles, ENS / Basenames, explorer tags, the names the index
- * gave), vaults, curators, protocols, assets, markets, issuers — plus the chains and pages
- * of this app and the "Earn on X" rows of the menu.
+ * people and wallets (signed profiles, ENS / Basenames, .sol names, Solana KOL lists, explorer
+ * tags, the names the index gave), vaults, curators, protocols, assets, markets, issuers — plus
+ * the chains and pages of this app and the "Earn on X" rows of the menu.
  *
  * Results come BY CATEGORY: a chip row of the categories that matched, with a count each
  * (capped at 99+), then up to four rows per category and "see all N"; a chip shows that one
@@ -97,6 +97,8 @@ function claimOf(h: FindHit): string | null {
     seed: 'known', signed: 'signed', x: 'X', farcaster: 'Farcaster', tag: 'explorer tag', label: 'contract name',
     index: 'index label', primary: ensWord, ens: 'ENS', basename: 'Basename', address: null,
     'ens-text': 'X via ENS', dataset: 'label set',
+    // the Solana index: a wallet's own primary .sol and the owner of a typed one, two KOL lists
+    sns: 'SNS', 'sns-owner': 'SNS', kolscan: 'kolscan', gmgn: 'GMGN',
   } as Record<string, string | null>)[s] ?? null
 }
 
@@ -490,7 +492,7 @@ export function Search() {
               <div className="sr-none">
                 {waiting || catalog.isFetching ? 'Looking…'
                   : parsed.type === 'tx' ? <>A transaction hash — open it from the wallet that sent it.</>
-                  : <>Nothing named “{needle}” in the index. A wallet is also found by its 0x address.</>}
+                  : <>Nothing named “{needle}” in the index. A wallet is also found by its address.</>}
               </div>
             )}
             {needle && settled && answer.fuzzy && flat.length > 0 && <div className="sr-note">Nothing matched as typed — these are close spellings.</div>}

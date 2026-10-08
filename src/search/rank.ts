@@ -57,6 +57,11 @@ export const TERM_SOURCES = [
   'ens',
   'basename',
   'address',
+  // the Solana index (apps/sol-indexer, docs/sol-names.md)
+  'sns',
+  'kolscan',
+  'gmgn',
+  'sns-owner',
 ] as const
 export type TermSource = (typeof TERM_SOURCES)[number]
 
@@ -76,6 +81,13 @@ const SOURCE_PRIOR: Record<string, number> = {
   ens: 0.4,
   basename: 0.4,
   address: 0.5,
+  // Solana: the wallet's own primary .sol (= `primary`), two KOL lists whose
+  // rows the wallet's owner submitted (between `tag` and `dataset`), and a
+  // forward hit — who owns a .sol domain today (= `ens`)
+  sns: 0.8,
+  kolscan: 0.7,
+  gmgn: 0.65,
+  'sns-owner': 0.4,
 }
 
 /** a nudge between kinds for an otherwise equal match: the browse kinds first */
@@ -107,9 +119,9 @@ export function searchKey(s: string): string {
     .replace(/\s+/g, ' ')
 }
 
-/** `vitalik.eth` / `jesse.base.eth` / `cooper.bnb` → the name without its namespace */
+/** `vitalik.eth` / `jesse.base.eth` / `cooper.bnb` / `toly.sol` → the name without its namespace */
 export const bareEns = (key: string): string =>
-  key.replace(/\.(base\.eth|eth|bnb)$/, '')
+  key.replace(/\.(base\.eth|eth|bnb|sol)$/, '')
 
 /** a word boundary inside a name: space and the separators people type past */
 const WORD = /[\s._\-/:()|,+]+/
@@ -276,10 +288,13 @@ export function parseFind(raw: string): FindQuery {
   // a uid's chain id may be a string (`solana`); the uid keeps its case
   if (/^[^\s:]+:[^\s:]+:[^\s]+$/.test(s)) return { type: 'uid', uid: s }
   // base58, case kept: 32–44 characters is a Solana address, 86–88 a signature
-  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s) && /[A-Z]/.test(s) && /[a-z0-9]/.test(s))
+  if (
+    /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s) &&
+    /[A-Z]/.test(s) &&
+    /[a-z0-9]/.test(s)
+  )
     return { type: 'address', address: s }
-  if (/^[1-9A-HJ-NP-Za-km-z]{86,88}$/.test(s))
-    return { type: 'tx', hash: s }
+  if (/^[1-9A-HJ-NP-Za-km-z]{86,88}$/.test(s)) return { type: 'tx', hash: s }
   const handle = s.startsWith('@')
   const key = searchKey(s)
   if (!key) return { type: 'empty' }

@@ -29,6 +29,7 @@
 import { INDEX_BASE_URL, SOL_INDEX_BASE_URL } from '../config/backend'
 import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
 import { isSolGroup } from '../model/assetGroup'
+import { bestOf } from '../search/rank'
 import type { AccountIdentity, AccountKind, AssetBookRow, IndexBalances, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, ImpairedCount, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
 
 /** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
@@ -1049,8 +1050,47 @@ export interface FindCatalogDoc {
   /** [term as spelled, its claim, is the doc's own name]; the title is implied */
   terms: [string, string, boolean][]
 }
-export const find = (p: { q: string; kinds?: string; chainIds?: string; per?: number }, signal?: AbortSignal) =>
-  get<FindAnswer>('/find', p, signal)
+/**
+ * Both indexes, one answer. The Solana index's `/find` (pos-indexer docs/sol-names.md "Search") names
+ * wallets only — kolscan / GMGN KOLs, a wallet's own primary `.sol`, the owner of a `.sol` someone
+ * typed — and ranks with the same `search.ts`, so its scores sort straight into the EVM index's.
+ * Either index failing leaves the other's answer; both failing throws.
+ */
+export async function find(p: { q: string; kinds?: string; chainIds?: string; per?: number }, signal?: AbortSignal): Promise<FindAnswer> {
+  const solAsked = !p.kinds || p.kinds.split(',').includes('wallet')
+  let err: unknown
+  const [evm, sol] = await Promise.all([
+    get<FindAnswer>('/find', p, signal).catch((e) => { err = e; return null }),
+    solAsked ? get<FindAnswer>('/find', { ...p, chainIds: undefined }, signal, SOL_INDEX_BASE_URL).catch(() => null) : null,
+  ])
+  if (!evm && !sol) throw err ?? new Error('/find failed')
+  return mergeFind(evm, sol, p.per ?? (p.kinds?.split(',').length === 1 ? 25 : 4))
+}
+function mergeFind(a: FindAnswer | null, b: FindAnswer | null, per: number): FindAnswer {
+  if (!a || !b) return (a ?? b)!
+  const remote = a.remote === 'pending' || b.remote === 'pending' ? 'pending' : a.remote
+  if (!b.groups.length) return { ...a, remote }
+  const kinds = [...new Set([...a.groups, ...b.groups].map((g) => g.kind))]
+  const groups = kinds.map((kind) => {
+    const of = [...a.groups, ...b.groups].filter((g) => g.kind === kind)
+    return {
+      kind,
+      count: of.reduce((n, g) => n + g.count, 0),
+      hits: of.flatMap((g) => g.hits).sort((x, y) => y.score - x.score || y.weightUsd - x.weightUsd).slice(0, per),
+    }
+  })
+  // the server's rule (`bestOf`) over both answers: an exact top hit, or one that clears the runner-up
+  const top = groups.flatMap((g) => g.hits).sort((x, y) => y.score - x.score)
+  return {
+    ...a,
+    best: bestOf(top),
+    groups,
+    // the Solana index has no typo fallback: its hits matched as typed
+    fuzzy: a.fuzzy && !b.groups.some((g) => g.hits.length),
+    remote,
+    ms: Math.max(a.ms, b.ms),
+  }
+}
 export const findCatalog = () => get<{ generation: string; docs: FindCatalogDoc[] }>('/find/catalog')
 /**
  * Sync a wallet with the index (pos-indexer tickets/0071 → docs/account-sync.md): fetch → check →
@@ -1092,6 +1132,8 @@ export function syncHints(account: string, legs: SyncHintLeg[]): void {
   syncAccount(account, legs).catch(() => {})
 }
 export function findClick(docId: string): void {
+  // a Solana wallet is the Solana index's doc, which counts no opens
+  if (isSolAddr(docId.slice(docId.indexOf(':') + 1))) return
   void fetch(`${INDEX_BASE_URL}/find/click`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ docId }), keepalive: true,
   }).catch(() => {})

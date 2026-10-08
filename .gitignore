@@ -20,3 +20,6 @@ images/
 
 # launch / waitlist playbook stays local
 docs/waitlist-launch.md
+
+# MetaDAO application prep stays local
+docs/metadao/

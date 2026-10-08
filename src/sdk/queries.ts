@@ -526,8 +526,12 @@ export function useEarnPositions(accounts: VmAccounts, chainIds: string[]) {
       staleTime: 60_000,
     })),
   })
-  const data = qs.map((q) => q.data)
-  const items = useMemo(() => data.flatMap((d) => d?.items ?? []), data) // eslint-disable-line react-hooks/exhaustive-deps
+  // one stamp, never the answers themselves as deps: their count changes when a wallet connects
+  // (none → one per bucket), and React compares only the shorter list — from no buckets that is
+  // nothing, so the memo kept its empty list for good. A Solana wallet reconnecting after the first
+  // render never showed a position, the one a transaction had just opened included.
+  const stamp = reqs.map((r, i) => `${r.account}:${r.ids.join(',')}:${qs[i]?.dataUpdatedAt ?? 0}`).join('|')
+  const items = useMemo(() => qs.flatMap((q) => q.data?.items ?? []), [stamp]) // eslint-disable-line react-hooks/exhaustive-deps
   return {
     items,
     anyData: qs.some((q) => q.data),

@@ -1,56 +1,45 @@
 /**
- * What a token IS — the sentence an asset page (`ui/TokenPage.tsx`) opens
- * with. Neither index nor the 1delta API carries a description, so they are
- * researched and written here, keyed by the index's asset GROUP (case-
- * significant, `model/assetGroup.ts`). The backlog of what still needs one is
- * docs/asset-research-backlog.md.
+ * What a token IS — the description an asset page (`ui/TokenPage.tsx`) opens
+ * with. The one source is token-lists' `asset-notes.json` (its
+ * scripts/notes/README.md): curated notes checked against the issuer's docs,
+ * and a derived one-liner read off the props the token lists already curate.
+ * Keyed by the index's asset GROUP (case-significant, `model/assetGroup.ts`),
+ * valid on every chain the group lives on. `node scripts/notes.mjs` copies it
+ * into src/data; a note is written in token-lists, never here.
  *
- * Rules: say what backs the token and where its yield comes from in plain
- * words, no marketing; every line traceable to a source in `links`; a fact
- * only one aggregator states is left out. `checked` is the day it was last
- * verified — redemption terms and holdings change.
+ * ~840 kB (~110 kB gzipped), so it is a lazy chunk: only an asset page loads it.
  */
 import { baseInfo } from './assets'
+import { canonGroup } from './assetGroup'
 
 export interface AssetNote {
-  /** two or three sentences: what it is and what it holds */
+  /** one line, ≤ 90 chars */
   what: string
-  /** one sentence: where the token's own yield comes from */
-  yieldFrom?: string
-  /** short facts a holder should know: exit, eligibility, NAV, chains */
-  facts?: string[]
-  links?: { label: string; url: string }[]
-  /** ISO day */
-  checked: string
+  /** 2–4 sentences */
+  body?: string
+  backing?: string | null
+  /** null: the token earns nothing itself */
+  yieldSource?: string | null
+  redemption?: string | null
+  issuer?: string | null
+  links?: string[]
+  /** ISO day the facts were last checked */
+  updated?: string
+  confidence?: 'high' | 'medium' | 'low'
+  /** something is off (price, contract, identity): shown as a caveat */
+  verify?: string
+  source: 'curated' | 'derived' | 'menu'
 }
 
-const NOTES: Record<string, AssetNote> = {
-  'Nest BlackOpal LiquidStone II Vault::nOPAL': {
-    what:
-      'A Nest vault share (Plume). The vault takes USDC and holds BlackOpal’s LiquidStone II fund, which buys short-dated Brazilian credit-card receivables and hedges the currency back to the dollar. Interest builds up in the token’s price; nothing is paid out.',
-    yieldFrom:
-      'The discount at which card receivables are bought, collected at face value as Visa / Mastercard payments settle. BlackOpal targets about 12 % in USD.',
-    facts: [
-      'Holdings: about 96 % LiquidStone receivables, the rest a Nest treasury vault and cash (Nest’s vault directory).',
-      'Exit: redeemed through Nest — instantly from a small liquid buffer for a fee, otherwise through a queue (Nest lists T+1 for this vault).',
-      'Price: the NAV is reported by the issuer and pushed on chain by Nest, so it moves in steps, not with a market.',
-      'Not available to US persons; Nest blocks minting from 46 jurisdictions.',
-      'Moves between EVM chains as one LayerZero token (burned on one chain, minted on the other); Nest also issues it on Solana.',
-    ],
-    links: [
-      { label: 'Nest vault', url: 'https://app.nest.credit/vaults/nest-opal-vault' },
-      { label: 'BlackOpal', url: 'https://blackopal.finance' },
-      { label: 'Nest vault directory', url: 'https://docs.nest.credit/about/available-vaults' },
-      { label: 'rwa.xyz', url: 'https://app.rwa.xyz/assets/nOPAL' },
-    ],
-    checked: '2026-10-08',
-  },
-}
+let pending: Promise<Record<string, AssetNote>> | undefined
+export const loadAssetNotes = () =>
+  (pending ??= import('../data/asset-notes.json').then((m) => m.default as unknown as Record<string, AssetNote>))
 
-/** the researched note, else the one-line `what` of a base asset the menu already knows (USDC: "Circle stablecoin") */
-export function noteOf(group: string, symbol: string | null | undefined): AssetNote | { what: string; checked?: undefined } | undefined {
-  const n = NOTES[group]
+/** The group's note, else the one-line `what` of a base asset the menu knows (USDC: "Circle stablecoin"). */
+export function noteOf(notes: Record<string, AssetNote> | undefined, group: string, symbol: string | null | undefined): AssetNote | undefined {
+  const n = notes?.[group] ?? notes?.[canonGroup(group)]
   if (n) return n
-  const base = baseInfo(symbol ?? group)
-  return base && base.sym.toUpperCase() === (symbol ?? group).toUpperCase() ? { what: base.what } : undefined
+  const sym = symbol ?? group
+  const base = baseInfo(sym)
+  return base && base.sym.toUpperCase() === sym.toUpperCase() ? { what: base.what, source: 'menu' } : undefined
 }

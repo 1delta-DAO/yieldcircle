@@ -15,6 +15,7 @@
  * "wallets we index" is exactly that, never "every holder".
  */
 import React from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useApp, marketHref, tokenHref, walletHref } from '../state/AppState'
 import { useAsset, useAssetBook, useAssetHistory, useAssetHolders, useFeedPage } from '../index/queries'
 import type { AssetBookRow, AssetHistory, AssetMarket, AssetSlice } from '../index/types'
@@ -22,7 +23,7 @@ import { indexChainLabel, subjectOf } from '../index/types'
 import { chainLabel, useCatalog } from '../sdk/queries'
 import { canonGroup, isSolGroup, spellingsOf } from '../model/assetGroup'
 import type { Strategy } from '../model/strategies'
-import { noteOf } from '../model/assetNotes'
+import { loadAssetNotes, noteOf } from '../model/assetNotes'
 import { countsSolana } from '../index/assetMerge'
 import { normAddr } from '../model/address'
 import { useCounts, useProfiles } from '../social/queries'
@@ -146,24 +147,35 @@ function EarnWith({ group, sym, solCounted, max = 6 }: { group: string; sym: str
   )
 }
 
-/** What the token is, from `model/assetNotes.ts` — nothing when nobody has written it yet (docs/asset-research-backlog.md). */
+/** What the token is: token-lists' asset note (`model/assetNotes.ts`) — nothing when nobody has written one. */
 function About({ group, sym }: { group: string; sym: string | null }) {
-  const n = noteOf(group, sym)
+  const notes = useQuery({ queryKey: ['asset-notes'], queryFn: loadAssetNotes, staleTime: Infinity, gcTime: Infinity })
+  const n = noteOf(notes.data, group, sym)
   if (!n) return null
-  const full = 'checked' in n && n.checked ? n : null
+  const rows = ([['Backed by', n.backing], ['Yield comes from', n.yieldSource], ['Exit', n.redemption]] as const).filter(([, v]) => v)
   return (
     <div className="card pad tk-about">
-      <p>{n.what}</p>
-      {full?.yieldFrom && <p><b>Yield comes from</b> {full.yieldFrom}</p>}
-      {!!full?.facts?.length && <ul>{full.facts.map((f, i) => <li key={i}>{f}</li>)}</ul>}
-      {full && (
+      <p>{n.body ?? n.what}</p>
+      {n.verify && <p className="warn">Unverified: {n.verify}</p>}
+      {!!rows.length && <ul>{rows.map(([k, v]) => <li key={k}><b>{k}</b> {v}</li>)}</ul>}
+      {(n.links?.length || n.updated) && (
         <div className="tk-about-l">
-          {full.links?.map((l) => <a key={l.url} href={l.url} target="_blank" rel="noreferrer">{l.label} ↗</a>)}
-          <span className="t40">checked {full.checked}</span>
+          {n.links?.map((u, i, all) => <a key={u} href={u} target="_blank" rel="noreferrer">{linkLabel(u, all)} ↗</a>)}
+          {n.updated && <span className="t40">checked {n.updated}{n.confidence && n.confidence !== 'high' ? ` · ${n.confidence} confidence` : ''}</span>}
         </div>
       )}
     </div>
   )
+}
+const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return u } }
+/** the host, or — where two links share one — the page: `what is auto` rather than help.hastra.io twice */
+function linkLabel(u: string, all: string[]) {
+  const host = hostOf(u)
+  if (all.filter((x) => hostOf(x) === host).length < 2) return host
+  try {
+    const tail = new URL(u).pathname.split('/').filter(Boolean).pop() ?? ''
+    return decodeURIComponent(tail).replace(/\.(md|html?)$/, '').replace(/[-_()]+/g, ' ').trim() || host
+  } catch { return host }
 }
 
 type SliceMode = 'protocol' | 'chain' | 'borrowed' | 'collateral'

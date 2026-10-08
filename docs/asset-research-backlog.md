@@ -4,7 +4,7 @@ As of 2026-10-06. Moved from a Claude doc; edit here.
 
 447 of the 548 assets in the position index have no description anywhere in the app, including 151 of the 232 assets holding $1m or more. This backlog lists them by size so research goes to the biggest gaps first.
 
-The asset page (`src/ui/TokenPage.tsx`) opens with a description since 2026-10-08: a researched note from `src/model/assetNotes.ts` (keyed by asset group: what it holds, where the yield comes from, exit / eligibility facts, sources, the day it was checked), else the one-line `what` of `src/model/assets.ts` (about 100 base assets, wrappers and desks). A finished row below goes into `assetNotes.ts`; nOPAL is the first. Counts come from `positions.1delta.io/assets` on 6 Oct 2026; size = deposited in lending + posted as collateral.
+The asset page (`src/ui/TokenPage.tsx`) opens with a description since 2026-10-08. The one source is token-lists' `asset-notes.json` (curated notes in its `scripts/notes/notes.json`, plus a derived one-liner for 6k groups); `pnpm notes` copies it into `src/data/asset-notes.json`, which the page lazy-loads. A finished row below becomes a curated note in token-lists, never a line in this repo. Plan: [asset-info-plan.md](asset-info-plan.md).
 
 apyUSD shows the problem. Its page has numbers but never says what apyUSD is, what earns its 13.32 % own yield, or how it relates to apxUSD, the token it wraps.
 

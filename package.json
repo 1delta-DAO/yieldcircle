@@ -14,6 +14,7 @@
     "deploy:preview": "node scripts/menu-seed.mjs && pnpm build && wrangler pages deploy dist --project-name yieldcircle --branch preview",
     "whitelist": "node scripts/whitelist.mjs",
     "logos": "node scripts/logos.mjs",
+    "rpcs": "node scripts/rpcs.mjs",
     "menu-seed": "node scripts/menu-seed.mjs",
     "search-rank": "node scripts/search-rank.mjs",
     "brand": "node scripts/brand-characters.mjs && python3 brand/gen.py && node scripts/brand.mjs"

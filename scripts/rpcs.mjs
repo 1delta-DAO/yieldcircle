@@ -6,8 +6,8 @@
 // Chainlist is a directory, not a health check: most entries there fail from a page. Each one is
 // asked what the app will ask, from an `Origin`, and kept only if it
 //   - passes the CORS preflight for a JSON POST,
-//   - answers a JSON-RPC BATCH (viem batches) of `eth_chainId` (the right chain), `eth_blockNumber`,
-//     the latest block and the receipt of an unknown hash — which must be `null`, not an error:
+//   - answers a JSON-RPC BATCH of three (viem batches, capped at three) of `eth_chainId` (the right
+//     chain), `eth_blockNumber` and the receipt of an unknown hash — which must be `null`, not an error:
 //     that is every poll while a transaction is pending (publicnode on the L2s calls it an
 //     "archive request" and wants a token),
 //   - is not stale: its latest block at most STALE_S behind the freshest node on that chain
@@ -52,25 +52,26 @@ async function probe({ id, url }, again = true) {
     const allow = pre.headers.get('access-control-allow-origin'), hdrs = pre.headers.get('access-control-allow-headers') ?? ''
     if (pre.status === 429 && again) { await sleep(5_000); return probe({ id, url }, false) }
     if (pre.status >= 300 || !(allow === '*' || allow === ORIGIN) || !/content-type|\*/i.test(hdrs)) return { id, url, why: `preflight ${pre.status}` }
-    const r = await fetch(url, {
-      method: 'POST', signal: AbortSignal.timeout(TIMEOUT_MS), headers: { 'content-type': 'application/json', origin: ORIGIN },
-      body: JSON.stringify([
-        { jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] },
-        { jsonrpc: '2.0', id: 2, method: 'eth_blockNumber', params: [] },
-        { jsonrpc: '2.0', id: 3, method: 'eth_getBlockByNumber', params: ['latest', false] },
-        { jsonrpc: '2.0', id: 4, method: 'eth_getTransactionReceipt', params: [UNKNOWN] },
-      ]),
-    })
+    const post = (body) => fetch(url, { method: 'POST', signal: AbortSignal.timeout(TIMEOUT_MS), headers: { 'content-type': 'application/json', origin: ORIGIN }, body: JSON.stringify(body) })
+    // three to a batch, as `wallet/evmRpc.ts` sends them: drpc's free plan refuses more
+    const r = await post([
+      { jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] },
+      { jsonrpc: '2.0', id: 2, method: 'eth_blockNumber', params: [] },
+      { jsonrpc: '2.0', id: 3, method: 'eth_getTransactionReceipt', params: [UNKNOWN] },
+    ])
     if (r.status === 429 && again) { await sleep(5_000); return probe({ id, url }, false) }
     const j = await r.json().catch(() => null)
     const at = (n) => Array.isArray(j) ? j.find((x) => x?.id === n) : undefined
     if (!Array.isArray(j)) return { id, url, why: `no batch (${r.status})` }
+    if (at(1)?.error) return { id, url, why: `batch: ${String(at(1).error.message).slice(0, 60)}` }
     if (Number(at(1)?.result) !== id) return { id, url, why: 'wrong chain' }
-    if (!at(2)?.result || !at(3)?.result?.timestamp) return { id, url, why: 'no head' }
-    if (!at(4) || at(4).error || at(4).result !== null) return { id, url, why: 'unknown receipt is not null' }
+    if (!at(2)?.result) return { id, url, why: 'no block number' }
+    if (!at(3) || at(3).error || at(3).result !== null) return { id, url, why: 'unknown receipt is not null' }
     if (!(r.headers.get('access-control-allow-origin'))) return { id, url, why: 'no CORS on POST' }
-    // how far behind the clock its head is: compared per chain, so the two passes compare too
-    return { id, url, ok: true, ms: Date.now() - t0, lag: Date.now() / 1000 - Number(at(3).result.timestamp) }
+    const b = await (await post({ jsonrpc: '2.0', id: 4, method: 'eth_getBlockByNumber', params: ['latest', false] })).json().catch(() => null)
+    if (!b?.result?.timestamp) return { id, url, why: 'no latest block' }
+    // how far its head is behind the clock: compared per chain, so the two passes compare too
+    return { id, url, ok: true, ms: Date.now() - t0, lag: Date.now() / 1000 - Number(b.result.timestamp) }
   } catch (e) { return { id, url, why: e.name } }
 }
 

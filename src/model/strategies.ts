@@ -16,7 +16,7 @@ import STRATEGY_TOKENS from '../data/strategy-tokens.json'
 import { normAddr } from './address'
 import { canonGroup } from './assetGroup'
 /** `chain:vaultAddress` → the share token you end up holding (scripts/logos.mjs, from the chain token lists). */
-const strategyToken = (chainId: string, ref: string | undefined) => (ref ? (STRATEGY_TOKENS as Record<string, { symbol: string; logoURI: string | null }>)[`${chainId}:${normAddr(ref)}`] : undefined)
+const strategyToken = (chainId: string, ref: string | undefined) => (ref ? (STRATEGY_TOKENS as Record<string, { symbol: string; logoURI: string | null; assetGroup?: string | null }>)[`${chainId}:${normAddr(ref)}`] : undefined)
 
 export type Risk = 1 | 2 | 3
 interface Base {
@@ -79,8 +79,9 @@ export interface SimpleStrategy extends Base {
   /** the market's own token as the chain spells it (`WHYPE`, `WETH`) — `asset` is its base (`HYPE`, `ETH`) */
   assetSymbol: string
   /**
-   * the token a vault leaves you holding (`PT-apyUSD-5NOV2026`, `syrupUSDC`) when it is not the
-   * one you put in — its own asset page; the index resolves the symbol to its group
+   * the token a vault leaves you holding (`PT-apyUSD-5NOV2026`, `syrupUSDC`, nOPAL) when it is not
+   * the one you put in — its own asset page: the index group from the token list where the build-time
+   * map has it (`Nest BlackOpal LiquidStone II Vault::nOPAL`), else the symbol, which the index resolves
    */
   shareGroup?: string
   shareLogo?: string
@@ -472,7 +473,7 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const s: SimpleStrategy = {
     id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, assetGroup: groupKey(m.asset.assetGroup), tokenLogo: m.asset.logoURI || undefined, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
     nature: natureOfDeposit(m.venue, asset, m.name, m.risk?.yieldProfile), rate, risk, riskLabel, riskScore, rated: !!m.risk?.score, tvlUsd: tvl,
-    earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, assetSymbol: m.asset.symbol, shareGroup: shareSym && shareSym.toUpperCase() !== m.asset.symbol.toUpperCase() ? shareSym : undefined, shareLogo: share?.logoURI ?? undefined, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
+    earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, assetSymbol: m.asset.symbol, shareGroup: shareSym && shareSym.toUpperCase() !== m.asset.symbol.toUpperCase() ? (share?.assetGroup ? groupKey(share.assetGroup) : shareSym) : undefined, shareLogo: share?.logoURI ?? undefined, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
     exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, exitSecs: m.exit?.cooldownSecs || undefined, exitFeeBps: m.exit?.feeBps || undefined, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0, passthrough: m.rate?.passthrough || undefined,
     // an API that knows the flag sets it on the deposit; then a missing withdraw leg (an async exit) is a no

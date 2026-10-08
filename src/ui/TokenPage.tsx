@@ -110,7 +110,8 @@ function EarnWith({ group, sym, solCounted, max = 6 }: { group: string; sym: str
   const key = canonGroup(group)
   // rows a floor holds back still open from here (the shelf resolves `s=` against them too), after the ones it shows
   const rows = [...[...cat.simple, ...cat.loops].sort((x, y) => y.rate - x.rate), ...[...cat.hidden, ...cat.overflow].sort((x, y) => y.rate - x.rate)]
-    .filter((s, i, all) => s.assetGroup === key && all.findIndex((o) => o.id === s.id) === i)
+    // a vault that MINTS the token counts too: USDC into Nest's savings vault is how you hold nOPAL
+    .filter((s, i, all) => (s.assetGroup === key || (s.kind === 'simple' && s.shareGroup === key)) && all.findIndex((o) => o.id === s.id) === i)
   // the totals above count Solana once the Solana index answers for the asset; until then only the menu does
   const solUncounted = !solCounted && !isSolGroup(group) && rows.some((s) => s.chainId === 'solana')
   if (!rows.length)

@@ -171,25 +171,34 @@ if (missing.length) {
 // MetaMorpho share …). The earn listing serves the ASSET's logo on nearly every row, so the
 // share token is resolved here instead: the row's `ref` is the vault / share-token address,
 // looked up in the chain's token list. Output: src/data/strategy-tokens.json, `chain:ref` →
-// { symbol, logoURI }. Needs the API (VITE_BACKEND_BASE_URL or the credited backend).
+// { symbol, logoURI, assetGroup }, every chain the app lists. Needs the API (VITE_BACKEND_BASE_URL or the credited backend).
 // ---------------------------------------------------------------------------------------------
 const API = process.env.VITE_BACKEND_BASE_URL ?? 'https://allocator.api.1delta.io'
-const CHAINS = ['1', '8453', '42161', '56', '43114']
-const strat = {}
+// every chain the app lists (`CHAINS` in src/sdk/queries.ts), read from the source so a new one is not forgotten
+const CHAINS = [...readFileSync(new URL('../src/sdk/queries.ts', import.meta.url), 'utf8')
+  .slice(0, 4000).matchAll(/\{ id: '([^']+)', label: '[^']+' \}/g)].map((m) => m[1])
+// base58 keeps its case (model/address.ts `normAddr`); only EVM addresses are lowered
+const norm = (chain, a) => (/^\d+$/.test(chain) ? String(a).toLowerCase() : String(a))
+// a chain whose list or earn read fails keeps the entries it had, rather than losing them
+let strat = {}
+try { strat = JSON.parse(readFileSync(new URL('../src/data/strategy-tokens.json', import.meta.url), 'utf8')) } catch { /* first run */ }
 for (const chain of CHAINS) {
   let list
   try { list = JSON.parse(readFileSync(join(root, `${chain}.json`), 'utf8')).list } catch { continue }
-  const byAddr = new Map(Object.entries(list).map(([a, t]) => [a.toLowerCase(), t]))
-  let rows = []
+  const byAddr = new Map(Object.entries(list).map(([a, t]) => [norm(chain, a), t]))
+  let rows
   try {
-    const res = await fetch(`${API}/v1/data/earn?chainId=${chain}&count=1000&sort=tvl&maxRiskScore=5&minTvlUsd=500000&terms=none`)
-    const j = await res.json(); rows = (j.data ?? j).items ?? []
+    const res = await fetch(`${API}/v1/data/earn?chainIds=${chain}&count=1000&sort=tvl&maxRiskScore=5&minTvlUsd=100000&terms=none`)
+    const j = await res.json(); rows = (j.data ?? j).items
+    if (!Array.isArray(rows)) throw new Error(`no items (${res.status})`)
   } catch (e) { console.error('earn fetch failed for chain', chain, e.message); continue }
   for (const r of rows) {
     if (r.venueKind !== 'vault' || !r.ref) continue
-    const t = byAddr.get(String(r.ref).toLowerCase())
-    if (t && t.symbol) strat[`${chain}:${String(r.ref).toLowerCase()}`] = { symbol: t.symbol, logoURI: t.logoURI ?? null }
+    const t = byAddr.get(norm(chain, r.ref))
+    // `assetGroup`: the index's key for the SHARE, so the row can be found from the share's asset page
+    if (t && t.symbol) strat[`${chain}:${norm(chain, r.ref)}`] = { symbol: t.symbol, logoURI: t.logoURI ?? null, assetGroup: t.assetGroup ?? null }
   }
 }
+strat = Object.fromEntries(Object.entries(strat).sort(([a], [b]) => (a < b ? -1 : 1)))
 writeFileSync(new URL('../src/data/strategy-tokens.json', import.meta.url), JSON.stringify(strat, null, 1) + '\n')
 console.log(Object.keys(strat).length, 'strategy tokens written')

@@ -1,742 +1,1725 @@
 {
- "1:0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0": {
-  "symbol": "wstETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/18834/large/wstETH.png?1633565443"
+ "10:0x0022228a2cc5e7ef0274a7baa600d44da5ab5776": {
+  "symbol": "stUSD",
+  "logoURI": "https://raw.githubusercontent.com/AngleProtocol/angle-token-list/main/src/assets/tokens/stUSD.svg",
+  "assetGroup": "Angle Staked USDA::stUSD"
  },
- "1:0xa2e3356610840701bdf5611a53974510ae27e2e1": {
-  "symbol": "WBETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/30061/thumb/wbeth-icon.png?1696528983"
+ "10:0x539505dde2b9771debe0898a84441c5e7fdf6bc0": {
+  "symbol": "vaUSDC",
+  "logoURI": null,
+  "assetGroup": "vaUSDC Pool::vaUSDC"
  },
- "1:0xcd5fe23c85820f7b72d0926fc9b05b43e359b7ee": {
-  "symbol": "weETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/33033/thumb/weETH.png?1701438396"
+ "10:0xccf3d1acf799bae67f6e354d685295557cf64761": {
+  "symbol": "vaETH",
+  "logoURI": null,
+  "assetGroup": "vaETH Pool::vaETH"
  },
- "1:0xa3931d71877c0e7a3148cb7eb4463524fec27fbd": {
-  "symbol": "SUSDS",
-  "logoURI": "https://assets.coingecko.com/coins/images/52721/thumb/sUSDS_Coin.png?1734086971"
+ "10:0xcf9326e24ebffbef22ce1050007a43a3c0b6db55": {
+  "symbol": "sUSDC",
+  "logoURI": "https://cdn.morpho.org/assets/logos/susdc.svg",
+  "assetGroup": "Spark USDC Vault::sUSDC"
  },
- "1:0x9d39a5de30e57443bff2a8307a4256c8797a3497": {
-  "symbol": "sUSDe",
-  "logoURI": "https://token-list.mantle.xyz/data/SUSDE/logo.svg"
+ "10:0xdd63ae655b388cd782681b7821be37fdb6d0e78d": {
+  "symbol": "vawstETH",
+  "logoURI": null,
+  "assetGroup": "vawstETH Pool::vawstETH"
  },
- "1:0xa1290d69c65a6fe4df752f95823fae25cb99e5a7": {
-  "symbol": "rsETH",
-  "logoURI": "https://raw.githubusercontent.com/traderjoe-xyz/joe-tokenlists/main/logos/berachain/0x4186BFC76E2E237523CBC30FD220FE055156b41F/logo.png"
+ "137:0x781fb7f6d845e3be129289833b04d43aa8558c42": {
+  "symbol": "compWETH",
+  "logoURI": "https://cdn.morpho.org/assets/logos/weth.svg",
+  "assetGroup": "Compound WETH::compWETH"
  },
- "1:0xbe9895146f7af43049ca1c1ae358b0541ea49704": {
-  "symbol": "cbETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/27008/large/cbeth.png"
+ "137:0xf5c81d25ee174d83f1fd202ca94ae6070d073ccf": {
+  "symbol": "compWETH",
+  "logoURI": "https://cdn.morpho.org/assets/logos/eth.svg",
+  "assetGroup": "Compound WETH::compWETH::137::0"
  },
- "1:0x80ac24aa929eaf5013f6436cda2a7ba190f5cc0b": {
-  "symbol": "syrupUSDC",
-  "logoURI": "https://assets.coingecko.com/coins/images/54658/thumb/syrup_logo-_200x200.jpg?1740895597"
+ "137:0xfa68fb4628dff1028cfec22b4162fccd0d45efb6": {
+  "symbol": "MaticX",
+  "logoURI": "https://cdn.morpho.org/assets/logos/maticx.svg",
+  "assetGroup": "MATICX"
  },
- "1:0xae78736cd615f374d3085123a210448e74fc6393": {
-  "symbol": "rETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/20764/large/reth.png?1637652366"
+ "143:0x0c65a0bc65a5d819235b71f554d210d3f80e0852": {
+  "symbol": "aprMON",
+  "logoURI": "https://raw.githubusercontent.com/monad-crypto/token-list/refs/heads/main/mainnet/aprMON/logo.svg",
+  "assetGroup": "aPriori Monad LST::aprMON"
  },
- "1:0x8236a87084f8b84306f72007f36f2618a5634494": {
-  "symbol": "LBTC",
-  "logoURI": "https://assets.coingecko.com/coins/images/39969/thumb/LBTC_Logo.png?1724959872"
+ "143:0x103222f020e98bba0ad9809a011fdf8e6f067496": {
+  "symbol": "earnAUSD",
+  "logoURI": "https://raw.githubusercontent.com/monad-crypto/token-list/refs/heads/main/mainnet/earnAUSD/logo.svg",
+  "assetGroup": "earnAUSD::earnAUSD"
  },
- "1:0xd5f7838f5c461feff7fe49ea5ebaf7728bb0adfa": {
-  "symbol": "mETH",
-  "logoURI": "https://token-list.mantle.xyz/data/mETH/logo.svg"
+ "143:0x1b68626dca36c7fe922fd2d55e4f631d962de19c": {
+  "symbol": "shMON",
+  "logoURI": "https://raw.githubusercontent.com/monad-crypto/token-list/refs/heads/main/mainnet/shMON/logo.png",
+  "assetGroup": "ShMonad::shMON"
  },
- "1:0x19ebb35279a16207ec4ba82799cc64715065f7f6": {
-  "symbol": "PRIME",
-  "logoURI": "https://cdn.morpho.org/assets/logos/prime.svg"
+ "143:0x2e570a44909df47c4cad13c626626f59d056e9da": {
+  "symbol": "PT-sUSDat-14JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/5c1f07b0-ae8d-4104-8ad2-8d21cd11fdf8.svg",
+  "assetGroup": "PT sUSDat (USDat) Monad::PT-sUSDat-14JAN2027"
  },
- "1:0xf1c9acdc66974dfb6decb12aa385b9cd01190e38": {
-  "symbol": "osETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/33117/thumb/Frame_27513839.png?1700732599"
+ "143:0x355e82c60d51d6942bdfd0f2b95a204acd068963": {
+  "symbol": "PT-srUSDat-14JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/fcee8c31-843f-476b-9c71-91fe457cb1a0.svg",
+  "assetGroup": "PT srUSDat (USDat) Monad::PT-srUSDat-14JAN2027"
  },
- "1:0xe2e7a17dff93280dec073c995595155283e3c372": {
-  "symbol": "SPUSDT",
-  "logoURI": "https://assets.coingecko.com/coins/images/102173692/thumb/spUSDT.png?1781003596"
+ "143:0x8498312a6b3cbd158bf0c93abdcf29e6e4f55081": {
+  "symbol": "gMON",
+  "logoURI": "https://raw.githubusercontent.com/monad-crypto/token-list/refs/heads/main/mainnet/gMON/logo.svg",
+  "assetGroup": "gMON::gMON"
  },
- "1:0x28b3a8fb53b741a8fd78c0fb9a6b2393d896a43d": {
-  "symbol": "SPUSDC",
-  "logoURI": "https://assets.coingecko.com/coins/images/102173691/thumb/spUSDC.png?1781003580"
+ "143:0x8b562578b2f9aa8c14ccda3c5d6cbcead3b06a57": {
+  "symbol": "PT-AUSD-17DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/dc276caf-4aa7-4ea0-8a32-5bc60d82028f.svg",
+  "assetGroup": "PT AUSD (AUSD) Monad::PT-AUSD-17DEC2026"
  },
- "1:0x5086bf358635b81d8c47c66d1c8b9e567db70c72": {
-  "symbol": "REUSD",
-  "logoURI": "https://assets.coingecko.com/coins/images/66291/thumb/re_blue.png?1749110516"
+ "143:0xa08a69ab9dd3b04d0992bc7afb2c0b907bbdc147": {
+  "symbol": "PT-USDat-14JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/a31d31f7-05f4-4e48-b976-1f45e85cced4.svg",
+  "assetGroup": "PT USDat (USDat) Monad::PT-USDat-14JAN2027"
+ },
+ "143:0xa3227c5969757783154c60bf0bc1944180ed81b9": {
+  "symbol": "sMON",
+  "logoURI": "https://raw.githubusercontent.com/monad-crypto/token-list/refs/heads/main/mainnet/sMON/logo.svg",
+  "assetGroup": "Kintsu Staked Monad::sMON"
+ },
+ "143:0xa7deac306a4520f4f2f94d150ca2fbd13080b607": {
+  "symbol": "PT-shMON-18MAR2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/fb2b6fa9-7fe0-41e1-a051-6862219939e3.svg",
+  "assetGroup": "PT shMON (MON) Monad::PT-shMON-18MAR2027"
+ },
+ "143:0xa8c8e7fdf0457442eb19bced060017f6998b250f": {
+  "symbol": "PT-earnAUSD-28JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/409eeb72-990c-4eb4-b990-ae94a2423d08.svg",
+  "assetGroup": "PT earnAUSD (AUSD) Monad::PT-earnAUSD-28JAN2027"
+ },
+ "143:0xbb0dcdd5f0159c3d51d8bce7d84f1b9fa390ef09": {
+  "symbol": "PT-reUSD-10DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/359682d7-49a8-43d0-8799-1be18bea116a.svg",
+  "assetGroup": "PT reUSD (USDC) Monad::PT-reUSD-10DEC2026"
+ },
+ "143:0xd236e83c563f888f540ca997c3ddf00e82d68c45": {
+  "symbol": "PT-sUSDE-22OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/770e75fe-05a2-4e57-9dac-fee6c850de3e.svg",
+  "assetGroup": "PT sUSDe (USDe) Monad::PT-sUSDE-22OCT2026"
+ },
+ "143:0xe1bca19baa63894d374578320551633320436523": {
+  "symbol": "CSUSDC",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0xe1bca19baa63894d374578320551633320436523.png",
+  "assetGroup": "Clearstar Earn USDC::CSUSDC"
+ },
+ "1:0x0022228a2cc5e7ef0274a7baa600d44da5ab5776": {
+  "symbol": "stUSD",
+  "logoURI": "https://assets.coingecko.com/coins/images/34509/thumb/stUSD_copie.png?1705288386",
+  "assetGroup": "Angle Staked USDA::stUSD"
+ },
+ "1:0x004626a008b1acdc4c74ab51644093b155e59a23": {
+  "symbol": "stEUR",
+  "logoURI": "https://assets.coingecko.com/coins/images/32036/thumb/stEUR-x4.png?1696530832",
+  "assetGroup": "STEUR"
  },
  "1:0x004e9c3ef86bc1ca1f0bb5c7662861ee93350568": {
   "symbol": "uniBTC",
-  "logoURI": "https://raw.githubusercontent.com/Bedrock-Technology/bedrock-static/39b68b34ecef136a7f57720ac6ac8773606539da/logo/unibtc.svg"
- },
- "1:0x356b8d89c1e1239cbbb9de4815c39a1474d5ba7d": {
-  "symbol": "syrupUSDT",
-  "logoURI": "https://assets.coingecko.com/coins/images/69514/thumb/SyrupUSDT.png?1758823529"
- },
- "1:0xa35b1b31ce002fbf2058d22f30f95d405200a15b": {
-  "symbol": "ETHx",
-  "logoURI": "https://assets.coingecko.com/coins/images/30870/thumb/staderx.png?1696529717"
- },
- "1:0xecfafdc7741323a945a163ed068b5a3c43483957": {
-  "symbol": "PT-reUSD-10DEC2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/359682d7-49a8-43d0-8799-1be18bea116a.svg"
- },
- "1:0x7a56e1c57c7475ccf742a1832b028f0456652f97": {
-  "symbol": "SolvBTC",
-  "logoURI": "https://raw.githubusercontent.com/1delta-DAO/asset-icons/main/SolvBTC.webp"
- },
- "1:0x22ae3d9a738471f405169af055d31c687087d4c7": {
-  "symbol": "PST",
-  "logoURI": "https://meta.huma.finance/pst.svg"
- },
- "1:0xc5d6a7b61d18afa11435a889557b068bb9f29930": {
-  "symbol": "sUSDD",
-  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0xc5d6a7b61d18afa11435a889557b068bb9f29930.png"
- },
- "1:0x99cd4ec3f88a45940936f469e4bb72a2a701eeb9": {
-  "symbol": "stUSDS",
-  "logoURI": "https://cdn.morpho.org/assets/logos/stusds.svg"
- },
- "1:0xbc65ad17c5c0a2a4d159fa5a503f4992c7b545fe": {
-  "symbol": "SUSDC",
-  "logoURI": "https://assets.coingecko.com/coins/images/102173690/thumb/spUSDC_%281%29.png?1781003574"
- },
- "1:0x87b65c4aaffa76881f9e96f3e7ed945ddfc3cd7a": {
-  "symbol": "SYRUPUSDG",
-  "logoURI": "https://assets.coingecko.com/coins/images/102174289/thumb/syrupUSDG.png?1783055974"
- },
- "1:0x38eeb52f0771140d10c4e9a9a72349a329fe8a6a": {
-  "symbol": "apyUSD",
-  "logoURI": "https://cdn.morpho.org/assets/logos/apyusd.svg"
- },
- "1:0x83f20f44975d03b1b09e64809b757c47f942beea": {
-  "symbol": "SDAI",
-  "logoURI": "https://assets.coingecko.com/coins/images/32254/thumb/sdai.png?1697015278"
- },
- "1:0x5c20b550819128074fd538edf79791733ccedd18": {
-  "symbol": "FUSDT",
-  "logoURI": "https://assets.coingecko.com/coins/images/38031/thumb/fusdt.png?1716322799"
- },
- "1:0x9fb7b4477576fe5b32be4c1843afb1e55f251b33": {
-  "symbol": "FUSDC",
-  "logoURI": "https://assets.coingecko.com/coins/images/38030/thumb/fUSDC.png?1716322637"
- },
- "1:0xbf5495efe5db9ce00f80364c8b423567e58d2110": {
-  "symbol": "ezETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/34753/thumb/Ezeth_logo_circle.png?1713496404"
- },
- "1:0xac3e018457b222d93114458476f3e3416abbe38f": {
-  "symbol": "sfrxETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/28285/thumb/sfrxETH_icon.png?1696527285"
- },
- "1:0xd3fd63209fa2d55b07a0f6db36c2f43900be3094": {
-  "symbol": "WSRUSD",
-  "logoURI": "https://assets.coingecko.com/coins/images/66163/thumb/wsrUSD.png?1748500965"
+  "logoURI": "https://raw.githubusercontent.com/Bedrock-Technology/bedrock-static/39b68b34ecef136a7f57720ac6ac8773606539da/logo/unibtc.svg",
+  "assetGroup": "UNIBTC"
  },
  "1:0x056b269eb1f75477a8666ae8c7fe01b64dd55ecc": {
   "symbol": "USD3",
-  "logoURI": "https://cdn.morpho.org/assets/logos/3jane_usd3.svg"
+  "logoURI": "https://cdn.morpho.org/assets/logos/3jane_usd3.svg",
+  "assetGroup": "3Jane USD3::USD3"
  },
- "1:0xdc169abe56461a2e0c034da431ac2a3ebf596094": {
-  "symbol": "PT-sUSDS-26NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/3226daff-03a2-4078-af4e-28a72ef5b252.svg"
+ "1:0x0655977feb2f289a4ab78af67bab0d17aab84367": {
+  "symbol": "SCRVUSD",
+  "logoURI": "https://assets.coingecko.com/coins/images/51712/thumb/scrvUSD200x200.png?1731899723",
+  "assetGroup": "Savings crvUSD::scrvUSD"
  },
- "1:0xbeef047a543e45807105e51a8bbefcc5950fcfba": {
-  "symbol": "STEAKUSDT",
-  "logoURI": "https://assets.coingecko.com/coins/images/52408/thumb/steak-usdt.png?1733304323"
+ "1:0x066d10e240999aea6798b2e2ca0bdac2923cbdff": {
+  "symbol": "nFALCON",
+  "logoURI": "https://assets.coingecko.com/coins/images/102173601/thumb/nFALCON-round.png?1780411172",
+  "assetGroup": "Nest FalconX CLO::nFALCON"
  },
- "1:0x88887be419578051ff9f4eb6c858a951921d8888": {
-  "symbol": "stcUSD",
-  "logoURI": "https://cdn.morpho.org/assets/logos/stcusd.svg"
+ "1:0x06ebad062fd573ca31a72d6dfb0f425da2153985": {
+  "symbol": "PT-sUSDx-3DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/27948588-f8dc-438c-8904-cfc19cfe84d0.svg",
+  "assetGroup": "PT sUSDx (USDx) Ethereum::PT-sUSDx-3DEC2026"
  },
- "1:0xcdfb58c8c859cb3f62ebe9cf2767f9e036c7fb15": {
-  "symbol": "BFBTC",
-  "logoURI": "https://assets.coingecko.com/coins/images/69326/thumb/bfBTC-logo-symbol-color.png?1758193458"
- },
- "1:0x7743e50f534a7f9f1791dde7dcd89f7783eefc39": {
-  "symbol": "fxSAVE",
-  "logoURI": "https://cdn.morpho.org/assets/logos/fxsave.svg"
- },
- "1:0x5401b8620e5fb570064ca9114fd1e135fd77d57c": {
-  "symbol": "LBTCv",
-  "logoURI": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQV99kEVrNJukkv79dncAhgMdeIQFWTNBxnNg&s"
- },
- "1:0xd11c452fc99cf405034ee446803b6f6c1f6d5ed8": {
-  "symbol": "TETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/40155/thumb/tETH_logo_2_%281%29.png?1726079209"
- },
- "1:0xd166337499e176bbc38a1fbd113ab144e5bd2df7": {
-  "symbol": "SUSDAT",
-  "logoURI": "https://assets.coingecko.com/coins/images/102172722/thumb/susdat.png?1775048870"
- },
- "1:0xb5be35d8ff83d431899b95851cb17a2b4bcef150": {
-  "symbol": "PT-apyUSD-5NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/00fd8af5-c5de-4d03-8112-b231c7fc4cc1.svg"
- },
- "1:0xbeef01735c132ada46aa9aa4c54623caa92a64cb": {
-  "symbol": "STEAKUSDC",
-  "logoURI": "https://assets.coingecko.com/coins/images/51473/thumb/steakUSDC.png?1731396462"
- },
- "1:0xc8cf6d7991f15525488b2a83df53468d682ba4b0": {
-  "symbol": "sUSDf",
-  "logoURI": "https://cdn.morpho.org/assets/logos/susdf.svg"
- },
- "1:0xa663b02cf0a4b149d2ad41910cb81e23e1c41c32": {
-  "symbol": "SFRAX",
-  "logoURI": "https://assets.coingecko.com/coins/images/35383/thumb/sfrax.png?1708445569"
- },
- "1:0xfe6eb3b609a7c8352a241f7f3a21cea4e9209b8f": {
-  "symbol": "SPETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/102173689/thumb/spETH.png?1781003406"
- },
- "1:0x280839980a7ed0d7717f64125fe241012e5f5815": {
-  "symbol": "STRUSD",
-  "logoURI": "https://assets.coingecko.com/coins/images/102174233/thumb/strUSD.png?1782647956"
- },
- "1:0x7f47c3e6b2c00fc4eb4d5ae50d0ab0ab6888eb4d": {
-  "symbol": "PT-USD3-17DEC2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/7fea3238-fc4f-49d2-9574-997dea2fd4d4.svg"
- },
- "1:0x6f20ae2c98c2d34e6a57f3411f2c5af92e32592d": {
-  "symbol": "ETRUSD",
-  "logoURI": "https://assets.coingecko.com/coins/images/102175806/thumb/trUSD.png?1787661625"
- },
- "1:0xf469fbd2abcd6b9de8e169d128226c0fc90a012e": {
-  "symbol": "pumpBTC",
-  "logoURI": "https://assets.coingecko.com/coins/images/39232/thumb/200pxPumpBTCLogo.png?1721227861"
- },
- "1:0x651d4b8168488fa163d85304662e8278d4c55baa": {
-  "symbol": "yb-WBTC",
-  "logoURI": null
- },
- "1:0xcf62f905562626cfcdd2261162a51fd02fc9c5b6": {
-  "symbol": "sfrxUSD",
-  "logoURI": "https://assets.coingecko.com/coins/images/53964/thumb/sfrxUSD.png?1737792232"
- },
- "1:0x599ef448e1d3378ed2dd7982d4b00615d9e5bf77": {
-  "symbol": "PT-STRCx-26NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/e05e1afd-3dbd-492e-9be0-9415ff6cdf72.svg"
- },
- "1:0xca7c607c590ad16007ccbbba9d26f4df656a36c2": {
-  "symbol": "vamsETH",
-  "logoURI": null
- },
- "1:0xfae103dc9cf190ed75350761e95403b7b8afa6c0": {
-  "symbol": "RSWETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/34489/thumb/rswETH_Icon.png?1706865484"
- },
- "1:0xbeef050ecd6a16c4e7bffbb52ebba7846c4b8cd4": {
-  "symbol": "STEAKETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/51382/thumb/ethereum.png?1730966831"
- },
- "1:0xd9a442856c234a39a81a089c06451ebaa4306a72": {
-  "symbol": "PUFETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/35176/thumb/pufETH-200-200-resolution.png?1707753174"
- },
- "1:0x17c47b0cedec9b41e639f5ec1a053e9135db2a6d": {
-  "symbol": "PT-SY SIERRA-22OCT2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/4b952caa-a7ad-4c41-9a91-7c5a677f3452.svg"
- },
- "1:0xdbdc1ef57537e34680b898e1febd3d68c7389bcb": {
-  "symbol": "siUSD",
-  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0xdbdc1ef57537e34680b898e1febd3d68c7389bcb.png"
- },
- "1:0x722fc3640ba007c3e9867ccdb0dca59f2e2f29f9": {
-  "symbol": "yb-cbBTC",
-  "logoURI": null
- },
- "1:0xda06ee2dacf9245aa80072a4407debdea0d7e341": {
-  "symbol": "savETH",
-  "logoURI": "https://cdn.morpho.org/assets/logos/saveth.svg"
- },
- "1:0x2b9c9f3bdceb5d8e36a4704f08a78fca53343cea": {
-  "symbol": "yb-WETH",
-  "logoURI": null
- },
- "1:0x4c73f025a1947ec770327b9956fc61f535f72c22": {
-  "symbol": "vamsUSD",
-  "logoURI": null
- },
- "1:0x557ab1e003951a73c12d16f0fea8490e39c33c35": {
-  "symbol": "sreUSD",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/7bffbdc5-0f19-45aa-bef7-881881882421.svg"
- },
- "1:0x936facdf10c8c36294e7b9d28345255539d81bc7": {
-  "symbol": "rock.rETH",
-  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x936facdf10c8c36294e7b9d28345255539d81bc7.png"
+ "1:0x079c3469143804af5d0d645a878c371dbe8d038e": {
+  "symbol": "PT-fxSAVE-29OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/78b3b590-3ff1-42d3-b26e-1fe25b23cabe.svg",
+  "assetGroup": "PT fxSAVE (fxSP) Ethereum::PT-fxSAVE-29OCT2026"
  },
  "1:0x08efcc2f3e61185d0ea7f8830b3fec9bfa2ee313": {
   "symbol": "sNUSD",
   "logoURI": "https://assets.coingecko.com/coins/images/70028/thumb/sNUSD-200x200.png?1760452644"
  },
- "1:0xdd0f28e19c1780eb6396170735d45153d261490d": {
-  "symbol": "GTUSDC",
-  "logoURI": "https://assets.coingecko.com/coins/images/51338/thumb/usdc.png?1730814917"
- },
- "1:0xe95a203b1a91a908f9b9ce46459d101078c2c3cb": {
-  "symbol": "ANKRETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/13403/large/aETHc.png?1625756490"
- },
- "1:0xba96292ee7673e3b546cc90db6d97111cd9a314f": {
-  "symbol": "PT-USDat-14JAN2027",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/7bf2172c-182d-45e0-a754-44dfd5f165d6.svg"
- },
- "1:0xa0804346780b4c2e3be118ac957d1db82f9d7484": {
-  "symbol": "bbqUSDT",
-  "logoURI": null
- },
- "1:0xa808bc9775cb41c52c7842f8b50427fe7a770326": {
-  "symbol": "STHUSD",
-  "logoURI": "https://assets.coingecko.com/coins/images/102172894/thumb/sthUSD_Logo.png?1776441288"
- },
- "1:0x657e8c867d8b37dcc18fa4caead9c45eb088c642": {
-  "symbol": "EBTC",
-  "logoURI": "https://assets.coingecko.com/coins/images/50411/thumb/eBTC.png?1727664788"
- },
- "1:0x771f7290428d830ecd41e980745c327e507823ec": {
-  "symbol": "yb-tBTC",
-  "logoURI": null
- },
- "1:0xddc0f880ff6e4e22e4b74632fbb43ce4df6ccc5a": {
-  "symbol": "REUSDE",
-  "logoURI": "https://assets.coingecko.com/coins/images/55173/thumb/re_token_logo_200.png?1744785893"
- },
- "1:0x459bcab2490843ad1fe1e4feff7f7ea16a14408b": {
-  "symbol": "PT-sUSDD-26NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/ae34d952-7c37-4f10-a18c-9d872c83d502.svg"
- },
- "1:0xb195b618ea52b77cb2a58846f452f59f8dfa9390": {
-  "symbol": "PT-sUSDE-26NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/6f77480b-c00e-444d-8065-1f3858b4399d.svg"
- },
- "1:0x3d7d6fdf07ee548b939a80edbc9b2256d0cdc003": {
-  "symbol": "SRUSDE",
-  "logoURI": "https://assets.coingecko.com/coins/images/71272/thumb/srUSDe.png?1766823215"
- },
- "1:0xaf687b5ecb525ccea96115088999b4ed80c388b6": {
-  "symbol": "PT-apxUSD-5NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/4123eee9-55d1-4ad3-abed-5c5e19cd0d1e.svg"
- },
- "1:0xb45ad160634c528cc3d2926d9807104fa3157305": {
-  "symbol": "SDOLA",
-  "logoURI": "https://assets.coingecko.com/coins/images/35495/thumb/sDOLAlogoFINAL.png?1708922289"
- },
- "1:0x4dbe3f01abe271d3e65432c74851625a8c30aa7b": {
-  "symbol": "vaSTETH",
-  "logoURI": null
- },
- "1:0x59bc9fae5d62b19d4f8d07d758047acb9ee19d34": {
-  "symbol": "PT-srUSDe-22OCT2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/713d1417-d114-4cfa-87bc-cb6e640c2ee9.svg"
- },
- "1:0x2ae4f59e500b6ddeb88c480edf277eda54a00205": {
-  "symbol": "PT-reUSDe-10DEC2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/0ac948ba-9188-40c9-adf9-f537d0283f38.svg"
- },
- "1:0xe1b4d34e8754600962cd944b535180bd758e6c2e": {
-  "symbol": "AGETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/39677/thumb/Icon___Dark.png?1723610897"
- },
- "1:0x0655977feb2f289a4ab78af67bab0d17aab84367": {
-  "symbol": "SCRVUSD",
-  "logoURI": "https://assets.coingecko.com/coins/images/51712/thumb/scrvUSD200x200.png?1731899723"
- },
- "1:0xc824a08db624942c5e5f330d56530cd1598859fd": {
-  "symbol": "HGETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/52281/thumb/hgETH.png?1732897068"
- },
- "1:0xbeefff209270748ddd194831b3fa287a5386f5bc": {
-  "symbol": "bbqUSDC",
-  "logoURI": null
- },
- "1:0xad55aebc9b8c03fc43cd9f62260391c13c23e7c0": {
-  "symbol": "CUSDO",
-  "logoURI": "https://assets.coingecko.com/coins/images/53751/thumb/cUSDO_logo_white.png?1737182014"
- },
- "1:0x657d9aba1dbb59e53f9f3ecaa878447dcfc96dcb": {
-  "symbol": "YNETHX",
-  "logoURI": "https://assets.coingecko.com/coins/images/51623/thumb/ynETHx.png?1731659494"
- },
- "1:0x19ebd191f7a24ece672ba13a302212b5ef7f35cb": {
-  "symbol": "yUSD",
-  "logoURI": "https://cdn.morpho.org/assets/logos/yusd.svg"
- },
- "1:0x2ec37d45fcae65d9787ecf71dc85a444968f6646": {
-  "symbol": "brBTC",
-  "logoURI": "https://assets.coingecko.com/coins/images/53039/thumb/brBTC_200.png?1735074374"
- },
- "1:0x4ff4186188f8406917293a9e01a1ca16d3cf9e59": {
-  "symbol": "sbMorphoUSDC",
-  "logoURI": "https://cdn.morpho.org/assets/logos/sbmorphousdc.svg"
- },
- "1:0x74299580811e1c3c1a2831db079ba0a8f513998f": {
-  "symbol": "PT-strUSD-26NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/ad04e6d4-e061-49fb-90fd-405fb2e7fbcf.svg"
- },
- "1:0xdae854d0896ad2fee335689a3f7b4a95fd1a3e46": {
-  "symbol": "GAMIUSDC",
-  "logoURI": "https://assets.coingecko.com/coins/images/102173360/thumb/PFP2-circle.png?1779204741"
- },
- "1:0x06ebad062fd573ca31a72d6dfb0f425da2153985": {
-  "symbol": "PT-sUSDx-3DEC2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/27948588-f8dc-438c-8904-cfc19cfe84d0.svg"
- },
- "1:0x2371e134e3455e0593363cbf89d3b6cf53740618": {
-  "symbol": "gtWETH",
-  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x2371e134e3455e0593363cbf89d3b6cf53740618.png"
- },
- "1:0xf689555121e529ff0463e191f9bd9d1e496164a7": {
-  "symbol": "sUSD3",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/c3a0224f-aaf6-4039-9ebc-cf390d92507e.svg"
- },
- "1:0xc58d044404d8b14e953c115e67823784dea53d8f": {
-  "symbol": "jrUSDe",
-  "logoURI": "https://cdn.morpho.org/assets/logos/jrusde.svg"
+ "1:0x09db87a538bd693e9d08544577d5ccfaa6373a48": {
+  "symbol": "YNETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/37798/thumb/ynETH-YieldNest.png?1715589941",
+  "assetGroup": "YieldNest Restaked ETH::YNETH"
  },
  "1:0x0b985c624bb2949432cce77cfd246f01390a0517": {
   "symbol": "PT-sUSDat-14JAN2027",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/5c1f07b0-ae8d-4104-8ad2-8d21cd11fdf8.svg"
- },
- "1:0xb253eff1104802b97ac7e3ac9fdd73aece295a2c": {
-  "symbol": "PT-stETH-30DEC2027",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/9054b0e3-226a-47d7-b964-9cbff099ac42.svg"
- },
- "1:0xe3cdf5b8d7aedfc9f768dbdcc334146fae989188": {
-  "symbol": "PT-siUSD-22OCT2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/4b010b4f-d77a-4386-ae32-cd22b30a8bb8.svg"
- },
- "1:0xfaa9a0e1db9e22ae3a20b2b58a68dc24d053d066": {
-  "symbol": "SRUSDAT",
-  "logoURI": "https://assets.coingecko.com/coins/images/102174721/thumb/srUSDat.png?1784688847"
- },
- "1:0xa4b3a2eec53863fe2c9ab0041d480cf964942e84": {
-  "symbol": "PT-USDx-3DEC2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/c6288164-ac79-49c9-90c7-20a01b09addc.svg"
- },
- "1:0x7191878f1fe834b28f4d0cead0e4375b814c4abb": {
-  "symbol": "PT-trUSD-26NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/67fd2c86-dccd-4c8a-a648-6672eef2327d.svg"
- },
- "1:0x9a8bc3b04b7f3d87cfc09ba407dced575f2d61d8": {
-  "symbol": "MCWETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/52258/thumb/eth_coingecko.png?1732848464"
- },
- "1:0xcea2daf93617b97504e05affc5bcf9b3922d3034": {
-  "symbol": "SolvBTC+",
-  "logoURI": null
- },
- "1:0x079c3469143804af5d0d645a878c371dbe8d038e": {
-  "symbol": "PT-fxSAVE-29OCT2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/78b3b590-3ff1-42d3-b26e-1fe25b23cabe.svg"
- },
- "1:0x35ec69a77b79c255e5d47d5a3bdbefefe342630c": {
-  "symbol": "YNLSDE",
-  "logoURI": "https://assets.coingecko.com/coins/images/39842/thumb/ynLSDe.png?1724293737"
- },
- "1:0xf03a7eb46d01d9ecaa104558c732cf82f6b6b645": {
-  "symbol": "MaticX",
-  "logoURI": "https://assets.coingecko.com/coins/images/25383/thumb/maticx.png?1696524516"
- },
- "1:0xd9fa32c4a0d9d58d1e75e8159b9c4b1c545143d8": {
-  "symbol": "PT-mAPOLLO-18MAR2027",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/db7ee65f-64c0-4051-8480-0bf4fa62dde9.svg"
- },
- "1:0xd1c117319b3595fbc39b471ab1fd485629eb05f2": {
-  "symbol": "vaETH",
-  "logoURI": null
- },
- "1:0x4881ef0bf6d2365d3dd6499ccd7532bcdbce0658": {
-  "symbol": "gtLRTcore",
-  "logoURI": "https://cdn.morpho.org/v2/assets/images/gauntlet.svg"
- },
- "1:0x2411802d8bea09be0af8fd8d08314a63e706b29c": {
-  "symbol": "FWSTETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/38032/thumb/fwsteth.png?1716322853"
- },
- "1:0x90551c1795392094fe6d29b758eccd233cfaa260": {
-  "symbol": "FWETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/38033/thumb/fWETH.png?1716322882"
- },
- "1:0x41f45d21502bde8211e94d94ef2eeebcfc48a6ac": {
-  "symbol": "PT-sUSD3-17DEC2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/a41035f3-3ec0-4e9c-999f-982ef2644cbc.svg"
- },
- "1:0x80e1048ede66ec4c364b4f22c8768fc657ff6a42": {
-  "symbol": "upUSDC",
-  "logoURI": "https://cdn.morpho.org/assets/logos/upusdc.svg"
- },
- "1:0xd9d920aa40f578ab794426f5c90f6c731d159def": {
-  "symbol": "xSolvBTC",
-  "logoURI": "https://raw.githubusercontent.com/1delta-DAO/asset-icons/main/xSolvBTC.webp"
- },
- "1:0xd63070114470f685b75b74d60eec7c1113d33a3d": {
-  "symbol": "USUALUSDC+",
-  "logoURI": "https://assets.coingecko.com/coins/images/51339/thumb/usdc.png?1730814974"
- },
- "1:0x9786a09cbb2efb23046542576ffd9a235aa3ca07": {
-  "symbol": "PT-jrUSDe-22OCT2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/cb9af685-e1bf-4480-89fd-c841f4d54f2c.svg"
- },
- "1:0x998d7b14c123c1982404562b68eddb057b0477cb": {
-  "symbol": "upGAMMAusdc",
-  "logoURI": "https://cdn.morpho.org/assets/logos/upgammausdc.svg"
- },
- "1:0xdc5c65c0ca7948fb3013f5ab9435bba02a2ac4e8": {
-  "symbol": "PT-tmvUSDC-29OCT2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/1c23613b-b651-4558-90f9-9e87689002d0.svg"
- },
- "1:0x76543ac61ba84c6feeee76c6a918127bf0ca5fd1": {
-  "symbol": "PT-siUSD-7JAN2027",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/4b010b4f-d77a-4386-ae32-cd22b30a8bb8.svg"
- },
- "1:0x6a0efc272e8dd4fc5affea17376dcf107cbcbc0f": {
-  "symbol": "PT-sUSN-22JUL2027",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/2bd3ee12-e852-4b68-b178-bf643cf1e7b7.svg"
- },
- "1:0x1b2cb79a4564206f53ba80b4d780f251b4ae6765": {
-  "symbol": "synUSD",
-  "logoURI": null
- },
- "1:0xf7eb8dfec75c42d2d2247fe76ccaedc59f821688": {
-  "symbol": "JRMM1-USD",
-  "logoURI": "https://assets.coingecko.com/coins/images/102172871/thumb/strata_jrmm1-usd.jpg?1776354463"
- },
- "1:0xd70be760f0bc3009db4563fe0b9eee54883adb50": {
-  "symbol": "PT-ROY-JT-apyUSD-5NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/faae8379-09e8-49ad-9969-068788796fab.svg"
- },
- "1:0x2c3e7c0fab3d546ea0715d2a96fbdf598711a062": {
-  "symbol": "PT-srUSDat-14JAN2027",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/050758db-a841-4ce4-9ebe-9af83d6ffd7d.svg"
- },
- "1:0x78fc2c2ed1a4cdb5402365934ae5648adad094d0": {
-  "symbol": "RE7WETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/51496/thumb/ethereum-eth-logo.png?1731407851"
- },
- "1:0x1cfaed2df5ee27b078e96fafa10709c5548fc1b7": {
-  "symbol": "PT-superWETH-26NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/f6e2ca58-f555-4596-9885-77fee12bf5c7.svg"
- },
- "1:0x627ea69929212916ec57b1b26d2e1a19f6129b53": {
-  "symbol": "srmHYPER",
-  "logoURI": "https://cdn.morpho.org/assets/logos/srmhyper.svg"
- },
- "1:0xd4e6ea03d2e8bfeb5fa5c03ae9352514b1829218": {
-  "symbol": "PT-superUSDC-26NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/24156245-f118-4da6-bc8a-a2002ca2c129.svg"
- },
- "1:0xa32877eee252d78d5e4fa00285d4cc2066d15bac": {
-  "symbol": "PT-SY pufETH-26NOV2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/e5312f11-9354-4e1f-89b3-01a85b070776.png"
- },
- "1:0x77db49ac43107f0cef6f65837aa55ee8ae4cd9fa": {
-  "symbol": "PT-ynRWAx-15OCT2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/71789fe6-6dd8-4fa7-8fe5-1f6032ee6fe8.svg"
- },
- "1:0x0022228a2cc5e7ef0274a7baa600d44da5ab5776": {
-  "symbol": "stUSD",
-  "logoURI": "https://assets.coingecko.com/coins/images/34509/thumb/stUSD_copie.png?1705288386"
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/5c1f07b0-ae8d-4104-8ad2-8d21cd11fdf8.svg",
+  "assetGroup": "PT sUSDat (USDat) Ethereum::PT-sUSDat-14JAN2027"
  },
  "1:0x0d45b129dc868963025db79a9074ea9c9e32cae4": {
   "symbol": "sUSDp",
-  "logoURI": "https://raw.githubusercontent.com/parallel-protocol/parallel-brand-kit/main/Tokens/USDp/sUSDp.svg"
+  "logoURI": "https://raw.githubusercontent.com/parallel-protocol/parallel-brand-kit/main/Tokens/USDp/sUSDp.svg",
+  "assetGroup": "Staked USDp::sUSDp"
+ },
+ "1:0x119dd7daff816f29d7ee47596ae5e4bdc4299165": {
+  "symbol": "nOPAL",
+  "logoURI": "https://assets.coingecko.com/coins/images/70787/thumb/BlackOpal_Vault.png?1763752532",
+  "assetGroup": "Nest BlackOpal LiquidStone II Vault::nOPAL"
+ },
+ "1:0x1202f5c7b4b9e47a1a484e8b270be34dbbc75055": {
+  "symbol": "WSTUSR",
+  "logoURI": "https://assets.coingecko.com/coins/images/51880/thumb/USR_LOGO.png?1732098841",
+  "assetGroup": "Resolv wstUSR::WSTUSR"
+ },
+ "1:0x17c47b0cedec9b41e639f5ec1a053e9135db2a6d": {
+  "symbol": "PT-SY SIERRA-22OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/4b952caa-a7ad-4c41-9a91-7c5a677f3452.svg",
+  "assetGroup": "PT SIERRA (USDC) Ethereum::PT-SY SIERRA-22OCT2026"
+ },
+ "1:0x182863131f9a4630ff9e27830d945b1413e347e8": {
+  "symbol": "yvUSDS-1",
+  "logoURI": "https://cdn.morpho.org/assets/logos/yvusds-1.svg",
+  "assetGroup": "USDS-1 yVault::yvUSDS-1"
+ },
+ "1:0x19ebb35279a16207ec4ba82799cc64715065f7f6": {
+  "symbol": "PRIME",
+  "logoURI": "https://cdn.morpho.org/assets/logos/prime.svg",
+  "assetGroup": "Hastra PRIME::PRIME"
+ },
+ "1:0x19ebd191f7a24ece672ba13a302212b5ef7f35cb": {
+  "symbol": "yUSD",
+  "logoURI": "https://cdn.morpho.org/assets/logos/yusd.svg",
+  "assetGroup": "YieldFi yUSD::yUSD"
+ },
+ "1:0x1b2cb79a4564206f53ba80b4d780f251b4ae6765": {
+  "symbol": "synUSD",
+  "logoURI": null,
+  "assetGroup": "Syntropia USDC Core::synUSD"
+ },
+ "1:0x1cfaed2df5ee27b078e96fafa10709c5548fc1b7": {
+  "symbol": "PT-superWETH-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/f6e2ca58-f555-4596-9885-77fee12bf5c7.svg",
+  "assetGroup": "PT superWETH (WETH) Ethereum::PT-superWETH-26NOV2026"
+ },
+ "1:0x1f37620a0e0660db3cdbb8cdbf62d8099f959925": {
+  "symbol": "FACTOR",
+  "logoURI": null,
+  "assetGroup": "Plume Factor Vault::FACTOR"
+ },
+ "1:0x203a918321f920763c2b8ccc2cbf5b3a5ba748d1": {
+  "symbol": "PT-USDG-25MAR2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/3c5c1e3f-6dd7-463d-a36c-244662c6f243.svg",
+  "assetGroup": "PT USDG (USDG) Ethereum::PT-USDG-25MAR2027"
+ },
+ "1:0x22ae3d9a738471f405169af055d31c687087d4c7": {
+  "symbol": "PST",
+  "logoURI": "https://meta.huma.finance/pst.svg",
+  "assetGroup": "PayFi Strategy Token::PST"
+ },
+ "1:0x23346b04a7f55b8760e5860aa5a77383d63491cd": {
+  "symbol": "ysyBOLD",
+  "logoURI": "https://cdn.morpho.org/assets/logos/bold.svg",
+  "assetGroup": "Staked yBOLD::ysyBOLD"
+ },
+ "1:0x2371e134e3455e0593363cbf89d3b6cf53740618": {
+  "symbol": "gtWETH",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x2371e134e3455e0593363cbf89d3b6cf53740618.png",
+  "assetGroup": "Gauntlet WETH Prime::gtWETH"
+ },
+ "1:0x2411802d8bea09be0af8fd8d08314a63e706b29c": {
+  "symbol": "FWSTETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/38032/thumb/fwsteth.png?1716322853",
+  "assetGroup": "Fluid Wrapped Staked ETH::FWSTETH"
+ },
+ "1:0x280839980a7ed0d7717f64125fe241012e5f5815": {
+  "symbol": "STRUSD",
+  "logoURI": "https://assets.coingecko.com/coins/images/102174233/thumb/strUSD.png?1782647956",
+  "assetGroup": "Tori Staked trUSD::STRUSD"
+ },
+ "1:0x28b3a8fb53b741a8fd78c0fb9a6b2393d896a43d": {
+  "symbol": "SPUSDC",
+  "logoURI": "https://assets.coingecko.com/coins/images/102173691/thumb/spUSDC.png?1781003580",
+  "assetGroup": "Spark Savings USDC::SPUSDC"
+ },
+ "1:0x2a21f68b60156860615bd27ac958df817df45aa3": {
+  "symbol": "PT-sBOLD-4FEB2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/a3750f13-9723-4202-ab4b-0b12fd8fbd00.svg",
+  "assetGroup": "PT sBOLD (BOLD) Ethereum::PT-sBOLD-4FEB2027"
+ },
+ "1:0x2ae4f59e500b6ddeb88c480edf277eda54a00205": {
+  "symbol": "PT-reUSDe-10DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/0ac948ba-9188-40c9-adf9-f537d0283f38.svg",
+  "assetGroup": "PT reUSDe (USDe) Ethereum::PT-reUSDe-10DEC2026"
+ },
+ "1:0x2b9c9f3bdceb5d8e36a4704f08a78fca53343cea": {
+  "symbol": "yb-WETH",
+  "logoURI": null,
+  "assetGroup": "Yield Basis liquidity for WETH::yb-WETH"
+ },
+ "1:0x2c3e7c0fab3d546ea0715d2a96fbdf598711a062": {
+  "symbol": "PT-srUSDat-14JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/050758db-a841-4ce4-9ebe-9af83d6ffd7d.svg",
+  "assetGroup": "PT srUSDat (USDat) Ethereum::PT-srUSDat-14JAN2027"
+ },
+ "1:0x2ec37d45fcae65d9787ecf71dc85a444968f6646": {
+  "symbol": "brBTC",
+  "logoURI": "https://assets.coingecko.com/coins/images/53039/thumb/brBTC_200.png?1735074374",
+  "assetGroup": "BRBTC"
+ },
+ "1:0x310b7ea7475a0b449cfd73be81522f1b88efafaa": {
+  "symbol": "yvUSDT-1",
+  "logoURI": null,
+  "assetGroup": "USDT-1 yVault::yvUSDT-1"
+ },
+ "1:0x356b8d89c1e1239cbbb9de4815c39a1474d5ba7d": {
+  "symbol": "syrupUSDT",
+  "logoURI": "https://assets.coingecko.com/coins/images/69514/thumb/SyrupUSDT.png?1758823529",
+  "assetGroup": "SYRUPUSDT"
+ },
+ "1:0x35bff778d3fc53a561486bf28e761428499232eb": {
+  "symbol": "SRPRIME",
+  "logoURI": "https://assets.coingecko.com/coins/images/102176937/thumb/sr200.jpg?1789036530",
+  "assetGroup": "Strata Senior PRIME::SRPRIME"
+ },
+ "1:0x35d8949372d46b7a3d5a56006ae77b215fc69bc0": {
+  "symbol": "USD0++",
+  "logoURI": "https://assets.coingecko.com/coins/images/39169/thumb/0x35d8949372d46b7a3d5a56006ae77b215fc69bc0.png?1720798057",
+  "assetGroup": "Staked USD0::USD0++"
+ },
+ "1:0x35ec69a77b79c255e5d47d5a3bdbefefe342630c": {
+  "symbol": "YNLSDE",
+  "logoURI": "https://assets.coingecko.com/coins/images/39842/thumb/ynLSDe.png?1724293737",
+  "assetGroup": "YieldNest Restaked LSD   Eigenlayer::YNLSDE"
+ },
+ "1:0x38eeb52f0771140d10c4e9a9a72349a329fe8a6a": {
+  "symbol": "apyUSD",
+  "logoURI": "https://cdn.morpho.org/assets/logos/apyusd.svg",
+  "assetGroup": "apyUSD::APYUSD"
+ },
+ "1:0x3d7d6fdf07ee548b939a80edbc9b2256d0cdc003": {
+  "symbol": "SRUSDE",
+  "logoURI": "https://assets.coingecko.com/coins/images/71272/thumb/srUSDe.png?1766823215",
+  "assetGroup": "Strata Senior USDe::SRUSDE"
+ },
+ "1:0x41f45d21502bde8211e94d94ef2eeebcfc48a6ac": {
+  "symbol": "PT-sUSD3-17DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/a41035f3-3ec0-4e9c-999f-982ef2644cbc.svg",
+  "assetGroup": "PT sUSD3 (USDC) Ethereum::PT-sUSD3-17DEC2026"
+ },
+ "1:0x44db865cc6d5768703fb5bf73dfb7a5a0f95c1fc": {
+  "symbol": "PT-ROY-ST-apyUSD-5NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/dd82a845-d2ca-413b-a087-6385884b0489.svg",
+  "assetGroup": "PT srRoyAPYUSD (srRoyAPYUSD) Ethereum::PT-ROY-ST-apyUSD-5NOV2026"
+ },
+ "1:0x459bcab2490843ad1fe1e4feff7f7ea16a14408b": {
+  "symbol": "PT-sUSDD-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/ae34d952-7c37-4f10-a18c-9d872c83d502.svg",
+  "assetGroup": "PT sUSDD (USDD) Ethereum::PT-sUSDD-26NOV2026"
+ },
+ "1:0x47f4d6505e39998bbabf325def4c4861695ac8f5": {
+  "symbol": "PT-NGI+-10DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/33b51426-e7dc-4c6a-a4de-b1cd0030e904.svg",
+  "assetGroup": "PT NGI+ (USDC) Ethereum::PT-NGI+-10DEC2026"
+ },
+ "1:0x47fe8ab9ee47dd65c24df52324181790b9f47efc": {
+  "symbol": "AWETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/54543/thumb/alpha_vaults_icon_coingecko.png?1740218951",
+  "assetGroup": "Alpha WETH Vault::AWETH"
+ },
+ "1:0x4881ef0bf6d2365d3dd6499ccd7532bcdbce0658": {
+  "symbol": "gtLRTcore",
+  "logoURI": "https://cdn.morpho.org/v2/assets/images/gauntlet.svg",
+  "assetGroup": "Gauntlet WETH Core::gtLRTcore"
+ },
+ "1:0x4c73f025a1947ec770327b9956fc61f535f72c22": {
+  "symbol": "vamsUSD",
+  "logoURI": null,
+  "assetGroup": "vamsUSD Pool::vamsUSD"
+ },
+ "1:0x4ce9c93513dff543bc392870d57df8c04e89ba0a": {
+  "symbol": "ysUSDS",
+  "logoURI": null,
+  "assetGroup": "Sky Rewards USDS Compounder::ysUSDS"
+ },
+ "1:0x4dbe3f01abe271d3e65432c74851625a8c30aa7b": {
+  "symbol": "vaSTETH",
+  "logoURI": null,
+  "assetGroup": "vaSTETH Pool::vaSTETH"
  },
  "1:0x4f85cbfdefbdb3fa96fcf1e38b0ee68db9ae438b": {
   "symbol": "pbfUSD",
-  "logoURI": null
+  "logoURI": null,
+  "assetGroup": "Pulsar bfUSD::pbfUSD"
+ },
+ "1:0x4ff4186188f8406917293a9e01a1ca16d3cf9e59": {
+  "symbol": "sbMorphoUSDC",
+  "logoURI": "https://cdn.morpho.org/assets/logos/sbmorphousdc.svg",
+  "assetGroup": "SwissBorg USDC::sbMorphoUSDC"
+ },
+ "1:0x5086bf358635b81d8c47c66d1c8b9e567db70c72": {
+  "symbol": "REUSD",
+  "logoURI": "https://assets.coingecko.com/coins/images/66291/thumb/re_blue.png?1749110516",
+  "assetGroup": "Re Protocol reUSD::REUSD"
+ },
+ "1:0x5401b8620e5fb570064ca9114fd1e135fd77d57c": {
+  "symbol": "LBTCv",
+  "logoURI": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQV99kEVrNJukkv79dncAhgMdeIQFWTNBxnNg&s",
+  "assetGroup": "Lombard BTC Vault::LBTCv"
+ },
+ "1:0x557ab1e003951a73c12d16f0fea8490e39c33c35": {
+  "symbol": "sreUSD",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/7bffbdc5-0f19-45aa-bef7-881881882421.svg",
+  "assetGroup": "Savings reUSD::sreUSD"
+ },
+ "1:0x57c3571f10767e49c9d7b60feb6c67804783b7ae": {
+  "symbol": "wstGBP",
+  "logoURI": "https://etherscan.io/token/images/wren_staked_tgbp_wstgbp.svg",
+  "assetGroup": "Wren Staked tGBP::wstGBP"
+ },
+ "1:0x593ccca4c4bf58b7526a4c164ceef4003c6388db": {
+  "symbol": "nALPHA",
+  "logoURI": "https://assets.coingecko.com/coins/images/55541/thumb/nALPHA-token.png?1746610637",
+  "assetGroup": "Nest Alpha Vault::nALPHA"
+ },
+ "1:0x5987440ec8fa7f8976fe5d324e052a3140c9f333": {
+  "symbol": "PT-sUSDf-17DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/cf9099bf-df9c-4f0f-b739-2d7d59ea554b.svg",
+  "assetGroup": "PT sUSDf (USDf) Ethereum::PT-sUSDf-17DEC2026"
+ },
+ "1:0x599ef448e1d3378ed2dd7982d4b00615d9e5bf77": {
+  "symbol": "PT-STRCx-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/e05e1afd-3dbd-492e-9be0-9415ff6cdf72.svg",
+  "assetGroup": "PT STRCx (STRCx) Ethereum::PT-STRCx-26NOV2026"
+ },
+ "1:0x59bc9fae5d62b19d4f8d07d758047acb9ee19d34": {
+  "symbol": "PT-srUSDe-22OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/713d1417-d114-4cfa-87bc-cb6e640c2ee9.svg",
+  "assetGroup": "PT srUSDe (USDe) Ethereum::PT-srUSDe-22OCT2026"
+ },
+ "1:0x5c20b550819128074fd538edf79791733ccedd18": {
+  "symbol": "FUSDT",
+  "logoURI": "https://assets.coingecko.com/coins/images/38031/thumb/fusdt.png?1716322799",
+  "assetGroup": "Fluid Tether USD::FUSDT"
+ },
+ "1:0x627ea69929212916ec57b1b26d2e1a19f6129b53": {
+  "symbol": "srmHYPER",
+  "logoURI": "https://cdn.morpho.org/assets/logos/srmhyper.svg",
+  "assetGroup": "Strata Senior mHYPER::srmHYPER"
+ },
+ "1:0x63810d7f1c7b4dbfb60c173ba120a2be98b59e13": {
+  "symbol": "nCLOA",
+  "logoURI": "https://assets.coingecko.com/coins/images/102174050/thumb/nCLOA_Token.png?1782113586",
+  "assetGroup": "Nest BlackRock iShares AAA CLO Active ETF Vault::nCLOA"
+ },
+ "1:0x651d4b8168488fa163d85304662e8278d4c55baa": {
+  "symbol": "yb-WBTC",
+  "logoURI": null,
+  "assetGroup": "Yield Basis liquidity for WBTC::yb-WBTC"
+ },
+ "1:0x657d9aba1dbb59e53f9f3ecaa878447dcfc96dcb": {
+  "symbol": "YNETHX",
+  "logoURI": "https://assets.coingecko.com/coins/images/51623/thumb/ynETHx.png?1731659494",
+  "assetGroup": "ynETH MAX::YNETHX"
+ },
+ "1:0x657e8c867d8b37dcc18fa4caead9c45eb088c642": {
+  "symbol": "EBTC",
+  "logoURI": "https://assets.coingecko.com/coins/images/50411/thumb/eBTC.png?1727664788",
+  "assetGroup": "Ether fi Staked BTC::EBTC"
+ },
+ "1:0x6a0efc272e8dd4fc5affea17376dcf107cbcbc0f": {
+  "symbol": "PT-sUSN-22JUL2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/2bd3ee12-e852-4b68-b178-bf643cf1e7b7.svg",
+  "assetGroup": "PT sUSN (USN) Ethereum::PT-sUSN-22JUL2027"
+ },
+ "1:0x6f20ae2c98c2d34e6a57f3411f2c5af92e32592d": {
+  "symbol": "ETRUSD",
+  "logoURI": "https://assets.coingecko.com/coins/images/102175806/thumb/trUSD.png?1787661625",
+  "assetGroup": "Tori Ecosystem Vault::ETRUSD"
+ },
+ "1:0x6fec234e8801ed88964bc058a0f9fbcc9fcbd2eb": {
+  "symbol": "nPRIME",
+  "logoURI": null,
+  "assetGroup": "Prime Vault::nPRIME"
+ },
+ "1:0x7191878f1fe834b28f4d0cead0e4375b814c4abb": {
+  "symbol": "PT-trUSD-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/67fd2c86-dccd-4c8a-a648-6672eef2327d.svg",
+  "assetGroup": "PT trUSD (trUSD) Ethereum::PT-trUSD-26NOV2026"
+ },
+ "1:0x722fc3640ba007c3e9867ccdb0dca59f2e2f29f9": {
+  "symbol": "yb-cbBTC",
+  "logoURI": null,
+  "assetGroup": "Yield Basis liquidity for cbBTC::yb-cbBTC"
+ },
+ "1:0x74299580811e1c3c1a2831db079ba0a8f513998f": {
+  "symbol": "PT-strUSD-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/ad04e6d4-e061-49fb-90fd-405fb2e7fbcf.svg",
+  "assetGroup": "PT strUSD (trUSD) Ethereum::PT-strUSD-26NOV2026::1::0"
+ },
+ "1:0x76543ac61ba84c6feeee76c6a918127bf0ca5fd1": {
+  "symbol": "PT-siUSD-7JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/4b010b4f-d77a-4386-ae32-cd22b30a8bb8.svg",
+  "assetGroup": "PT siUSD (iUSD) Ethereum::PT-siUSD-7JAN2027"
+ },
+ "1:0x771f7290428d830ecd41e980745c327e507823ec": {
+  "symbol": "yb-tBTC",
+  "logoURI": null,
+  "assetGroup": "Yield Basis liquidity for tBTC::yb-tBTC"
+ },
+ "1:0x7743e50f534a7f9f1791dde7dcd89f7783eefc39": {
+  "symbol": "fxSAVE",
+  "logoURI": "https://cdn.morpho.org/assets/logos/fxsave.svg",
+  "assetGroup": "f(x) USD Saving::fxSAVE"
+ },
+ "1:0x77db49ac43107f0cef6f65837aa55ee8ae4cd9fa": {
+  "symbol": "PT-ynRWAx-15OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/71789fe6-6dd8-4fa7-8fe5-1f6032ee6fe8.svg",
+  "assetGroup": "PT ynRWAx (USDC) Ethereum::PT-ynRWAx-15OCT2026"
+ },
+ "1:0x78fc2c2ed1a4cdb5402365934ae5648adad094d0": {
+  "symbol": "RE7WETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/51496/thumb/ethereum-eth-logo.png?1731407851",
+  "assetGroup": "Re7 WETH Morpho Vault::RE7WETH"
+ },
+ "1:0x7a56e1c57c7475ccf742a1832b028f0456652f97": {
+  "symbol": "SolvBTC",
+  "logoURI": "https://raw.githubusercontent.com/1delta-DAO/asset-icons/main/SolvBTC.webp",
+  "assetGroup": "SOLVBTC"
+ },
+ "1:0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0": {
+  "symbol": "wstETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/18834/large/wstETH.png?1633565443",
+  "assetGroup": "WSTETH"
+ },
+ "1:0x7f47c3e6b2c00fc4eb4d5ae50d0ab0ab6888eb4d": {
+  "symbol": "PT-USD3-17DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/7fea3238-fc4f-49d2-9574-997dea2fd4d4.svg",
+  "assetGroup": "PT USD3 (USDC) Ethereum::PT-USD3-17DEC2026"
+ },
+ "1:0x80ac24aa929eaf5013f6436cda2a7ba190f5cc0b": {
+  "symbol": "syrupUSDC",
+  "logoURI": "https://assets.coingecko.com/coins/images/54658/thumb/syrup_logo-_200x200.jpg?1740895597",
+  "assetGroup": "SYRUPUSDC"
+ },
+ "1:0x80e1048ede66ec4c364b4f22c8768fc657ff6a42": {
+  "symbol": "upUSDC",
+  "logoURI": "https://cdn.morpho.org/assets/logos/upusdc.svg",
+  "assetGroup": "Upshift USDC::upUSDC"
+ },
+ "1:0x8236a87084f8b84306f72007f36f2618a5634494": {
+  "symbol": "LBTC",
+  "logoURI": "https://assets.coingecko.com/coins/images/39969/thumb/LBTC_Logo.png?1724959872",
+  "assetGroup": "LBTC"
+ },
+ "1:0x833adaef212c5cd3f78906b44bbfb18258f238f0": {
+  "symbol": "bbqWSTETH",
+  "logoURI": "https://cdn.morpho.org/assets/logos/bbqwsteth.svg",
+  "assetGroup": "Smokehouse WSTETH::bbqWSTETH"
+ },
+ "1:0x83f20f44975d03b1b09e64809b757c47f942beea": {
+  "symbol": "SDAI",
+  "logoURI": "https://assets.coingecko.com/coins/images/32254/thumb/sdai.png?1697015278",
+  "assetGroup": "SDAI"
+ },
+ "1:0x87b65c4aaffa76881f9e96f3e7ed945ddfc3cd7a": {
+  "symbol": "SYRUPUSDG",
+  "logoURI": "https://assets.coingecko.com/coins/images/102174289/thumb/syrupUSDG.png?1783055974",
+  "assetGroup": "SYRUPUSDG"
+ },
+ "1:0x87f3a8c7b3db5d342163b078d02deeb1ea56af05": {
+  "symbol": "PT-aptUSD-14JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/2348f80c-3308-476c-b839-3f0e2a7759e9.svg",
+  "assetGroup": "PT aptUSD (alqUSD) Ethereum::PT-aptUSD-14JAN2027"
+ },
+ "1:0x88887be419578051ff9f4eb6c858a951921d8888": {
+  "symbol": "stcUSD",
+  "logoURI": "https://cdn.morpho.org/assets/logos/stcusd.svg",
+  "assetGroup": "Staked cap USD::stcUSD"
+ },
+ "1:0x8db2350d78abc13f5673a411d4700bcf87864dde": {
+  "symbol": "SWBTC",
+  "logoURI": "https://assets.coingecko.com/coins/images/39682/thumb/swBTC200x200.png?1723652322",
+  "assetGroup": "Swell Restaked BTC::SWBTC"
+ },
+ "1:0x90551c1795392094fe6d29b758eccd233cfaa260": {
+  "symbol": "FWETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/38033/thumb/fWETH.png?1716322882",
+  "assetGroup": "Fluid Wrapped Ether::FWETH"
+ },
+ "1:0x936facdf10c8c36294e7b9d28345255539d81bc7": {
+  "symbol": "rock.rETH",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x936facdf10c8c36294e7b9d28345255539d81bc7.png",
+  "assetGroup": "RockSolid rETH Vault::rock.rETH"
+ },
+ "1:0x9786a09cbb2efb23046542576ffd9a235aa3ca07": {
+  "symbol": "PT-jrUSDe-22OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/cb9af685-e1bf-4480-89fd-c841f4d54f2c.svg",
+  "assetGroup": "PT jrUSDe (USDe) Ethereum::PT-jrUSDe-22OCT2026"
+ },
+ "1:0x997e2efbce91d170b00ea402e35a66c887ee1da9": {
+  "symbol": "AUTO",
+  "logoURI": "https://assets.coingecko.com/coins/images/102174221/thumb/AUTO_200x200_%281%29.png?1782569824",
+  "assetGroup": "Hastra AUTO::AUTO"
+ },
+ "1:0x998d7b14c123c1982404562b68eddb057b0477cb": {
+  "symbol": "upGAMMAusdc",
+  "logoURI": "https://cdn.morpho.org/assets/logos/upgammausdc.svg",
+  "assetGroup": "Upshift Gamma USDC Vault::upGAMMAusdc"
+ },
+ "1:0x99cd4ec3f88a45940936f469e4bb72a2a701eeb9": {
+  "symbol": "stUSDS",
+  "logoURI": "https://cdn.morpho.org/assets/logos/stusds.svg",
+  "assetGroup": "Staked USDS::stUSDS"
+ },
+ "1:0x9a8bc3b04b7f3d87cfc09ba407dced575f2d61d8": {
+  "symbol": "MCWETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/52258/thumb/eth_coingecko.png?1732848464",
+  "assetGroup": "MEV Capital wETH::MCWETH"
+ },
+ "1:0x9d39a5de30e57443bff2a8307a4256c8797a3497": {
+  "symbol": "sUSDe",
+  "logoURI": "https://token-list.mantle.xyz/data/SUSDE/logo.svg",
+  "assetGroup": "SUSDE"
+ },
+ "1:0x9f4330700a36b29952869fac9b33f45eedd8a3d8": {
+  "symbol": "yBOLD",
+  "logoURI": null,
+  "assetGroup": "Yearn BOLD::yBOLD"
+ },
+ "1:0x9fb7b4477576fe5b32be4c1843afb1e55f251b33": {
+  "symbol": "FUSDC",
+  "logoURI": "https://assets.coingecko.com/coins/images/38030/thumb/fUSDC.png?1716322637",
+  "assetGroup": "Fluid USD Coin::FUSDC"
+ },
+ "1:0xa0804346780b4c2e3be118ac957d1db82f9d7484": {
+  "symbol": "bbqUSDT",
+  "logoURI": null,
+  "assetGroup": "Smokehouse USDT::bbqUSDT"
+ },
+ "1:0xa1290d69c65a6fe4df752f95823fae25cb99e5a7": {
+  "symbol": "rsETH",
+  "logoURI": "https://raw.githubusercontent.com/traderjoe-xyz/joe-tokenlists/main/logos/berachain/0x4186BFC76E2E237523CBC30FD220FE055156b41F/logo.png",
+  "assetGroup": "RSETH"
+ },
+ "1:0xa2e3356610840701bdf5611a53974510ae27e2e1": {
+  "symbol": "WBETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/30061/thumb/wbeth-icon.png?1696528983",
+  "assetGroup": "Wrapped Binance Beacon ETH::wBETH"
+ },
+ "1:0xa32877eee252d78d5e4fa00285d4cc2066d15bac": {
+  "symbol": "PT-SY pufETH-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/e5312f11-9354-4e1f-89b3-01a85b070776.png",
+  "assetGroup": "PT pufETH (ETH) Ethereum::PT-SY pufETH-26NOV2026"
+ },
+ "1:0xa35b1b31ce002fbf2058d22f30f95d405200a15b": {
+  "symbol": "ETHx",
+  "logoURI": "https://assets.coingecko.com/coins/images/30870/thumb/staderx.png?1696529717",
+  "assetGroup": "Stader ETHx::ETHx"
+ },
+ "1:0xa3931d71877c0e7a3148cb7eb4463524fec27fbd": {
+  "symbol": "SUSDS",
+  "logoURI": "https://assets.coingecko.com/coins/images/52721/thumb/sUSDS_Coin.png?1734086971",
+  "assetGroup": "sUSDS::SUSDS"
+ },
+ "1:0xa4b3a2eec53863fe2c9ab0041d480cf964942e84": {
+  "symbol": "PT-USDx-3DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/c6288164-ac79-49c9-90c7-20a01b09addc.svg",
+  "assetGroup": "PT USDx (USDx) Ethereum::PT-USDx-3DEC2026"
+ },
+ "1:0xa663b02cf0a4b149d2ad41910cb81e23e1c41c32": {
+  "symbol": "SFRAX",
+  "logoURI": "https://assets.coingecko.com/coins/images/35383/thumb/sfrax.png?1708445569",
+  "assetGroup": "Staked FRAX::SFRAX"
+ },
+ "1:0xa808bc9775cb41c52c7842f8b50427fe7a770326": {
+  "symbol": "STHUSD",
+  "logoURI": "https://assets.coingecko.com/coins/images/102172894/thumb/sthUSD_Logo.png?1776441288",
+  "assetGroup": "Staked thUSD::STHUSD"
+ },
+ "1:0xa8b607aa09b6a2e306f93e74c282fb13f6a80452": {
+  "symbol": "vaUSDC",
+  "logoURI": null,
+  "assetGroup": "vaUSDC Pool::vaUSDC"
+ },
+ "1:0xac3e018457b222d93114458476f3e3416abbe38f": {
+  "symbol": "sfrxETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/28285/thumb/sfrxETH_icon.png?1696527285",
+  "assetGroup": "SFRXETH"
+ },
+ "1:0xad55aebc9b8c03fc43cd9f62260391c13c23e7c0": {
+  "symbol": "CUSDO",
+  "logoURI": "https://assets.coingecko.com/coins/images/53751/thumb/cUSDO_logo_white.png?1737182014",
+  "assetGroup": "Compounding Open Dollar::CUSDO"
+ },
+ "1:0xae78736cd615f374d3085123a210448e74fc6393": {
+  "symbol": "rETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/20764/large/reth.png?1637652366",
+  "assetGroup": "RETH"
+ },
+ "1:0xaf687b5ecb525ccea96115088999b4ed80c388b6": {
+  "symbol": "PT-apxUSD-5NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/4123eee9-55d1-4ad3-abed-5c5e19cd0d1e.svg",
+  "assetGroup": "PT apxUSD (apxUSD) Ethereum::PT-apxUSD-5NOV2026"
+ },
+ "1:0xb0f05e4de970a1aaf77f8c2f823953a367504ba9": {
+  "symbol": "fUSDC",
+  "logoURI": "https://cdn.morpho.org/assets/logos/fusdc.svg",
+  "assetGroup": "Falcon USDC Core::fUSDC"
+ },
+ "1:0xb195b618ea52b77cb2a58846f452f59f8dfa9390": {
+  "symbol": "PT-sUSDE-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/6f77480b-c00e-444d-8065-1f3858b4399d.svg",
+  "assetGroup": "PT sUSDe (USDe) Ethereum::PT-sUSDE-26NOV2026"
+ },
+ "1:0xb253eff1104802b97ac7e3ac9fdd73aece295a2c": {
+  "symbol": "PT-stETH-30DEC2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/9054b0e3-226a-47d7-b964-9cbff099ac42.svg",
+  "assetGroup": "PT wstETH (stETH) Ethereum::PT-stETH-30DEC2027"
+ },
+ "1:0xb45ad160634c528cc3d2926d9807104fa3157305": {
+  "symbol": "SDOLA",
+  "logoURI": "https://assets.coingecko.com/coins/images/35495/thumb/sDOLAlogoFINAL.png?1708922289",
+  "assetGroup": "sDOLA::SDOLA"
+ },
+ "1:0xb5be35d8ff83d431899b95851cb17a2b4bcef150": {
+  "symbol": "PT-apyUSD-5NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/00fd8af5-c5de-4d03-8112-b231c7fc4cc1.svg",
+  "assetGroup": "PT apyUSD (apxUSD) Ethereum::PT-apyUSD-5NOV2026"
+ },
+ "1:0xba96292ee7673e3b546cc90db6d97111cd9a314f": {
+  "symbol": "PT-USDat-14JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/7bf2172c-182d-45e0-a754-44dfd5f165d6.svg",
+  "assetGroup": "PT USDat (USDat) Ethereum::PT-USDat-14JAN2027"
+ },
+ "1:0xbc65ad17c5c0a2a4d159fa5a503f4992c7b545fe": {
+  "symbol": "SUSDC",
+  "logoURI": "https://assets.coingecko.com/coins/images/102173690/thumb/spUSDC_%281%29.png?1781003574",
+  "assetGroup": "Spark USDC Vault::sUSDC"
+ },
+ "1:0xbe53a109b494e5c9f97b9cd39fe969be68bf6204": {
+  "symbol": "yvUSDC-1",
+  "logoURI": "https://cdn.morpho.org/assets/logos/yvusdc-1.svg",
+  "assetGroup": "USDC-1 yVault::yvUSDC-1"
+ },
+ "1:0xbe9895146f7af43049ca1c1ae358b0541ea49704": {
+  "symbol": "cbETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/27008/large/cbeth.png",
+  "assetGroup": "CBETH"
+ },
+ "1:0xbeef01735c132ada46aa9aa4c54623caa92a64cb": {
+  "symbol": "STEAKUSDC",
+  "logoURI": "https://assets.coingecko.com/coins/images/51473/thumb/steakUSDC.png?1731396462",
+  "assetGroup": "Steakhouse USDC Morpho Vault::STEAKUSDC"
+ },
+ "1:0xbeef047a543e45807105e51a8bbefcc5950fcfba": {
+  "symbol": "STEAKUSDT",
+  "logoURI": "https://assets.coingecko.com/coins/images/52408/thumb/steak-usdt.png?1733304323",
+  "assetGroup": "Steakhouse USDT Morpho Vault::STEAKUSDT"
+ },
+ "1:0xbeef050ecd6a16c4e7bffbb52ebba7846c4b8cd4": {
+  "symbol": "STEAKETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/51382/thumb/ethereum.png?1730966831",
+  "assetGroup": "Steakhouse ETH Morpho Vault::STEAKETH"
+ },
+ "1:0xbeefff209270748ddd194831b3fa287a5386f5bc": {
+  "symbol": "bbqUSDC",
+  "logoURI": null,
+  "assetGroup": "Smokehouse USDC::bbqUSDC"
+ },
+ "1:0xbf5495efe5db9ce00f80364c8b423567e58d2110": {
+  "symbol": "ezETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/34753/thumb/Ezeth_logo_circle.png?1713496404",
+  "assetGroup": "EZETH"
+ },
+ "1:0xc56413869c6cdf96496f2b1ef801fedbdfa7ddb0": {
+  "symbol": "yvWETH-1",
+  "logoURI": "https://cdn.morpho.org/assets/logos/yvweth-1.svg",
+  "assetGroup": "WETH-1 yVault::yvWETH-1"
+ },
+ "1:0xc58d044404d8b14e953c115e67823784dea53d8f": {
+  "symbol": "jrUSDe",
+  "logoURI": "https://cdn.morpho.org/assets/logos/jrusde.svg",
+  "assetGroup": "Strata Junior USDe::jrUSDe"
+ },
+ "1:0xc5d6a7b61d18afa11435a889557b068bb9f29930": {
+  "symbol": "sUSDD",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0xc5d6a7b61d18afa11435a889557b068bb9f29930.png",
+  "assetGroup": "Savings Usdd::sUSDD"
+ },
+ "1:0xc824a08db624942c5e5f330d56530cd1598859fd": {
+  "symbol": "HGETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/52281/thumb/hgETH.png?1732897068",
+  "assetGroup": "High Growth ETH::HGETH"
+ },
+ "1:0xc83f11814428b91b7f176ba927c57043e89786cb": {
+  "symbol": "PT-USP-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/f8f61306-f40f-466b-a28e-de378e4d5db9.svg",
+  "assetGroup": "PT USP (USDC) Ethereum::PT-USP-26NOV2026"
+ },
+ "1:0xc8cf6d7991f15525488b2a83df53468d682ba4b0": {
+  "symbol": "sUSDf",
+  "logoURI": "https://cdn.morpho.org/assets/logos/susdf.svg",
+  "assetGroup": "Staked Falcon USD::sUSDf"
+ },
+ "1:0xca7c607c590ad16007ccbbba9d26f4df656a36c2": {
+  "symbol": "vamsETH",
+  "logoURI": null,
+  "assetGroup": "vamsETH Pool::vamsETH"
+ },
+ "1:0xcced21d609cac4a272d0c01a8ff4de9cebc40d60": {
+  "symbol": "SRMM1-USD",
+  "logoURI": "https://assets.coingecko.com/coins/images/102172870/thumb/strata_srmm1-usd.jpg?1776354325",
+  "assetGroup": "Strata Senior mM1-USD::SRMM1-USD"
+ },
+ "1:0xcd5fe23c85820f7b72d0926fc9b05b43e359b7ee": {
+  "symbol": "weETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/33033/thumb/weETH.png?1701438396",
+  "assetGroup": "WEETH"
+ },
+ "1:0xcdfb58c8c859cb3f62ebe9cf2767f9e036c7fb15": {
+  "symbol": "BFBTC",
+  "logoURI": "https://assets.coingecko.com/coins/images/69326/thumb/bfBTC-logo-symbol-color.png?1758193458",
+  "assetGroup": "BitFi Bitcoin::BFBTC"
+ },
+ "1:0xcea2daf93617b97504e05affc5bcf9b3922d3034": {
+  "symbol": "SolvBTC+",
+  "logoURI": null,
+  "assetGroup": "SOLVBTCPLUS"
+ },
+ "1:0xcf62f905562626cfcdd2261162a51fd02fc9c5b6": {
+  "symbol": "sfrxUSD",
+  "logoURI": "https://assets.coingecko.com/coins/images/53964/thumb/sfrxUSD.png?1737792232",
+  "assetGroup": "Staked Frax USD::sfrxUSD"
+ },
+ "1:0xd11c452fc99cf405034ee446803b6f6c1f6d5ed8": {
+  "symbol": "TETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/40155/thumb/tETH_logo_2_%281%29.png?1726079209",
+  "assetGroup": "Treehouse ETH::TETH"
+ },
+ "1:0xd166337499e176bbc38a1fbd113ab144e5bd2df7": {
+  "symbol": "SUSDAT",
+  "logoURI": "https://assets.coingecko.com/coins/images/102172722/thumb/susdat.png?1775048870",
+  "assetGroup": "Saturn sUSDat::SUSDAT"
+ },
+ "1:0xd1c117319b3595fbc39b471ab1fd485629eb05f2": {
+  "symbol": "vaETH",
+  "logoURI": null,
+  "assetGroup": "vaETH Pool::vaETH"
+ },
+ "1:0xd3fd63209fa2d55b07a0f6db36c2f43900be3094": {
+  "symbol": "WSRUSD",
+  "logoURI": "https://assets.coingecko.com/coins/images/66163/thumb/wsrUSD.png?1748500965",
+  "assetGroup": "Wrapped Savings rUSD::WSRUSD"
+ },
+ "1:0xd4e6ea03d2e8bfeb5fa5c03ae9352514b1829218": {
+  "symbol": "PT-superUSDC-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/24156245-f118-4da6-bc8a-a2002ca2c129.svg",
+  "assetGroup": "PT superUSDC (USDC) Ethereum::PT-superUSDC-26NOV2026"
+ },
+ "1:0xd5f7838f5c461feff7fe49ea5ebaf7728bb0adfa": {
+  "symbol": "mETH",
+  "logoURI": "https://token-list.mantle.xyz/data/mETH/logo.svg",
+  "assetGroup": "METH"
+ },
+ "1:0xd63070114470f685b75b74d60eec7c1113d33a3d": {
+  "symbol": "USUALUSDC+",
+  "logoURI": "https://assets.coingecko.com/coins/images/51339/thumb/usdc.png?1730814974",
+  "assetGroup": "MEV Capital Usual Boosted USDC Morpho V::USUALUSDC+"
+ },
+ "1:0xd70be760f0bc3009db4563fe0b9eee54883adb50": {
+  "symbol": "PT-ROY-JT-apyUSD-5NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/faae8379-09e8-49ad-9969-068788796fab.svg",
+  "assetGroup": "PT jrRoyAPYUSD (jrRoyAPYUSD) Ethereum::PT-ROY-JT-apyUSD-5NOV2026"
+ },
+ "1:0xd9a442856c234a39a81a089c06451ebaa4306a72": {
+  "symbol": "PUFETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/35176/thumb/pufETH-200-200-resolution.png?1707753174",
+  "assetGroup": "PUFETH"
+ },
+ "1:0xd9d920aa40f578ab794426f5c90f6c731d159def": {
+  "symbol": "xSolvBTC",
+  "logoURI": "https://raw.githubusercontent.com/1delta-DAO/asset-icons/main/xSolvBTC.webp",
+  "assetGroup": "XSOLVBTC"
+ },
+ "1:0xd9fa32c4a0d9d58d1e75e8159b9c4b1c545143d8": {
+  "symbol": "PT-mAPOLLO-18MAR2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/db7ee65f-64c0-4051-8480-0bf4fa62dde9.svg",
+  "assetGroup": "PT mAPOLLO (USDC) Ethereum::PT-mAPOLLO-18MAR2027"
+ },
+ "1:0xda06ee2dacf9245aa80072a4407debdea0d7e341": {
+  "symbol": "savETH",
+  "logoURI": "https://cdn.morpho.org/assets/logos/saveth.svg",
+  "assetGroup": "Staked avETH::savETH"
+ },
+ "1:0xdae854d0896ad2fee335689a3f7b4a95fd1a3e46": {
+  "symbol": "GAMIUSDC",
+  "logoURI": "https://assets.coingecko.com/coins/images/102173360/thumb/PFP2-circle.png?1779204741",
+  "assetGroup": "Gami USDC::GAMIUSDC"
+ },
+ "1:0xdbdc1ef57537e34680b898e1febd3d68c7389bcb": {
+  "symbol": "siUSD",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0xdbdc1ef57537e34680b898e1febd3d68c7389bcb.png",
+  "assetGroup": "Staked infiniFi USD::siUSD"
+ },
+ "1:0xdc169abe56461a2e0c034da431ac2a3ebf596094": {
+  "symbol": "PT-sUSDS-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/3226daff-03a2-4078-af4e-28a72ef5b252.svg",
+  "assetGroup": "PT sUSDS (USDS) Ethereum::PT-sUSDS-26NOV2026"
+ },
+ "1:0xdc5c65c0ca7948fb3013f5ab9435bba02a2ac4e8": {
+  "symbol": "PT-tmvUSDC-29OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/1c23613b-b651-4558-90f9-9e87689002d0.svg",
+  "assetGroup": "PT tmvUSDC (USDC) Ethereum::PT-tmvUSDC-29OCT2026"
+ },
+ "1:0xdcd0f5ab30856f28385f641580bbd85f88349124": {
+  "symbol": "alUSD",
+  "logoURI": "https://cdn.morpho.org/assets/logos/alusd.svg",
+  "assetGroup": "Autonomous Liquidity USD::alUSD"
+ },
+ "1:0xdd0f28e19c1780eb6396170735d45153d261490d": {
+  "symbol": "GTUSDC",
+  "logoURI": "https://assets.coingecko.com/coins/images/51338/thumb/usdc.png?1730814917",
+  "assetGroup": "Gauntlet USDC Prime Morpho Vault::GTUSDC"
+ },
+ "1:0xddc0f880ff6e4e22e4b74632fbb43ce4df6ccc5a": {
+  "symbol": "REUSDE",
+  "logoURI": "https://assets.coingecko.com/coins/images/55173/thumb/re_token_logo_200.png?1744785893",
+  "assetGroup": "Re Protocol reUSDe::REUSDE"
  },
  "1:0xde5d4ab42251ba9af6f247cf07c9a4793fa6ed88": {
   "symbol": "hbfUSD",
-  "logoURI": null
+  "logoURI": null,
+  "assetGroup": "Horizon bfUSD::hbfUSD"
  },
- "8453:0xbeef010f9cb27031ad51e3333f9af9c6b1228183": {
-  "symbol": "STEAKUSDC",
-  "logoURI": "https://assets.coingecko.com/coins/images/52414/thumb/steak-usdc-flushed.png?1733305792"
+ "1:0xded720ef5558a1607c4fe39299cd2a95e88a0b4b": {
+  "symbol": "PT-STAK(yn-RWA/USD)-2026/10/15",
+  "logoURI": "https://tokens.spectra.finance/images/tokens/1/0xd1573de52fff44dd92d275e20fdab0296ccff141.svg",
+  "assetGroup": "Principal Token: STAK(yn-RWA/USD) 2026/10/15 Ethereum::PT-STAK(yn-RWA/USD)-2026/10/15"
  },
- "8453:0x623f2774d9f27b59bc6b954544487532ce79d9df": {
-  "symbol": "BFBTC",
-  "logoURI": "https://assets.coingecko.com/coins/images/69326/thumb/bfBTC-logo-symbol-color.png?1758193458"
+ "1:0xdf45b8322ea4ce898331602e2d1f3d1a67ae0ee8": {
+  "symbol": "nLCRD",
+  "logoURI": "https://assets.coingecko.com/coins/images/102172627/thumb/nLCRD-token.png?1774372939",
+  "assetGroup": "Nest Liquid Credit Vault::nLCRD"
  },
- "8453:0xbeefe94c8ad530842bfe7d8b397938ffc1cb83b2": {
-  "symbol": "steakUSDC",
-  "logoURI": "https://cdn.morpho.org/assets/logos/steakusdc.svg"
+ "1:0xe1b4d34e8754600962cd944b535180bd758e6c2e": {
+  "symbol": "AGETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/39677/thumb/Icon___Dark.png?1723610897",
+  "assetGroup": "Kelp Gain::AGETH"
  },
- "8453:0x3a43aec53490cb9fa922847385d82fe25d0e9de7": {
-  "symbol": "YOETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/54932/thumb/yoETH.png?1742627957"
+ "1:0xe2dbd6bafcd6b1da90483108f0f437addf7bd885": {
+  "symbol": "PT-sUSG-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/58b9d893-4064-4799-ad65-b7a2a5c1694e.svg",
+  "assetGroup": "PT sUSG (USG) Ethereum::PT-sUSG-26NOV2026"
  },
- "8453:0x913ece180df83a2b81a4976f83ca88543a0c51b8": {
-  "symbol": "vamsETH",
-  "logoURI": null
+ "1:0xe2e7a17dff93280dec073c995595155283e3c372": {
+  "symbol": "SPUSDT",
+  "logoURI": "https://assets.coingecko.com/coins/images/102173692/thumb/spUSDT.png?1781003596",
+  "assetGroup": "Spark Savings USDT::SPUSDT"
  },
- "8453:0xa0e430870c4604ccfc7b38ca7845b1ff653d0ff1": {
-  "symbol": "MWETH",
-  "logoURI": "https://assets.coingecko.com/coins/images/52387/thumb/ethereum-eth-logo.png?1733265577"
+ "1:0xe3cdf5b8d7aedfc9f768dbdcc334146fae989188": {
+  "symbol": "PT-siUSD-22OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/4b010b4f-d77a-4386-ae32-cd22b30a8bb8.svg",
+  "assetGroup": "PT siUSD (iUSD) Ethereum::PT-siUSD-22OCT2026"
  },
- "8453:0xc1256ae5ff1cf2719d4937adb3bbccab2e00a2ca": {
-  "symbol": "MWUSDC",
-  "logoURI": "https://assets.coingecko.com/coins/images/52375/thumb/usd-coin-usdc-logo.png?1733253278"
+ "1:0xe5f130253ff137f9917c0107659a4c5262abf6b0": {
+  "symbol": "svZCHF",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0xe5f130253ff137f9917c0107659a4c5262abf6b0.png",
+  "assetGroup": "SavingsVault ZCHF::svZCHF"
  },
- "8453:0x543257ef2161176d7c8cd90ba65c2d4caef5a796": {
-  "symbol": "mwcbBTC",
-  "logoURI": null
+ "1:0xe72fe64840f4ef80e3ec73a1c749491b5c938cb9": {
+  "symbol": "nTBILL",
+  "logoURI": "https://assets.coingecko.com/coins/images/55513/thumb/nTBILL-token.png?1746437745",
+  "assetGroup": "Nest Treasuries Vault::nTBILL"
  },
- "8453:0xf24608e0ccb972b0b0f4a6446a0bbf58c701a026": {
-  "symbol": "MWEURC",
-  "logoURI": "https://assets.coingecko.com/coins/images/52386/thumb/Untitled_design_%281%29.png?1733265573"
+ "1:0xe95a203b1a91a908f9b9ce46459d101078c2c3cb": {
+  "symbol": "ANKRETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/13403/large/aETHc.png?1625756490",
+  "assetGroup": "ANKRETH"
  },
- "8453:0x1d3b1cd0a0f242d598834b3f2d126dc6bd774657": {
-  "symbol": "COUSDC",
-  "logoURI": "https://assets.coingecko.com/coins/images/55135/thumb/USDC_LOGO.png?1744007880"
+ "1:0xeb205d26e9e605ec82d1c0d652e00037c278714b": {
+  "symbol": "JRMHYPER",
+  "logoURI": "https://assets.coingecko.com/coins/images/102172867/thumb/strata_jrmhyper.jpg?1776353288",
+  "assetGroup": "Strata Junior mHYPER::JRMHYPER"
  },
- "8453:0x616a4e1db48e22028f6bbf20444cd3b8e3273738": {
-  "symbol": "smUSDC",
-  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x616a4e1db48e22028f6bbf20444cd3b8e3273738.png"
+ "1:0xeccde3a92f8ad4884a2613d9ef1556103c26728f": {
+  "symbol": "PT-WOUSD-17DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/263d7afb-ef4b-4c08-916b-c7b7060ebb6e.svg",
+  "assetGroup": "PT WOUSD (OUSD) Ethereum::PT-WOUSD-17DEC2026"
  },
- "8453:0x6b13c060f13af1fdb319f52315bbbf3fb1d88844": {
-  "symbol": "gtWETHc",
-  "logoURI": null
+ "1:0xecfafdc7741323a945a163ed068b5a3c43483957": {
+  "symbol": "PT-reUSD-10DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/359682d7-49a8-43d0-8799-1be18bea116a.svg",
+  "assetGroup": "PT reUSD (USDC) Ethereum::PT-reUSD-10DEC2026"
  },
- "8453:0x7d214438d0f27afccc23b3d1e1a53906ace5cfea": {
-  "symbol": "REUSD",
-  "logoURI": "https://assets.coingecko.com/coins/images/66291/thumb/re_blue.png?1749110516"
+ "1:0xf03a7eb46d01d9ecaa104558c732cf82f6b6b645": {
+  "symbol": "MaticX",
+  "logoURI": "https://assets.coingecko.com/coins/images/25383/thumb/maticx.png?1696524516",
+  "assetGroup": "MATICX"
  },
- "8453:0x82562507429876486b60af4f32390ef0947b3d13": {
-  "symbol": "vaETH",
-  "logoURI": null
+ "1:0xf1c9acdc66974dfb6decb12aa385b9cd01190e38": {
+  "symbol": "osETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/33117/thumb/Frame_27513839.png?1700732599",
+  "assetGroup": "OSETH"
  },
- "8453:0x0022228a2cc5e7ef0274a7baa600d44da5ab5776": {
-  "symbol": "stUSD",
-  "logoURI": "https://cdn.morpho.org/assets/logos/stusd.svg"
+ "1:0xf469fbd2abcd6b9de8e169d128226c0fc90a012e": {
+  "symbol": "pumpBTC",
+  "logoURI": "https://assets.coingecko.com/coins/images/39232/thumb/200pxPumpBTCLogo.png?1721227861",
+  "assetGroup": "PUMPBTC"
  },
- "42161:0x940098b108fb7d0a7e374f6eded7760787464609": {
-  "symbol": "sUSDC",
-  "logoURI": "https://cdn.morpho.org/assets/logos/susdc.svg"
+ "1:0xf4c91f24e20ee8ed5eda905e501a1136334c2f27": {
+  "symbol": "JRPRIME",
+  "logoURI": "https://assets.coingecko.com/coins/images/102176938/thumb/jr200.jpg?1789036670",
+  "assetGroup": "Strata Junior PRIME::JRPRIME"
  },
- "42161:0xc9d24ad0bb25f34098e226a8c5192dea7bacccae": {
-  "symbol": "PT-USDai-15OCT2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/384a02f0-fc7e-4ba1-aad4-b1adaefcbd80.svg"
+ "1:0xf689555121e529ff0463e191f9bd9d1e496164a7": {
+  "symbol": "sUSD3",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/c3a0224f-aaf6-4039-9ebc-cf390d92507e.svg",
+  "assetGroup": "3Jane Staked USD3::sUSD3"
  },
- "42161:0xb459db106f645d698e74027eef6019a26a0675cc": {
-  "symbol": "PT-sUSDai-15OCT2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/21f9ad48-e8fc-4cdb-9a2a-b289320e005a.svg"
+ "1:0xf7eb8dfec75c42d2d2247fe76ccaedc59f821688": {
+  "symbol": "JRMM1-USD",
+  "logoURI": "https://assets.coingecko.com/coins/images/102172871/thumb/strata_jrmm1-usd.jpg?1776354463",
+  "assetGroup": "Strata Junior mM1-USD::JRMM1-USD"
  },
- "42161:0x47c031236e19d024b42f8ae6780e44a573170703": {
-  "symbol": "GM [WBTC-USDC]",
-  "logoURI": "https://arbiscan.io/token/images/gmv2market.svg"
+ "1:0xfaa9a0e1db9e22ae3a20b2b58a68dc24d053d066": {
+  "symbol": "SRUSDAT",
+  "logoURI": "https://assets.coingecko.com/coins/images/102174721/thumb/srUSDat.png?1784688847",
+  "assetGroup": "Strata Senior USDat::SRUSDAT"
  },
- "42161:0x70d95587d40a2caf56bd97485ab3eec10bee6336": {
-  "symbol": "GM [WETH-USDC]",
-  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg"
+ "1:0xfae103dc9cf190ed75350761e95403b7b8afa6c0": {
+  "symbol": "RSWETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/34489/thumb/rswETH_Icon.png?1706865484",
+  "assetGroup": "Restaked Swell ETH::RSWETH"
  },
- "42161:0x450bb6774dd8a756274e0ab4107953259d2ac541": {
-  "symbol": "GM [WETH-WETH]",
-  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg"
- },
- "42161:0x528a5bac7e746c9a509a1f4f6df58a03d44279f9": {
-  "symbol": "GLV [WETH-USDC]",
-  "logoURI": "https://arbiscan.io/token/images/glvv2market.svg"
- },
- "42161:0xdf03eed325b82bc1d4db8b49c30ecc9e05104b96": {
-  "symbol": "GLV [WBTC-USDC]",
-  "logoURI": "https://arbiscan.io/token/images/glvv2market.svg"
- },
- "42161:0x7c11f78ce78768518d743e81fdfa2f860c6b9a77": {
-  "symbol": "GM [WBTC-WBTC]",
-  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg"
- },
- "42161:0xe9d07c2a3588b9a25edd55664be44ecfe5f92fce": {
-  "symbol": "PT-sUSDai-25FEB2027",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/21f9ad48-e8fc-4cdb-9a2a-b289320e005a.svg"
- },
- "42161:0x09400d9db990d5ed3f35d7be61dfaeb900af03c9": {
-  "symbol": "GM [SOL-USDC]",
-  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg"
- },
- "42161:0x7f1fa204bb700853d36994da19f830b6ad18455c": {
-  "symbol": "GM [LINK-USDC]",
-  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg"
- },
- "42161:0x6853ea96ff216fab11d2d930ce3c508556a4bdc4": {
-  "symbol": "GM DOGE/USD [WETH-USDC]",
-  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg"
- },
- "42161:0xc7abb2c5f3bf3ceb389df0eecd6120d451170b50": {
-  "symbol": "GM [UNI-USDC]",
-  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg"
- },
- "42161:0x76ce01f0ef25aa66cc5f1e546a005e4a63b25609": {
-  "symbol": "REUSD",
-  "logoURI": "https://assets.coingecko.com/coins/images/66291/thumb/re_blue.png?1749110516"
- },
- "42161:0xc25cef6061cf5de5eb761b50e4743c1f5d7e5407": {
-  "symbol": "GM [ARB-USDC]",
-  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg"
+ "1:0xfe6eb3b609a7c8352a241f7f3a21cea4e9209b8f": {
+  "symbol": "SPETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/102173689/thumb/spETH.png?1781003406",
+  "assetGroup": "Spark Savings ETH::SPETH"
  },
  "42161:0x0022228a2cc5e7ef0274a7baa600d44da5ab5776": {
   "symbol": "stUSD",
-  "logoURI": "https://raw.githubusercontent.com/AngleProtocol/angle-token-list/main/src/assets/tokens/stUSD.svg"
+  "logoURI": "https://raw.githubusercontent.com/AngleProtocol/angle-token-list/main/src/assets/tokens/stUSD.svg",
+  "assetGroup": "Angle Staked USDA::stUSD"
  },
- "56:0xb0b84d294e0c75a6abe60171b70edeb2efd14a1b": {
-  "symbol": "slisBNB",
-  "logoURI": "https://tokens.pancakeswap.finance/images/0xB0b84D294e0C75A6abe60171b70edEb2EFd14A1B.png"
+ "42161:0x09400d9db990d5ed3f35d7be61dfaeb900af03c9": {
+  "symbol": "GM [SOL-USDC]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market SOL/USD::GM [SOL-USDC]"
  },
- "56:0xa2e3356610840701bdf5611a53974510ae27e2e1": {
-  "symbol": "wBETH",
-  "logoURI": "https://tokens.pancakeswap.finance/images/0xa2E3356610840701BDf5611a53974510Ae27E2e1.png"
+ "42161:0x1cbba6346f110c8a5ea739ef2d1eb182990e4eb2": {
+  "symbol": "GM [AAVE-USDC]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market AAVE/USD::GM [AAVE-USDC]"
+ },
+ "42161:0x450bb6774dd8a756274e0ab4107953259d2ac541": {
+  "symbol": "GM [WETH-WETH]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market ETH/USD::GM [WETH-WETH]"
+ },
+ "42161:0x45df0656f8adf017590009d2f1898eeca4f0a205": {
+  "symbol": "fWETH",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x45df0656f8adf017590009d2f1898eeca4f0a205.png",
+  "assetGroup": "Fluid Wrapped Ether::fWETH"
+ },
+ "42161:0x47c031236e19d024b42f8ae6780e44a573170703": {
+  "symbol": "GM [WBTC-USDC]",
+  "logoURI": "https://arbiscan.io/token/images/gmv2market.svg",
+  "assetGroup": "GMX Market BTC/USD::GM [WBTC-USDC]"
+ },
+ "42161:0x528a5bac7e746c9a509a1f4f6df58a03d44279f9": {
+  "symbol": "GLV [WETH-USDC]",
+  "logoURI": "https://arbiscan.io/token/images/glvv2market.svg",
+  "assetGroup": "GMX Liquidity Vault [WETH-USDC]::GLV [WETH-USDC]"
+ },
+ "42161:0x55391d178ce46e7ac8eaaea50a72d1a5a8a622da": {
+  "symbol": "GM [GMX-USDC]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market GMX/USD::GM [GMX-USDC]"
+ },
+ "42161:0x6853ea96ff216fab11d2d930ce3c508556a4bdc4": {
+  "symbol": "GM DOGE/USD [WETH-USDC]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market DOGE/USD::GM DOGE/USD [WETH-USDC]"
+ },
+ "42161:0x70d95587d40a2caf56bd97485ab3eec10bee6336": {
+  "symbol": "GM [WETH-USDC]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market ETH/USD::GM [WETH-USDC]"
+ },
+ "42161:0x76ce01f0ef25aa66cc5f1e546a005e4a63b25609": {
+  "symbol": "REUSD",
+  "logoURI": "https://assets.coingecko.com/coins/images/66291/thumb/re_blue.png?1749110516",
+  "assetGroup": "Re Protocol reUSD::REUSD"
+ },
+ "42161:0x784292e87715d93afd7cb8c941bacafaaa9a5102": {
+  "symbol": "GM [PENDLE-USDC]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market PENDLE/USD::GM [PENDLE-USDC]"
+ },
+ "42161:0x7c11f78ce78768518d743e81fdfa2f860c6b9a77": {
+  "symbol": "GM [WBTC-WBTC]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market BTC/USD::GM [WBTC-WBTC]"
+ },
+ "42161:0x7f1fa204bb700853d36994da19f830b6ad18455c": {
+  "symbol": "GM [LINK-USDC]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market LINK/USD::GM [LINK-USDC]"
+ },
+ "42161:0x940098b108fb7d0a7e374f6eded7760787464609": {
+  "symbol": "sUSDC",
+  "logoURI": "https://cdn.morpho.org/assets/logos/susdc.svg",
+  "assetGroup": "Spark USDC Vault::sUSDC"
+ },
+ "42161:0xb459db106f645d698e74027eef6019a26a0675cc": {
+  "symbol": "PT-sUSDai-15OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/21f9ad48-e8fc-4cdb-9a2a-b289320e005a.svg",
+  "assetGroup": "PT sUSDai (USDai) Arbitrum::PT-sUSDai-15OCT2026"
+ },
+ "42161:0xbd48149673724f9caee647bb4e9d9ddaf896efeb": {
+  "symbol": "GM [GMX-GMX]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market GMX/USD::GM [GMX-GMX]"
+ },
+ "42161:0xc25cef6061cf5de5eb761b50e4743c1f5d7e5407": {
+  "symbol": "GM [ARB-USDC]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market ARB/USD::GM [ARB-USDC]"
+ },
+ "42161:0xc7abb2c5f3bf3ceb389df0eecd6120d451170b50": {
+  "symbol": "GM [UNI-USDC]",
+  "logoURI": "https://cdn.morpho.org/assets/logos/gm.svg",
+  "assetGroup": "GMX Market UNI/USD::GM [UNI-USDC]"
+ },
+ "42161:0xc9d24ad0bb25f34098e226a8c5192dea7bacccae": {
+  "symbol": "PT-USDai-15OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/384a02f0-fc7e-4ba1-aad4-b1adaefcbd80.svg",
+  "assetGroup": "PT USDai (USDai) Arbitrum::PT-USDai-15OCT2026"
+ },
+ "42161:0xdf03eed325b82bc1d4db8b49c30ecc9e05104b96": {
+  "symbol": "GLV [WBTC-USDC]",
+  "logoURI": "https://arbiscan.io/token/images/glvv2market.svg",
+  "assetGroup": "GMX Liquidity Vault [WBTC-USDC]::GLV [WBTC-USDC]"
+ },
+ "42161:0xe9d07c2a3588b9a25edd55664be44ecfe5f92fce": {
+  "symbol": "PT-sUSDai-25FEB2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/21f9ad48-e8fc-4cdb-9a2a-b289320e005a.svg",
+  "assetGroup": "PT sUSDai (USDai) Arbitrum::PT-sUSDai-25FEB2027"
+ },
+ "42161:0xfaf260b16d3fa1609c74799089ad3cedfcd703fc": {
+  "symbol": "PT-USDai-25FEB2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/384a02f0-fc7e-4ba1-aad4-b1adaefcbd80.svg",
+  "assetGroup": "PT USDai (USDai) Arbitrum::PT-USDai-25FEB2027"
+ },
+ "43114:0x06d47f3fb376649c3a9dafe069b3d6e35572219e": {
+  "symbol": "savUSD",
+  "logoURI": "https://raw.githubusercontent.com/traderjoe-xyz/joe-tokenlists/main/logos/0x06d47F3fb376649c3A9Dafe069B3D6E35572219E/logo.png",
+  "assetGroup": "Staked avUSD::savUSD"
+ },
+ "43114:0x119dd7daff816f29d7ee47596ae5e4bdc4299165": {
+  "symbol": "nOPAL",
+  "logoURI": null,
+  "assetGroup": "Nest BlackOpal LiquidStone II Vault::nOPAL"
+ },
+ "43114:0x14a84f1a61ccd7d1be596a6cc11fe33a36bc1646": {
+  "symbol": "tAVAX",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x14a84f1a61ccd7d1be596a6cc11fe33a36bc1646.png",
+  "assetGroup": "Treehouse AVAX::tAVAX"
+ },
+ "43114:0x180af87b47bf272b2df59dccf2d76a6eafa625bf": {
+  "symbol": "REUSD",
+  "logoURI": "https://assets.coingecko.com/coins/images/66291/thumb/re_blue.png?1749110516",
+  "assetGroup": "Re Protocol reUSD::REUSD"
+ },
+ "43114:0x1f0570a081fee0e4df6eac470f9d2d53cdeda1c5": {
+  "symbol": "USDC",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0xffe8b2295cef70290819a8193834cc7900bcef5f.png",
+  "assetGroup": "Gami USDC::USDC"
+ },
+ "43114:0x2b2c81e08f1af8835a78bb2a90ae924ace0ea4be": {
+  "symbol": "sAVAX",
+  "logoURI": "https://raw.githubusercontent.com/traderjoe-xyz/joe-tokenlists/main/logos/0x2b2C81e08f1Af8835a78Bb2A90AE924ACE0eA4bE/logo.png",
+  "assetGroup": "SAVAX"
+ },
+ "43114:0x649342c6bff544d82df1b2ba3c93e0c22cdeba84": {
+  "symbol": "savBTC",
+  "logoURI": null,
+  "assetGroup": "Staked avBTC::savBTC"
+ },
+ "43114:0x901ee57f7118a7be56ac079cbcda7f22663a3874": {
+  "symbol": "GLV [WAVAX-USDC]",
+  "logoURI": null,
+  "assetGroup": "GMX Liquidity Vault [WAVAX-USDC]::GLV [WAVAX-USDC]"
+ },
+ "43114:0x983c72e157f670c9b4bb69a54567ce5bde7f3fe0": {
+  "symbol": "PT-mevUSDC(USDC)-2027/09/17",
+  "logoURI": "https://tokens.spectra.finance/images/tokens/43114/0x4dc1ce9b9f9ef00c144bfad305f16c62293dc0e8.svg",
+  "assetGroup": "Principal Token: mevUSDC(USDC) 2027/09/17 Avalanche::PT-mevUSDC(USDC)-2027/09/17"
+ },
+ "43114:0xc3344870d52688874b06d844e0c36cc39fc727f6": {
+  "symbol": "ankrAVAX",
+  "logoURI": "https://assets.coingecko.com/coins/images/28695/large/ankrAVAX.png?1673413425",
+  "assetGroup": "ANKRAVAX"
+ },
+ "4663:0xde770c84fe66e063336b31737cfe9790f18c4087": {
+  "symbol": "spUSDG",
+  "logoURI": null,
+  "assetGroup": "Spark Savings USDG::spUSDG"
+ },
+ "5042:0xa6db07ebf438d91aa653746fc05523e435645525": {
+  "symbol": "PST",
+  "logoURI": "https://meta.huma.finance/pst.svg",
+  "assetGroup": "PayFi Strategy Token::PST"
+ },
+ "56:0x476aa4205b4eac187011fd8fa07e53d445f213fc": {
+  "symbol": "PT-USDat-14JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/7bf2172c-182d-45e0-a754-44dfd5f165d6.svg",
+  "assetGroup": "PT USDat (USDat) BNB::PT-USDat-14JAN2027"
+ },
+ "56:0x493bab28fed4b4d87903463da656d2af24babb6e": {
+  "symbol": "PT-clisBNB-29OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/a4ca4445-c946-42b4-9a68-a518d135165f.svg",
+  "assetGroup": "PT slisBNB (BNB) BNB::PT-clisBNB-29OCT2026"
+ },
+ "56:0x4effb6bce5cad64d7162c7f7f15f557221b106d5": {
+  "symbol": "BTWU",
+  "logoURI": null,
+  "assetGroup": "Bitway Core Alpha U::BTWU"
+ },
+ "56:0x52f24a5e03aee338da5fd9df68d2b6fae1178827": {
+  "symbol": "ankrBNB",
+  "logoURI": "https://tokens.pancakeswap.finance/images/0x52F24a5e03aee338Da5fd9Df68D2b6FAe1178827.png",
+  "assetGroup": "Ankr Staked BNB::ankrBNB"
  },
  "56:0x623f2774d9f27b59bc6b954544487532ce79d9df": {
   "symbol": "BFBTC",
-  "logoURI": "https://assets.coingecko.com/coins/images/69326/thumb/bfBTC-logo-symbol-color.png?1758193458"
+  "logoURI": "https://assets.coingecko.com/coins/images/69326/thumb/bfBTC-logo-symbol-color.png?1758193458",
+  "assetGroup": "BitFi Bitcoin::BFBTC"
  },
- "56:0xaa3d2534b4b87a2859e28c223f18265244ffffb7": {
-  "symbol": "bwU",
-  "logoURI": null
+ "56:0x64748ea3e31d0b7916f0ff91b017b9f404ded8ef": {
+  "symbol": "cUSDO",
+  "logoURI": "https://tokens.pancakeswap.finance/images/0x64748ea3E31d0B7916F0fF91b017B9f404DED8eF.png",
+  "assetGroup": "Compounding Open Dollar::CUSDO"
  },
  "56:0x73af543d809c8d3414e5b92b3aa2c25b182ba3a1": {
   "symbol": "BTWUSDT",
-  "logoURI": null
+  "logoURI": null,
+  "assetGroup": "Bitway Core Alpha USDT::BTWUSDT"
+ },
+ "56:0x82356c921422a2202e0f96dfccc352598ca8ef71": {
+  "symbol": "bwBTW",
+  "logoURI": null,
+  "assetGroup": "Bitway Absolute Return BTW::bwBTW"
  },
  "56:0x8ba9da757d1d66c58b1ae7e2ed6c04087348a82d": {
   "symbol": "sUSDD",
-  "logoURI": "https://tokens.pancakeswap.finance/images/0x8bA9dA757d1D66c58b1ae7e2ED6c04087348A82d.png"
+  "logoURI": "https://tokens.pancakeswap.finance/images/0x8bA9dA757d1D66c58b1ae7e2ED6c04087348A82d.png",
+  "assetGroup": "Savings Usdd::sUSDD"
+ },
+ "56:0xa2e3356610840701bdf5611a53974510ae27e2e1": {
+  "symbol": "wBETH",
+  "logoURI": "https://tokens.pancakeswap.finance/images/0xa2E3356610840701BDf5611a53974510Ae27E2e1.png",
+  "assetGroup": "Wrapped Binance Beacon ETH::wBETH"
+ },
+ "56:0xaa3d2534b4b87a2859e28c223f18265244ffffb7": {
+  "symbol": "bwU",
+  "logoURI": null,
+  "assetGroup": "Bitway Absolute Return U::bwU"
+ },
+ "56:0xb0b84d294e0c75a6abe60171b70edeb2efd14a1b": {
+  "symbol": "slisBNB",
+  "logoURI": "https://tokens.pancakeswap.finance/images/0xB0b84D294e0C75A6abe60171b70edEb2EFd14A1B.png",
+  "assetGroup": "Lista Staked BNB::slisBNB"
  },
  "56:0xb5c3617d4f077851cc6c7fae558d32e9782307f9": {
   "symbol": "BTWUSD1",
   "logoURI": null
  },
+ "56:0xb9e99f830f1ac2a128c58692e89100c3470aae13": {
+  "symbol": "PT-XGLD-17DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/7b1d135c-7e7e-4c5a-bdcb-8f71a349fe32.svg",
+  "assetGroup": "PT XGLD (XAUt) BNB::PT-XGLD-17DEC2026::56::0"
+ },
  "56:0xccafb706225331aedfec75b5347d462b98ed2fd2": {
   "symbol": "bwUSDT",
-  "logoURI": null
+  "logoURI": null,
+  "assetGroup": "Bitway Absolute Return USDT::bwUSDT"
  },
- "56:0x4effb6bce5cad64d7162c7f7f15f557221b106d5": {
-  "symbol": "BTWU",
-  "logoURI": null
+ "56:0xea5ff211ef700dccc521a1e6501c9fe1b95d8ee7": {
+  "symbol": "wNLP-USDT",
+  "logoURI": null,
+  "assetGroup": "Wrapped NLP: USDT::wNLP-USDT"
  },
- "56:0x493bab28fed4b4d87903463da656d2af24babb6e": {
-  "symbol": "PT-clisBNB-29OCT2026",
-  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/a4ca4445-c946-42b4-9a68-a518d135165f.svg"
+ "8453:0x0022228a2cc5e7ef0274a7baa600d44da5ab5776": {
+  "symbol": "stUSD",
+  "logoURI": "https://cdn.morpho.org/assets/logos/stusd.svg",
+  "assetGroup": "Angle Staked USDA::stUSD"
  },
- "56:0x52f24a5e03aee338da5fd9df68d2b6fae1178827": {
-  "symbol": "ankrBNB",
-  "logoURI": "https://tokens.pancakeswap.finance/images/0x52F24a5e03aee338Da5fd9Df68D2b6FAe1178827.png"
+ "8453:0x0112e4d09bc228534eef9d52d5a06d6b94244e8e": {
+  "symbol": "PT-yUTY-17DEC2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/74ff2dde-1030-4cec-9280-bdd1f28ea0e0.svg",
+  "assetGroup": "PT yUTY (UTY) Base::PT-yUTY-17DEC2026"
  },
- "43114:0x2b2c81e08f1af8835a78bb2a90ae924ace0ea4be": {
-  "symbol": "sAVAX",
-  "logoURI": "https://raw.githubusercontent.com/traderjoe-xyz/joe-tokenlists/main/logos/0x2b2C81e08f1Af8835a78Bb2A90AE924ACE0eA4bE/logo.png"
+ "8453:0x1d3b1cd0a0f242d598834b3f2d126dc6bd774657": {
+  "symbol": "COUSDC",
+  "logoURI": "https://assets.coingecko.com/coins/images/55135/thumb/USDC_LOGO.png?1744007880",
+  "assetGroup": "Clearstar OpenEden USDC::COUSDC"
  },
- "43114:0x06d47f3fb376649c3a9dafe069b3d6e35572219e": {
-  "symbol": "savUSD",
-  "logoURI": "https://raw.githubusercontent.com/traderjoe-xyz/joe-tokenlists/main/logos/0x06d47F3fb376649c3A9Dafe069B3D6E35572219E/logo.png"
+ "8453:0x1f37620a0e0660db3cdbb8cdbf62d8099f959925": {
+  "symbol": "FACTOR",
+  "logoURI": null,
+  "assetGroup": "Plume Factor Vault::FACTOR"
  },
- "43114:0x14a84f1a61ccd7d1be596a6cc11fe33a36bc1646": {
-  "symbol": "tAVAX",
-  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x14a84f1a61ccd7d1be596a6cc11fe33a36bc1646.png"
+ "8453:0x3a43aec53490cb9fa922847385d82fe25d0e9de7": {
+  "symbol": "YOETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/54932/thumb/yoETH.png?1742627957",
+  "assetGroup": "Yield Optimizer ETH::YOETH"
  },
- "43114:0x649342c6bff544d82df1b2ba3c93e0c22cdeba84": {
-  "symbol": "savBTC",
-  "logoURI": null
+ "8453:0x45099d137c7a1f5b28bdc4443fdfecd842e1ddee": {
+  "symbol": "PT-apxUSD-5NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/4123eee9-55d1-4ad3-abed-5c5e19cd0d1e.svg",
+  "assetGroup": "PT apxUSD (apxUSD) Base::PT-apxUSD-5NOV2026"
  },
- "43114:0x901ee57f7118a7be56ac079cbcda7f22663a3874": {
-  "symbol": "GLV [WAVAX-USDC]",
-  "logoURI": null
+ "8453:0x5137c0505dde0e7f104ab96b41ebc55fc2057e5d": {
+  "symbol": "PT-sKAITO-28JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/927ad7e1-b4df-4161-8906-9eeea0c6692a.svg",
+  "assetGroup": "PT sKAITO (KAITO) Base::PT-sKAITO-28JAN2027"
+ },
+ "8453:0x543257ef2161176d7c8cd90ba65c2d4caef5a796": {
+  "symbol": "mwcbBTC",
+  "logoURI": null,
+  "assetGroup": "Moonwell Frontier cbBTC::mwcbBTC"
+ },
+ "8453:0x5a47c803488fe2bb0a0eaaf346b420e4df22f3c7": {
+  "symbol": "smcbBTC",
+  "logoURI": "https://cdn.morpho.org/assets/logos/smcbbtc.svg",
+  "assetGroup": "Seamless cbBTC Vault::smcbBTC"
+ },
+ "8453:0x616a4e1db48e22028f6bbf20444cd3b8e3273738": {
+  "symbol": "smUSDC",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x616a4e1db48e22028f6bbf20444cd3b8e3273738.png",
+  "assetGroup": "Seamless USDC Vault::smUSDC"
+ },
+ "8453:0x623f2774d9f27b59bc6b954544487532ce79d9df": {
+  "symbol": "BFBTC",
+  "logoURI": "https://assets.coingecko.com/coins/images/69326/thumb/bfBTC-logo-symbol-color.png?1758193458",
+  "assetGroup": "BitFi Bitcoin::BFBTC"
+ },
+ "8453:0x6b13c060f13af1fdb319f52315bbbf3fb1d88844": {
+  "symbol": "gtWETHc",
+  "logoURI": null,
+  "assetGroup": "Gauntlet WETH Core::gtWETHc"
+ },
+ "8453:0x7d214438d0f27afccc23b3d1e1a53906ace5cfea": {
+  "symbol": "REUSD",
+  "logoURI": "https://assets.coingecko.com/coins/images/66291/thumb/re_blue.png?1749110516",
+  "assetGroup": "Re Protocol reUSD::REUSD"
+ },
+ "8453:0x82562507429876486b60af4f32390ef0947b3d13": {
+  "symbol": "vaETH",
+  "logoURI": null,
+  "assetGroup": "vaETH Pool::vaETH"
+ },
+ "8453:0x913ece180df83a2b81a4976f83ca88543a0c51b8": {
+  "symbol": "vamsETH",
+  "logoURI": null,
+  "assetGroup": "vamsETH Pool::vamsETH"
+ },
+ "8453:0x9272d6153133175175bc276512b2336be3931ce9": {
+  "symbol": "fWETH",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x9272d6153133175175bc276512b2336be3931ce9.png",
+  "assetGroup": "Fluid Wrapped Ether::fWETH"
+ },
+ "8453:0xa0e430870c4604ccfc7b38ca7845b1ff653d0ff1": {
+  "symbol": "MWETH",
+  "logoURI": "https://assets.coingecko.com/coins/images/52387/thumb/ethereum-eth-logo.png?1733265577",
+  "assetGroup": "Moonwell Flagship ETH  Morpho Vault::MWETH"
+ },
+ "8453:0xa1082134966cf170188b81dfb1b65263b8987590": {
+  "symbol": "PT-sjEUR(jEURx)-2026/10/13",
+  "logoURI": "https://tokens.spectra.finance/images/tokens/8453/0x89cc2a57223fa803852b6b4e65c6e376d49909f9.svg",
+  "assetGroup": "Principal Token: sjEUR(jEURx) 2026/10/13 Base::PT-sjEUR(jEURx)-2026/10/13"
+ },
+ "8453:0xbeef010f9cb27031ad51e3333f9af9c6b1228183": {
+  "symbol": "STEAKUSDC",
+  "logoURI": "https://assets.coingecko.com/coins/images/52414/thumb/steak-usdc-flushed.png?1733305792",
+  "assetGroup": "Steakhouse USDC Base Morpho Vault::STEAKUSDC"
+ },
+ "8453:0xbeefe94c8ad530842bfe7d8b397938ffc1cb83b2": {
+  "symbol": "steakUSDC",
+  "logoURI": "https://cdn.morpho.org/assets/logos/steakusdc.svg",
+  "assetGroup": "Steakhouse Prime USDC::steakUSDC"
+ },
+ "8453:0xc1256ae5ff1cf2719d4937adb3bbccab2e00a2ca": {
+  "symbol": "MWUSDC",
+  "logoURI": "https://assets.coingecko.com/coins/images/52375/thumb/usd-coin-usdc-logo.png?1733253278",
+  "assetGroup": "Moonwell Flagship USDC  Morpho Vault::MWUSDC"
+ },
+ "8453:0xf24608e0ccb972b0b0f4a6446a0bbf58c701a026": {
+  "symbol": "MWEURC",
+  "logoURI": "https://assets.coingecko.com/coins/images/52386/thumb/Untitled_design_%281%29.png?1733265573",
+  "assetGroup": "Moonwell Flagship EURC  Morpho Vault::MWEURC"
+ },
+ "9745:0xf7fb83435f455bd970f2d9f943f4eece1941b3e9": {
+  "symbol": "PT-sUSDE-22OCT2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/6f77480b-c00e-444d-8065-1f3858b4399d.svg",
+  "assetGroup": "PT sUSDe (USDe) Plasma::PT-sUSDE-22OCT2026"
+ },
+ "98866:0x066d10e240999aea6798b2e2ca0bdac2923cbdff": {
+  "symbol": "nFALCON",
+  "logoURI": "https://assets.coingecko.com/coins/images/102173601/thumb/nFALCON-round.png?1780411172",
+  "assetGroup": "Nest FalconX CLO::nFALCON"
+ },
+ "98866:0x119dd7daff816f29d7ee47596ae5e4bdc4299165": {
+  "symbol": "nOPAL",
+  "logoURI": "https://assets.coingecko.com/coins/images/70787/thumb/BlackOpal_Vault.png?1763752532",
+  "assetGroup": "Nest BlackOpal LiquidStone II Vault::nOPAL"
+ },
+ "98866:0x593ccca4c4bf58b7526a4c164ceef4003c6388db": {
+  "symbol": "nALPHA",
+  "logoURI": "https://tokens.debridge.finance/Logo/100000024/0x593ccca4c4bf58b7526a4c164ceef4003c6388db/small/token-logo.svg",
+  "assetGroup": "Nest Alpha Vault::nALPHA"
+ },
+ "98866:0x63810d7f1c7b4dbfb60c173ba120a2be98b59e13": {
+  "symbol": "nCLOA",
+  "logoURI": "https://assets.coingecko.com/coins/images/102174050/thumb/nCLOA_Token.png?1782113586",
+  "assetGroup": "Nest BlackRock iShares AAA CLO Active ETF Vault::nCLOA"
+ },
+ "98866:0x7488b23f4c26b44eef2e0766896be47443e86d79": {
+  "symbol": "nAXI",
+  "logoURI": "https://assets.coingecko.com/coins/images/102172731/thumb/nAXI-token.png?1775116403",
+  "assetGroup": "Nest AXI Vault::nAXI"
+ },
+ "98866:0xe72fe64840f4ef80e3ec73a1c749491b5c938cb9": {
+  "symbol": "nTBILL",
+  "logoURI": "https://tokens.debridge.finance/Logo/100000024/0xe72fe64840f4ef80e3ec73a1c749491b5c938cb9/small/token-logo.svg",
+  "assetGroup": "Nest Treasuries Vault::nTBILL"
+ },
+ "999:0x0571362ba5ea9784a97605f57483f865a37dbeaa": {
+  "symbol": "gtuETH",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x0571362ba5ea9784a97605f57483f865a37dbeaa.png",
+  "assetGroup": "Gauntlet uETH Vault::gtuETH"
+ },
+ "999:0x057ced81348d57aad579a672d521d7b4396e8a61": {
+  "symbol": "hbUSDC",
+  "logoURI": "https://app.hyperbeat.org/assets/images/vaults/hbUSDC.svg",
+  "assetGroup": "Hyperbeat USDC::hbUSDC"
+ },
+ "999:0x2900abd73631b2f60747e687095537b673c06a76": {
+  "symbol": "feHYPE",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x2900abd73631b2f60747e687095537b673c06a76.png",
+  "assetGroup": "Felix HYPE::feHYPE"
+ },
+ "999:0x441794d6a8f9a3739f5d4e98a728937b33489d29": {
+  "symbol": "liquidHYPE",
+  "logoURI": "https://assets.coingecko.com/coins/images/68444/thumb/liquidhype.png?1755770963",
+  "assetGroup": "Liquid HYPE Yield::liquidHYPE"
+ },
+ "999:0x53a333e51e96fe288bc9add7cdc4b1ead2cd2ffa": {
+  "symbol": "gtUSDT0",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x53a333e51e96fe288bc9add7cdc4b1ead2cd2ffa.png",
+  "assetGroup": "Gauntlet USDT0 Vault::gtUSDT0"
+ },
+ "999:0x5e105266db42f78fa814322bce7f388b4c2e61eb": {
+  "symbol": "hbUSDT",
+  "logoURI": "https://assets.coingecko.com/coins/images/67161/thumb/hyperbeat_usdt.jpg?1751940634",
+  "assetGroup": "Hyperbeat USDT::hbUSDT"
+ },
+ "999:0x5f9b523a4f2f92d991b2ca1faa13f924170a908e": {
+  "symbol": "PT-haHYPE-28JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/9a287d1d-2a1d-4bc6-8f63-89e7fbd80741.svg",
+  "assetGroup": "PT haHYPE (WHYPE) HyperEVM::PT-haHYPE-28JAN2027"
+ },
+ "999:0x6b7cea9d070bbffd8205f256897319139cdef399": {
+  "symbol": "PT-limUSD-26NOV2026",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/faf406ef-a465-431c-b57b-8da3348df57f.svg",
+  "assetGroup": "PT limUSD (USDC) HyperEVM::PT-limUSD-26NOV2026"
+ },
+ "999:0x6d2809f94de14db612467448ab72355b4e619599": {
+  "symbol": "PT-vkHYPE-25MAR2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/d3b9f5d9-0b82-4ce9-adfe-ae0acb870df8.svg",
+  "assetGroup": "PT vkHYPE (WHYPE) HyperEVM::PT-vkHYPE-25MAR2027"
+ },
+ "999:0x81e064d0eb539de7c3170edf38c1a42cbd752a76": {
+  "symbol": "lstHYPE",
+  "logoURI": "https://static.debank.com/image/hyper_token/logo_url/0x81e064d0eb539de7c3170edf38c1a42cbd752a76/b9a27f21cf8451d7856fdcf68b1607fc.png",
+  "assetGroup": "Hyperbeat LST Vault::lstHYPE"
+ },
+ "999:0x835febf893c6dddee5cf762b0f8e31c5b06938ab": {
+  "symbol": "feUSDe",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x835febf893c6dddee5cf762b0f8e31c5b06938ab.png",
+  "assetGroup": "Felix USDe::feUSDe"
+ },
+ "999:0x94e8396e0869c9f2200760af0621afd240e1cf38": {
+  "symbol": "WSTHYPE",
+  "logoURI": "https://assets.coingecko.com/coins/images/54722/thumb/hyperliquid.png?1741232793",
+  "assetGroup": "Staked HYPE Shares::WSTHYPE"
+ },
+ "999:0x96c6cbb6251ee1c257b2162ca0f39aa5fa44b1fb": {
+  "symbol": "hbHYPE",
+  "logoURI": "https://www.hyperbeat.org/assets/images/vaults/hbhype.svg",
+  "assetGroup": "Hyperbeat Ultra Hype::hbHYPE"
+ },
+ "999:0x9896a8605763106e57a51aa0a97fe8099e806bb3": {
+  "symbol": "feUSDT02",
+  "logoURI": null,
+  "assetGroup": "Felix USDT0 (Frontier)::feUSDT02"
+ },
+ "999:0x9b3a8f7cec208e247d97dee13313690977e24459": {
+  "symbol": "sUSDp",
+  "logoURI": "https://raw.githubusercontent.com/parallel-protocol/parallel-brand-kit/main/Tokens/USDp/sUSDp.svg",
+  "assetGroup": "Staked USDp::sUSDp"
+ },
+ "999:0x9c59a9389d8f72de2cdaf1126f36ea4790e2275e": {
+  "symbol": "feUSDhl",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0x9c59a9389d8f72de2cdaf1126f36ea4790e2275e.png",
+  "assetGroup": "Felix USDhl::feUSDhl"
+ },
+ "999:0x9ccac9566fba516a5df00a23e81801b1f1cb57a8": {
+  "symbol": "PT-kHYPE-25MAR2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/fcc09b6e-e47d-4e95-a1be-0dddfe76725e.svg",
+  "assetGroup": "PT kHYPE (HYPE) HyperEVM::PT-kHYPE-25MAR2027"
+ },
+ "999:0xb83d27f0f4133a7b0377a88089583131a903fdc7": {
+  "symbol": "tHYPE",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0xb83d27f0f4133a7b0377a88089583131a903fdc7.png",
+  "assetGroup": "Treehouse HYPE::tHYPE"
+ },
+ "999:0xc061d38903b99ac12713b550c2cb44b221674f94": {
+  "symbol": "hbBTC",
+  "logoURI": "https://app.hyperbeat.org/assets/images/vaults/hbBTC.svg",
+  "assetGroup": "Hyperbeat Ultra uBTC::hbBTC"
+ },
+ "999:0xd19e3d00f8547f7d108abfd4bbb015486437b487": {
+  "symbol": "mcHYPE",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0xd19e3d00f8547f7d108abfd4bbb015486437b487.png",
+  "assetGroup": "MEV Capital HYPE::mcHYPE"
+ },
+ "999:0xd8fc8f0b03eba61f64d08b0bef69d80916e5dda9": {
+  "symbol": "beHYPE",
+  "logoURI": "https://app.hyperbeat.org/assets/icons/tokens/behype.svg",
+  "assetGroup": "hyperbeat x ether.fi HYPE::beHYPE"
+ },
+ "999:0xdb2921f8e92f9be500b8cb75f07fd9e857776ade": {
+  "symbol": "PT-stHYPE-28JAN2027",
+  "logoURI": "https://storage.googleapis.com/prod-pendle-bucket-a/images/uploads/c274749b-7bea-40f9-8e1c-44e8e5cd0b2d.svg",
+  "assetGroup": "PT stHYPE (HYPE) HyperEVM::PT-stHYPE-28JAN2027"
+ },
+ "999:0xf868a2b30854fe13e26f7ab7a92609ccb6b9c0e1": {
+  "symbol": "csUSDC",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0xf868a2b30854fe13e26f7ab7a92609ccb6b9c0e1.png",
+  "assetGroup": "Clearstar Earn USDC::csUSDC"
+ },
+ "999:0xfc5126377f0efc0041c0969ef9ba903ce67d151e": {
+  "symbol": "feUSDT0",
+  "logoURI": "https://raw.githubusercontent.com/balancer/tokenlists/main/src/assets/images/tokens/0xfc5126377f0efc0041c0969ef9ba903ce67d151e.png",
+  "assetGroup": "Felix USDT0::feUSDT0"
+ },
+ "999:0xfd739d4e423301ce9385c1fb8850539d657c296d": {
+  "symbol": "kHYPE",
+  "logoURI": "https://app.valantis.xyz/khype.svg",
+  "assetGroup": "Kinetiq Staked HYPE::kHYPE"
+ },
+ "solana:27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4": {
+  "symbol": "JLP",
+  "logoURI": "https://static.jup.ag/jlp/icon.png",
+  "assetGroup": "Jupiter Perps::JLP::solana"
+ },
+ "solana:29ATAcJqUvLN1FKBX5UzCapUH4v4NqmJ3AgLwmhdEVcF": {
+  "symbol": "PT-USD.infra-16JAN27",
+  "logoURI": "https://cdn.exponent.finance/tokens/dawn7ZUF7h7anFuEsDdAU1Y3HYwikwqNMAENZsQJdNL.svg?v=v2",
+  "assetGroup": "PT USD.infra (USD) Solana::PT-USD.infra-16JAN27::solana"
+ },
+ "solana:2uQsyo1fXXQkDtcpXnLofWy88PxcvnfH2L8FPSE62FVU": {
+  "symbol": "jlWSOL",
+  "logoURI": "https://cdn.instadapp.io/solana/tokens/icons/sol.png",
+  "assetGroup": "Jupiter Lend WSOL::jlWSOL::solana"
+ },
+ "solana:3ThdFZQKM6kRyVGLG48kaPg5TRMhYMKY1iCRa9xop1WC": {
+  "symbol": "eUSX",
+  "logoURI": "https://raw.githubusercontent.com/Solstice-Labs-Official/eusx-metadata/refs/heads/main/eusx.png",
+  "assetGroup": "eUSX::eUSX::solana"
+ },
+ "solana:3b8X44fLF9ooXaUm3hhSgjpmVs6rZZ3pPoGnGahc3Uu7": {
+  "symbol": "PRIME",
+  "logoURI": "https://storage.googleapis.com/hastra-cdn-prod/spl/primetoken.png",
+  "assetGroup": "Hastra PRIME::PRIME"
+ },
+ "solana:3bFbFU1dtap35fgBY6ityikjv41YSyxHCWnJkAiEteWR": {
+  "symbol": "PT-xSOL-12DEC26",
+  "logoURI": "https://cdn.exponent.finance/tokens/4sWNB8zGWHkh6UnmwiEtzNxL4XrN7uK9tosbESbJFfVs.svg?v=v2",
+  "assetGroup": "PT xSOL (xSOL) Solana::PT-xSOL-12DEC26::solana"
+ },
+ "solana:3cMK59U2bjyA15g8TR1zpK7YdWBhy42FAQEZMKPR8Q1i": {
+  "symbol": "PT-reUSD-10DEC26",
+  "logoURI": "https://cdn.exponent.finance/tokens/2uxaYT1fVrp6Fg2BrxQcyKSW91hefM6dG9krpbeDiirT.svg?v=v2",
+  "assetGroup": "PT reUSD (USD) Solana::PT-reUSD-10DEC26::solana"
+ },
+ "solana:428exjeqmmSv8tQ8LhGPsdpkgw35mmbmPdPVworr6G2r": {
+  "symbol": "PT-STRCx-16NOV26",
+  "logoURI": "https://cdn.exponent.finance/tokens/Xs78JED6PFZxWc2wCEPspZW9kL3Se5J7L5TChKgsidH.svg?v=v2",
+  "assetGroup": "PT STRCx (STRC) Solana::PT-STRCx-16NOV26::solana"
+ },
+ "solana:4aFM4zBpbBFYLbLrk21NW8WQCM8ZMHUSaYkRsoaSNnJj": {
+  "symbol": "PT-apxUSD-05NOV26",
+  "logoURI": "https://cdn.exponent.finance/tokens/HAYQtfJEQ9DbDbaHEhxfGsWbSZ3ywthdsVB3PuB72DYe.svg?v=v2",
+  "assetGroup": "PT apxUSD (apxUSD) Solana::PT-apxUSD-05NOV26::solana"
+ },
+ "solana:58XmRhDKVsCEt6dD3zxqHth8uzMY8BHhEyeAiUa5UPw9": {
+  "symbol": "PT-rkuSOL-31OCT26",
+  "logoURI": "https://cdn.exponent.finance/tokens/rkubjTrZYioRSeXwDnhwGQzvW3qkcin72JSxUt3WMVp.svg?v=v2",
+  "assetGroup": "PT rkuSOL (SOL) Solana::PT-rkuSOL-31OCT26::solana"
+ },
+ "solana:59obFNBzyTBGowrkif5uK7ojS58vsuWz3ZCvg6tfZAGw": {
+  "symbol": "PST",
+  "logoURI": "https://meta.huma.finance/pst.svg",
+  "assetGroup": "PayFi Strategy Token::PST"
+ },
+ "solana:5oVNBeEEQvYi1cX3ir8Dx5n1P7pdxydbGF2X4TxVusJm": {
+  "symbol": "INF",
+  "logoURI": "https://arweave.net/CtPUchyfybiHymdCNAA_cDkPZ7p0xZDLmBYvHWOsAkE",
+  "assetGroup": "Infinity::INF::solana"
+ },
+ "solana:6ESVavhfwC4rXHHHZmR6ajg7nLmL6X5UkpZuAcoA7xj7": {
+  "symbol": "FACTOR",
+  "logoURI": null,
+  "assetGroup": "Plume Factor Vault::FACTOR"
+ },
+ "solana:6Q8t9F7Ygv5kUjV5Gj2DfszL6Y33qCSKNYa7MKSsVeUJ": {
+  "symbol": "PT-hyUSD-12DEC26",
+  "logoURI": "https://cdn.exponent.finance/tokens/5YMkXAYccHSGnHn9nob9xEvv6Pvka9DZWH7nTbotTu9E.svg?v=v2",
+  "assetGroup": "PT hyUSD (hyUSD) Solana::PT-hyUSD-12DEC26::solana"
+ },
+ "solana:6gE8vCsnmF37e2cT6PTafNLP5MtPhChfJHJbckAXsq6r": {
+  "symbol": "PT-hyloSOL-12DEC26",
+  "logoURI": "https://cdn.exponent.finance/tokens/hy1oXYgrBW6PVcJ4s6s2FKavRdwgWTXdfE69AxT7kPT.svg?v=v2",
+  "assetGroup": "PT hyloSOL (SOL) Solana::PT-hyloSOL-12DEC26::solana"
+ },
+ "solana:7GxATsNMnaC88vdwd2t3mwrFuQwwGvmYPrUQ4D6FotXk": {
+  "symbol": "JUICED",
+  "logoURI": "https://cdn.instadapp.io/solana/tokens/icons/jupusd.png?v=1",
+  "assetGroup": "JUICED::JUICED::solana"
+ },
+ "solana:8aUSDnpp5kjCuWtJqaAahNGtvC8HSgFQpUR731CNwMVd": {
+  "symbol": "PT-hyloSOL+-12DEC26",
+  "logoURI": "https://cdn.exponent.finance/tokens/hy1opf2bqRDwAxoktyWAj6f3UpeHcLydzEdKjMYGs2u.svg?v=v2",
+  "assetGroup": "PT hyloSOL+ (SOL) Solana::PT-hyloSOL+-12DEC26::solana"
+ },
+ "solana:8qujzAXj2nz99CmeiCgPPc2JxEuDNYvPffzRomroJnee": {
+  "symbol": "nALPHA",
+  "logoURI": "https://assets.plume.org/images/logos/nest/nALPHA/nALPHA-token.svg",
+  "assetGroup": "Nest Alpha Vault::nALPHA"
+ },
+ "solana:8uNmK2bTGsuvF37jcJjrNm8VrcpMf48azcgfqhbXz8da": {
+  "symbol": "PT-sUSD.infra-16JAN27",
+  "logoURI": "https://cdn.exponent.finance/tokens/GvEMgNT6GKiYTvg7TskDio6RKzQdCuhwmH55tVCLaJTe.svg?v=v2",
+  "assetGroup": "PT sUSD.infra (USD.infra) Solana::PT-sUSD.infra-16JAN27::solana"
+ },
+ "solana:9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D": {
+  "symbol": "jlUSDC",
+  "logoURI": "https://cdn.instadapp.io/solana/tokens/icons/usdc.png",
+  "assetGroup": "Jupiter Lend USDC::jlUSDC::solana"
+ },
+ "solana:9fvHrYNw1A8Evpcj7X2yy4k4fT7nNHcA9L6UsamNHAif": {
+  "symbol": "jlUSDG",
+  "logoURI": "https://cdn.instadapp.io/solana/tokens/icons/usdg.png",
+  "assetGroup": "Jupiter Lend USDG::jlUSDG::solana"
+ },
+ "solana:AzEcgo4PTjnUX7k7RYxFe9KHYyTSHEXtmT262hr8uLnd": {
+  "symbol": "PT-srEHYUSD-12DEC26",
+  "logoURI": "https://cdn.exponent.finance/tokens/FvQP1fjox2GPSwkEhENuZisz8UeRURLWf7GYF9n2mURD.svg?v=v2",
+  "assetGroup": "PT srEHYUSD (hyUSD) Solana::PT-srEHYUSD-12DEC26::solana"
+ },
+ "solana:Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc": {
+  "symbol": "jleUSDG",
+  "logoURI": "https://cdn.instadapp.io/solana/tokens/icons/eusdg.png",
+  "assetGroup": "jupiter lend ethena USDG::jleUSDG::solana"
+ },
+ "solana:CAuiv9V7HrgxbDTsC9qqvzrbpRM1pqr7he2nY8vFKNfz": {
+  "symbol": "PT-eUSX-01DEC26",
+  "logoURI": "https://cdn.exponent.finance/tokens/3ThdFZQKM6kRyVGLG48kaPg5TRMhYMKY1iCRa9xop1WC.svg?v=v2",
+  "assetGroup": "PT eUSX (USX) Solana::PT-eUSX-01DEC26::solana"
+ },
+ "solana:Cmn4v2wipYV41dkakDvCgFJpxhtaaKt11NyWV8pjSE8A": {
+  "symbol": "jlUSDT",
+  "logoURI": "https://cdn.instadapp.io/solana/tokens/icons/usdt.png",
+  "assetGroup": "Jupiter Lend USDT::jlUSDT::solana"
+ },
+ "solana:EpnRnWgUHjihKDkq2HjpCRWPQka1danSnMhorSGd99Lt": {
+  "symbol": "PT-fragSOL-15DEC26",
+  "logoURI": "https://cdn.exponent.finance/tokens/WFRGSWjaz8tbAxsJitmbfRuFV2mSNwy7BMWcCwaA28U.svg?v=v2",
+  "assetGroup": "PT fragSOL (SOL) Solana::PT-fragSOL-15DEC26::solana"
+ },
+ "solana:FVS7CoMmdQRfby3ZrFwLDj236VCzGcd9tytZPxq5Q3rh": {
+  "symbol": "PT-USX-01DEC26",
+  "logoURI": "https://cdn.exponent.finance/tokens/6FrrzDk5mQARGc1TDYoyVnSyRdds1t4PbtohCD6p3tgG.svg?v=v2",
+  "assetGroup": "PT USX (USD) Solana::PT-USX-01DEC26::solana"
+ },
+ "solana:GArhnnDj3GYhmQeApKVXaRv4TQFwhPcs3SNF6FXsTeXq": {
+  "symbol": "nOPAL",
+  "logoURI": "https://assets.plume.org/images/logos/nest/nOPAL/nOPAL-token.svg",
+  "assetGroup": "Nest BlackOpal LiquidStone II Vault::nOPAL"
+ },
+ "solana:GMGm82jMiMCVQZfnHcD96b8YF8BXvLHteKhEaj3fZjDe": {
+  "symbol": "oneSOL",
+  "logoURI": "https://s2.coinmarketcap.com/static/img/coins/200x200/16116.png",
+  "assetGroup": "SOL ONE::oneSOL::solana"
+ },
+ "solana:GNE6oDS6jHrfaV3GQVVCCp37fDnT7PiPuewMKBj2bqNm": {
+  "symbol": "AUTO",
+  "logoURI": "https://storage.googleapis.com/hastra-cdn-prod/spl/autotoken.png",
+  "assetGroup": "Hastra AUTO::AUTO"
+ },
+ "solana:GcV9tEj62VncGithz4o4N9x6HWXARxuRgEAYk9zahNA8": {
+  "symbol": "jlEURC",
+  "logoURI": "https://cdn.instadapp.io/solana/tokens/icons/eurc.png",
+  "assetGroup": "Jupiter Lend EURC::jlEURC::solana"
+ },
+ "solana:GvEMgNT6GKiYTvg7TskDio6RKzQdCuhwmH55tVCLaJTe": {
+  "symbol": "sUSD.infra",
+  "logoURI": "https://res.cloudinary.com/tnzampcs/image/upload/f_auto,q_auto/sUSD.infra_icon",
+  "assetGroup": "sUSD.infra::sUSD.infra::solana"
+ },
+ "solana:HH7FiYbEfDwQoK2ZJpkMz1T6wG6TqPsWcxWCtEVgigrZ": {
+  "symbol": "PT-ONyc-10JAN27",
+  "logoURI": "https://cdn.exponent.finance/tokens/5Y8NV33Vv7WbnLfq3zBcKSdYPrk7g2KoiQoe7M2tcxp5.svg?v=v2",
+  "assetGroup": "PT ONyc (USD) Solana::PT-ONyc-10JAN27::solana"
+ },
+ "solana:HSbdobdvfGAfqKWSWZ7s2XfFx1P1FJutTa96MHJtkm5": {
+  "symbol": "PT-srONyc-10JAN27",
+  "logoURI": "https://cdn.exponent.finance/tokens/9J8VvigcjFTkN3jhZH2ieTi2hdGVBVpEXbcA1JDo7QpA.svg?v=v2",
+  "assetGroup": "PT srONyc (USD) Solana::PT-srONyc-10JAN27::solana"
+ },
+ "solana:HgyWqTZ6JdGYF5TfrYmScTyvsyuopwYRJXwqA2LzCrz6": {
+  "symbol": "PT-BulkSOL-31OCT26",
+  "logoURI": "https://cdn.exponent.finance/tokens/BULKoNSGzxtCqzwTvg5hFJg8fx6dqZRScyXe5LYMfxrn.svg?v=v2",
+  "assetGroup": "PT BulkSOL (SOL) Solana::PT-BulkSOL-31OCT26::solana"
+ },
+ "solana:Hj3avy8d4k1skU3aScok7VWxEQSw6Bchuu5C9oV6vNz5": {
+  "symbol": "oneUSDC",
+  "logoURI": "https://s3.coinmarketcap.com/static-gravity/image/5a8229787b5e4c809b5914eef709b59a.png",
+  "assetGroup": "USDC ONE::oneUSDC::solana"
+ },
+ "solana:J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn": {
+  "symbol": "JitoSOL",
+  "logoURI": "https://storage.googleapis.com/token-metadata/JitoSOL-256.png",
+  "assetGroup": "Jito Staked SOL::JitoSOL"
+ },
+ "solana:bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1": {
+  "symbol": "bSOL",
+  "logoURI": "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1/logo.png",
+  "assetGroup": "BlazeStake Staked SOL (bSOL)::bSOL::solana"
+ },
+ "solana:j14XLJZSVMcUYpAfajdZRpnfHUpJieZHS4aPektLWvh": {
+  "symbol": "jlUSDS",
+  "logoURI": "https://cdn.instadapp.io/solana/tokens/icons/usds.png",
+  "assetGroup": "Jupiter Lend USDS::jlUSDS::solana"
  }
 }

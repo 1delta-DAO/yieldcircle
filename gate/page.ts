@@ -4,7 +4,8 @@
  * cookie: the live product stays visible behind it, nothing is walled off.
  * The story the visitor hears is a WAITLIST in two layers: connect, and the
  * wallet is either whitelisted (sign, you're in), already waitlisted (you're
- * in line, access soon), or invited to join the waitlist (email + signature).
+ * in line, access soon), or invited to join the waitlist (just an email — no
+ * signature, so joining is one step and nobody stops short of it).
  * The connecting is the app's own wallet sheet (`src/wallet/GateBridge.tsx`):
  * every injected EVM wallet by name, WalletConnect, and the Solana wallets —
  * a Solana pubkey joins and signs in like any other address. Only a page whose
@@ -25,11 +26,9 @@ import { TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL, X_D, X_URL } from '../src/conf
 /** The key an address is stored and signed under: EVM lower-cased, a Solana pubkey as is (base58 is case-sensitive). */
 export const norm = (address: string) => (address.startsWith('0x') ? address.toLowerCase() : address)
 
-/** The messages both sides build; the middleware recovers (EVM) or verifies (Solana) the signer from them. */
-export const message = (address: string, issued: string, email?: string) =>
-  email === undefined
-    ? `YieldCircle beta access\n\nAddress: ${norm(address)}\nIssued: ${issued}`
-    : `YieldCircle waitlist\n\nAddress: ${norm(address)}\nEmail: ${email}\nIssued: ${issued}`
+/** The sign-in message both sides build; the middleware recovers (EVM) or verifies (Solana) the signer from it. */
+export const message = (address: string, issued: string) =>
+  `YieldCircle beta access\n\nAddress: ${norm(address)}\nIssued: ${issued}`
 
 const tgMark = (fill: string) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${TELEGRAM_D}" fill="${fill}"/></svg>`
 
@@ -102,13 +101,12 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
   <div class="yc-social" id="yc-social"><a class="yc-tg" href="${TELEGRAM_URL}" target="_blank" rel="noopener noreferrer">${tgMark(TELEGRAM_BLUE)}Join us on Telegram</a><a class="yc-x" href="${X_URL}" target="_blank" rel="noopener noreferrer" aria-label="YieldCircle on X" title="YieldCircle on X"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${X_D}" fill="currentColor"/></svg></a></div>${waitlist ? `
   <a class="yc-back" href="/">Back to the app</a>` : hidden ? `
   <a class="yc-back" href="#" onclick="document.getElementById('yc-gate').style.display='none';return false">Not now</a>` : ''}
-  <div class="yc-foot">Free to join &middot; a signature, never a transaction</div>
+  <div class="yc-foot">Free to join &middot; never a transaction</div>
 </div>
 <script>
 (() => {
   var TG = ${JSON.stringify(`<a class="yc-btn yc-tg-btn" target="_blank" rel="noopener noreferrer" href="${TELEGRAM_URL}">${tgMark('#fff')}Join the Telegram</a>`)};
   var T_VERIFY = ${JSON.stringify(message('__a__', '__i__'))};
-  var T_REQUEST = ${JSON.stringify(message('__a__', '__i__', '__e__'))};
   var $ = function (id) { return document.getElementById(id); };
   var status = function (t, err) { $('yc-status').textContent = t || ''; $('yc-status').className = err ? 'yc-err' : ''; };
   var eth = window.ethereum;
@@ -215,7 +213,7 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
   }
 
   function lineup() {
-    $('yc-sub').textContent = address.slice(0, 6) + '\\u2026' + address.slice(-4) + ' isn\\u2019t on the waitlist yet. Leave an email, sign, and you\\u2019re in line.';
+    $('yc-sub').textContent = address.slice(0, 6) + '\\u2026' + address.slice(-4) + ' isn\\u2019t on the waitlist yet. Leave an email and you\\u2019re in line.';
     $('yc-email').hidden = false;
     btn.textContent = 'Join the waitlist';
     btn.disabled = false;
@@ -237,11 +235,11 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
     var el = $('yc-email');
     var email = el.value.trim().toLowerCase();
     if (!email || !el.checkValidity()) { status('Enter a valid email address.', true); btn.disabled = false; el.focus(); return; }
-    var issued = new Date().toISOString();
-    status('Sign to prove the wallet is yours \\u2014 free, no transaction.');
-    return w.sign(T_REQUEST.replace('__a__', norm(address)).replace('__i__', issued).replace('__e__', email)).then(function (signature) {
-      return post('/gate/request', { address: address, issued: issued, signature: signature, email: email });
-    }).then(function () { waiting(email); });
+    status('Joining\\u2026');
+    return post('/gate/request', { address: address, email: email }).then(function (out) {
+      // whitelisted after all: straight to signing in; already in line: the email on file stands
+      return out.listed ? ready() : waiting(out.again ? undefined : email);
+    });
   }
 })();
 </script>

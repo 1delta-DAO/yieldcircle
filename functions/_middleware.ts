@@ -7,12 +7,15 @@
  * The narrative is a WAITLIST, in two layers: a wallet is *waitlisted*
  * (`wait:` — the overlay says it is in line, access soon) or *whitelisted*
  * (`wl:` — sign in and the app is yours). "Whitelist" stays the internal and
- * admin term; the visitor only ever hears "waitlist".
+ * admin term; the visitor only ever hears "waitlist". Joining the waitlist takes
+ * no signature — visitors took the email step for the finish line and never
+ * signed — so an unproven address can be put in line, but only once: the first
+ * email stands, and getting in still takes the signature.
  *
  * Bindings (Pages → Settings → Bindings / Variables, Production AND Preview):
  *   WHITELIST       KV namespace — `wl:<address>` = whitelisted, `wait:<address>` = waitlisted
  *                   (email in metadata). An EVM address is lower-cased; a Solana pubkey is
- *                   stored as is (base58 is case-sensitive) and proves itself with an ed25519
+ *                   stored as is (base58 is case-sensitive) and signs in with an ed25519
  *                   signature over the same text instead of EIP-191
  *   GATE_SECRET     Secret — HMAC key for the cookie; rotating it logs everyone out
  *   RESEND_API_KEY  Secret, optional — emails each new request to NOTIFY_EMAIL
@@ -59,8 +62,8 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
   const url = new URL(request.url)
   if (configured) {
     const gated = env as Gated
-    if (request.method === 'POST' && url.pathname === '/gate/verify') return verify(request, gated, null, waitUntil)
-    if (request.method === 'POST' && url.pathname === '/gate/request') return verify(request, gated, 'request', waitUntil)
+    if (request.method === 'POST' && url.pathname === '/gate/verify') return verify(request, gated)
+    if (request.method === 'POST' && url.pathname === '/gate/request') return join(request, gated, waitUntil)
     if (request.method === 'GET' && url.pathname === '/gate/check') return check(url, gated)
     if (request.method === 'GET' && url.searchParams.has('access')) return pass(url, gated)
   }
@@ -95,34 +98,44 @@ async function check(url: URL, env: Gated): Promise<Response> {
   return json({ listed: false, waitlisted: !!(await env.WHITELIST.get(`wait:${account}`)) })
 }
 
-/** Both POSTs: prove the address, then let it in — or, for a request, put it in line. */
-async function verify(request: Request, env: Gated, mode: 'request' | null, waitUntil: Ctx['waitUntil']): Promise<Response> {
-  const body = (await request.json().catch(() => null)) as { address?: string; issued?: string; signature?: string; email?: string } | null
+/** POST /gate/verify — prove the address; a whitelisted one is let in. */
+async function verify(request: Request, env: Gated): Promise<Response> {
+  const body = (await request.json().catch(() => null)) as { address?: string; issued?: string; signature?: string } | null
   const { address, issued, signature } = body ?? {}
-  const email = mode === 'request' ? body?.email?.trim().toLowerCase() ?? '' : undefined
   if (!address || !okAddress(address) || !issued || !signature || !isHex(signature)) return json({ error: 'bad request' }, 400)
-  if (email !== undefined && !EMAIL.test(email)) return json({ error: 'enter a valid email address' }, 400)
   const age = Date.now() - Date.parse(issued)
   if (!(age >= -60_000 && age < SIGNATURE_MAX_AGE_MS)) return json({ error: 'signature expired, try again' }, 400)
 
   const account = norm(address)
-  const text = message(address, issued, email)
+  const text = message(address, issued)
   const ok = isSolAddr(address)
     ? await verifySol(address, text, signature).catch(() => false)
     : (await recoverMessageAddress({ message: text, signature }).catch(() => null))?.toLowerCase() === account
   if (!ok) return json({ error: 'signature does not match the address' }, 401)
 
   if (await env.WHITELIST.get(`wl:${account}`)) return admit(account, env)
-  if (email === undefined) return json({ listed: false })
+  return json({ listed: false })
+}
 
+/**
+ * POST /gate/request — put an address in line, no signature. Nothing is proven, so nothing is
+ * overwritten: an address already in line keeps its first email (anyone could send this one).
+ */
+async function join(request: Request, env: Gated, waitUntil: Ctx['waitUntil']): Promise<Response> {
+  const body = (await request.json().catch(() => null)) as { address?: string; email?: string } | null
+  const address = body?.address
+  const email = body?.email?.trim().toLowerCase() ?? ''
+  if (!address || !okAddress(address)) return json({ error: 'bad request' }, 400)
+  if (!EMAIL.test(email)) return json({ error: 'enter a valid email address' }, 400)
+
+  const account = norm(address)
+  if (await env.WHITELIST.get(`wl:${account}`)) return json({ listed: true })
   const key = `wait:${account}`
-  const before = (await env.WHITELIST.getWithMetadata<{ email?: string }>(key)).metadata
-  if (before?.email !== email) {
-    const ts = new Date().toISOString()
-    await env.WHITELIST.put(key, JSON.stringify({ ts, email }), { metadata: { ts, email } })
-    if (env.RESEND_API_KEY) waitUntil(notify(env, account, email, ts))
-  }
-  return json({ listed: false, requested: true, again: !!before })
+  if (await env.WHITELIST.get(key)) return json({ listed: false, requested: true, again: true })
+  const ts = new Date().toISOString()
+  await env.WHITELIST.put(key, JSON.stringify({ ts, email }), { metadata: { ts, email } })
+  if (env.RESEND_API_KEY) waitUntil(notify(env, account, email, ts))
+  return json({ listed: false, requested: true, again: false })
 }
 
 const okAddress = (a: string) => isAddress(a) || isSolAddr(a)
@@ -162,7 +175,7 @@ async function cookie(account: string, env: Gated): Promise<string> {
   return `${COOKIE}=${value}; Path=/; Max-Age=${COOKIE_DAYS * 86_400}; HttpOnly; Secure; SameSite=Lax`
 }
 
-/** One email per new (or changed) request. A failure is logged, never shown — the request is stored either way. */
+/** One email per new request. A failure is logged, never shown — the request is stored either way. */
 async function notify(env: Gated, account: string, email: string, ts: string): Promise<void> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',

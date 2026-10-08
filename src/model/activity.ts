@@ -144,32 +144,70 @@ export interface Pick_ {
   s: Strategy
   proof: Proof | null
 }
+
 /**
- * The cards of one band: proven strategies first (the ones real wallets hold,
- * biggest stake leading), the steadiest rate breaking ties and filling the
- * rest. Passive is the beginner's savings account, so there the lowest risk
- * tier leads before proof or rate: a low-risk USDC market at 8 % outranks a
- * yellow synthetic dollar at 12 %, and the riskier rows only fill what is left. One card per desk row (`asset`), like the Earn digest — three USDC
- * vaults are one recommendation, not three.
+ * Held by a crowd, not by one or two wallets: the bar a medium or active card's
+ * proof must clear to count. Below it the book is a hint, not a reason — a
+ * single $30m wallet in a 5 % PT says what that wallet wanted, not what the
+ * band is good for.
  */
-export function recommend(all: Strategy[], band: Band, book: ProofBook | undefined, rank: (s: Strategy) => number, per = 3): Pick_[] {
+export const PROVEN = { wallets: 3, usd: 250_000 }
+const proven = (p: Proof | null): boolean => !!p && p.wallets >= PROVEN.wallets && p.totalUsd >= PROVEN.usd
+
+/**
+ * How much more than the passive card a band that asks more attention must pay
+ * to be worth that attention: a loop or a PT at 5 % beside savings at 3.7 % is
+ * more work for a point and a bit. A multiple, not points, so it scales across
+ * denominations (dollar savings near 4 %, ETH near 2 %).
+ */
+export const PREMIUM = 1.5
+
+/**
+ * The cards of one band, one per desk row (`asset`) like the Earn digest —
+ * three USDC vaults are one recommendation, not three. Low-to-medium risk only,
+ * unless the band would otherwise be empty.
+ *
+ * Passive is the beginner's savings account: the lowest risk tier leads, then
+ * the biggest stake real wallets hold, then the steadiest rate — a low-risk
+ * USDC market at 8 % outranks a yellow synthetic dollar at 12 %.
+ *
+ * Medium and active ask more of the holder, so they must PAY for it: a row
+ * held by a crowd (`PROVEN`) leads, ordered by its steady rate (stake size only
+ * breaks ties — the biggest pile is often the oldest, lowest-rate one), and a
+ * row earning under `hurdle` (the passive card × `PREMIUM`) is shown only when
+ * nothing that clears it is left to fill the band.
+ */
+export function recommend(all: Strategy[], band: Band, book: ProofBook | undefined, rank: (s: Strategy) => number, hurdle = 0, per = 3): Pick_[] {
   const whole = all.filter((s) => bandOf(s) === band)
   // a starting point is low-to-medium risk; high-risk rows only when the band would otherwise be empty
   const calm = whole.filter((s) => s.risk <= 2)
   const inBand = calm.length ? calm : whole
-  // best row per desk: (passive: risk first) proof beats rank, rank breaks the tie
-  const riskFirst = band === 'passive'
+  const better = band === 'passive' ? saferFirst : paidFirst
   const byAsset = new Map<string, Pick_>()
   for (const s of inBand) {
     const p: Pick_ = { s, proof: proofOf(s, book) }
     const cur = byAsset.get(s.asset)
-    if (!cur || better(p, cur, rank, riskFirst)) byAsset.set(s.asset, p)
+    if (!cur || better(p, cur, rank)) byAsset.set(s.asset, p)
   }
-  return [...byAsset.values()].sort((a, b) => (better(a, b, rank, riskFirst) ? -1 : 1)).slice(0, per)
+  const sorted = [...byAsset.values()].sort((a, b) => (better(a, b, rank) ? -1 : 1))
+  const pays = sorted.filter((p) => rank(p.s) >= hurdle)
+  return [...pays, ...sorted.filter((p) => rank(p.s) < hurdle)].slice(0, per)
 }
-const better = (a: Pick_, b: Pick_, rank: (s: Strategy) => number, riskFirst: boolean): boolean =>
-  riskFirst && a.s.risk !== b.s.risk
-    ? a.s.risk < b.s.risk
-    : (a.proof?.totalUsd ?? 0) !== (b.proof?.totalUsd ?? 0)
-    ? (a.proof?.totalUsd ?? 0) > (b.proof?.totalUsd ?? 0)
-    : rank(a.s) > rank(b.s)
+
+/** Every band's cards for one denomination; medium and active must beat the passive card by `PREMIUM`. */
+export function recommendAll(all: Strategy[], book: ProofBook | undefined, rank: (s: Strategy) => number): Record<Band, Pick_[]> {
+  const passive = recommend(all, 'passive', book, rank)
+  const hurdle = Math.max(0, ...passive.map((p) => rank(p.s))) * PREMIUM
+  return { passive, medium: recommend(all, 'medium', book, rank, hurdle), active: recommend(all, 'active', book, rank, hurdle) }
+}
+
+type Better = (a: Pick_, b: Pick_, rank: (s: Strategy) => number) => boolean
+const stake = (p: Pick_) => p.proof?.totalUsd ?? 0
+const saferFirst: Better = (a, b, rank) =>
+  a.s.risk !== b.s.risk ? a.s.risk < b.s.risk
+  : stake(a) !== stake(b) ? stake(a) > stake(b)
+  : rank(a.s) > rank(b.s)
+const paidFirst: Better = (a, b, rank) =>
+  proven(a.proof) !== proven(b.proof) ? proven(a.proof)
+  : rank(a.s) !== rank(b.s) ? rank(a.s) > rank(b.s)
+  : stake(a) > stake(b)

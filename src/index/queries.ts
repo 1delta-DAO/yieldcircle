@@ -355,6 +355,8 @@ export function useEarners(k: EarnersKey, enabled = true) {
  * catalogue settles chain by chain and the key list grows with it — a dozen
  * steps in a second or two — so the list is asked for once it has held still
  * for 800 ms, and the previous answer stays on screen while the next loads.
+ * `current` says the answer covers exactly `keys` (or failed): a list that
+ * orders BY the proofs waits for it rather than reshuffle when it lands.
  */
 export function useStrategyProofs(keys: string[]) {
   const [asked, setAsked] = useState(keys)
@@ -362,7 +364,7 @@ export function useStrategyProofs(keys: string[]) {
     const t = setTimeout(() => setAsked(keys), 800)
     return () => clearTimeout(t)
   }, [keys])
-  return useQuery({
+  const q = useQuery({
     queryKey: ['strategy-proofs', asked],
     queryFn: async ({ signal }) => new Map((await api.strategyProofs(asked, signal)).map((r) => [r.key, r])),
     enabled: asked.length > 0,
@@ -370,6 +372,9 @@ export function useStrategyProofs(keys: string[]) {
     staleTime: 2 * MIN,
     retry: false,
   })
+  // the answer is for THIS list — not a previous one held on screen, nor one still waiting out the 800 ms
+  const current = !keys.length || (asked.join('|') === keys.join('|') && !q.isPlaceholderData && (!!q.data || q.isError))
+  return { data: q.data, current }
 }
 
 /** The podium now (and the latest reigns), overall and per chain. `account` narrows both to one wallet. */

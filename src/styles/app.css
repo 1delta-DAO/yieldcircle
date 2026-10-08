@@ -1484,9 +1484,10 @@ i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-sty
 
 /* the desk's record: components, each with the sentence that says what it
    covers. No grade, no forecast — the numbers carry their own footnotes. */
-.cstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;margin-top:18px;
+/* flex, not grid: a last row of two tiles stretches to the full width instead of leaving the line colour showing */
+.cstats{display:flex;flex-wrap:wrap;gap:1px;margin-top:18px;
   background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
-.cstat{display:flex;flex-direction:column;gap:2px;padding:12px 14px;background:var(--b200)}
+.cstat{flex:1 1 190px;min-width:0;display:flex;flex-direction:column;gap:2px;padding:12px 14px;background:var(--b200)}
 .cstat .k{font-size:11px;color:var(--tx40);text-transform:uppercase;letter-spacing:.04em}
 .cstat .v{font:600 19px/1.2 var(--mono)}
 .cstat .n{font-size:11px;color:var(--tx40);line-height:1.4}
@@ -2007,6 +2008,10 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .stcard-proof[role='link']:hover{color:var(--tx)}
 .stcard-proof small{font-size:11.5px}
 .stcard-go{align-self:flex-end;font-size:12.5px;color:var(--primary)}
+.stcard-sk{cursor:default;pointer-events:none}
+.stcard-sk .stcard-n{gap:6px}
+.stcard-sk .stcard-h>.sk{border-radius:50%;flex:none}
+.stcard-sk .stcard-proof{gap:6px}
 /* the denomination row: what to earn in, one exposure at a time */
 .denoms{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 20px}
 .denoms-lbl{font-size:12px;margin-right:2px}

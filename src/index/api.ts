@@ -17,8 +17,8 @@
  *     `/curators/by-account`) fan out the same way and merge by key; the
  *     Solana side answering 404 (not deployed yet) costs its chips only;
  *   - a curator's own page goes to the index that knows the id;
- *   - an asset page (`/assets/:group…`) asks both and adds the answers
- *     (`assetMerge.ts`); the asset BOOK (`/assets`) is still EVM-only;
+ *   - the asset book (`/assets`) and an asset page (`/assets/:group…`) ask
+ *     both and add the answers per group (`assetMerge.ts`);
  *   - everything else (board, stress, balances) is EVM-only until those
  *     routes exist on Solana.
  *
@@ -32,7 +32,7 @@ import { INDEX_BASE_URL, SOL_INDEX_BASE_URL } from '../config/backend'
 import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
 import { isSolGroup } from '../model/assetGroup'
 import { bestOf } from '../search/rank'
-import { mergeAssetDetail, mergeAssetHistory, mergeAssetHolders } from './assetMerge'
+import { mergeAssetBook, mergeAssetDetail, mergeAssetHistory, mergeAssetHolders } from './assetMerge'
 import type { AccountIdentity, AccountKind, AssetBookRow, IndexBalances, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, ImpairedCount, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
 
 /** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
@@ -1034,8 +1034,17 @@ const g = (group: string) => `/assets/${encodeURIComponent(group)}`
  * routes not deployed yet) leaves the EVM answer, as with the facets.
  */
 export const indexForGroup = (group: string) => (isSolGroup(group) ? SOL_INDEX_BASE_URL : INDEX_BASE_URL)
-export const assets = (p: { chainIds?: string; q?: string; limit?: number; minUsd?: number } = {}, signal?: AbortSignal) =>
-  get<{ assets: AssetBookRow[]; asOf: string | null }>('/assets', p, signal)
+/** The asset book from both indexes (the Solana one answering 404 until its route deploys: EVM rows only). */
+export async function assets(p: { chainIds?: string; q?: string; limit?: number; minUsd?: number } = {}, signal?: AbortSignal): Promise<{ assets: AssetBookRow[]; asOf: string | null }> {
+  type R = { assets: AssetBookRow[]; asOf: string | null }
+  const { evm, sol } = splitScope(p.chainIds)
+  const [e, s] = await Promise.all([
+    evm !== null ? get<R>('/assets', { ...p, chainIds: evm }, signal) : Promise.resolve(null),
+    sol ? get<R>('/assets', { ...p, chainIds: undefined }, signal, SOL_INDEX_BASE_URL).then((j) => (j && Array.isArray(j.assets) ? j : null)).catch(() => null) : Promise.resolve(null),
+  ])
+  if (!e || !s) return e ?? s ?? { assets: [], asOf: null }
+  return { assets: mergeAssetBook(e.assets, s.assets, p.limit), asOf: !e.asOf ? s.asOf : !s.asOf ? e.asOf : e.asOf > s.asOf ? e.asOf : s.asOf }
+}
 /**
  * One asset route of both indexes. The EVM side's error is kept: the page
  * reads its "on these chains" 404 to widen the scope, and only a Solana answer

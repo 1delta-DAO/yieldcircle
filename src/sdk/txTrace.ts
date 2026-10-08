@@ -7,7 +7,7 @@ import { balancesChanged } from './liveBalances'
 import { isEvmAddr, isEvmChain, isSvmChain, normAddr } from '../model/address'
 import { getBlockHeight, getSignatureStatus } from '../wallet/solRpc'
 import { isNativeAddress } from '../model/positions'
-import { formatUnits } from 'viem'
+import { formatUnits, TransactionReceiptNotFoundError, type TransactionReceipt } from 'viem'
 import type { EarnPosition, EarnPositionsResponse } from './types'
 
 /**
@@ -174,12 +174,19 @@ async function run(id: string) {
   if (running.has(id)) return
   running.add(id)
   try {
-    for (let tries = 0; ; tries++) {
+    for (let tries = 0; ;) {
+      const before = get(id)?.phase
       try { await step(id); return }
       catch (e) {
-        // an RPC hiccup is not the transaction's fault: back off and pick up where it was
-        if (tries >= 5) { patch(id, { phase: 'failed', doneAt: Date.now(), err: short((e as Error).message) }); return }
-        await sleep(5_000 * (tries + 1))
+        // an RPC hiccup is not the transaction's fault: back off and pick up where it was. The count
+        // starts over once a step got further, and a trace is given up on only once it is older than
+        // any send stays pending — `failed` reads as the TRANSACTION failing, and it may have landed
+        const t = get(id)
+        if (!t || isDone(t)) return
+        tries = t.phase === before ? tries + 1 : 1
+        if (tries >= 5 && Date.now() - t.at > DROP_MS) { patch(id, { phase: 'failed', doneAt: Date.now(), err: `Lost track of it (${short((e as Error).message)}). Your wallet shows whether it landed.` }); return }
+        if (tries === 3 && t.phase === 'pending') patch(id, { note: 'Cannot reach a node to check it. Your wallet shows whether it landed; this keeps trying.' })
+        await sleep(Math.min(30_000, 5_000 * tries))
       }
     }
   } finally { running.delete(id) }
@@ -213,13 +220,20 @@ async function step(id: string) {
     while ((t.conf ?? 1) < t.need) {
       await sleep(3_000)
       const head = Number(await getBlockNumber(client, { cacheTime: 0 }))
-      const conf = Math.max(1, head - t.block! + 1)
+      // the nodes rotate (`wallet/evmRpc.ts`): one a block behind must not count the confirmations back
+      const conf = Math.max(t.conf ?? 1, head - t.block! + 1)
       if (conf !== t.conf) patch(id, { conf })
       t = get(id)!
     }
     if (t.need > 1) {
-      // deep enough — but only if it is still in the block it landed in
-      const again = await getTransactionReceipt(client, { hash: t.hash as Hex }).catch(() => null)
+      // deep enough — but only if it is still in the block it landed in. A node that has not seen
+      // the block yet answers "no receipt" too, so only a receipt in ANOTHER block, or none from
+      // three nodes in turn, is a reorg; a node that cannot be reached throws, and `run` retries
+      let again: TransactionReceipt | null = null
+      for (let i = 0; i < 3 && !again; i++) {
+        if (i) await sleep(2_000)
+        again = await getTransactionReceipt(client, { hash: t.hash as Hex }).catch((e) => { if (e instanceof TransactionReceiptNotFoundError) return null; throw e })
+      }
       if (!again || again.blockHash !== t.blockHash) { patch(id, { phase: 'pending', block: undefined, blockHash: undefined, conf: 0, note: 'Its block was re-organised away; waiting for it to land again.' }); return step(id) }
     }
     patch(id, { phase: 'final', conf: Math.max(t.conf ?? 1, t.need) })

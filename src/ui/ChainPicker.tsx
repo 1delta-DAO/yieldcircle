@@ -14,8 +14,8 @@
  *
  * "All" stays the ABSENCE of a selection rather than a member of it (see
  * `AppState`), so a chain added tomorrow is in scope without anyone
- * re-picking. Each line has an `only`, because narrowing to one chain is the
- * thing people want most of the time.
+ * re-picking. Ticking a chain from "All" narrows to just that one, so the
+ * single-chain view is still one click away.
  */
 import React from 'react'
 import { useApp } from '../state/AppState'
@@ -42,15 +42,15 @@ export function ChainChip() {
       </button>
       <Popover anchor={btn} open={open} onClose={() => setOpen(false)} width={232} align="right">
         <div style={{ maxHeight: 'min(64vh, 560px)', overflowY: 'auto' }}>
-          <ChainList onOnly={() => setOpen(false)} />
+          <ChainList />
         </div>
       </Popover>
     </>
   )
 }
 
-/** Every chain, with a tick and an `only` — the chip's popover and the profile sheet both draw this. */
-export function ChainList({ onOnly }: { onOnly?: () => void }) {
+/** Every chain, with a tick — the chip's popover and the profile sheet both draw this. */
+export function ChainList() {
   const { chains, setChains, toggleChain, allChains } = useApp()
   return (
     <div className="chainmenu" role="group" aria-label="Chains">
@@ -64,15 +64,11 @@ export function ChainList({ onOnly }: { onOnly?: () => void }) {
       {CHAINS.map((c) => {
         const on = chains.includes(c.id)
         return (
-          <div key={c.id} className="cm-line">
-            <button className="cm-row" role="checkbox" aria-checked={on} onClick={() => toggleChain(c.id)}>
-              <span className="cm-tick" aria-hidden>{on ? '✓' : ''}</span>
-              <ChainMark chainId={c.id} size={16} />
-              <span className="cm-n">{c.label}</span>
-            </button>
-            <button className="cm-only" onClick={() => { setChains([c.id]); onOnly?.() }}
-              aria-label={`Only ${c.label}`}>only</button>
-          </div>
+          <button key={c.id} className="cm-row" role="checkbox" aria-checked={on} onClick={() => toggleChain(c.id)}>
+            <span className="cm-tick" aria-hidden>{on ? '✓' : ''}</span>
+            <ChainMark chainId={c.id} size={16} />
+            <span className="cm-n">{c.label}</span>
+          </button>
         )
       })}
     </div>

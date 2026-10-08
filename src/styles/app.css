@@ -1316,14 +1316,11 @@ i.chainmark{display:inline-grid;place-items:center;background:var(--b400);color:
 .chainbtn .marks .chainmark{margin-right:-5px;box-shadow:0 0 0 1.5px var(--bg);border-radius:50%}
 .chainbtn .cl{max-width:160px;overflow:hidden;text-overflow:ellipsis}
 .chainmenu{padding:5px;display:flex;flex-direction:column;gap:1px}
-.chainmenu .cm-line{display:flex;align-items:center;gap:2px}
 .chainmenu .cm-row{flex:1;display:flex;align-items:center;gap:8px;min-height:34px;padding:0 8px;border-radius:var(--r);color:var(--tx70);font-size:13px;text-align:left}
 .chainmenu .cm-row:hover{background:var(--b200);color:var(--tx)}
 .chainmenu .cm-row[aria-checked="true"]{color:var(--tx)}
 .chainmenu .cm-tick{width:12px;flex:none;color:var(--primary);font-size:11px}
 .chainmenu .cm-n{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.chainmenu .cm-only{flex:none;min-height:26px;padding:0 7px;border-radius:5px;font-family:var(--mono);font-size:10.5px;color:var(--tx40)}
-.chainmenu .cm-line:hover .cm-only{color:var(--tx70);border:1px solid var(--line2)}
 .chainmenu .cm-sep{height:1px;background:var(--line);margin:4px 2px}
 
 /* the corner of a card: which chain this happened on, without joining the numbers */

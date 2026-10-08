@@ -1,22 +1,9 @@
-import { createConfig, fallback, http } from 'wagmi'
+import { createConfig } from 'wagmi'
 import { mainnet, base, arbitrum, bsc, avalanche, optimism, hyperEvm, monad, plasma, polygon, arc, robinhood, stable, plumeMainnet } from 'wagmi/chains'
 import { injected, walletConnect } from 'wagmi/connectors'
-import { defineChain, type Chain, type Transport } from 'viem'
+import { defineChain, type Transport } from 'viem'
 import { APP_METADATA, HAS_WC, WC_PROJECT_ID } from './wc'
-
-/**
- * Almost every number in this app comes from the allocator API, not the chain.
- * The ONLY RPC consumers are the receipt watchers in `ui/useLadder.ts` and
- * `ui/GetAsset.tsx` — which is exactly the critical path, so a default public
- * endpoint rate-limiting a poll is a ladder that never advances. A per-chain
- * `VITE_RPC_<id>` takes precedence, with the public endpoint behind it.
- */
-const custom = (id: number) => (import.meta.env[`VITE_RPC_${id}`] as string | undefined)?.trim() || undefined
-const opts = { batch: { wait: 16 }, retryCount: 2 } as const
-const rpc = (c: Chain) => {
-  const url = custom(c.id)
-  return fallback(url ? [http(url, opts), http(undefined, opts)] : [http(undefined, opts)], { rank: false })
-}
+import { rotatingRpc } from './evmRpc'
 
 /**
  * Every EVM chain `CHAINS` in `sdk/queries.ts` offers must be here (that is
@@ -57,7 +44,7 @@ export const wagmiConfig = createConfig({
         })]
       : []),
   ],
-  transports: Object.fromEntries(chains.map((c) => [c.id, rpc(c)])) as Record<(typeof chains)[number]['id'], Transport>,
-  // the receipt watchers poll; 4s is a block on the fastest chain here
+  transports: Object.fromEntries(chains.map((c) => [c.id, rotatingRpc(c)])) as Record<(typeof chains)[number]['id'], Transport>,
+  // the receipt watcher polls (`sdk/txTrace.ts`, through `wallet/evmRpc.ts`); 4s is a block on the fastest chain here
   pollingInterval: 4_000,
 })

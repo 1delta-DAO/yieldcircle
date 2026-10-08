@@ -9,7 +9,7 @@
  * Identity (name, logo, desk, headline, market cap) is the EVM answer's where
  * it has one: that is where DefiLlama and the token-lists metadata live.
  */
-import type { AssetDetail, AssetHistory, AssetHolders, AssetSlice } from './types'
+import type { AssetBookRow, AssetDetail, AssetHistory, AssetHolders, AssetSlice } from './types'
 
 const SOL = 'solana'
 
@@ -121,6 +121,41 @@ export function mergeAssetHistory(e: AssetHistory, s: AssetHistory): AssetHistor
   }
   const protocols = [...e.protocols, ...s.protocols.filter((p) => !e.protocols.some((q) => q.key === p.key))]
   return { ...e, protocols, points: [...days.values()].sort((a, b) => (a.day < b.day ? -1 : 1)) }
+}
+
+/**
+ * The asset book from both indexes: a group on both VMs is one row, its
+ * totals added; everything else interleaves. Ordered like the EVM book
+ * (deposits, then posted + vaults) and cut to `limit` after the merge.
+ */
+export function mergeAssetBook(e: AssetBookRow[], s: AssetBookRow[], limit?: number): AssetBookRow[] {
+  const by = new Map<string, AssetBookRow>()
+  for (const r of e) by.set(r.group, r)
+  for (const r of s) {
+    const cur = by.get(r.group)
+    if (!cur) { by.set(r.group, r); continue }
+    const depositsUsd = cur.depositsUsd + r.depositsUsd
+    const borrowsUsd = cur.borrowsUsd + r.borrowsUsd
+    by.set(r.group, {
+      ...cur,
+      symbol: cur.symbol ?? r.symbol, name: cur.name ?? r.name, logoUri: cur.logoUri ?? r.logoUri,
+      issuer: cur.issuer ?? r.issuer, issuerName: cur.issuerName ?? r.issuerName,
+      priceUsd: cur.priceUsd ?? r.priceUsd, priceChange24hPct: cur.priceChange24hPct ?? r.priceChange24hPct,
+      depositsUsd, borrowsUsd,
+      collateralUsd: cur.collateralUsd + r.collateralUsd,
+      vaultTvlUsd: cur.vaultTvlUsd + r.vaultTvlUsd,
+      wrappedUsd: (cur.wrappedUsd ?? 0) + (r.wrappedUsd ?? 0),
+      utilization: depositsUsd > 0 ? borrowsUsd / depositsUsd : null,
+      depositsChange24hPct: change24h([{ usd: cur.depositsUsd, pct: cur.depositsChange24hPct }, { usd: r.depositsUsd, pct: r.depositsChange24hPct }]),
+      intrinsicApr: cur.intrinsicApr ?? r.intrinsicApr,
+      chains: [...new Set([...cur.chains, ...r.chains])],
+      markets: cur.markets + r.markets,
+      // a protocol on both VMs (none today) would count twice: bounded below by the larger side
+      protocols: cur.protocols + r.protocols,
+    })
+  }
+  const rows = [...by.values()].sort((a, b) => b.depositsUsd - a.depositsUsd || b.collateralUsd + b.vaultTvlUsd - (a.collateralUsd + a.vaultTvlUsd))
+  return limit ? rows.slice(0, limit) : rows
 }
 
 /** whether an answer counts the group's Solana half (the merge ran, or the Solana index answered alone) */

@@ -533,8 +533,11 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   // (`borrowAprShort`), the book route prices any size, and open and close both have a native route.
   // A maturity nobody is lending into (`canOpen: false`, 0 % and no liquidity) stays out
   const dueAt = r.fixedTerm?.model === 'midnight' && r.debtTerms?.canOpen && num(r.borrowAprShort) > 0 ? r.fixedTerm.maturity : undefined
+  // Loopscale flags its loan leg brokered (it has only tenor offers) and the ticket quotes each tenor at
+  // size; a pair no strategy lends on right now has no rate (`borrowAprShort` null), so no loop to price
+  const loopscaleCard = r.fixedTerm?.model === 'loopscale' && r.borrowAprShort != null && r.borrowAprShort !== ''
   if (dueAt) { if (dueAt * 1000 < Date.now() + 2 * 86400_000) return no('brokered') }
-  else if (r.variableBorrowDisabledShort ? !terms.length : FIXED_DATE.has(r.fixedTerm?.model ?? '') || r.debtTerms?.maturityKind === 'fixed-date') return no('brokered')
+  else if (r.variableBorrowDisabledShort ? !(terms.length || loopscaleCard) : FIXED_DATE.has(r.fixedTerm?.model ?? '') || r.debtTerms?.maturityKind === 'fixed-date') return no('brokered')
   // A dollar, ether or bitcoin loop sits on its COLLATERAL's desk. The debt is a rate, not an
   // exposure: a stable does not depeg upward, so borrowing USDC against sUSDe is Ethena's credit;
   // borrowing WETH against wstETH is Lido's (docs/stablecoin-exposure.md). Any debt of the same

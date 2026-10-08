@@ -3,7 +3,7 @@
  * boundary (the place to attach a key or a proxy). Loop parameters are named by meaning
  * (collateral / debt); the API's in/out naming is translated here and nowhere else.
  */
-import { apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } from '../vendor/allocator/http'
+import { ApiError, apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } from '../vendor/allocator/http'
 import { isNativeAddress } from '../model/positions'
 import { isSvmChain } from '../model/address'
 import type { RateHistoryResponse } from '../model/rateHistory'
@@ -211,6 +211,20 @@ export function loopOpen(p: LoopOpenParams) {
       duration: p.tenor?.duration, durationType: p.tenor?.durationType,
     },
   })
+}
+/** A Loopscale open too big for one lender, as worker-api restates it: amounts in debt tokens, and the margin / leverage that fit this request. */
+export interface LoopDepthShort {
+  message: string
+  /** what the deepest lender on the tenor has, and what the loan needs — debt tokens (0 from a worker that predates `details`) */
+  available: number
+  required: number
+  fit: { margin?: { asset: string; amount: number; usd?: number }; leverage?: number }
+}
+/** `INSUFFICIENT_DEPTH` (one loan draws on one lender) read off a failed loop quote; `null` for any other failure. */
+export function loopDepthShort(err: unknown): LoopDepthShort | null {
+  if (!(err instanceof ApiError) || err.code !== 'INSUFFICIENT_DEPTH') return null
+  const d = (err.details ?? {}) as { availableAmount?: number; requiredAmount?: number; fit?: LoopDepthShort['fit'] }
+  return { message: err.message, available: d.availableAmount ?? 0, required: d.requiredAmount ?? 0, fit: d.fit ?? {} }
 }
 export function fetchLoopPayAssets(p: { collateralMarketUid: string; debtMarketUid: string }) {
   return apiFetch<LoopPayAssetsData>('/v1/actions/loop/leverage/pay-assets', { params: { marketUidIn: p.debtMarketUid, marketUidOut: p.collateralMarketUid } })

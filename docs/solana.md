@@ -125,7 +125,9 @@ behaviour is byte-for-byte unchanged.
   answers one). Until the Solana routes deploy they 404 and the client is
   EVM-only, silently.
 - Pages that stay EVM-only until their routes exist on Solana:
-  - Board / earners, `/assets` history;
+  - Board / earners, the asset book (`/assets`);
+  - an asset page is asked of both indexes and merged (`index/assetMerge.ts`); it
+    counts Solana once the Solana index serves `/assets/:group`;
   - `/stress`, `/find`.
 
   On Solana these show "not on Solana yet" in words, never an empty state.

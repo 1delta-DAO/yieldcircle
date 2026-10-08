@@ -17,8 +17,10 @@
  *     `/curators/by-account`) fan out the same way and merge by key; the
  *     Solana side answering 404 (not deployed yet) costs its chips only;
  *   - a curator's own page goes to the index that knows the id;
- *   - everything else (board, assets, stress, find, balances) is EVM-only
- *     until those routes exist on Solana.
+ *   - an asset page (`/assets/:group…`) asks both and adds the answers
+ *     (`assetMerge.ts`); the asset BOOK (`/assets`) is still EVM-only;
+ *   - everything else (board, stress, balances) is EVM-only until those
+ *     routes exist on Solana.
  *
  * The Solana index must answer the EVM index's shapes — this file does NOT
  * adapt them (plan decision 2). A route of it that still answers its old
@@ -30,6 +32,7 @@ import { INDEX_BASE_URL, SOL_INDEX_BASE_URL } from '../config/backend'
 import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
 import { isSolGroup } from '../model/assetGroup'
 import { bestOf } from '../search/rank'
+import { mergeAssetDetail, mergeAssetHistory, mergeAssetHolders } from './assetMerge'
 import type { AccountIdentity, AccountKind, AssetBookRow, IndexBalances, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, ImpairedCount, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
 
 /** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
@@ -1024,18 +1027,38 @@ export const stress = (markets: string[]) =>
  */
 const g = (group: string) => `/assets/${encodeURIComponent(group)}`
 /**
- * A Solana-only key (`model/assetGroup.ts`) goes to the Solana index, which has
- * no asset routes yet (its 404 is the page's "not on Solana yet"); every other
- * key to the EVM index, which does not count Solana members until the two merge.
+ * A Solana-only key (`model/assetGroup.ts`) goes to the Solana index alone.
+ * Every other key is asked of BOTH indexes when the scope spans both VMs —
+ * nOPAL is Ethereum + Plume on one ledger and Kamino on the other — and the two
+ * answers add (`assetMerge.ts`). The Solana index answering 404 (its `/assets`
+ * routes not deployed yet) leaves the EVM answer, as with the facets.
  */
 export const indexForGroup = (group: string) => (isSolGroup(group) ? SOL_INDEX_BASE_URL : INDEX_BASE_URL)
 export const assets = (p: { chainIds?: string; q?: string; limit?: number; minUsd?: number } = {}, signal?: AbortSignal) =>
   get<{ assets: AssetBookRow[]; asOf: string | null }>('/assets', p, signal)
-export const asset = (group: string, chainIds?: string) => get<AssetDetail>(g(group), { chainIds }, undefined, indexForGroup(group))
+/**
+ * One asset route of both indexes. The EVM side's error is kept: the page
+ * reads its "on these chains" 404 to widen the scope, and only a Solana answer
+ * stands in for it. `evm === null` (a Solana-only scope) is that same 404
+ * without asking.
+ */
+async function fanAsset<T>(group: string, path: string, p: Params, ok: (j: T) => boolean, merge: (e: T, s: T) => T): Promise<T> {
+  if (isSolGroup(group)) return get<T>(path, p, undefined, SOL_INDEX_BASE_URL)
+  const { evm, sol } = splitScope(p.chainIds as string | undefined)
+  const [e, s] = await Promise.allSettled([
+    evm === null ? Promise.reject(new Error(`no asset '${group}' on these chains`)) : get<T>(path, { ...p, chainIds: evm }),
+    sol ? get<T>(path, { ...p, chainIds: undefined }, undefined, SOL_INDEX_BASE_URL).then((j) => (ok(j) ? j : Promise.reject(new Error('not in the EVM shape')))) : Promise.reject(new Error('out of scope')),
+  ])
+  if (e.status === 'fulfilled') return s.status === 'fulfilled' ? merge(e.value, s.value) : e.value
+  if (s.status === 'fulfilled') return s.value
+  throw e.reason
+}
+export const asset = (group: string, chainIds?: string) =>
+  fanAsset<AssetDetail>(group, g(group), { chainIds }, (j) => !!j && !!j.totals && Array.isArray(j.markets), mergeAssetDetail)
 export const assetHistory = (group: string, days = 90, chainIds?: string) =>
-  get<AssetHistory>(`${g(group)}/history`, { days, chainIds }, undefined, indexForGroup(group))
+  fanAsset<AssetHistory>(group, `${g(group)}/history`, { days, chainIds }, (j) => !!j && Array.isArray(j.points), mergeAssetHistory)
 export const assetHolders = (group: string, limit = 20, chainIds?: string) =>
-  get<AssetHolders>(`${g(group)}/holders`, { limit, chainIds }, undefined, indexForGroup(group))
+  fanAsset<AssetHolders>(group, `${g(group)}/holders`, { limit, chainIds }, (j) => !!j && Array.isArray(j.holders), (e, s) => mergeAssetHolders(e, s, limit))
 
 export const health = () => get<{ ok: boolean; chains?: string[] }>('/health')
 
@@ -1102,8 +1125,8 @@ export interface FindCatalogDoc {
 }
 /**
  * Both indexes, one answer. The Solana index's `/find` (pos-indexer docs/sol-names.md "Search") names
- * wallets only — kolscan / GMGN KOLs, a wallet's own primary `.sol`, the owner of a `.sol` someone
- * typed — and ranks with the same `search.ts`, so its scores sort straight into the EVM index's.
+ * wallets only — kolscan / GMGN KOLs, a wallet's own primary `.sol`, a Seeker's `.skr`, the owner
+ * of a `.sol` someone typed — and ranks with the same `search.ts`, so its scores sort straight into the EVM index's.
  * Either index failing leaves the other's answer; both failing throws.
  */
 export async function find(p: { q: string; kinds?: string; chainIds?: string; per?: number }, signal?: AbortSignal): Promise<FindAnswer> {

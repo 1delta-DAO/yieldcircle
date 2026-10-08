@@ -80,7 +80,7 @@ export interface Valued extends Desked {
 export interface AccountIdentity {
   accountKind?: AccountKind
   accountLabel?: string | null
-  /** null/absent = the index's own claim; else `chain` / `blockscout` / `ens` / `basename` / `seed` / `tag`; Solana: `kolscan` / `gmgn` / `sns` */
+  /** null/absent = the index's own claim; else `chain` / `blockscout` / `ens` / `basename` / `seed` / `tag`; Solana: `kolscan` / `gmgn` / `sns` / `skr` */
   accountLabelSource?: string | null
   /** Solana: the X account a KOL list names for the wallet */
   accountX?: string | null

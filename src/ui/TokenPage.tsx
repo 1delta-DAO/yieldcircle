@@ -22,6 +22,8 @@ import { indexChainLabel, subjectOf } from '../index/types'
 import { chainLabel, useCatalog } from '../sdk/queries'
 import { canonGroup, isSolGroup, spellingsOf } from '../model/assetGroup'
 import type { Strategy } from '../model/strategies'
+import { noteOf } from '../model/assetNotes'
+import { countsSolana } from '../index/assetMerge'
 import { normAddr } from '../model/address'
 import { useCounts, useProfiles } from '../social/queries'
 import { ChainMark } from './ChainMark'
@@ -102,15 +104,15 @@ function strategyHref(s: Strategy) {
  * catalogue rather than the index, so it holds on chains the index cannot
  * answer for yet (Solana). A loop counts when the token is its collateral.
  */
-function EarnWith({ group, sym, max = 6 }: { group: string; sym: string; max?: number }) {
+function EarnWith({ group, sym, solCounted, max = 6 }: { group: string; sym: string; solCounted?: boolean; max?: number }) {
   const { chainIds } = useApp()
   const cat = useCatalog(chainIds)
   const key = canonGroup(group)
   // rows a floor holds back still open from here (the shelf resolves `s=` against them too), after the ones it shows
   const rows = [...[...cat.simple, ...cat.loops].sort((x, y) => y.rate - x.rate), ...[...cat.hidden, ...cat.overflow].sort((x, y) => y.rate - x.rate)]
     .filter((s, i, all) => s.assetGroup === key && all.findIndex((o) => o.id === s.id) === i)
-  // the index's totals above do not count Solana yet; the menu does
-  const solUncounted = !isSolGroup(group) && rows.some((s) => s.chainId === 'solana')
+  // the totals above count Solana once the Solana index answers for the asset; until then only the menu does
+  const solUncounted = !solCounted && !isSolGroup(group) && rows.some((s) => s.chainId === 'solana')
   if (!rows.length)
     return (
       <section className="sec">
@@ -140,6 +142,26 @@ function EarnWith({ group, sym, max = 6 }: { group: string; sym: string; max?: n
         ))}</tbody>
       </table></div>
     </section>
+  )
+}
+
+/** What the token is, from `model/assetNotes.ts` — nothing when nobody has written it yet (docs/asset-research-backlog.md). */
+function About({ group, sym }: { group: string; sym: string | null }) {
+  const n = noteOf(group, sym)
+  if (!n) return null
+  const full = 'checked' in n && n.checked ? n : null
+  return (
+    <div className="card pad tk-about">
+      <p>{n.what}</p>
+      {full?.yieldFrom && <p><b>Yield comes from</b> {full.yieldFrom}</p>}
+      {!!full?.facts?.length && <ul>{full.facts.map((f, i) => <li key={i}>{f}</li>)}</ul>}
+      {full && (
+        <div className="tk-about-l">
+          {full.links?.map((l) => <a key={l.url} href={l.url} target="_blank" rel="noreferrer">{l.label} ↗</a>)}
+          <span className="t40">checked {full.checked}</span>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -201,6 +223,7 @@ export function TokenPage({ group }: { group: string }) {
             asset pages yet.
           </div>
         )}
+        <About group={group} sym={group.split('::')[1] || null} />
         <EarnWith group={group} sym={group.split('::')[1] || group.split('::')[0]} />
       </>
     )
@@ -249,6 +272,8 @@ export function TokenPage({ group }: { group: string }) {
           The index has no {sym} on {chainLabelFor()}, so the figures below cover every chain it indexes.
         </div>
       )}
+
+      <About group={group} sym={d?.symbol ?? null} />
 
       <div className="cstats">
         <div className="cstat">
@@ -300,7 +325,7 @@ export function TokenPage({ group }: { group: string }) {
         )}
       </div>
 
-      <EarnWith group={group} sym={sym} />
+      <EarnWith group={group} sym={sym} solCounted={countsSolana(d)} />
 
       {d?.headline && (
         <section className="sec">

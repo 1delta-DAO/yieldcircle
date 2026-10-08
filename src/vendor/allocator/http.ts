@@ -49,13 +49,16 @@ export class ApiError extends Error {
   readonly code?: string
   /** Request path, for logs — never includes the base URL or any header. */
   readonly path: string
+  /** The envelope's `error.details`: the numbers behind the message, per code (`INSUFFICIENT_DEPTH` → the cap and what fits). */
+  readonly details?: unknown
 
-  constructor(message: string, opts: { path: string; status?: number; code?: string }) {
+  constructor(message: string, opts: { path: string; status?: number; code?: string; details?: unknown }) {
     super(message)
     this.name = 'ApiError'
     this.path = opts.path
     this.status = opts.status
     this.code = opts.code
+    this.details = opts.details
   }
 }
 
@@ -149,7 +152,7 @@ export interface ApiEnvelope<T, A = ApiActions> {
   ok?: boolean
   data?: T | null
   actions?: A | null
-  error?: { code?: string; message?: string } | string
+  error?: { code?: string; message?: string; details?: unknown } | string
 }
 
 export interface ApiOptions {
@@ -192,9 +195,9 @@ async function retryAfterSeconds(res: Response): Promise<number> {
 }
 
 /** Normalise the two shapes the backend uses for `error`. */
-function envelopeError(error: ApiEnvelope<unknown>['error']): { message?: string; code?: string } {
+function envelopeError(error: ApiEnvelope<unknown>['error']): { message?: string; code?: string; details?: unknown } {
   if (typeof error === 'string') return { message: error }
-  return { message: error?.message, code: error?.code }
+  return { message: error?.message, code: error?.code, details: error?.details }
 }
 
 /**
@@ -249,12 +252,13 @@ export async function apiFetchEnvelope<T, A = ApiActions>(
     // instead of burying it in a raw-text message.
     try {
       const parsed = JSON.parse(text) as ApiEnvelope<unknown>
-      const { message, code } = envelopeError(parsed?.error)
+      const { message, code, details } = envelopeError(parsed?.error)
       if (message || code) {
         throw new ApiError(message ?? `HTTP ${res.status}`, {
           path,
           status: res.status,
           code,
+          details,
         })
       }
     } catch (err) {
@@ -278,11 +282,12 @@ export async function apiFetchEnvelope<T, A = ApiActions>(
   }
 
   if (!status) {
-    const { message, code } = envelopeError(json.error)
+    const { message, code, details } = envelopeError(json.error)
     throw new ApiError(message ?? `${path} returned success: false`, {
       path,
       status: res.status,
       code,
+      details,
     })
   }
 

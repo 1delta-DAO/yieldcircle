@@ -425,6 +425,12 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const simHf = q.data?.data?.simulation?.post?.healthFactor
   // answered, but with no route: the build would come back with nothing but an approval
   const noRoute = !!q.data && !hasRoute(q.data.data)
+  // a Loopscale loan draws on ONE lender: too big for the deepest on this tenor, nothing opens. The API
+  // says so in words and hands back the margin (USD, re-read in the pay token) and leverage that fit
+  const short = tq?.short ?? null
+  const fitAmount = short?.fit.margin?.usd && price > 0 ? short.fit.margin.usd / price : 0
+  const fitLev = short?.fit.leverage ?? 0
+  const fitTier = fitLev ? [...TIERS].reverse().find((t) => s.tiers[t.id] <= fitLev) : undefined
   const yearly = E * net / 100
   const key = [s.id, amount, L, term?.id ?? '', tenor?.id ?? '', chosen?.role ?? '', actor ?? '', slip].join('|')
   const ladder = useLadder(key, s.chainId, async () => {
@@ -457,21 +463,21 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
             <p style={{ margin: '0 0 6px' }}>{s.venue} lends {s.debt} here at a rate it sets for each term, the same at any size. The rate you pick is locked from today until the term ends.</p>
             <p style={{ margin: '0 0 6px' }}>When it ends the debt is not due and nothing is liquidated for it: the loan moves to the market's variable rate{after != null ? <> ({pct(after)} now)</> : ''} until you fix it again.</p>
             <p style={{ margin: 0 }}>Repaying before the end (closing or deleveraging) costs a penalty of about half the interest the repaid part would still pay.</p></Info></span>
-          <div className="seg" role="radiogroup" aria-label="Fixed term">{s.terms.map((t) => <button key={t.id} role="radio" aria-checked={t.id === term.id} aria-pressed={t.id === term.id} onClick={() => setTermId(t.id)}>{t.days} days<span className="c" style={{ marginLeft: 6 }}>{pct(t.apr)}</span></button>)}</div>
+          <div className="seg terms" role="radiogroup" aria-label="Fixed term">{s.terms.map((t) => <button key={t.id} role="radio" aria-checked={t.id === term.id} aria-pressed={t.id === term.id} onClick={() => setTermId(t.id)}>{t.days} days<span className="c">{pct(t.apr)}</span></button>)}</div>
         </>}
         {dates && s.dueAt && <>
           <span className="lbl" style={{ marginTop: 14 }}>Repay the {s.debt} by <Info label="Fixed-date loans">
             <p style={{ margin: '0 0 6px' }}>{s.venue} lends {s.debt} from an order book: lenders post rates for a loan due on a set date, and the loop takes the cheapest offers first. The rate shown is what this size pays.</p>
             <p style={{ margin: '0 0 6px' }}>What you owe is fixed when you open and does not grow. Repaying early costs no penalty, but you repay that same amount, so the interest up to the date is paid either way.</p>
             <p style={{ margin: 0 }}>The loan must be repaid by its date. After it, the position can be liquidated whatever its health.</p></Info></span>
-          <div className="seg" role="radiogroup" aria-label="Due date">{dates.map((d) => { const r = d === s ? bookApr ?? d.borSpot : bookAprAt(bookOf(d)?.book ?? null, debtTok) ?? d.borSpot; return <button key={d.id} role="radio" aria-checked={d.id === s.id} aria-pressed={d.id === s.id} onClick={() => setDateId(d.id)}>{new Date(d.dueAt! * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}<span className="c" style={{ marginLeft: 6 }}>{pct(r)}</span></button> })}</div>
+          <div className="seg terms" role="radiogroup" aria-label="Due date">{dates.map((d) => { const r = d === s ? bookApr ?? d.borSpot : bookAprAt(bookOf(d)?.book ?? null, debtTok) ?? d.borSpot; return <button key={d.id} role="radio" aria-checked={d.id === s.id} aria-pressed={d.id === s.id} onClick={() => setDateId(d.id)}>{new Date(d.dueAt! * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}<span className="c">{pct(r)}</span></button> })}</div>
         </>}
         {s.tenors && tenor && <>
           <span className="lbl" style={{ marginTop: 14 }}>Borrow the {s.debt} for <Info label="Loopscale loan terms">
             <p style={{ margin: '0 0 6px' }}>{s.venue} matches you with lenders who each quote a fixed rate for a set term. Every term is its own market, so the rate depends on the term and on how much you borrow; the rates shown are for this size.</p>
             <p style={{ margin: '0 0 6px' }}>When the term ends the loan rolls into a new one-day term at whatever lenders then offer. If nobody does, there is a 48-hour grace period, then part of the position is liquidated.</p>
             <p style={{ margin: 0 }}>Repaying early costs nothing.</p></Info></span>
-          <div className="seg" role="radiogroup" aria-label="Loan term">{tenorQs.map((x) => <button key={x.tenor.id} role="radio" aria-checked={x.tenor.id === tenor.id} aria-pressed={x.tenor.id === tenor.id} disabled={!x.offer && !x.pending} title={!x.offer && !x.pending ? 'No lender offers this term at this size' : undefined} onClick={() => setTenorId(x.tenor.id)}>{tenorWord(x.tenor)}<span className="c" style={{ marginLeft: 6 }}>{x.offer ? pct(x.offer.apr) : x.pending ? '…' : '—'}</span></button>)}</div>
+          <div className="seg terms" role="radiogroup" aria-label="Loan term">{tenorQs.map((x) => <button key={x.tenor.id} role="radio" aria-checked={x.tenor.id === tenor.id} aria-pressed={x.tenor.id === tenor.id} disabled={!x.offer && !x.pending} title={x.short ? x.short.message : !x.offer && !x.pending ? 'No lender offers this term at this size' : undefined} onClick={() => setTenorId(x.tenor.id)}>{tenorWord(x.tenor)}<span className="c">{x.offer ? pct(x.offer.apr) : x.pending ? '…' : '—'}</span></button>)}</div>
         </>}
         <span className="lbl" style={{ marginTop: 14 }}>How hard to push it <Info label="Leverage tiers">{TIERS.map((t) => <p key={t.id} style={{ margin: '0 0 6px' }}><b>{t.name}</b> · {t.blurb}</p>)}<p style={{ margin: '0 0 6px' }}>This venue allows up to {num(s.maxLev, 1)}×. At {num(L, 2)}× the collateral can fall <b>{pct(drop * 100, 1)}</b> against the debt before liquidation.</p>{canCustom && <p style={{ margin: 0 }}>The slider icon swaps the tiers for a leverage of your own, up to {num(hi, 2)}×.</p>}</Info>
           {canCustom && <button type="button" className="levtoggle" aria-pressed={custom != null} aria-label={custom != null ? 'Back to the tiers' : 'Set my own leverage'} title={custom != null ? 'Back to the tiers' : 'Set my own leverage'} onClick={() => setCustom(custom != null ? null : L)}>
@@ -486,6 +492,14 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
             <span className={`tr ${n >= 3 ? 'ok' : n < 0 ? 'bad' : ''}`}>{pct(n)}</span>
             <span className={`tl ${d < 0.05 ? 'bad' : d < 0.1 ? 'warn' : ''}`} title={`${num(l, 2)}× leverage · liquidated if the collateral falls ${pct(d * 100, 1)} against the debt`}>{num(l, 2)}× · −{pct(d * 100, d < 0.1 ? 1 : 0)}</span>
           </button>) })}</div>}
+        {short && <div className="caution depth">
+          <b>Too big for one lender.</b> {short.message}
+          {(fitAmount > 0 || fitTier || (fitLev > 1 && canCustom && fitLev >= lo)) && <div className="fixes">
+            {fitAmount > 0 && <button type="button" className="pctb" onClick={() => setAmount(Math.floor(fitAmount * 100) / 100)}>Pay {num(fitAmount, 2)} {chosen?.symbol}</button>}
+            {fitTier ? <button type="button" className="pctb" onClick={() => { setCustom(null); setTier(fitTier.id) }}>{fitTier.name} {num(s.tiers[fitTier.id], 2)}×</button>
+              : fitLev > 1 && canCustom && fitLev >= lo && <button type="button" className="pctb" onClick={() => setCustom(fitLev)}>{num(fitLev, 2)}×</button>}
+          </div>}
+        </div>}
         {econ && <>
           <ValueRow v={vc} labels={['You put in', 'Equity after', 'Value change']} missing={chosen?.symbol}
             info={<>Your equity right after the open, at market prices: what you put in less the entry cost — the swap's slippage on the whole {num(L, 2)}× position, fees and the network fee. A loop earns it back over time (Break-even below).</>} />
@@ -509,7 +523,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
           <span className="s">{econ ? <>entry cost {usd(cost)}{payback != null && clockDays != null && payback > clockDays ? ` · past ${clockWord}` : ''} <Info label="What the entry costs">
             <b>{usd(cost)}</b> to open: swap slippage {usd(econ.entryCostUsd.slippage)}, fees {usd(econ.entryCostUsd.fees)}, network {econ.entryCostUsd.gas == null ? 'not priced' : usd(econ.entryCostUsd.gas)}. Max slippage allowed: {slip / 100}%.
             <p style={{ margin: '8px 0 0' }}>{payback == null ? <>At {pct(net)} the loop earns nothing, so the entry is never earned back.</> : <>At {pct(net)} on {usd(E)} the loop earns {usd(E * net / 100 / 365)} a day, so the entry is earned back in {daysWord(payback)}{clockDays != null ? <> — {payback > clockDays ? 'after' : 'before'} {clockWord}</> : ''}. Closing costs about as much again.</>}</p>
-          </Info></> : noRoute ? 'no route at this size' : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
+          </Info></> : noRoute ? 'no route at this size' : short ? 'too big for one lender' : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
         <div className="c"><span className="k">Health</span><span className={`v ${(simHf ?? hf) < 1.1 ? 'bad' : (simHf ?? hf) < 1.25 ? 'warn' : 'ok'}`}>{(simHf ?? hf).toFixed(2)}</span><span className="s">{simHf ? 'simulated by the API' : 'from the liquidation threshold'}</span></div>
       </div>
         <span className="lbl" style={{ marginTop: 14 }}>Liquidation</span>
@@ -538,7 +552,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
         {s.rewardsLong + s.rewardsShort > 0.05 && <li><i /><span>Part of the rate is incentives that can stop without notice.</span></li>}
       </ul></div>
       {noRoute && <div className="err" style={{ margin: '0 0 10px' }}>{NO_ROUTE}</div>}
-      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={s.chainId} />
+      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked} risky={vc.severe} blockedNote={short ? 'Too big for one lender — see above' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={s.chainId} />
     </>
   )
 }

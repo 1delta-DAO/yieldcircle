@@ -1,4 +1,4 @@
-import { useIsFetching, useQueries, useQuery, useQueryClient, type Query } from '@tanstack/react-query'
+import { keepPreviousData, useIsFetching, useQueries, useQuery, useQueryClient, type Query } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { hintLegs } from '../sdk/queries'
 import type { EarnPositionsResponse } from '../sdk/types'
@@ -348,6 +348,28 @@ export function earnersQuery(k: EarnersKey) {
 }
 export function useEarners(k: EarnersKey, enabled = true) {
   return useQuery({ ...earnersQuery(k), enabled })
+}
+
+/**
+ * Who holds each of these strategies (`bookKeyOf` keys), as a map by key. The
+ * catalogue settles chain by chain and the key list grows with it — a dozen
+ * steps in a second or two — so the list is asked for once it has held still
+ * for 800 ms, and the previous answer stays on screen while the next loads.
+ */
+export function useStrategyProofs(keys: string[]) {
+  const [asked, setAsked] = useState(keys)
+  useEffect(() => {
+    const t = setTimeout(() => setAsked(keys), 800)
+    return () => clearTimeout(t)
+  }, [keys])
+  return useQuery({
+    queryKey: ['strategy-proofs', asked],
+    queryFn: async ({ signal }) => new Map((await api.strategyProofs(asked, signal)).map((r) => [r.key, r])),
+    enabled: asked.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 2 * MIN,
+    retry: false,
+  })
 }
 
 /** The podium now (and the latest reigns), overall and per chain. `account` narrows both to one wallet. */

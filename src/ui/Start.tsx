@@ -6,9 +6,10 @@
  * with my money, and how much work is it?* This page does, in three bands
  * (`model/activity.ts`) — passive savings, medium loops, active strategies on a
  * clock (a PT, or a loop on fixed-rate debt)
- * — with 2–3 recommended cards each. A card is recommended because the top-50
- * earners board holds real equity in it (the proof is on the card, with the
- * wallet it links to), the steady 30-day rate breaking ties; never because
+ * — with 2–3 recommended cards each. A card is recommended because real
+ * wallets hold equity in it (the index's strategy book: every person's
+ * position ≥ $1k; the proof is on the card, with the wallet it links to), the
+ * steady 30-day rate breaking ties; never because
  * tonight's rate is the biggest number.
  *
  * It is the first of the four tabs, and a first visit without a wallet is
@@ -21,9 +22,9 @@ import { ConnectButton } from '../wallet/ConnectButton'
 import { useBook } from './useBook'
 import { useRateHistory } from '../sdk/queries'
 import { steadyRate, type HistoryGet } from '../model/rateHistory'
-import { BANDS, BAND_ORDER, DENOMS, clockOf, denomOf, denomOfAsset, isFixedDebt, recommend, type Band, type Denom, type Pick_ } from '../model/activity'
-import { useEarners } from '../index/queries'
-import type { EarnerRow } from '../index/api'
+import { BANDS, BAND_ORDER, DENOMS, bandOf, clockOf, denomOf, denomOfAsset, isFixedDebt, recommend, type Band, type Denom, type Pick_ } from '../model/activity'
+import { useStrategyProofs } from '../index/queries'
+import { bookKeyOf } from '../model/uid'
 import { useProfiles } from '../social/queries'
 import { Who } from './social-bits'
 import { Avg30 } from './Spark'
@@ -44,19 +45,23 @@ export const startSeen = () => seen
 
 // ---------------------------------------------------------------- the page
 export function Start() {
-  const { isConnected, chainIds, allChains } = useApp()
+  const { isConnected } = useApp()
   const b = useBook()
   const get = useRateHistory(b.all, !b.isFetching)
   const rank = (s: Strategy) => steadyRate(s, get)
-  // the same board the Board page shows (and the index pre-warms): the top
-  // positions by APR, people only — the proof behind every "recommended"
-  const eq = useEarners({ by: 'position', sort: 'apr', people: true, chainIds: allChains ? undefined : chainIds.join(',') })
-  const rows: EarnerRow[] | undefined = eq.data?.by === 'position' ? eq.data.rows : undefined
+  // who holds each strategy that could be a card, in every denomination (a
+  // chip switch then costs no request): the index's strategy book, every
+  // person's position ≥ $1k — the proof behind every "recommended"
+  const keys = React.useMemo(
+    () => [...new Set(b.all.filter((s) => bandOf(s) && denomOf(s)).map(bookKeyOf).filter((k): k is string => !!k))].sort(),
+    [b.all],
+  )
+  const book = useStrategyProofs(keys).data
   // one denomination at a time, so exposures are never mixed: a SOL rate is
   // SOL-on-SOL, and putting it beside a dollar rate would rank apples by oranges
   const [denom, setDenom] = React.useState<Denom>('USD')
   const menu = b.all.filter((s) => denomOf(s) === denom)
-  const picks = Object.fromEntries(BAND_ORDER.map((band) => [band, recommend(menu, band, rows, rank)])) as Record<Band, Pick_[]>
+  const picks = Object.fromEntries(BAND_ORDER.map((band) => [band, recommend(menu, band, book, rank)])) as Record<Band, Pick_[]>
   // one profiles request for every face the cards show
   const { profile } = useProfiles(BAND_ORDER.flatMap((band) => picks[band].map((p) => p.proof?.best?.account)).filter((a): a is string => !!a))
   // being here IS the first visit done — the Home tab goes to the feed from now on
@@ -72,7 +77,7 @@ export function Start() {
         <h1>Where to start</h1>
         <p>
           Three ways to put money to work, sorted by how much attention they ask — and in each,
-          what the chain’s proven top earners actually hold. Every rate is an APR read off the
+          what real wallets on the chain actually hold. Every rate is an APR read off the
           chain, and every card opens as a ready-made ticket.
         </p>
         {!isConnected && (
@@ -193,8 +198,8 @@ function StartCard({ p, get, profile }: { p: Pick_; get: HistoryGet; profile: Pr
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); location.hash = walletHref(best.account) } }}>
           <Who account={best.account} profile={profile(best.account)} size={22} plain
             sub={<>{pct(best.aprPct)} on {usdShort(best.equityUsd)}</>} />
-          <small className="t50" title="Equity that wallets on the top-earners board hold in exactly this market — read off the chain, not claimed.">
-            {usdShort(p.proof.totalUsd)} from {p.proof.wallets} top earner{p.proof.wallets === 1 ? '' : 's'}
+          <small className="t50" title="Wallets holding at least $1k in exactly this strategy, and their equity in it — read off the chain, not claimed. Smaller holders are not counted, so there are at least this many.">
+            held by {p.proof.wallets}+ wallet{p.proof.wallets === 1 ? '' : 's'} · {usdShort(p.proof.totalUsd)}
           </small>
         </div>
       ) : <div className="stcard-proof t40"><small>steadiest rate in its band this month</small></div>}

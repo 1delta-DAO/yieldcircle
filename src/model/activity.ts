@@ -21,10 +21,10 @@
  *
  * Pure functions; the only imports are types.
  */
-import type { EarnerRow } from '../index/api'
+import type { StrategyProofRow } from '../index/api'
 import { isSavings } from './nature'
 import { ptMaturityOf, type LoopStrategy, type Strategy } from './strategies'
-import { uidsOf } from './uid'
+import { bookKeyOf } from './uid'
 
 /**
  * What a strategy EARNS IN — the lander's second axis, so exposures are never
@@ -116,60 +116,43 @@ export function bandOf(s: Strategy): Band | null {
 }
 
 /**
- * Who of the earners board sits in this strategy's market(s), and with how
- * much. A loop asks for BOTH its legs, so a mere lender of the same collateral
- * does not read as running the loop. A deposit asks for a row that holds it AS
- * a deposit — a supply/share leg of its market (`holdsAsDeposit`), with no
- * debt anywhere in the position: on Morpho Blue the lender, the collateral
- * poster and the borrower all share one market uid, so a PT looper borrowing
- * the loan asset would otherwise "prove" lending it (the 60 % loop vouching
- * for a 6 % deposit). Equity, not supply: what the wallet actually has at stake.
+ * Who holds this strategy, and with how much — the index's strategy book
+ * (pos-indexer docs/strategy-book.md), which files EVERY person's position
+ * with a leg ≥ $1k under the strategies it runs. The matching is the index's:
+ * a loop is a position with the collateral on a held leg and the debt on a
+ * debt leg (more legs beside them are allowed — the wallet runs this loop
+ * too); a deposit is a debt-free position holding the market, where a
+ * collateral leg of a DIFFERENT token under a shared uid (Silo, Fraxlend)
+ * does not count. The wallet count is a floor: holders under $1k are not in
+ * the book.
  */
 export interface Proof {
   totalUsd: number
   wallets: number
-  /** the biggest position: whose, how big, and what it earns */
+  /** the face on the card: the best clean APR ≥ $10k, else the largest stake */
   best: { account: string; equityUsd: number; aprPct: number | null } | null
 }
-export function proofOf(s: Strategy, rows: EarnerRow[] | undefined): Proof | null {
-  if (!rows?.length) return null
-  const want = uidsOf(s)
-  if (!want.length) return null
-  const matched = s.kind === 'loop'
-    ? rows.filter((r) => want.every((u) => r.marketUids.includes(u)))
-    : rows.filter((r) => !r.legs.some((l) => l.side === 'borrow') && r.legs.some((l) => want.includes(l.marketUid) && holdsAsDeposit(l, s.assetSymbol)))
-  if (!matched.length) return null
-  const accounts = new Set(matched.map((r) => r.account))
-  const best = matched.reduce((m, r) => (r.equityUsd > m.equityUsd ? r : m))
-  return {
-    totalUsd: matched.reduce((a, r) => a + r.equityUsd, 0),
-    wallets: accounts.size,
-    best: { account: best.account, equityUsd: best.equityUsd, aprPct: best.netAprPct },
-  }
+export type ProofBook = Map<string, StrategyProofRow>
+export function proofOf(s: Strategy, book: ProofBook | undefined): Proof | null {
+  const k = book && bookKeyOf(s)
+  const r = k ? book.get(k) : undefined
+  if (!r || !r.wallets) return null
+  return { totalUsd: r.equityUsd, wallets: r.wallets, best: r.best ?? r.top }
 }
-
-/**
- * A supply or vault-share leg is the deposit itself; a collateral leg only when
- * it is the deposit's own asset (Aave-style collateral) — a Morpho market's
- * collateral is a DIFFERENT token under the same uid. A leg without a symbol
- * is given the benefit of the doubt.
- */
-const holdsAsDeposit = (l: EarnerRow['legs'][number], sym: string) =>
-  l.side !== 'borrow' && (l.side !== 'collateral' || !l.symbol || l.symbol.toUpperCase() === sym.toUpperCase())
 
 export interface Pick_ {
   s: Strategy
   proof: Proof | null
 }
 /**
- * The cards of one band: proven strategies first (the ones top earners hold,
+ * The cards of one band: proven strategies first (the ones real wallets hold,
  * biggest stake leading), the steadiest rate breaking ties and filling the
  * rest. Passive is the beginner's savings account, so there the lowest risk
  * tier leads before proof or rate: a low-risk USDC market at 8 % outranks a
  * yellow synthetic dollar at 12 %, and the riskier rows only fill what is left. One card per desk row (`asset`), like the Earn digest — three USDC
  * vaults are one recommendation, not three.
  */
-export function recommend(all: Strategy[], band: Band, rows: EarnerRow[] | undefined, rank: (s: Strategy) => number, per = 3): Pick_[] {
+export function recommend(all: Strategy[], band: Band, book: ProofBook | undefined, rank: (s: Strategy) => number, per = 3): Pick_[] {
   const whole = all.filter((s) => bandOf(s) === band)
   // a starting point is low-to-medium risk; high-risk rows only when the band would otherwise be empty
   const calm = whole.filter((s) => s.risk <= 2)
@@ -178,7 +161,7 @@ export function recommend(all: Strategy[], band: Band, rows: EarnerRow[] | undef
   const riskFirst = band === 'passive'
   const byAsset = new Map<string, Pick_>()
   for (const s of inBand) {
-    const p: Pick_ = { s, proof: proofOf(s, rows) }
+    const p: Pick_ = { s, proof: proofOf(s, book) }
     const cur = byAsset.get(s.asset)
     if (!cur || better(p, cur, rank, riskFirst)) byAsset.set(s.asset, p)
   }

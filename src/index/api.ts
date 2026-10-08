@@ -597,6 +597,56 @@ async function bothBoards<R extends { annualUsd: number | null; apr24hPct: numbe
     computedAt: [a!.computedAt, b!.computedAt].filter((x): x is string => !!x).sort()[0] ?? null,
   }
 }
+/**
+ * The strategy book (pos-indexer docs/strategy-book.md): who holds each of the
+ * catalogue's strategies — every person's position on the index with a leg
+ * ≥ $1k, not the board's top 50. A key is `loop:<collateral uid>|<debt uid>`
+ * or `dep:<uid>` (`bookKeyOf`) and goes to the index of its chain; an index
+ * that answers no route or fails reads as no holders, never as an error.
+ */
+export interface StrategyHolder {
+  account: string
+  equityUsd: number
+  aprPct: number | null
+}
+export interface StrategyProofRow {
+  key: string
+  chainId: string
+  kind: 'loop' | 'deposit'
+  /** a floor: holders under $1k a leg are not counted */
+  wallets: number
+  positions: number
+  /** a loop: the positions' equity; a deposit: the legs' own value */
+  equityUsd: number
+  aprPct: number | null
+  leverageMin: number | null
+  leverageMax: number | null
+  /** the largest stake */
+  top: StrategyHolder | null
+  /** the highest APR among clean, exact stakes ≥ $10k */
+  best: StrategyHolder | null
+}
+const keyChain = (k: string) => k.slice(k.indexOf(':') + 1).split(':')[1]
+export async function strategyProofs(keys: string[], signal?: AbortSignal): Promise<StrategyProofRow[]> {
+  const ask = async (ks: string[], base: string): Promise<StrategyProofRow[]> => {
+    if (!ks.length) return []
+    try {
+      const r = await fetch(base + '/strategies/proof', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ keys: ks }), signal,
+      })
+      if (!r.ok) return []
+      const j = (await r.json()) as { rows?: unknown }
+      return Array.isArray(j.rows) ? (j.rows as StrategyProofRow[]) : []
+    } catch {
+      return []
+    }
+  }
+  const sol = keys.filter((k) => isSvmChain(keyChain(k)))
+  const evm = keys.filter((k) => !isSvmChain(keyChain(k)))
+  const [a, b] = await Promise.all([ask(evm, INDEX_BASE_URL), ask(sol, SOL_INDEX_BASE_URL)])
+  return [...a, ...b]
+}
+
 export const earners = (p: EarnersQuery = {}) =>
   bothBoards<EarnerRow>(undefined, p).then((r) => ({ ...r, by: 'position' as const }))
 export const walletEarners = (p: EarnersQuery = {}) =>

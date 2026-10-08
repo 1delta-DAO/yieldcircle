@@ -73,6 +73,22 @@ export function loopKey(s: Extract<Strategy, { kind: 'loop' }>): string | null {
   const a = canonUid(s.marketLongUid), b = canonUid(s.marketShortUid)
   return a && b && a !== b ? `loop:${a}|${b}` : null
 }
+/**
+ * The index's STRATEGY BOOK key (pos-indexer docs/strategy-book.md): a loop is
+ * `loop:<collateral uid>|<debt uid>` — `loopKey`'s spelling, but kept when
+ * both legs are one uid (a Jupiter Lend vault holds collateral and debt under
+ * its own) — and a deposit `dep:<uid>`. Ported, never imported: the index
+ * files every position it holds under these keys.
+ */
+export function bookKeyOf(s: Strategy): string | null {
+  if (s.kind === 'loop') {
+    const a = canonUid(s.marketLongUid), b = canonUid(s.marketShortUid)
+    return a && b ? `loop:${a}|${b}` : null
+  }
+  const u = uidOf(s)
+  return u ? `dep:${u}` : null
+}
+
 /** The two legs of a loop key; null when it is not one. */
 export function parseLoopKey(key: string): { long: string; short: string } | null {
   if (!key.startsWith('loop:')) return null

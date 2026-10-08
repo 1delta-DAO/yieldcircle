@@ -302,25 +302,40 @@ export function maturityClock(t: number, now = Date.now() / 1000): { text: strin
   }
 }
 /**
- * A fixed-rate LOAN's term on its meta line (`termEndsAt` / `termDays` from the
- * index, Loopscale): `1-day term · fixed to 9 Oct 2026 · 11h`. Loopscale rolls
- * a loan at its term's end — refinanced at the rate then on offer — and only
- * when no lender takes it does the 2-day grace start, so a passed end is
- * amber, never "due": the next read shows the rolled term.
+ * A fixed-rate LOAN's term (`termEndsAt` / `termDays` from the index, Loopscale).
+ * Loopscale's refinance keeper rolls a loan into a new term of the SAME length
+ * at its end (~00:15 UTC, at the lender's offer then), so a 1-day loan is a
+ * rate reset daily, not a fixed one: it reads `1-day term · rolls daily · next
+ * 9 Oct 00:20 UTC`. A week or longer reads `1-week term · fixed to 13 Oct 2026 ·
+ * 5d`. A passed end is `awaiting roll` (amber), never "due": keepers run late
+ * (`BJtT8L…` waited ~34 h on 2026-09-15) and the 2-day grace starts only when
+ * no lender takes the loan. `short` is the group line's phrase.
  */
-export function termClock(end: number, termDays?: number | null, now = Date.now() / 1000): { text: string; title: string; due: boolean } {
+export function termClock(end: number, termDays?: number | null, now = Date.now() / 1000): { text: string; short: string; title: string; due: boolean } {
   const left = end - now
+  const daily = termDays != null && termDays <= 1
   const term = termDays ? `${termDays === 1 ? '1-day' : termDays === 7 ? '1-week' : termDays % 30 === 0 ? `${termDays / 30}-month` : `${termDays}-day`} term` : 'fixed term'
-  const when = new Date(end * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC'
+  const hm = new Date(end * 1000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
+  const day = new Date(end * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+  const when = `${dateOf(end)}, ${hm} UTC`
+  const fallback = 'If no lender takes it at the roll, it must be repaid within the 2-day grace period, after which it can be liquidated.'
   if (left <= 0) return {
-    text: `${term} · ended ${dateOf(end)}`,
-    title: `The term ended ${when}. The loan is refinanced at the rate then on offer; if no lender takes it, it must be repaid or rolled within the grace period, after which it can be liquidated.`,
+    text: `${term} · awaiting roll since ${daily ? `${day} ${hm} UTC` : dateOf(end)}`,
+    short: 'awaiting roll',
+    title: `The term ended ${when} and the loan has not been rolled yet as of the last read — Loopscale's keeper rolls it into a new ${term} at the rate then on offer, sometimes hours late. ${fallback}`,
     due: true,
+  }
+  if (daily) return {
+    text: `${term} · rolls daily · next ${day} ${hm} UTC`,
+    short: 'rolls daily',
+    title: `Loopscale rolls this loan into a new 1-day term every day at the lender's offer at that moment, so the rate can change at each roll — in effect a variable rate reset daily. Next roll ${when}. ${fallback}`,
+    due: false,
   }
   const span = left < DAY ? `${Math.max(1, Math.round(left / 3600))}h` : `${Math.ceil(left / DAY)}d`
   return {
     text: `${term} · fixed to ${dateOf(end)} · ${span}`,
-    title: `This loan's rate is fixed until ${when}. At the end of the term it is refinanced at the rate then on offer; if no lender takes it, it must be repaid or rolled within the grace period, after which it can be liquidated.`,
+    short: `rate fixed to ${dateOf(end)}`,
+    title: `This loan's rate is fixed until ${when}. Then Loopscale rolls it into a new ${term} at the rate then on offer. ${fallback}`,
     due: false,
   }
 }

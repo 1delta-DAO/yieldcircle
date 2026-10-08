@@ -8,9 +8,25 @@ import { isAddr } from '../model/address'
  * app can ask them to. The cookie itself is HttpOnly — this flag is the only
  * way the bundle learns it.
  */
-declare global { interface Window { ycPass?: boolean } }
+declare global { interface Window { ycPass?: boolean; ycGated?: boolean } }
 
 export const onAccessCode = () => window.ycPass === true
+
+/** No beta access: the middleware marked the HTML (`window.ycGated`) and shipped the overlay hidden. */
+export const gated = () => window.ycGated === true
+
+/**
+ * Open the gate's card — the waitlist / sign-in modal the middleware ships
+ * hidden (`gate/page.ts`). False in a build without the gate (the visitor is
+ * in, or the gate is off): the caller then links into the app instead.
+ */
+export function openGate(): boolean {
+  const el = document.getElementById('yc-gate')
+  if (!el) return false
+  el.style.display = ''
+  el.querySelector<HTMLButtonElement>('#yc-go')?.focus()
+  return true
+}
 
 /** The overlay's waitlist flow, served to an access-code holder (a new tab, so the app stays put). */
 export const WAITLIST_HREF = '/?waitlist'

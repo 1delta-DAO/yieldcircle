@@ -299,7 +299,7 @@ export function MaturityNote({ t }: { t: number }) {
   const c = maturityClock(t)
   return <> · <span className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span></>
 }
-/** ` · 1-day term · fixed to 9 Oct 2026 · 11h` on a fixed-rate loan's meta line; amber once the term has ended. */
+/** ` · 1-day term · rolls daily · next 9 Oct 00:20 UTC` (or `· 1-week term · fixed to …`) on a fixed-rate loan's meta line; amber while a passed term awaits its roll. */
 export function TermNote({ end, days }: { end: number; days?: number | null }) {
   const c = termClock(end, days)
   return <> · <span className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span></>

@@ -14,7 +14,7 @@ import React from 'react'
 import { accountCarry } from '../model/accountCarry'
 import { useMenu, type Menu } from './useMenu'
 import { parseUid, uidOf } from '../model/uid'
-import { dateOf, ptMaturityOf, type Strategy } from '../model/strategies'
+import { ptMaturityOf, termClock, type Strategy } from '../model/strategies'
 import { useAccount } from 'wagmi'
 import { go, marketHref, parseRoute, useApp, useRoute, walletHref } from '../state/AppState'
 import { PnlDrawer } from './PnlDrawer'
@@ -480,7 +480,8 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
           if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={c ? <CopyCell c={c} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} pnl={<PnlButton who={who} posKey={g.key} />} onOpen={() => openPnl(who, g.key)} />
           const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
           // the debt's own fixed term, the earliest when several loans share the group
-          const termEnd = s.debt.reduce<number | null>((m, r) => r.termEndsAt && (m == null || r.termEndsAt < m) ? r.termEndsAt : m, null)
+          const termLeg = s.debt.reduce<IndexPosition | null>((m, r) => r.termEndsAt && (!m || r.termEndsAt < m.termEndsAt!) ? r : m, null)
+          const term = termLeg ? termClock(termLeg.termEndsAt!, termLeg.termDays) : null
           return <React.Fragment key={g.key}>
             <tr className="grp" title="value, money in and PnL since this position opened" onClick={() => openPnl(who, g.key)}>
               <td>
@@ -494,7 +495,7 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
                 <small className="hide-m">
                   {indexChainLabel(lead.chainId, chainLabel)} · {usdShort(g.supplyUsd)} {s.debt.length ? 'collateral' : 'supplied'}{s.collSyms.length > 1 ? ` in ${s.collSyms.join(', ')}` : ''}
                   {s.debt.length > 0 && <> over {usdShort(g.debtUsd)} of debt{s.debtSyms.length > 1 ? ` in ${s.debtSyms.join(', ')}` : ''}</>}
-                  {termEnd != null && <> · rate fixed to <span className={termEnd * 1000 <= Date.now() ? 'warn' : undefined}>{dateOf(termEnd)}</span></>}
+                  {term && <> · <span className={term.due ? 'warn' : undefined} title={term.title}>{term.short}</span></>}
                 </small>
               </td>
               <td className="r"><b>{usd(g.equityUsd)}</b><small>equity{navShare(g.equityUsd, navUsd)}</small></td>

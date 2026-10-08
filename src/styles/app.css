@@ -1576,6 +1576,8 @@ i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-sty
 .tk-markets .nm a:hover,.tk-book .nm a:hover{color:var(--primary)}
 .tk-chain{display:inline-flex;align-items:center;gap:6px}
 .tk-more{margin:10px 16px 12px}
+.tbl tr.held td{opacity:.62}
+.heldchip{margin-left:6px;font-size:10.5px;padding:1px 6px;border:1px dashed var(--line2);border-radius:999px;color:var(--tx50);white-space:nowrap}
 .tk-about{margin-top:14px;font-size:13px;line-height:1.55;color:var(--tx70)}
 .tk-about p{margin:0 0 6px}
 .tk-about b{color:var(--tx);font-weight:600}

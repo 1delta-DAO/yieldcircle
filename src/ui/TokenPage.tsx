@@ -20,7 +20,9 @@ import { useApp, marketHref, tokenHref, walletHref } from '../state/AppState'
 import { useAsset, useAssetBook, useAssetHistory, useAssetHolders, useFeedPage } from '../index/queries'
 import type { AssetBookRow, AssetHistory, AssetMarket, AssetSlice } from '../index/types'
 import { indexChainLabel, subjectOf } from '../index/types'
-import { chainLabel, useCatalog } from '../sdk/queries'
+import { chainLabel, useAssetStrategies, useCatalog, type StructuralCount } from '../sdk/queries'
+import { useSettings } from '../state/Settings'
+import { HIDES, hideDetail, softHide, type HideCode } from '../model/visibility'
 import { canonGroup, isSolGroup, spellingsOf } from '../model/assetGroup'
 import type { Strategy } from '../model/strategies'
 import { loadAssetNotes, noteOf } from '../model/assetNotes'
@@ -93,57 +95,91 @@ export function AssetLink({ group, sym, logo }: { group: string | null | undefin
 
 // ---------------------------------------------------------------- the page
 
-/** a strategy's ticket on its Earn shelf (the `go()` url, as a link) */
+/**
+ * A strategy's ticket on its Earn shelf (the `go()` url, as a link). `oa` lets the shelf
+ * ask for the row on its own when the menu never fetched it (`useOffMenu`): the
+ * deposit's token symbol, or the loop's collateral address.
+ */
 function strategyHref(s: Strategy) {
-  const q = new URLSearchParams({ u: s.asset, s: s.id })
+  const q = new URLSearchParams({ u: s.asset, s: s.id, oa: s.kind === 'loop' ? s.collateralAddress : s.assetSymbol })
   if (s.kind === 'loop') q.set('k', 'loop')
   return `#/${s.group}?${q}`
 }
 
 /**
- * Where the menu puts this token to work: the page's way into Earn, from the
- * catalogue rather than the index, so it holds on chains the index cannot
- * answer for yet (Solana). A loop counts when the token is its collateral.
+ * What can be done with this token: its own rows from the API on every chain it lives on
+ * (`useAssetStrategies` — deposits, passthrough included, and every loop with it as
+ * collateral), plus the vaults that MINT it from the menu (USDC into Nest's savings vault
+ * is how you hold nOPAL; the API cannot be asked for those by share yet). A row a menu
+ * floor would hold back is listed after the rest, muted, with the floor's word.
  */
-function EarnWith({ group, sym, solCounted, max = 6 }: { group: string; sym: string; solCounted?: boolean; max?: number }) {
-  const { chainIds } = useApp()
-  const cat = useCatalog(chainIds)
+function EarnWith({ group, sym, members, solCounted, max = 8 }: { group: string; sym: string; members?: { chainId: string; address: string }[]; solCounted?: boolean; max?: number }) {
+  const { chainIds, allChains } = useApp()
+  const { st } = useSettings()
+  const [all, setAll] = React.useState(false)
   const key = canonGroup(group)
-  // rows a floor holds back still open from here (the shelf resolves `s=` against them too), after the ones it shows
-  const rows = [...[...cat.simple, ...cat.loops].sort((x, y) => y.rate - x.rate), ...[...cat.hidden, ...cat.overflow].sort((x, y) => y.rate - x.rate)]
-    // a vault that MINTS the token counts too: USDC into Nest's savings vault is how you hold nOPAL
-    .filter((s, i, all) => (s.assetGroup === key || (s.kind === 'simple' && s.shareGroup === key)) && all.findIndex((o) => o.id === s.id) === i)
+  const own = useAssetStrategies(key, members, allChains ? undefined : chainIds)
+  const cat = useCatalog(chainIds)
+  const fromMenu = [...cat.simple, ...cat.loops, ...cat.hidden, ...cat.overflow]
+    .filter((s) => s.assetGroup === key || (s.kind === 'simple' && s.shareGroup === key))
+  const seen = new Set<string>()
+  const rows = [...own.rows, ...fromMenu].filter((s) => !seen.has(s.id) && !!seen.add(s.id))
+  const heldOf = (s: Strategy): HideCode | null => own.held.get(s.id) ?? softHide(s, st)
+  const ordered = [...rows.filter((s) => !heldOf(s)).sort((x, y) => y.rate - x.rate), ...rows.filter((s) => heldOf(s)).sort((x, y) => y.rate - x.rate)]
+  const shownN = ordered.filter((s) => !heldOf(s)).length
+  const cannot = own.structural
   // the totals above count Solana once the Solana index answers for the asset; until then only the menu does
   const solUncounted = !solCounted && !isSolGroup(group) && rows.some((s) => s.chainId === 'solana')
+  const loading = own.isLoading && !rows.length
   if (!rows.length)
     return (
       <section className="sec">
         <div className="sec-h"><h2>Earn with {sym}</h2></div>
-        <div className="card pad">{cat.isLoading ? <Sk w={220} /> : <span className="t50">Nothing in the menu holds {sym} on the chains in scope.</span>}</div>
+        <div className="card pad">
+          {loading ? <Sk w={220} /> : <span className="t50">No lending market, vault or loop takes {sym}{allChains ? '' : ' on the chains in scope'}.</span>}
+          {!loading && <Cannot rows={cannot} />}
+        </div>
       </section>
     )
-  const shelf = rows[0]
+  const shelf = ordered[0]
   return (
     <section className="sec">
       <div className="sec-h">
         <h2>Earn with {sym}</h2>
-        <span className="sub">{rows.length} in the menu{solUncounted ? ' · the Solana ones are not in the totals above yet' : ''}</span>
+        <span className="sub">{shownN} open{rows.length > shownN ? ` · ${rows.length - shownN} the menu holds back` : ''}{solUncounted ? ' · the Solana ones are not in the totals above yet' : ''}</span>
         <span className="sp" />
         <a className="btn sm" href={`#/${shelf.group}?${new URLSearchParams({ u: shelf.asset })}`}>All on Earn ›</a>
       </div>
       <div className="card"><table className="tbl">
-        <tbody>{rows.slice(0, max).map((s) => (
-          <tr key={s.id} onClick={() => { location.hash = strategyHref(s) }}>
-            <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}
-              <a href={strategyHref(s)} onClick={(e) => e.stopPropagation()}><b>{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds}</b></a>
-              <span className="t50 hide-m"> · {s.kind === 'loop' ? s.venue : s.via}</span><KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} /></div>
-              <small>{chainLabel(s.chainId)}</small></td>
-            <td className="r"><span className={s.rate >= 0 ? 'ok' : 'bad'}>{pct(s.rate)}</span><small>APR{s.kind === 'loop' ? ' · levered' : ''}</small></td>
-            <td className="r t40" style={{ width: 20 }}>›</td>
-          </tr>
-        ))}</tbody>
-      </table></div>
+        <tbody>{(all ? ordered : ordered.slice(0, max)).map((s) => {
+          const held = heldOf(s)
+          return (
+            <tr key={s.id} className={held ? 'held' : undefined} onClick={() => { location.hash = strategyHref(s) }}>
+              <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}
+                <a href={strategyHref(s)} onClick={(e) => e.stopPropagation()}><b>{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds}</b></a>
+                <span className="t50 hide-m"> · {s.kind === 'loop' ? s.venue : s.via}</span><KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} />
+                {held && <span className="heldchip" title={`${HIDES[held].why}${hideDetail(s, held) ? ` (${hideDetail(s, held)})` : ''}`}>{HIDES[held].word}</span>}</div>
+                <small>{chainLabel(s.chainId)}</small></td>
+              <td className="r"><span className={s.rate >= 0 ? 'ok' : 'bad'}>{pct(s.rate)}</span><small>APR{s.kind === 'loop' ? ' · levered' : ''}</small></td>
+              <td className="r t40" style={{ width: 20 }}>›</td>
+            </tr>
+          )
+        })}</tbody>
+      </table>
+      {ordered.length > max && <button className="btn sm tk-more" onClick={() => setAll((x) => !x)}>{all ? `Show the first ${max}` : `Show all ${ordered.length}`}</button>}
+      </div>
+      <Cannot rows={cannot} />
     </section>
+  )
+}
+
+/** the rows the API has for the token that no ticket can build, counted with the reason */
+function Cannot({ rows }: { rows: StructuralCount[] }) {
+  if (!rows.length) return null
+  return (
+    <div className="tk-notes" title={rows.map((c) => `${HIDES[c.code].word}: ${HIDES[c.code].why}${c.examples.length ? ` (${c.examples.join(', ')})` : ''}`).join('\n')}>
+      <span>Also in the API, not buildable here: {rows.map((c) => `${c.n} ${HIDES[c.code].word}`).join(' · ')} ⓘ</span>
+    </div>
   )
 }
 
@@ -338,7 +374,7 @@ export function TokenPage({ group }: { group: string }) {
         )}
       </div>
 
-      <EarnWith group={group} sym={sym} solCounted={countsSolana(d)} />
+      <EarnWith group={group} sym={sym} members={d?.members} solCounted={countsSolana(d)} />
 
       {d?.headline && (
         <section className="sec">

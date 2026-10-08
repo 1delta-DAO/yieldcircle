@@ -78,15 +78,14 @@ this token".
 |---|---|---|---|
 | 2.1 | Name vault shares across all chains, with their group (`strategy-tokens.json` from every chain in `CHAINS`, `shareGroup` = the token-list group). The page lists vaults that mint the token. | yieldcircle | done 2026-10-08 |
 | 2.2 | Regenerate `vault-risks.json` so Nest, Hastra, Sanctum and Jupiter savings vaults are scored. Add a CI job for it; there is none, and that is why the scores went stale. | risk-data | regenerated locally; push pending |
-| 2.3 | **Per-asset queries on the page** (`useAssetStrategies(group, members)`). One `GET /v1/data/earn?assetGroup=<g>&passthrough=include` (the filter exists and answers for AUTO), plus one `pairs/optimize?collaterals=<member addresses>` per chain from `AssetDetail.members`. Rows go through `classifyEarn` / `classifyPair` as everywhere else, deduped against the catalogue. They are not cut by the menu's floors; a held-back row shows its reason. | yieldcircle | replaces the catalogue filter in `EarnWith` |
+| 2.3 | **Per-asset queries on the page** (`useAssetStrategies` in `sdk/queries.ts`). One `GET /v1/data/earn?assetGroup=<g>&passthrough=include` over the token's chains, plus one `pairs/optimize?collaterals=<its addresses>` per chain from `AssetDetail.members`. The menu's minting vaults are added (by `shareGroup`). No floor cuts a row: a row the menu would hold back is listed last, muted, with the floor's word ("thin borrow", "unrated"). Rows no ticket can build are counted under the list. A row opens its ticket through `oa=` (the off-menu fetch) when the menu never had it. | yieldcircle | done 2026-10-08 |
 | 2.4 | **The API names the share.** `shareToken` (address, symbol, assetGroup) on every vault row, plus a `shareGroup=` filter, so 2.3 asks for "vaults that mint X" too and the build-time map retires. | yield-tracer / worker-api | upstream |
 | 2.5 | **Missing pairs.** The optimizer builds no pair for Kamino's AUTO Market (`KAMINO_Btu8835…`, AUTO → USDC / PYUSD). Find why: market config not ingested, the reserve not flagged as collateral, or a liquidity cut. Check every Kamino market with an earn row but no pair. | yield-tracer | upstream bug |
 | 2.6 | **Tags.** A token with no archetype prop is in no menu request: Hylo's xSOL (`Hylo Leveraged SOL::xSOL::solana`) carries only `issuer`. Audit groups that have earn rows or pairs but no `lst` / `stablecoin` / `savings` / `pendle` / `rwa` / `btc` prop. (AUTO is tagged `savings`, so its missing loops are 2.5, not this.) | token-lists | upstream |
 
 ### Order
 
-2.2 push → 1.2 regenerate → 2.3 (biggest user-visible fix, app only) → 2.5 / 2.4
-upstream → 1.3 / 1.4 cleanup.
+2.2, 1.2 and 2.3 are done. Next: 2.5 and 2.4 upstream, then the 1.3 / 1.4 cleanup.
 
 ## Seen on 2026-10-08, after 1.1, 1.2 and 2.1
 

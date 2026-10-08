@@ -35,9 +35,11 @@ import type { ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmRe
 // `assetSymbol` + `passthrough` are for the exposure assets only (`EXPOSURE` in assets.ts): a JLP
 // deposit pays JLP's own yield and nothing of the market's, which the listing leaves out unless
 // asked (`passthrough=include`). That is a separate, narrow request, never the pre-warmed one.
-export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number; assetSymbol?: string; passthrough?: boolean }): Promise<EarnResponse> {
+// `assetGroup` (the deposit token's index group) is the asset page's own request
+// (`useAssetStrategies`): every row of one token, on every chain it lives on.
+export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number; assetSymbol?: string; assetGroup?: string; passthrough?: boolean }): Promise<EarnResponse> {
   const count = p.count ?? 500
-  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, passthrough: p.passthrough ? 'include' : undefined }
+  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, assetGroup: p.assetGroup, passthrough: p.passthrough ? 'include' : undefined }
   const served = (r: EarnResponse) => r.items.length + (r.excluded?.unrealizable ?? 0)
   const first = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params })
   const items = [...first.items]

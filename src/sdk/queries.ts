@@ -342,6 +342,64 @@ export function useCatalog(chainIds: string[]) {
     errors: [...earn, ...loops, ...extra].map((q) => q.error).filter((e): e is Error => !!e),
   }
 }
+/**
+ * Everything the API can do with ONE token, for its asset page (docs/asset-info-plan.md 2.3).
+ *
+ * The page used to filter the Earn menu (`useCatalog`), which only holds what the menu's
+ * requests happened to ask for: loops by archetype tag, deposits without the passthrough
+ * ones, the chains in scope. So a token's page missed every row the menu never fetched.
+ * This asks about the token itself, on every chain it lives on:
+ *
+ *   - one `/v1/data/earn?assetGroup=<group>&passthrough=include` — its lending and collateral
+ *     deposits, the ones paying only its own yield included;
+ *   - one `pairs/optimize?collaterals=<its addresses>` per chain — every loop with it as
+ *     collateral, tagged or not, any debt (`classifyPair` still refuses a price bet).
+ *
+ * No floor cuts a row here: a row the menu would hold back comes with `held` (the code that
+ * would hide it), so the page can show it muted with its reason. Rows that cannot be a
+ * strategy at all (`closed`, `unmapped`, `cross-denom` …) are counted in `structural`.
+ * `members`: the token's (chain, address) pairs from the index's asset answer.
+ */
+export function useAssetStrategies(group: string | undefined, members: { chainId: string; address: string }[] | undefined, scope?: string[]) {
+  const { st } = useSettings()
+  const known = new Set(CHAINS.map((c) => c.id))
+  const inScope = (c: string) => known.has(c) && (!scope || scope.includes(c))
+  const byChain: Record<string, string[]> = {}
+  for (const m of members ?? []) if (inScope(m.chainId)) (byChain[m.chainId] ??= []).push(m.address)
+  const chains = Object.keys(byChain).sort()
+  // no members (the index could not answer): ask the deposits on every chain in scope, no loops
+  const earnChains = chains.length ? chains : CHAINS.map((c) => c.id).filter(inScope)
+  const earn = useQuery({
+    enabled: !!group && earnChains.length > 0,
+    queryKey: ['asset-earn', group, earnChains.join(',')],
+    queryFn: async () => sortOut((await fetchEarn({ chainIds: earnChains, count: 1000, maxRiskScore: 5, minTvlUsd: 0, assetGroup: group, passthrough: true })).items.map(classifyEarn), 'simple'),
+    staleTime: 10 * 60_000,
+  })
+  const loops = useQueries({
+    queries: chains.map((chainId) => ({
+      queryKey: ['asset-loops', chainId, [...byChain[chainId]].sort().join(',')],
+      queryFn: async () => sortOut((await optimizerPages({ chainIds: [chainId], collaterals: byChain[chainId], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop'),
+      staleTime: 10 * 60_000,
+    })),
+  })
+  const stamp = [earn.dataUpdatedAt, ...loops.map((q) => q.dataUpdatedAt)].join('|')
+  const out = useMemo(() => {
+    const simple = dedupe(earn.data?.rows ?? [])
+    const folded = foldDates(dedupe(loops.flatMap((q) => q.data?.rows ?? [])))
+    const rows: Strategy[] = [...simple, ...folded.rows]
+    const held = new Map<string, HideCode>()
+    for (const r of rows) { const h = softHide(r, st); if (h) held.set(r.id, h) }
+    const structural = mergeStructural([earn.data, ...loops.map((q) => q.data)].flatMap((d) => (d ? [{ structural: d.structural, kind: d.kind }] : [])))
+    return { rows, held, structural }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stamp, st])
+  return {
+    ...out,
+    isLoading: earn.isLoading || loops.some((q) => q.isLoading),
+    errors: [earn, ...loops].map((q) => q.error).filter((e): e is Error => !!e),
+  }
+}
+
 /** The floors, applied to rows already in hand. A hidden row is a COPY carrying the code that hid it. */
 function split<T extends Strategy>(rows: T[], st: Settings): { show: T[]; hide: (T & { hide: HideCode })[] } {
   const show: T[] = [], hide: (T & { hide: HideCode })[] = []

@@ -300,6 +300,29 @@ export function maturityClock(t: number, now = Date.now() / 1000): { text: strin
     due: days <= 14,
   }
 }
+/**
+ * A fixed-rate LOAN's term on its meta line (`termEndsAt` / `termDays` from the
+ * index, Loopscale): `1-day term · fixed to 9 Oct 2026 · 11h`. Loopscale rolls
+ * a loan at its term's end — refinanced at the rate then on offer — and only
+ * when no lender takes it does the 2-day grace start, so a passed end is
+ * amber, never "due": the next read shows the rolled term.
+ */
+export function termClock(end: number, termDays?: number | null, now = Date.now() / 1000): { text: string; title: string; due: boolean } {
+  const left = end - now
+  const term = termDays ? `${termDays === 1 ? '1-day' : termDays === 7 ? '1-week' : termDays % 30 === 0 ? `${termDays / 30}-month` : `${termDays}-day`} term` : 'fixed term'
+  const when = new Date(end * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' UTC'
+  if (left <= 0) return {
+    text: `${term} · ended ${dateOf(end)}`,
+    title: `The term ended ${when}. The loan is refinanced at the rate then on offer; if no lender takes it, it must be repaid or rolled within the grace period, after which it can be liquidated.`,
+    due: true,
+  }
+  const span = left < DAY ? `${Math.max(1, Math.round(left / 3600))}h` : `${Math.ceil(left / DAY)}d`
+  return {
+    text: `${term} · fixed to ${dateOf(end)} · ${span}`,
+    title: `This loan's rate is fixed until ${when}. At the end of the term it is refinanced at the rate then on offer; if no lender takes it, it must be repaid or rolled within the grace period, after which it can be liquidated.`,
+    due: false,
+  }
+}
 /** `7 days`, `~1 day`, `18 h` — a cooldown is a whole number of days nearly always; the `~` says when it is not */
 export const spanOf = (secs: number) => {
   if (secs < DAY) return `${Math.max(1, Math.round(secs / 3600))} h`

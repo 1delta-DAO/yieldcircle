@@ -8,7 +8,7 @@
  * phone it had already folded into a button beside four others.
  *
  * What a page shows instead is a CHIP, on the pages whose lists the scope
- * actually narrows (Home, Earn, Board). It names the scope and opens the same
+ * actually narrows (Start, Home, Earn, Board). It names the scope and opens the same
  * list, so the filter sits beside the thing it filters and a phone is never
  * stuck on whatever scope it last had on a desktop.
  *

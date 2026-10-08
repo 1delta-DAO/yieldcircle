@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
 import { assetLogo, colorOf, short, unitOf } from '../model/assets'
 import { ChainMark, addressUrl, chainInfo, txUrl } from './ChainMark'
-import { maturityClock, type Risk } from '../model/strategies'
+import { maturityClock, termClock, type Risk } from '../model/strategies'
 
 export const pct = (x: number | null | undefined, d = 2) => (x == null || !Number.isFinite(x) ? '—' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%')
 /** One decimal while the figure is a single digit (9.44 → "9.4", 5.02 → "5"), whole from 10 on (9.97 → "10"). */
@@ -297,5 +297,10 @@ export function GroupIcon({ id, color, size = 20 }: { id: string; color: string;
 /** ` · matures 17 Dec 2026 · 75d` on a held PT's meta line; amber once it is due or past (it then earns nothing). */
 export function MaturityNote({ t }: { t: number }) {
   const c = maturityClock(t)
+  return <> · <span className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span></>
+}
+/** ` · 1-day term · fixed to 9 Oct 2026 · 11h` on a fixed-rate loan's meta line; amber once the term has ended. */
+export function TermNote({ end, days }: { end: number; days?: number | null }) {
+  const c = termClock(end, days)
   return <> · <span className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span></>
 }

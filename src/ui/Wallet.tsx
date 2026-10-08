@@ -14,7 +14,7 @@ import React from 'react'
 import { accountCarry } from '../model/accountCarry'
 import { useMenu, type Menu } from './useMenu'
 import { parseUid, uidOf } from '../model/uid'
-import { ptMaturityOf, type Strategy } from '../model/strategies'
+import { dateOf, ptMaturityOf, type Strategy } from '../model/strategies'
 import { useAccount } from 'wagmi'
 import { go, marketHref, parseRoute, useApp, useRoute, walletHref } from '../state/AppState'
 import { PnlDrawer } from './PnlDrawer'
@@ -26,7 +26,7 @@ import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
 import { isEvmAddr, isEvmChain, normAddr } from '../model/address'
-import { AddrExplorers, CopyButton, MaturityNote, Sk, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
+import { AddrExplorers, CopyButton, MaturityNote, Sk, TermNote, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
 import { Said } from './Talk'
@@ -479,6 +479,8 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
           const st = c && 'st' in c ? c.st : null
           if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={c ? <CopyCell c={c} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} pnl={<PnlButton who={who} posKey={g.key} />} onOpen={() => openPnl(who, g.key)} />
           const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
+          // the debt's own fixed term, the earliest when several loans share the group
+          const termEnd = s.debt.reduce<number | null>((m, r) => r.termEndsAt && (m == null || r.termEndsAt < m) ? r.termEndsAt : m, null)
           return <React.Fragment key={g.key}>
             <tr className="grp" title="value, money in and PnL since this position opened" onClick={() => openPnl(who, g.key)}>
               <td>
@@ -492,6 +494,7 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
                 <small className="hide-m">
                   {indexChainLabel(lead.chainId, chainLabel)} · {usdShort(g.supplyUsd)} {s.debt.length ? 'collateral' : 'supplied'}{s.collSyms.length > 1 ? ` in ${s.collSyms.join(', ')}` : ''}
                   {s.debt.length > 0 && <> over {usdShort(g.debtUsd)} of debt{s.debtSyms.length > 1 ? ` in ${s.debtSyms.join(', ')}` : ''}</>}
+                  {termEnd != null && <> · rate fixed to <span className={termEnd * 1000 <= Date.now() ? 'warn' : undefined}>{dateOf(termEnd)}</span></>}
                 </small>
               </td>
               <td className="r"><b>{usd(g.equityUsd)}</b><small>equity{navShare(g.equityUsd, navUsd)}</small></td>
@@ -596,7 +599,7 @@ function LegRow({ r, sub, share = '', copy, maturity, pnl, onOpen }: { r: IndexP
         <small className="hide-m">{indexChainLabel(r.chainId, chainLabel)}{pt
           // a PT's units never grow (its value does, toward par), so the index's accrual reads 0 — the maturity is what to show
           ? <MaturityNote t={pt} />
-          : r.accrual?.exact ? ' · accrual exact' : r.accrual ? ' · accrual ≈' : ''}</small>
+          : <>{r.termEndsAt ? <TermNote end={r.termEndsAt} days={r.termDays} /> : null}{r.accrual?.exact ? ' · accrual exact' : r.accrual ? ' · accrual ≈' : ''}</>}</small>
       </td>
       <td className="r">{r.valueStatus === 'impaired' ? <Impaired x={r} /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}<small>{r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}{share}</small></td>
       <td className="r hide-m">{rate != null ? <span className={r.side === 'borrow' ? 'warn' : 'ok'} title={why}>{pct(rate)}</span> : <span className="t40">—</span>}</td>

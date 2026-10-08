@@ -188,6 +188,14 @@ export interface IndexPosition extends Named, Valued, AccountIdentity {
   intrinsicSource?: 'market' | 'asset' | null
   /** pool + intrinsic: what the leg earns, or on a borrow leg what it costs */
   aprEffective?: number | null
+  /**
+   * When THIS position's fixed term ends (unix s) and how long the term is —
+   * a Loopscale loan's ledger: its own rate (`aprAtRead`) holds until then,
+   * where it is refinanced at the rate on offer or falls due. Absent on an
+   * index that does not carry it, null on a position with no term.
+   */
+  termEndsAt?: number | null
+  termDays?: number | null
   accrual: Accrual | null
   asOfBlock: number
   asOfTs: string

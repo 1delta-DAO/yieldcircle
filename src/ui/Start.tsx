@@ -31,6 +31,7 @@ import { Avg30 } from './Spark'
 import { RiskDot, Sk, StratMark, Toks, pct, usdShort } from './bits'
 import { dateOf, type Strategy } from '../model/strategies'
 import { nameOf } from '../model/assets'
+import { ChainChip } from './ChainPicker'
 
 // ---------------------------------------------------------------- first visit
 /** Has this browser been pointed at the Start tab once? App.tsx redirects the first `#/` here and marks it. */
@@ -45,7 +46,7 @@ export const startSeen = () => seen
 
 // ---------------------------------------------------------------- the page
 export function Start() {
-  const { isConnected } = useApp()
+  const { isConnected, allChains } = useApp()
   const b = useBook()
   const get = useRateHistory(b.all, !b.isFetching)
   const rank = (s: Strategy) => steadyRate(s, get)
@@ -101,10 +102,12 @@ export function Start() {
           <button key={d.id} className="dchip" aria-pressed={denom === d.id} onClick={() => setDenom(d.id)}>{d.word}</button>
         ))}
         <span className="sub t50 hide-m">rates are in the asset you pick — exposures are never mixed</span>
+        <span className="sp" />
+        <ChainChip />
       </div>
 
       {BAND_ORDER.map((band) => (
-        <BandSection key={band} band={band} picks={picks[band]} loading={loading} get={get} profile={profile} />
+        <BandSection key={band} band={band} picks={picks[band]} loading={loading} get={get} profile={profile} scoped={!allChains} />
       ))}
 
       <section className="sec">
@@ -122,12 +125,14 @@ export function Start() {
 type ProfileOf = ReturnType<typeof useProfiles>['profile']
 
 /** One band: the heading with its effort marks, the plain words, and the cards. */
-function BandSection({ band, picks, loading, get, profile }: {
+function BandSection({ band, picks, loading, get, profile, scoped }: {
   band: Band
   picks: Pick_[]
   loading: boolean
   get: HistoryGet
   profile: ProfileOf
+  /** a chain filter is on — the likelier reason a band is empty */
+  scoped: boolean
 }) {
   const m = BANDS[band]
   return (
@@ -140,7 +145,7 @@ function BandSection({ band, picks, loading, get, profile }: {
       <div className="band-tend t50">{m.tend}</div>
       <div className="stcards">
         {loading && !picks.length && [0, 1, 2].map((i) => <div key={i} className="stcard"><Sk w={120} /><Sk w={80} h={22} /><Sk w={160} /></div>)}
-        {!loading && !picks.length && <div className="empty t50">Nothing in this band for the picked asset right now.</div>}
+        {!loading && !picks.length && <div className="empty t50">Nothing in this band for the picked asset{scoped ? ' on these chains' : ''} right now.</div>}
         {picks.map((p) => <StartCard key={p.s.id} p={p} get={get} profile={profile} />)}
       </div>
     </section>

@@ -35,16 +35,17 @@ import type { ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmRe
 // `assetSymbol` + `passthrough` are for the exposure assets only (`EXPOSURE` in assets.ts): a JLP
 // deposit pays JLP's own yield and nothing of the market's, which the listing leaves out unless
 // asked (`passthrough=include`). That is a separate, narrow request, never the pre-warmed one.
-// `assetGroup` (the deposit token's index group) is the asset page's own request
-// (`useAssetStrategies`): every row of one token, on every chain it lives on.
-export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number; assetSymbol?: string; assetGroup?: string; passthrough?: boolean }): Promise<EarnResponse> {
+// `assetGroup` (the deposit token's index group) and `shareGroup` (the group of the token a vault
+// MINTS) are the asset page's own requests (`useAssetStrategies`): every row of one token, and every
+// vault that leaves you holding it, on every chain it lives on.
+export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number; assetSymbol?: string; assetGroup?: string; shareGroup?: string; passthrough?: boolean; maxPages?: number }): Promise<EarnResponse> {
   const count = p.count ?? 500
-  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, assetGroup: p.assetGroup, passthrough: p.passthrough ? 'include' : undefined }
+  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, assetGroup: p.assetGroup, shareGroup: p.shareGroup, passthrough: p.passthrough ? 'include' : undefined }
   const served = (r: EarnResponse) => r.items.length + (r.excluded?.unrealizable ?? 0)
   const first = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params })
   const items = [...first.items]
   let at = served(first)
-  for (let page = 1, last = first; page < 4 && served(last) >= count && at < first.total; page++) {
+  for (let page = 1, last = first; page < (p.maxPages ?? 4) && served(last) >= count && at < first.total; page++) {
     last = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params: { ...params, start: at } })
     if (!last.items.length) break
     items.push(...last.items)
@@ -110,6 +111,12 @@ export interface OptimizerQuery {
   maxTokenRiskScore?: number
   minBorrowLiquidityUsd?: number
   includeExpired?: boolean
+  /**
+   * keep pairs whose borrow liquidity cannot fund the size (the default drops them as
+   * un-openable). Only the asset page asks: it lists every loop the API knows, an empty
+   * one muted as `thin borrow`, rather than one that silently is not there.
+   */
+  includeIlliquid?: boolean
   count?: number
   start?: number
 }
@@ -118,7 +125,7 @@ export function fetchOptimizerPairs(q: OptimizerQuery): Promise<OptimizerRespons
   const params: ApiParams = {
     ...(q.chainIds.length === 1 ? { chainId: q.chainIds[0] } : { chainIds: q.chainIds.join(',') }), collateralTags: csv(q.collateralTags), collaterals: csv(q.collaterals), debtTags: csv(q.debtTags), collateralAmountUsd: q.collateralAmountUsd,
     maxConfigRiskScore: q.maxConfigRiskScore, maxTokenRiskScore: q.maxTokenRiskScore, minBorrowLiquidityUsd: q.minBorrowLiquidityUsd,
-    includeExpired: q.includeExpired, sortBy: 'aprTotal', sortDir: 'DESC', start: q.start, count: q.count ?? 100,
+    includeExpired: q.includeExpired, includeIlliquid: q.includeIlliquid || undefined, sortBy: 'aprTotal', sortDir: 'DESC', start: q.start, count: q.count ?? 100,
   }
   return apiFetchLoose<OptimizerResponse>('/v1/data/lending/pairs/optimize', { params })
 }

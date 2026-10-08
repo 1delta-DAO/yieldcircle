@@ -449,10 +449,9 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   // the server names unnamed vaults "USDC · 0x28b3": the address tail is not a token you hold
   const clean = (m.name ?? '').replace(/\s*·\s*0x[0-9a-f]{4,}$/i, '').trim()
   const named = clean && clean.toUpperCase() !== own.toUpperCase() && clean.toUpperCase() !== m.asset.symbol.toUpperCase() ? clean : ''
-  // the share token, resolved from the vault address: the listing's own logoURI is the ASSET's on nearly every row
-  const share = isVault ? strategyToken(m.chainId, m.ref) : undefined
-  // the row's own share token first (null on vault rows as of 2026-09-30); the
-  // build-time token map covers the rest it knows (tokens in a chain token list)
+  // the share token: the row's own (`shareToken`, served since 2026-10-08), else the build-time map
+  // by vault address. The listing's own logoURI is the ASSET's on nearly every row.
+  const share = isVault ? (m.shareToken ? { symbol: m.shareToken.symbol, logoURI: m.shareToken.logoURI ?? strategyToken(m.chainId, m.ref)?.logoURI ?? null, assetGroup: m.shareToken.assetGroup ?? null } : strategyToken(m.chainId, m.ref)) : undefined
   const shareSym = m.shareToken?.symbol ?? share?.symbol
   // A staking or savings vault leaves you holding the ISSUER's token (ankrETH, tETH, syrupUSDC),
   // so the row is that issuer's, not the deposited coin's: staking ETH with Ankr is Ankr's credit.

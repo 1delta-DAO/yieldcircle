@@ -36,11 +36,13 @@ import type { Message } from "../social/types";
 import { positionKey } from "../social/api";
 import { useSocialWrite } from "../social/sign";
 import { useMenu } from "./useMenu";
-import { ProtocolChips, useProtocolFilter } from "./ProtocolFilter";
+import { ProtocolChips, protocolName, useProtocolFilter } from "./ProtocolFilter";
 import { DeskMark, IssuerChips, useIssuerFilter } from "./IssuerFilter";
 import { CuratorChips, CuratorMark, useCuratorFilter } from "./CuratorFilter";
 import { RateMark } from "./Rate";
-import { protocolKeyOf } from "../model/uid";
+import { parseUid, protocolKeyOf, uidOf } from "../model/uid";
+import { HIDES, isSoft, relaxFor, type HideCode } from "../model/visibility";
+import { useSettings } from "../state/Settings";
 import { Ago, Comments, Money, Who, describeBundle } from "./social-bits";
 import { ChainCorner } from "./ChainMark";
 import { indexChainLabel, subjectOf } from "../index/types";
@@ -261,6 +263,27 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   }, [showDust, txs.length, all.length, limit, feed.isFetching]);
   /** what a client-side filter dropped — only an index without `inMarkets` makes one */
   const hidden = tab === "menu" ? (feed.data?.outside ?? 0) : 0;
+  /**
+   * A picked protocol with NO row on the menu: the tab is empty because the
+   * menu's own floors hold that protocol back, not because nobody moved —
+   * Project 0's 54 Solana markets, all risk 5 or under the size floor
+   * (2026-10-08), read as "no move" over a chip counting 22k. Counted off the
+   * catalogue's held-back rows so the empty state can name the floor.
+   */
+  const heldBack = React.useMemo(() => {
+    if (tab !== "menu" || !pf.keys.length || !menu.settled) return null;
+    const ofPicked = (s: Strategy) => {
+      const lender = parseUid(uidOf(s) ?? "")?.lender;
+      return !!lender && pf.keys.includes(protocolKeyOf(lender));
+    };
+    if (menu.all.some(ofPicked)) return null;
+    const by = new Map<HideCode, number>();
+    for (const r of menu.hidden) if (ofPicked(r)) by.set(r.hide, (by.get(r.hide) ?? 0) + 1);
+    return [...by].filter(([c]) => isSoft(c)).sort((a, b) => b[1] - a[1]);
+  }, [tab, pf.keys, menu.settled, menu.all, menu.hidden]);
+  const { set: setMenu } = useSettings();
+  const pickedFacet = pf.protocols.find((p) => p.protocol === pf.picked[0]);
+  const pickedName = pickedFacet ? protocolName(pickedFacet) : pf.picked[0];
 
   const subjects = txs
     .map((t) => ({ kind: "position" as const, key: cardKey(t, pf.keys) }))
@@ -472,9 +495,22 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
               </>
             ) : (
               <>
-                {hidden > 0
+                {heldBack
+                  ? `None of ${pf.picked.length === 1 ? `${pickedName}'s` : "these protocols'"} markets are on your menu at its current floors${heldBack.length ? " —" : "."}`
+                  : hidden > 0
                   ? `None of the last ${hidden} moves the index has are in a market this app can open.`
                   : `No move in a market this app can open${pf.picked.length || inf.param || cf.param ? " for this filter" : ""} in the index's last 30 days.`}{" "}
+                {heldBack?.map(([code, n]) => (
+                  <React.Fragment key={code}>
+                    <button
+                      className="lnk"
+                      title={HIDES[code].why}
+                      onClick={() => setMenu(relaxFor(code))}
+                    >
+                      +{n} {HIDES[code].word}
+                    </button>{" "}
+                  </React.Fragment>
+                ))}
                 <button
                   className="lnk"
                   onClick={() => { location.hash = hashFor("everyone"); }}

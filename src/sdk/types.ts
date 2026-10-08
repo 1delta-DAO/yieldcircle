@@ -49,7 +49,11 @@ export interface EarnMarket {
   ref: string
   logoURI?: string
   asset: EarnAsset
-  shareToken?: { address: string; symbol: string; decimals: number }
+  /**
+   * the token a vault row leaves you holding, from the token lists (yield-tracer `stampShareTokens`,
+   * 2026-10-08); absent where the lists do not carry the share. `assetGroup` is what `shareGroup=` filters.
+   */
+  shareToken?: { address: string; symbol: string; decimals: number; assetGroup?: string; logoURI?: string }
   basket?: unknown
   rate: EarnRate
   tvl: EarnAmount

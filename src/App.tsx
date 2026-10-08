@@ -27,8 +27,9 @@ export default function App() {
   const r = useRoute()
   // the landing is public: it renders with or without beta access, and its own button opens the gate
   if (r.view === 'landing') return <Landing />
-  // no beta access: the join page, whatever the hash (the hash survives — the gate reloads into it)
-  if (gated() || r.view === 'join') return <Join />
+  if (r.view === 'join') return <Join />
+  // no beta access: the landing is the front door, whatever the hash (the hash survives — the gate reloads into it)
+  if (gated()) return <Landing />
   const group = GROUPS.find((g) => g.id === r.group)
   if (r.view === 'deck') return <Deck /> // same deal: the investor deck presents without the Shell
   return (

@@ -134,9 +134,17 @@ export function parseUid(uid: string): { lender: string; chainId: string; ref: s
  *
  *   AAVE_V4_94E7A5DC…  → AAVE_V4       COMPOUND_V3_WETH   → COMPOUND_V3
  *   FLUID_8453_LENDING → FLUID         vault.morpho       → vault.morpho
+ *   PROJECT_0_4qp6…    → PROJECT_0     JUPITER_LEND_main_1 → JUPITER_LEND
+ *
+ * The Solana families are the sol index's own list (`apps/sol-indexer`
+ * `api/unified.ts`): a base58 instance is not hex, so the EVM strip left
+ * `PROJECT_0_4qp6…` whole and a Solana protocol chip matched no leg.
  */
+const SOL_PROTOCOLS = ['KAMINO', 'PROJECT_0', 'SAVE', 'JUPITER_LEND', 'LOOPSCALE']
 export function protocolKeyOf(lenderKey: string): string {
   if (lenderKey.startsWith('vault.')) return lenderKey
+  for (const p of SOL_PROTOCOLS)
+    if (lenderKey === p || lenderKey.startsWith(`${p}_`) || (p === 'LOOPSCALE' && lenderKey.startsWith(p))) return p
   if (/^FLUID_\d+(_|$)/.test(lenderKey)) return 'FLUID'
   if (/^COMPOUND_V3_/.test(lenderKey)) return 'COMPOUND_V3'
   return lenderKey.replace(/(_(?:[0-9A-Fa-f]{8,}|\d+))+$/, '')

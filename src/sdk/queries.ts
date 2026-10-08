@@ -352,8 +352,11 @@ export function useCatalog(chainIds: string[]) {
  *
  *   - one `/v1/data/earn?assetGroup=<group>&passthrough=include` — its lending and collateral
  *     deposits, the ones paying only its own yield included;
- *   - one `pairs/optimize?collaterals=<its addresses>` per chain — every loop with it as
- *     collateral, tagged or not, any debt (`classifyPair` still refuses a price bet).
+ *   - one `/v1/data/earn?shareGroup=<group>` — the vaults that mint it (Nest's savings vault
+ *     for nOPAL), by the `shareToken` the API stamps from the token lists;
+ *   - one `pairs/optimize?collaterals=<its addresses>&includeIlliquid=true` per chain — every
+ *     loop with it as collateral, tagged or not, any debt, an empty one too (`classifyPair`
+ *     still refuses a price bet; `softHide` marks the empty one `thin-borrow`).
  *
  * No floor cuts a row here: a row the menu would hold back comes with `held` (the code that
  * would hide it), so the page can show it muted with its reason. Rows that cannot be a
@@ -375,28 +378,39 @@ export function useAssetStrategies(group: string | undefined, members: { chainId
     queryFn: async () => sortOut((await fetchEarn({ chainIds: earnChains, count: 1000, maxRiskScore: 5, minTvlUsd: 0, assetGroup: group, passthrough: true })).items.map(classifyEarn), 'simple'),
     staleTime: 10 * 60_000,
   })
+  // the vaults that MINT it: deposit USDC, hold nOPAL. Every chain in scope, not only the token's
+  // known members: a share chain the index has not seen yet still counts. An API that predates
+  // `shareGroup=` ignores it and answers the whole listing — so ONE page of 200, never the four
+  // pages a full read would take, and only rows whose share IS the group stay.
+  const minted = useQuery({
+    enabled: !!group,
+    queryKey: ['asset-minted', group, scope?.join(',') ?? 'all'],
+    queryFn: async () => sortOut((await fetchEarn({ chainIds: CHAINS.map((c) => c.id).filter(inScope), count: 200, maxPages: 1, maxRiskScore: 5, minTvlUsd: 0, shareGroup: group }))
+      .items.filter((m) => m.shareToken?.assetGroup === group).map(classifyEarn), 'simple'),
+    staleTime: 10 * 60_000,
+  })
   const loops = useQueries({
     queries: chains.map((chainId) => ({
       queryKey: ['asset-loops', chainId, [...byChain[chainId]].sort().join(',')],
-      queryFn: async () => sortOut((await optimizerPages({ chainIds: [chainId], collaterals: byChain[chainId], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop'),
+      queryFn: async () => sortOut((await optimizerPages({ chainIds: [chainId], collaterals: byChain[chainId], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, includeIlliquid: true })).map(classifyPair), 'loop'),
       staleTime: 10 * 60_000,
     })),
   })
-  const stamp = [earn.dataUpdatedAt, ...loops.map((q) => q.dataUpdatedAt)].join('|')
+  const stamp = [earn.dataUpdatedAt, minted.dataUpdatedAt, ...loops.map((q) => q.dataUpdatedAt)].join('|')
   const out = useMemo(() => {
-    const simple = dedupe(earn.data?.rows ?? [])
+    const simple = dedupe([...(earn.data?.rows ?? []), ...(minted.data?.rows ?? [])])
     const folded = foldDates(dedupe(loops.flatMap((q) => q.data?.rows ?? [])))
     const rows: Strategy[] = [...simple, ...folded.rows]
     const held = new Map<string, HideCode>()
     for (const r of rows) { const h = softHide(r, st); if (h) held.set(r.id, h) }
-    const structural = mergeStructural([earn.data, ...loops.map((q) => q.data)].flatMap((d) => (d ? [{ structural: d.structural, kind: d.kind }] : [])))
+    const structural = mergeStructural([earn.data, minted.data, ...loops.map((q) => q.data)].flatMap((d) => (d ? [{ structural: d.structural, kind: d.kind }] : [])))
     return { rows, held, structural }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stamp, st])
   return {
     ...out,
-    isLoading: earn.isLoading || loops.some((q) => q.isLoading),
-    errors: [earn, ...loops].map((q) => q.error).filter((e): e is Error => !!e),
+    isLoading: earn.isLoading || minted.isLoading || loops.some((q) => q.isLoading),
+    errors: [earn, minted, ...loops].map((q) => q.error).filter((e): e is Error => !!e),
   }
 }
 

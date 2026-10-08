@@ -1,6 +1,7 @@
 /**
- * #/join — where a visitor WITHOUT beta access lands (`functions/_middleware.ts`
- * marks their HTML with `window.ycGated` and ships the gate overlay hidden).
+ * #/join — the one-screen waitlist page. A visitor WITHOUT beta access lands on
+ * the full landing (`Landing.tsx`) instead; this stays as a deep link and as the
+ * welcome the gate lands a new member on after the signature.
  * One button in the middle, the join flow is the overlay's own card
  * (`openGate`), and the field behind it is real farmers (`Showcase.tsx`).
  * A visitor who is IN (whitelisted, or the gate is off) sees the same page at

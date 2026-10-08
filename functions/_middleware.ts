@@ -75,7 +75,7 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
   const holder = await readCookie(request.headers.get('cookie'), env.GATE_SECRET!).catch(() => null)
   if (holder && holder !== 'pass') return res
 
-  // no access: the app shows its landing (window.ycGated, src/ui/Join.tsx) and the overlay ships
+  // no access: the app shows its landing (window.ycGated, src/ui/Landing.tsx) and the overlay ships
   // hidden — the landing's button is what opens it. An access-code holder is in, but not on the
   // list: the app asks them to join (window.ycPass), and the page it links to, `/?waitlist`, is
   // the overlay's own waitlist flow

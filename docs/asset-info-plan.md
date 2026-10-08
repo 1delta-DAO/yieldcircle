@@ -79,19 +79,20 @@ this token".
 | 2.1 | Name vault shares across all chains, with their group (`strategy-tokens.json` from every chain in `CHAINS`, `shareGroup` = the token-list group). The page lists vaults that mint the token. | yieldcircle | done 2026-10-08 |
 | 2.2 | Regenerate `vault-risks.json` so Nest, Hastra, Sanctum and Jupiter savings vaults are scored. Add a CI job for it; there is none, and that is why the scores went stale. | risk-data | regenerated locally; push pending |
 | 2.3 | **Per-asset queries on the page** (`useAssetStrategies` in `sdk/queries.ts`). One `GET /v1/data/earn?assetGroup=<g>&passthrough=include` over the token's chains, plus one `pairs/optimize?collaterals=<its addresses>` per chain from `AssetDetail.members`. The menu's minting vaults are added (by `shareGroup`). No floor cuts a row: a row the menu would hold back is listed last, muted, with the floor's word ("thin borrow", "unrated"). Rows no ticket can build are counted under the list. A row opens its ticket through `oa=` (the off-menu fetch) when the menu never had it. | yieldcircle | done 2026-10-08 |
-| 2.4 | **The API names the share.** `shareToken` (address, symbol, assetGroup) on every vault row, plus a `shareGroup=` filter, so 2.3 asks for "vaults that mint X" too and the build-time map retires. | yield-tracer / worker-api | upstream |
-| 2.5 | **Missing pairs.** The optimizer builds no pair for Kamino's AUTO Market (`KAMINO_Btu8835…`, AUTO → USDC / PYUSD). Find why: market config not ingested, the reserve not flagged as collateral, or a liquidity cut. Check every Kamino market with an earn row but no pair. | yield-tracer | upstream bug |
+| 2.4 | **The API names the share.** yield-tracer `/earn/latest` stamps `shareToken` (address, symbol, decimals, `assetGroup`, `logoURI`) on every vault row from `assets` (`stampShareTokens`) and filters `shareGroup=`. worker-api passes the filter through to the origin, applies it on the edge merge, stamps the group onto the merge path's shares from the token map, and documents it in OpenAPI; `EarnShareToken` gains `assetGroup` and `logoURI`. yieldcircle prefers the row's `shareToken` over the build-time map, and the asset page asks `shareGroup=` for the vaults that mint the token (one page of 200, kept to rows whose share is the group, so an API without the filter costs one request). Retire `strategy-tokens.json` once the deployed API covers the vaults it maps. | yield-tracer, lending-sdks, yieldcircle | written 2026-10-08, deploy pending |
+| 2.5 | **Missing pairs** — checked 2026-10-08, not a pair-builder bug. Kamino AUTO Market has two pairs (`/pairs/leverage`): AUTO/PYUSD (~21.6 % in the app, $411k borrowable) and AUTO/USDC (USDC 99 % borrowed, $0 left). `optimize` drops a pair it cannot fund at the asked size (`includeIlliquid` keeps it), so earlier in the day, with PYUSD's liquidity or its 24 h borrow cap (`debtWithdrawalCap`) used up, AUTO answered 0 pairs. The asset page now asks with `includeIlliquid=true`, so an empty loop shows muted as "thin borrow" instead of vanishing. A sweep of the 28 Kamino markets over $1m found two with no pairs at all. The Ethena Market ($323m) is not a bug: PYUSD's `reserveBorrowLimit` is 0 on chain, so new borrowing is closed and the $135m PYUSD debt there is legacy. The Altcoins Market ($1.2m) was not checked. | yield-tracer | closed |
 | 2.6 | **Tags.** A token with no archetype prop is in no menu request: Hylo's xSOL (`Hylo Leveraged SOL::xSOL::solana`) carries only `issuer`. Audit groups that have earn rows or pairs but no `lst` / `stablecoin` / `savings` / `pendle` / `rwa` / `btc` prop. (AUTO is tagged `savings`, so its missing loops are 2.5, not this.) | token-lists | upstream |
 
 ### Order
 
-2.2, 1.2 and 2.3 are done. Next: 2.5 and 2.4 upstream, then the 1.3 / 1.4 cleanup.
+2.2, 1.2 and 2.3 are done. 2.5 turned out not to be a bug, and 2.4 is written (deploy pending). Next: the 1.3 / 1.4 cleanup.
 
 ## Seen on 2026-10-08, after 1.1, 1.2 and 2.1
 
 - AUTO shows its note, the Ethereum Morpho AUTO/USDC loop and the Solana
-  savings vault (wYLDS → AUTO). The Kamino AUTO loop is missing because the
-  API has no pair for it (2.5).
+  savings vault (wYLDS → AUTO). The Kamino AUTO/PYUSD loop shows, and
+  AUTO/USDC shows muted as "thin borrow" because nothing is left to borrow
+  (2.5).
 - hyUSD shows its note, but "Nothing in the menu holds hyUSD". Its rows exist
   in the API (Loopscale, Project 0, Exponent), but none is in the menu's
   requests at the default floors. 2.3 fixes this.

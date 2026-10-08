@@ -91,6 +91,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const canManage = (h: Holding) => h.kind === 'loop' ? !!h.collateralUid && !!h.debtUid : !!h.earnUid
   const ticketOpen = !!sel || !!offSel || !!offMenu
   const close = () => go(group.id, { u, k: kind })
+  const aside = useAsideTop(ticketOpen)
   return (
     <>
       <a className="crumb" href="#/earn">‹ Earn</a>
@@ -187,7 +188,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
           </div>}
           <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />
         </div>
-        <aside className={ticketOpen ? '' : 'closed'} id="aside">
+        <aside ref={aside} className={ticketOpen ? '' : 'closed'} id="aside">
           {sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} onClose={close} />}
           {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '')} s={offSel} idle={b.idlePerChain} holding={offMenu ?? held(offSel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
           {offMenu && !offSel && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
@@ -325,3 +326,24 @@ function RiskWord({ s }: { s: Strategy }) {
 
 export { KindPill }
 
+
+/**
+ * Where the ticket's column starts on screen, as `--aside-top` for its height. The aside is sticky
+ * at 76px, but until the page scrolls that far it sits lower (under the crumb), and a ticket sized
+ * for the stuck position ran its sticky button off the bottom of the window.
+ */
+function useAsideTop(on: boolean) {
+  const ref = React.useRef<HTMLElement>(null)
+  React.useEffect(() => {
+    const el = ref.current
+    if (!on || !el) return
+    let raf = 0
+    const set = () => { raf = 0; el.style.setProperty('--aside-top', `${Math.max(0, Math.round(el.getBoundingClientRect().top))}px`) }
+    const later = () => { if (!raf) raf = requestAnimationFrame(set) }
+    set()
+    addEventListener('scroll', later, { passive: true })
+    addEventListener('resize', later)
+    return () => { removeEventListener('scroll', later); removeEventListener('resize', later); cancelAnimationFrame(raf) }
+  }, [on])
+  return ref
+}

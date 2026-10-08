@@ -307,7 +307,8 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 @media (prefers-reduced-motion:reduce){ .gsum-x,.gsum-xi,.gsum-h .chev{transition:none} }
 
 /* ---------- ticket ---------- */
-.ticket{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);display:flex;flex-direction:column;max-height:calc(100dvh - 88px);overflow:auto}
+/* as tall as the window below where the column starts (`--aside-top`, AssetPage.tsx), never taller: the button is at its bottom */
+.ticket{border:1px solid var(--line);border-radius:var(--r);background:var(--b200);display:flex;flex-direction:column;max-height:calc(100dvh - var(--aside-top,76px) - 12px);overflow:auto}
 .ticket .th{display:flex;align-items:flex-start;gap:10px;padding:14px 16px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--b200);z-index:2}
 .ticket .th .n{font-size:16px;font-weight:600;line-height:1.25}
 .ticket .th .s{font-size:12.5px;color:var(--tx50);margin-top:2px}
@@ -341,6 +342,17 @@ h2{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
 .cells .c.hero{grid-column:1/-1;background:#0d0d0d}
 .cells .c.hero .v{font-size:30px;font-weight:500;line-height:1.1}
 .cells .c.hero .k{color:var(--tx70)}
+.cells .c.hero.duo{flex-direction:row;align-items:flex-start;justify-content:space-between;gap:12px}
+.cells .c.hero.duo>div{display:flex;flex-direction:column;gap:1px;min-width:0}
+.cells .c.hero.duo .s{white-space:normal}
+.cells .c.hero.duo .hf{flex:none;align-items:flex-end;text-align:right}
+.cells .c.hero.duo .hf .v{font-size:24px;line-height:1.25}
+/* the fold under the two numbers that decide a loop (Ticket.tsx LoopTicket) */
+.cells .c.more{grid-column:1/-1;flex-direction:row;align-items:center;gap:8px;min-height:36px;padding:0 12px;font-size:12.5px;color:var(--tx70);text-align:left;cursor:pointer}
+.cells .c.more .t40{flex:1;min-width:0;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cells .c.more:hover{color:var(--tx);background:var(--b300)}
+.cells .c.more .chev{margin-left:auto;transition:transform .15s}
+.cells .c.more[aria-expanded="true"] .chev{transform:rotate(180deg)}
 .liqbar{margin-top:8px;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--error) 0,var(--warning) 35%,var(--success) 70%);position:relative}
 .liqbar i{position:absolute;top:-4px;width:3px;height:16px;background:#fff;border-radius:2px;left:var(--x,50%);transform:translateX(-50%);box-shadow:0 0 0 2px #000}
 .liqcap{display:flex;justify-content:space-between;font-size:11px;color:var(--tx40);font-family:var(--mono);margin-top:5px}

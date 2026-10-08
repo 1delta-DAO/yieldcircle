@@ -308,7 +308,13 @@ async function bridge(id: string) {
 
 /**
  * Re-read what it touched until it differs from the baseline, merging every answer into the
- * cached lists. Nothing cached for this wallet and chain means nothing on screen to update.
+ * cached lists.
+ *
+ * Read even when nothing is cached for this wallet and chain yet. A trace resumed by a reload
+ * (`initTxTrace` runs before the first render) finds no list at all, and skipping the sync then
+ * settled it as "Done" while the list the app went on to fetch could still be the old book: the
+ * API reads Solana at `finalized`, ~13 s behind the confirmation the trace moves on, so a loop
+ * opened just before a reload was missing until some later refetch — "Done", and no position.
  */
 async function sync(id: string) {
   const t = get(id)!
@@ -318,14 +324,23 @@ async function sync(id: string) {
     if (t.watch) return balanceSync(id, note)
     if (qc) balancesChanged(qc, t.chainId); patch(id, { phase: 'settled', doneAt: Date.now(), note })
   }
-  if (!qc || !qc.getQueriesData(bucket(t.account, t.chainId)).length) return done()
+  if (!qc) return done()
   for (const wait of scope ? NARROW_SYNC_WAITS : SYNC_WAITS) {
     await sleep(wait)
     const r = await readScope(t.account, t.chainId, scope)
     if (!r) continue
-    merge(qc, t.account, t.chainId, scope, r)
     const snap = get(id)?.snap
-    if (snap == null || changed(snap, fingerprint(r.items, t.chainId, scope))) return done()
+    const moved = snap == null || changed(snap, fingerprint(r.items, t.chainId, scope))
+    // a list read still in flight was asked before this answer: landing after the merge, it would
+    // put the old book back over the new position, and nothing reads it again for a minute
+    if (moved) await qc.cancelQueries(bucket(t.account, t.chainId))
+    merge(qc, t.account, t.chainId, scope, r)
+    if (moved) {
+      // a list with nothing to merge into (just created, or its read cancelled above) is read now,
+      // when the API is known to have the change
+      void qc.invalidateQueries({ predicate: (q) => bucket(t.account, t.chainId).predicate(q) && q.state.data === undefined })
+      return done()
+    }
   }
   done('Final on chain, but the positions have not picked it up yet. They will on the next refresh.')
 }

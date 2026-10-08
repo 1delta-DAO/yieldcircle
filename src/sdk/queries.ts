@@ -517,7 +517,9 @@ export function useEarnPositions(accounts: VmAccounts, chainIds: string[]) {
       enabled: !!account && ids.length > 0,
       queryKey: ['earn-positions', account, ids.join(',')],
       queryFn: async () => {
-        const r = await fetchEarnPositions(account, ids)
+        // past the browser cache (`max-age=15`): a reload right after a transaction would
+        // otherwise be handed the answer from before it
+        const r = await fetchEarnPositions(account, ids, {}, true)
         if (isEvmAddr(account)) syncHints(account, hintLegs(r.items))
         return r
       },

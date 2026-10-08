@@ -76,7 +76,7 @@ that sometimes answer un-enveloped or with `ok` instead of `success`
 | `fetchLendingBook` | `GET /v1/data/lending/book` | `useLendingBooks` → the dated-loan ticket (Morpho Midnight) | `marketUid` = the DEBT market, `side=borrow`; `pricing: 'marginal'` = each level its own lot, so a size pays the assets-weighted mean of the levels it walks (`bookAprAt`). The pairs feed gives a Midnight row only its top of book as `borrowAprShort` (and 0 % + `debtTerms.canOpen: false` on an empty book, which `classifyPair` hides). Each maturity is its own `MORPHO_MIDNIGHT_<id>` market; `foldDates` folds a pair's maturities into one row with `dates` for the ticket's picker. Zero-coupon: the face owed is fixed at the open, repaid 1:1 early (no penalty), liquidatable once past due. |
 | `fetchChains` | `GET /v1/data/chains` | `chainsQuery`, `ChainMark` | names + logos |
 | `fetchTokenBalances` | `GET /v1/data/token/balances` | `useBalances`, `useBalancesPerChain` (live fallback), `txTrace`, `GetAsset` | single chain only; route answers `max-age=15` → pass `fresh` after a tx |
-| `fetchEarnPositions` | `GET /v1/data/earn/positions` | `useEarnPositions`, `txTrace` | **the only source for the connected user's positions**; `lenders` / `vaults` narrow a post-tx re-read |
+| `fetchEarnPositions` | `GET /v1/data/earn/positions` | `useEarnPositions`, `txTrace` | **the only source for the connected user's positions**; `lenders` / `vaults` narrow a post-tx re-read; always read past the browser cache (`max-age=15`) |
 | `fetchLoopPayAssets` | `GET /v1/actions/loop/leverage/pay-assets` | `useLoopPayAssets` | |
 | `bridgeStatus` | `GET /v1/data/bridge/status` | `txTrace` | |
 

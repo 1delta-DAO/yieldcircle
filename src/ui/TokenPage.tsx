@@ -287,6 +287,11 @@ export function TokenPage({ group }: { group: string }) {
           <span className="n">{d?.marketCap ? `${isNative(d.marketCap.address) ? `${sym}, the coin` : `${chainName(d.marketCap.chainId)} token`} · as of ${d.marketCap.asOf.slice(0, 10)}` : 'not published for this token'}</span>
         </div>
         <div className="cstat">
+          <span className="k">Own yield</span>
+          <span className="v">{d?.intrinsicApr != null ? <span className="ok">{pct(d.intrinsicApr)}</span> : '—'}</span>
+          <span className="n">{d?.intrinsicApr != null ? 'what the token earns by itself, before any market' : 'nobody publishes a yield for this token'}</span>
+        </div>
+        <div className="cstat">
           <span className="k">Deposited in lending</span>
           <span className="v">{t ? usdShort(t.depositsUsd) : a.isLoading ? <Sk w={70} h={18} /> : '—'}</span>
           <span className="n">{t ? <Change x={t.depositsChange24hPct} /> : ' '}</span>
@@ -305,11 +310,6 @@ export function TokenPage({ group }: { group: string }) {
           <span className="k">Posted as collateral</span>
           <span className="v">{t ? usdShort(t.collateralUsd) : '—'}</span>
           <span className="n">collateral legs (Morpho-, Comet-style), not lent out</span>
-        </div>
-        <div className="cstat">
-          <span className="k">Own yield</span>
-          <span className="v">{d?.intrinsicApr != null ? <span className="ok">{pct(d.intrinsicApr)}</span> : '—'}</span>
-          <span className="n">{d?.intrinsicApr != null ? 'what the token earns by itself, before any market' : 'nobody publishes a yield for this token'}</span>
         </div>
         <div className="cstat">
           <span className="k">Curated-vault TVL</span>

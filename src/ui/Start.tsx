@@ -8,9 +8,10 @@
  * clock (a PT, or a loop on fixed-rate debt)
  * — with 2–3 recommended cards each. A card is recommended because real
  * wallets hold equity in it (the index's strategy book: every person's
- * position ≥ $1k; the proof is on the card, with the wallet it links to), the
- * steady 30-day rate breaking ties; never because
- * tonight's rate is the biggest number.
+ * position ≥ $1k; the proof is on the card, with the wallet it links to) and,
+ * in the bands that ask more work, because it pays for that work — the steady
+ * rate, never tonight's spike, and a premium over the passive card
+ * (`recommend` in `model/activity.ts`).
  *
  * It is the first of the four tabs, and a first visit without a wallet is
  * redirected here from `#/` (`useSeenStart`, marked in App.tsx) — once, so the
@@ -22,7 +23,7 @@ import { ConnectButton } from '../wallet/ConnectButton'
 import { useBook } from './useBook'
 import { useRateHistory } from '../sdk/queries'
 import { steadyRate, type HistoryGet } from '../model/rateHistory'
-import { BANDS, BAND_ORDER, DENOMS, bandOf, clockOf, denomOf, denomOfAsset, isFixedDebt, recommend, type Band, type Denom, type Pick_ } from '../model/activity'
+import { BANDS, BAND_ORDER, DENOMS, bandOf, clockOf, denomOf, denomOfAsset, isFixedDebt, recommendAll, type Band, type Denom, type Pick_ } from '../model/activity'
 import { useStrategyProofs } from '../index/queries'
 import { bookKeyOf } from '../model/uid'
 import { useProfiles } from '../social/queries'
@@ -46,23 +47,23 @@ export const startSeen = () => seen
 
 // ---------------------------------------------------------------- the page
 export function Start() {
-  const { isConnected, allChains } = useApp()
+  const { isConnected, allChains, chainIds } = useApp()
   const b = useBook()
   const get = useRateHistory(b.all, !b.isFetching)
   const rank = (s: Strategy) => steadyRate(s, get)
   // who holds each strategy that could be a card, in every denomination (a
   // chip switch then costs no request): the index's strategy book, every
   // person's position ≥ $1k — the proof behind every "recommended"
-  const keys = React.useMemo(
-    () => [...new Set(b.all.filter((s) => bandOf(s) && denomOf(s)).map(bookKeyOf).filter((k): k is string => !!k))].sort(),
-    [b.all],
-  )
-  const book = useStrategyProofs(keys).data
+  // (`b.all` is a new array every render: memo on the joined list, or the proofs' debounce never settles)
+  const keyList = [...new Set(b.all.filter((s) => bandOf(s) && denomOf(s)).map(bookKeyOf).filter((k): k is string => !!k))].sort().join(' ')
+  const keys = React.useMemo(() => (keyList ? keyList.split(' ') : []), [keyList])
+  const proofs = useStrategyProofs(keys)
+  const book = proofs.data
   // one denomination at a time, so exposures are never mixed: a SOL rate is
   // SOL-on-SOL, and putting it beside a dollar rate would rank apples by oranges
   const [denom, setDenom] = React.useState<Denom>('USD')
   const menu = b.all.filter((s) => denomOf(s) === denom)
-  const picks = Object.fromEntries(BAND_ORDER.map((band) => [band, recommend(menu, band, book, rank)])) as Record<Band, Pick_[]>
+  const picks = recommendAll(menu, book, rank)
   // one profiles request for every face the cards show
   const { profile } = useProfiles(BAND_ORDER.flatMap((band) => picks[band].map((p) => p.proof?.best?.account)).filter((a): a is string => !!a))
   // being here IS the first visit done — the Home tab goes to the feed from now on
@@ -71,7 +72,16 @@ export function Start() {
   // into dollars first would be an exposure change, not parking idle money
   const idleUsd = b.books.filter((x) => denomOfAsset(x.group, x.asset) === denom).reduce((a, x) => a + x.idleUsd, 0)
   const bestPassive = picks.passive[0]?.s
-  const loading = b.isLoading && !b.all.length
+  // the cards are a RANKING of the whole catalogue by who holds what: until every
+  // selected chain has answered and the proofs cover the list, a band that looks
+  // empty (or a card about to be outranked) is a guess, so it shows
+  // placeholders — never "nothing here" while a chain is still on its way. Once
+  // per chain scope: a background refetch later keeps the cards on screen
+  const scope = chainIds.join(',')
+  const ready = chainIds.every((c) => b.settled.has(c)) && proofs.current
+  const [readyFor, setReadyFor] = React.useState<string | null>(null)
+  if (ready && readyFor !== scope) setReadyFor(scope)
+  const loading = !ready && readyFor !== scope
   return (
     <div className="start">
       <header className="start-hero">
@@ -87,7 +97,7 @@ export function Start() {
             <a className="linklike" href="#/">or look around first — see the live feed ›</a>
           </div>
         )}
-        {isConnected && idleUsd > 0 && bestPassive && (
+        {isConnected && !loading && idleUsd > 0 && bestPassive && (
           <div className="note start-idle">
             You have <b>{usdShort(idleUsd)}</b> sitting idle. In the passive strategy below it would
             earn about <b className="ok">{usdShort(idleUsd * bestPassive.rate / 100)}/yr</b> — without you touching it again.
@@ -144,9 +154,11 @@ function BandSection({ band, picks, loading, get, profile, scoped }: {
       </div>
       <div className="band-tend t50">{m.tend}</div>
       <div className="stcards">
-        {loading && !picks.length && [0, 1, 2].map((i) => <div key={i} className="stcard"><Sk w={120} /><Sk w={80} h={22} /><Sk w={160} /></div>)}
-        {!loading && !picks.length && <div className="empty t50">Nothing in this band for the picked asset{scoped ? ' on these chains' : ''} right now.</div>}
-        {picks.map((p) => <StartCard key={p.s.id} p={p} get={get} profile={profile} />)}
+        {loading
+          ? [0, 1, 2].map((i) => <StartCardSk key={i} />)
+          : !picks.length
+          ? <div className="empty t50">Nothing in this band for the picked asset{scoped ? ' on these chains' : ''} right now.</div>
+          : picks.map((p) => <StartCard key={p.s.id} p={p} get={get} profile={profile} />)}
       </div>
     </section>
   )
@@ -158,6 +170,21 @@ function Effort({ n }: { n: number }) {
     <span className="eff" title={`attention needed: ${n} of 3`} aria-label={`attention needed: ${n} of 3`}>
       {[1, 2, 3].map((i) => <i key={i} className={i <= n ? 'on' : ''} />)}
     </span>
+  )
+}
+
+/** A card's shape while the catalogue and the proofs load, so the page does not jump when they land. */
+function StartCardSk() {
+  return (
+    <div className="stcard stcard-sk" aria-hidden>
+      <div className="stcard-h">
+        <Sk w={26} h={26} />
+        <span className="stcard-n"><Sk w={90} h={14} /><Sk w={140} h={10} /></span>
+      </div>
+      <div className="stcard-rate"><Sk w={84} h={24} /></div>
+      <div className="stcard-proof"><Sk w={120} h={14} /><Sk w={150} h={10} /></div>
+      <span className="stcard-go"><Sk w={60} h={10} /></span>
+    </div>
   )
 }
 

@@ -1,6 +1,6 @@
 /**
  * One search box for everything the app and the index name (pos-indexer tickets/0053):
- * people and wallets (signed profiles, ENS / Basenames, .sol names, Solana KOL lists, explorer
+ * people and wallets (signed profiles, ENS / Basenames, .sol / .skr names, Solana KOL lists, explorer
  * tags, the names the index gave), vaults, curators, protocols, assets, markets, issuers — plus
  * the chains and pages of this app and the "Earn on X" rows of the menu.
  *
@@ -97,8 +97,8 @@ function claimOf(h: FindHit): string | null {
     seed: 'known', signed: 'signed', x: 'X', farcaster: 'Farcaster', tag: 'explorer tag', label: 'contract name',
     index: 'index label', primary: ensWord, ens: 'ENS', basename: 'Basename', address: null,
     'ens-text': 'X via ENS', dataset: 'label set',
-    // the Solana index: a wallet's own primary .sol and the owner of a typed one, two KOL lists
-    sns: 'SNS', 'sns-owner': 'SNS', kolscan: 'kolscan', gmgn: 'GMGN',
+    // the Solana index: a wallet's own primary .sol and the owner of a typed one, two KOL lists, a Seeker's .skr
+    sns: 'SNS', 'sns-owner': 'SNS', kolscan: 'kolscan', gmgn: 'GMGN', skr: 'Seeker',
   } as Record<string, string | null>)[s] ?? null
 }
 

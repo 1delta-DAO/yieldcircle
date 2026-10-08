@@ -99,7 +99,7 @@ export interface UnderlyingInfo { asset: AssetRef; prices?: { priceUsd?: number 
 export interface OptimizerRowRaw {
   chainId: string; lender: string; marketLongUid: string; marketShortUid: string; marketNameLong: string; marketNameShort: string; curatorNameLong?: string | null
   maxLeverage: string | number; ltv: string | number; collateralFactorLong?: string | number
-  depositAprLong: string | number; borrowAprShort: string | number; rewardAprLong?: string | number; rewardAprShort?: string | number
+  depositAprLong: string | number; borrowAprShort: string | number | null; rewardAprLong?: string | number; rewardAprShort?: string | number
   aprBase: string | number; aprTotal: string | number; netAprAtAmount?: string | number | null; borrowAprAtAmount?: string | number | null; depositAprAtAmount?: string | number | null
   borrowLiquidityUsdShort: string | number; totalDepositsUsdLong?: string | number
   /**

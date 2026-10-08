@@ -1,6 +1,6 @@
 import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
+import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopDepthShort, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
 import { capPerAsset, classifyEarn, classifyPair, dedupe, foldDates, rowKey, type Candidate, type LoopStrategy, type LoopTenor, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { HIDES, hideDetail, softHide, type HideCode } from '../model/visibility'
 import { parseUid } from '../model/uid'
@@ -682,8 +682,10 @@ export function useTenorQuotes(l: LoopStrategy, equityUsd: number, leverageLive:
     // the quote at this size when the build answers; else the feed's book for the tenor, if it fills
     // this size. A build that cannot quote (`PRICE_UNAVAILABLE` on srONyc, 2026-10-07) is not "no lender"
     const feed = t.apr != null && (t.fillable == null || debtTokens <= t.fillable) ? { apr: t.apr, ltv: 0, lqt: 0, depth: t.fillable ?? 0 } : null
+    // ...but a build that says no lender holds this size (`INSUFFICIENT_DEPTH`) overrules the feed's book
+    const short = loopDepthShort(qs[i].error)
     const pending = qs[i].isPending && qs[i].fetchStatus !== 'idle'
-    return { tenor: t, pending: pending && !feed, offer: o ? { apr: o.apy / 1e4, ltv: o.ltv / 1e6, lqt: o.lqt / 1e6, depth: o.amount } : feed }
+    return { tenor: t, pending: pending && !feed, short, offer: o ? { apr: o.apy / 1e4, ltv: o.ltv / 1e6, lqt: o.lqt / 1e6, depth: o.amount } : short ? null : feed }
   })
 }
 /**

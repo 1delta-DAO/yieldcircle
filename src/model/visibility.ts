@@ -35,7 +35,7 @@ export interface HideMeta {
 export const HIDES: Record<HideCode, HideMeta> = {
   unmapped: { word: 'asset not mapped', soft: false, why: 'YieldCircle presents a fixed whitelist of base assets, plus every US dollar filed under whose credit it is, and these rows are neither. Nothing on this page could name what you would be holding.' },
   'cross-denom': { word: 'price bet', soft: false, kind: 'loop', why: 'The debt is a different money than the collateral, so the position is a directional bet rather than a carry. The ticket only builds carries.' },
-  brokered: { word: 'fixed term', soft: false, kind: 'loop', why: 'The debt is fixed-rate on an order book or at auction (Midnight, Term, TermMax, Teller). What it costs depends on who is offering at that size, which the API does not quote yet, so the ticket could not say what the loop pays.' },
+  brokered: { word: 'fixed term', soft: false, kind: 'loop', why: 'The debt is fixed-rate on an order book or at auction (Midnight, Term, TermMax, Teller). What it costs depends on who is offering at that size, which the API does not quote yet — or no lender offers it right now (a Loopscale pair whose strategies are fully lent) — so the ticket could not say what the loop pays.' },
   basket: { word: 'basket', soft: false, why: 'The collateral is a basket of several assets, which this app has no way to show as one thing you hold.' },
   'no-leverage': { word: 'no leverage', soft: false, kind: 'loop', why: 'The market allows less than 2×, so there is no loop to build.' },
   'thin-ltv': { word: 'ltv too low', soft: false, kind: 'loop', why: 'The collateral is worth less than 30 % of a borrow here — a loop would liquidate on noise.' },

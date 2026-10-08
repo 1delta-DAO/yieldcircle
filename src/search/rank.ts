@@ -62,6 +62,7 @@ export const TERM_SOURCES = [
   'kolscan',
   'gmgn',
   'sns-owner',
+  'skr',
 ] as const
 export type TermSource = (typeof TERM_SOURCES)[number]
 
@@ -88,6 +89,10 @@ const SOURCE_PRIOR: Record<string, number> = {
   kolscan: 0.7,
   gmgn: 0.65,
   'sns-owner': 0.4,
+  // a Seeker's `.skr` (AllDomains): one per device, picked by its owner —
+  // below the KOL lists: of 121k Seeker names, `slingoor.skr` and
+  // `king.skr` are OTHER wallets than the KOLs a reader means
+  skr: 0.6,
 }
 
 /** a nudge between kinds for an otherwise equal match: the browse kinds first */
@@ -119,9 +124,9 @@ export function searchKey(s: string): string {
     .replace(/\s+/g, ' ')
 }
 
-/** `vitalik.eth` / `jesse.base.eth` / `cooper.bnb` / `toly.sol` → the name without its namespace */
+/** `vitalik.eth` / `jesse.base.eth` / `cooper.bnb` / `toly.sol` / `diarmuid.skr` → the name without its namespace */
 export const bareEns = (key: string): string =>
-  key.replace(/\.(base\.eth|eth|bnb|sol)$/, '')
+  key.replace(/\.(base\.eth|eth|bnb|sol|skr)$/, '')
 
 /** a word boundary inside a name: space and the separators people type past */
 const WORD = /[\s._\-/:()|,+]+/

@@ -5,7 +5,7 @@ import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
 import { useBook } from './useBook'
 import { HoldingTicket, Ticket } from './Ticket'
-import { WhoIsIn } from './TicketSocial'
+import { RowSocial } from './TicketSocial'
 import { uidOf } from '../model/uid'
 import { GroupIcon, Info, KindPill, LegsPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort, HealthPill } from './bits'
 import { chainLabel } from '../sdk/queries'
@@ -61,6 +61,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const get = useRateHistory(ofKind, !b.isFetching)
   const [withRewards, setWithRewards] = useSparkRewards()
   const phone = useViewport() === 'phone'
+  const threadOf = useThreadOf()
   // ranked on the STEADY rate: a row whose rate today is a spike against its own
   // month sorts by the month, so one hot night does not lead the list
   const steady = React.useMemo(() => new Map(ofKind.map((s) => [s.id, steadyRate(s, get, withRewards)])), [ofKind, get, withRewards])
@@ -185,8 +186,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                       <span className="t40">›</span>
                     </td>
                   </tr>
-                  {/* the picked row opens: who is in it, read where the choice is made rather than at the ticket's foot */}
-                  {on && uid && <tr className="xp"><td colSpan={3}><WhoIsIn uid={uid} s={s} wide /></td></tr>}
+                  {/* the picked row opens: the thread and who is in it, read where the choice is made rather than at the ticket's foot */}
+                  {on && <tr className="xp"><td colSpan={3}><RowSocial uid={uid} thread={threadOf(s)} s={s} focus={route.talk} /></td></tr>}
                 </React.Fragment>) })}</tbody>
               </table>
             ) : <div className="empty">No {kind === 'simple' ? 'plain deposit' : 'loop'} for this filter{b.errors.length ? ` (${b.errors[0].message})` : ''}{heldBack.length ? ` — ${heldBack.length} held back by the floors below` : ''}.</div>}
@@ -194,7 +195,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
           <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />
         </div>
         <aside ref={aside} className={ticketOpen ? '' : 'closed'} id="aside">
-          {sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} holdersInList={!phone} onClose={close} />}
+          {sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} socialInList={!phone} onClose={close} />}
           {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '')} s={offSel} idle={b.idlePerChain} holding={offMenu ?? held(offSel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
           {offMenu && !offSel && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
         </aside>

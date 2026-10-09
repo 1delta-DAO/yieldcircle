@@ -64,7 +64,8 @@ function wrapStep(tx: ApiTx, chainId?: string): Pick<Step, 'label' | 'onFail' | 
  */
 const readableKeys = (d: string) => d.replace(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g, (k) => venueLabel(k))
 
-export function stepsFrom(a: LoopActions | null | undefined, routeLabel: string, chainId?: string): Step[] {
+/** `route`: which of `alternatives` to run (the API's best is 0; a ticket's route list picks another). */
+export function stepsFrom(a: LoopActions | null | undefined, routeLabel: string, chainId?: string, route = 0): Step[] {
   if (!a) return []
   // an svm "wrap" has no selector to recognise — the message does it internally, so no wrapStep
   const step = (tx: AnyTx): Step => ({ kind: 'setup', tx, label: tx.description ?? routeLabel, ...(isSvmTx(tx) ? undefined : wrapStep(tx, chainId)) })
@@ -73,7 +74,8 @@ export function stepsFrom(a: LoopActions | null | undefined, routeLabel: string,
     ...(a.transactions ?? []).map(step),
   ]
   const alts = a.alternatives ?? []
-  if (alts.length && !(a.transactions ?? []).length) steps.push({ kind: 'route', tx: alts[0], label: `${routeLabel}${alts[0].description ? ` · ${alts[0].description}` : ''}` })
+  const alt = alts[Math.min(Math.max(0, route), alts.length - 1)]
+  if (alt && !(a.transactions ?? []).length) steps.push({ kind: 'route', tx: alt, label: `${routeLabel}${alt.description ? ` · ${alt.description}` : ''}` })
   steps.push(...(a.postTransactions ?? []).map(step))
   // one step waits for the positions to show it; any other pre-step only moves balances
   let main = -1

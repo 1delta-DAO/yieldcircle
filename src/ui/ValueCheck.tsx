@@ -44,15 +44,16 @@ export function useValueCheck(inUsd: number, outUsd: number, quoteKey: string): 
  * The row: `in → out | change`. `labels` name the three cells; `info` explains the change; `missing`
  * names what has no price when one side is unpriced.
  */
-export function ValueRow({ v, labels, info, missing }: { v: ValueCheck; labels: [string, string, string]; info: React.ReactNode; missing?: string }) {
+/** `third`: another figure in the last cell instead of the value change (a loop's break-even); `title` then carries the change on hover. */
+export function ValueRow({ v, labels, info, missing, third }: { v: ValueCheck; labels: [string, string, string]; info: React.ReactNode; missing?: string; third?: { value: React.ReactNode; cls?: string; title?: string } }) {
   return (
-    <div className={`qval ${v.sev}`}>
+    <div className={`qval ${v.sev}`} title={third?.title}>
       <span className="qv"><small>{labels[0]}</small><b>{v.inUsd > 0 ? cents(v.inUsd) : '—'}</b></span>
       <i aria-hidden>→</i>
       <span className="qv"><small>{labels[1]}</small><b>{v.outUsd > 0 ? cents(v.outUsd) : '—'}</b></span>
       <span className="qv imp">
-        <small>{labels[2]} <Info label={`About ${labels[2].toLowerCase()}`}>{info} Over {pctAbs(WARN)} it turns amber; over {pctAbs(ACK)} you confirm the loss before signing.</Info></small>
-        <b>{v.priced ? <>{v.diff < 0 ? '−' : '+'}{cents(Math.abs(v.diff))} · {v.impact < 0 ? '−' : '+'}{pctAbs(v.impact)}</> : missing ? `no price for ${missing}` : 'no price'}</b>
+        <small>{labels[2]} <Info label={`About ${labels[2].toLowerCase()}`}>{info} {third ? <>The value change is {v.priced ? <>{v.diff < 0 ? '−' : '+'}{cents(Math.abs(v.diff))} ({v.impact < 0 ? '−' : '+'}{pctAbs(v.impact)})</> : 'not priced'}; over</> : 'Over'} {pctAbs(WARN)} it turns amber; over {pctAbs(ACK)} you confirm the loss before signing.</Info></small>
+        <b className={third?.cls}>{third ? third.value : v.priced ? <>{v.diff < 0 ? '−' : '+'}{cents(Math.abs(v.diff))} · {v.impact < 0 ? '−' : '+'}{pctAbs(v.impact)}</> : missing ? `no price for ${missing}` : 'no price'}</b>
       </span>
     </div>
   )

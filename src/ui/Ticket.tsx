@@ -38,7 +38,7 @@ import { AssetLink } from './TokenPage'
 const TicketCtx = React.createContext<{ uid: string | null; thread?: ThreadRef | null; copy?: string }>({ uid: null })
 
 /** The ticket: what you do in plain words, amount (+ leverage), the numbers, what can go wrong, one button. */
-export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, talk, holdersInList, onClose }: { s: Strategy; idle: Idle[]; holding: Holding | null; mode?: Mode; copy?: string; offMenu?: string; talk?: boolean; /** the list shows who is in it under the picked row, so the ticket need not */ holdersInList?: boolean; onClose: () => void }) {
+export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, talk, socialInList, onClose }: { s: Strategy; idle: Idle[]; holding: Holding | null; mode?: Mode; copy?: string; offMenu?: string; talk?: boolean; /** the list shows the thread and who is in it under the picked row, so the ticket need not */ socialInList?: boolean; onClose: () => void }) {
   const [mode, setMode] = React.useState<Mode>(holding ? mode0 ?? 'add' : 'add')
   const uid = uidOf(s)
   const thread = useThreadOf()(s)
@@ -64,7 +64,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, talk, hol
       )}
       {holding && mode !== 'add' ? (s.kind === 'loop' ? <ManageLoop s={s} h={holding} closeFirst={mode === 'close'} /> : <ManageTicket s={s} h={holding} mode={mode} />)
         : s.kind === 'simple' ? <SimpleTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} /> : <LoopTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={holding} />}
-      <TicketSocial uid={uid} thread={thread} s={s} focus={talk} holders={!holdersInList} />
+      {!socialInList && <TicketSocial uid={uid} thread={thread} s={s} focus={talk} />}
     </div>
     </TicketCtx.Provider>
   )
@@ -411,7 +411,12 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const netC = netAprAtLeverage(dep, bor, Lc), hfC = healthAt(liqLtv, Lc)
   // the VM's own signer, as the build below: a Solana loop quoted for the EVM address is quoted for nobody
   const q = useLoopQuote(s, E, L, actor, slip, term?.id, tenor)
-  const econ = q.data?.data?.economics ?? q.data?.data?.quotes?.[0]?.economics ?? null
+  // the swap routes the API found for the leverage leg, best first; another is picked by its aggregator's
+  // name, so the build (a fresh call) runs the same one wherever it lands in that answer's order
+  const routes = q.data?.data?.quotes ?? []
+  const [routeName, setRouteName] = React.useState<string | null>(null)
+  const routeSel = Math.max(0, routes.findIndex((r) => r.deltas?.aggregator === routeName))
+  const econ = (routeSel > 0 ? routes[routeSel]?.economics : null) ?? q.data?.data?.economics ?? routes[0]?.economics ?? null
   // Break-even: the entry cost over what the loop earns a day. The API's own where it prices the
   // carry (EVM). Its Solana quote leaves the carry null (worker-api `svmEconomics`, 2026-10-06), and
   // on a broker term it prices the debt at the market's variable rate, not the term's (2026-09-29):
@@ -432,7 +437,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const fitLev = short?.fit.leverage ?? 0
   const fitTier = fitLev ? [...TIERS].reverse().find((t) => s.tiers[t.id] <= fitLev) : undefined
   const yearly = E * net / 100
-  const key = [s.id, amount, L, term?.id ?? '', tenor?.id ?? '', chosen?.role ?? '', actor ?? '', slip].join('|')
+  const key = [s.id, amount, L, term?.id ?? '', tenor?.id ?? '', chosen?.role ?? '', actor ?? '', slip, routeName ?? ''].join('|')
   const ladder = useLadder(key, s.chainId, async () => {
     const debtTokens = s.priceShort ? D / s.priceShort : 0
     const env = await loopOpen({
@@ -441,7 +446,8 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
     })
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     if (chosen?.role === 'native' && !paysNative(env.actions)) throw new Error(`This loop does not take ${chosen.symbol} directly. Pay with another asset.`)
-    return stepsFrom(env.actions, `Open ${num(L, 2)}× loop${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)} term` : s.dueAt ? ` · due ${due}` : ''}`, s.chainId)
+    const route = Math.max(0, (env.data?.quotes ?? []).findIndex((r) => r.deltas?.aggregator === routeName))
+    return stepsFrom(env.actions, `Open ${num(L, 2)}× loop${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)} term` : s.dueAt ? ` · due ${due}` : ''}`, s.chainId, route)
     // the swap's leftover lands in the wallet as either leg's token (Jupiter's exact-in fill on Solana)
   }, [s.marketLongUid, s.marketShortUid], [{ address: chosen?.address, symbol: chosen?.symbol }, { address: s.collateralAddress, symbol: s.holds }, { address: s.debtAddress, symbol: s.debt }])
   // the open at market prices: your equity right after it is what you put in less the entry cost (`ValueCheck.tsx`)
@@ -503,8 +509,24 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
           </div>}
         </div>}
         {econ && <>
-          <ValueRow v={vc} labels={['You put in', 'Equity after', 'Value change']} missing={chosen?.symbol}
-            info={<>Your equity right after the open, at market prices: what you put in less the entry cost — the swap's slippage on the whole {num(L, 2)}× position, fees and the network fee. A loop earns it back over time (Break-even below).</>} />
+          <ValueRow v={vc} labels={['You put in', 'Equity after', 'Break-even']} missing={chosen?.symbol}
+            third={{
+              value: payback == null ? 'never' : daysWord(payback),
+              cls: payback == null ? 'bad' : clockDays != null && payback > clockDays ? 'warn' : 'ok',
+              title: `Entry cost ${usd(cost)}: swap slippage ${usd(econ.entryCostUsd.slippage)}, fees ${usd(econ.entryCostUsd.fees)}, network ${econ.entryCostUsd.gas == null ? 'not priced' : usd(econ.entryCostUsd.gas)} (max slippage ${slip / 100}%). ${payback == null ? `At ${pct(net)} the loop earns nothing, so the entry is never earned back.` : `At ${pct(net)} on ${usd(E)} it earns ${usd(E * net / 100 / 365)} a day, so the entry is earned back in ${daysWord(payback)}${clockDays != null ? ` — ${payback > clockDays ? 'after' : 'before'} ${clockWord}` : ''}. Closing costs about as much again.`}`,
+            }}
+            info={<>Your equity right after the open, at market prices: what you put in less the entry cost — the swap's slippage on the whole {num(L, 2)}× position, fees and the network fee ({usd(cost)}: slippage {usd(econ.entryCostUsd.slippage)}, fees {usd(econ.entryCostUsd.fees)}, network {econ.entryCostUsd.gas == null ? 'not priced' : usd(econ.entryCostUsd.gas)}). Break-even is how long the loop takes to earn that back at {pct(net)}{payback != null && clockDays != null ? <> — {payback > clockDays ? 'after' : 'before'} {clockWord}</> : null}.</>} />
+          {routes.length > 0 && (
+            <div className="routes mini" role="radiogroup" aria-label="Swap route">
+              <span className="lbl">{routes.length === 1 ? 'Swap route · the one found' : `Swap route · ${routes.length} found`} <Info label="The swap inside the loop">The borrowed {s.debt} is swapped into {s.holds} inside the open. The API asks every aggregator it knows and lists what each would return; the best is picked, and the loop runs on the one you choose.</Info></span>
+              {routes.map((r, i) => { const o = r.deltas?.tradeOutput ?? 0; const top = routes[0].deltas?.tradeOutput || 1; const d = (o / top - 1) * 1e4; const name = r.deltas?.aggregator ?? `route ${i + 1}`; return (
+                <button key={i} type="button" role="radio" aria-checked={i === routeSel} className="route" onClick={() => setRouteName(i === 0 ? null : name)} title={`${name}: the swap of the borrowed ${s.debt} into ${s.holds}${r.economics ? ` · entry cost ${usd(r.economics.entryCostUsd.total)}` : ''}`}>
+                  <span className="rn"><b>{name}</b></span>
+                  <span className="rbar"><i style={{ width: `${Math.max(3, Math.min(100, (o / top) * 100))}%` }} /></span>
+                  <span className="ro"><b>{num(o, o > 100 ? 2 : 4)}</b><small className={i === 0 ? 'ok' : d < -20 ? 'warn' : ''}>{i === 0 ? 'best' : `${d > 0 ? '+' : '−'}${Math.abs(d) >= 100 ? (Math.abs(d) / 100).toFixed(1) + '%' : Math.abs(d).toFixed(0) + ' bp'}`}</small></span>
+                </button>) })}
+            </div>
+          )}
           <LossAck v={vc} what="Opening this loop" advice="Lower the leverage or the amount: the swap is sized on the whole position, not on what you put in." />
         </>}
       </div>
@@ -512,7 +534,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
       <div className="tsec"><div className="cells">
         <div className="c hero duo"><div><span className="k">Net yield</span><span className={`v ${net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{pct(net)}</span><span className="s">earn {pct(dep)} on {num(L, 1)}× · pay {pct(bor)} on {num(L - 1, 1)}×{term ? ` fixed to ${ends}` : tenor ? ` fixed for ${tenorWord(tenor)}` : s.dueAt ? ` fixed to ${due}` : Math.abs(bor - s.borSpot) >= 0.05 ? ` (${pct(s.borSpot)} now)` : ''}</span></div>
           <div className="hf" title={simHf ? 'Simulated by the API' : 'From the liquidation threshold'}><span className="k">Health</span><span className={`v ${(simHf ?? hf) < 1.1 ? 'bad' : (simHf ?? hf) < 1.25 ? 'warn' : 'ok'}`}>{(simHf ?? hf).toFixed(2)}</span></div></div>
-        <button type="button" className="c more" aria-expanded={details} onClick={() => setDetails(!details)}>{details ? 'Hide details' : 'Details'}<span className="t40">{details ? '' : 'per year · hold and owe · break-even · liquidation'}</span><span className="chev" aria-hidden>▾</span></button>
+        <button type="button" className="c more" aria-expanded={details} onClick={() => setDetails(!details)}>{details ? 'Hide details' : 'Details'}<span className="t40">{details ? '' : 'per year · hold and owe · liquidation'}</span><span className="chev" aria-hidden>▾</span></button>
         {details && <>
         {Eh > 0 && <div className="c"><span className="k">Your loop after</span><span className={`v ${netC >= 3 ? 'ok' : netC < 0 ? 'bad' : ''}`}>{pct(netC)}</span><span className="s">{num(Lh, 2)}× → {num(Lc, 2)}× · health {hfC.toFixed(2)}</span></div>}
         <div className="c"><span className="k">Per year</span><span className="v">{usd(yearly)}</span><span className="s">vs {usd(E * dep / 100)} unlevered</span></div>
@@ -524,12 +546,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
             the curve says how close the market is to doing it. */}
         <div className="c"><span className="k">You hold</span><span className="v">{usd(C)}</span><span className="s">{s.holds} on {s.venue}</span><IrmLink uid={s.marketLongUid} side="supply" label="supply curve" rewards={s.rewardsLong} /></div>
         <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · {term ? `fixed ${pct(term.apr)} for ${term.days} days` : tenor ? `fixed ${pct(bor)} for ${tenorWord(tenor)}` : s.dueAt ? `fixed ${pct(bor)}, due ${due}` : 'floating'} · {usdShort(s.borrowLiquidityUsd)} to borrow</span><IrmLink uid={s.marketShortUid} side="borrow" label={term ? 'rate after the term' : 'borrow curve'} rewards={s.rewardsShort} /></div>
-        <div className="c"><span className="k">Break-even</span>
-          <span className={`v ${econ && payback == null ? 'bad' : payback != null && clockDays != null && payback > clockDays ? 'warn' : ''}`}>{q.isFetching && !econ ? <Sk w={60} h={14} /> : !econ ? '—' : payback == null ? 'never' : daysWord(payback)}</span>
-          <span className="s">{econ ? <>entry cost {usd(cost)}{payback != null && clockDays != null && payback > clockDays ? ` · past ${clockWord}` : ''} <Info label="What the entry costs">
-            <b>{usd(cost)}</b> to open: swap slippage {usd(econ.entryCostUsd.slippage)}, fees {usd(econ.entryCostUsd.fees)}, network {econ.entryCostUsd.gas == null ? 'not priced' : usd(econ.entryCostUsd.gas)}. Max slippage allowed: {slip / 100}%.
-            <p style={{ margin: '8px 0 0' }}>{payback == null ? <>At {pct(net)} the loop earns nothing, so the entry is never earned back.</> : <>At {pct(net)} on {usd(E)} the loop earns {usd(E * net / 100 / 365)} a day, so the entry is earned back in {daysWord(payback)}{clockDays != null ? <> — {payback > clockDays ? 'after' : 'before'} {clockWord}</> : ''}. Closing costs about as much again.</>}</p>
-          </Info></> : noRoute ? 'no route at this size' : short ? 'too big for one lender' : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>
+        {!econ && <div className="c"><span className="k">Entry</span><span className="v">{q.isFetching ? <Sk w={60} h={14} /> : '—'}</span><span className="s">{noRoute ? 'no route at this size' : short ? 'too big for one lender' : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>}
         </>}
       </div>
         {details && <>
@@ -813,7 +830,7 @@ function GetLine({ account, short, symbol, open, onOpen }: { account?: string; s
     <button className={`getline ${short ? 'short' : ''}`} onClick={onOpen}>
       <span className="gl-ic" aria-hidden><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h11l-3-3M17 13H6l3 3" /></svg></span>
       <span className="gl-t">{short ? <><b>Don't have enough {symbol}?</b><small>Swap or bridge it from anything you hold, on any chain.</small></> : <><b>Get more {symbol}</b><small>from another asset or chain</small></>}</span>
-      <span className="gl-go">Get {symbol} →</span>
+      <span className="gl-go">Get {symbol.length > 8 ? 'it' : symbol} →</span>
     </button>
   )
 }

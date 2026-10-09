@@ -19,19 +19,18 @@ import { useHolders } from '../index/queries'
 import { useCounts, useProfiles } from '../social/queries'
 import { marketHref } from '../state/AppState'
 import { FollowButton, Money, Who } from './social-bits'
+import { Sk } from './bits'
 import { Thread } from './Thread'
 import type { Strategy } from '../model/strategies'
 import type { ThreadRef } from '../model/uid'
 
-export function TicketSocial({ uid, thread, s, focus, holders = true }: {
+export function TicketSocial({ uid, thread, s, focus }: {
   /** the market the strategy sits in (a loop's collateral leg): whose holders these are */
   uid: string | null
   thread: ThreadRef | null
   s: Strategy
   /** opened from a row's 💬: scroll here and show the whole thread */
   focus?: boolean
-  /** false when the list already shows who is in it under the picked row (`WhoIsIn`), so the ticket stays the numbers and the words */
-  holders?: boolean
 }) {
   // a loop on its own thread: what was said on its collateral market stays one link away
   const onMarket = useCounts(thread?.kind === 'strategy' && uid ? [{ kind: 'market', key: uid }] : [])
@@ -55,17 +54,45 @@ export function TicketSocial({ uid, thread, s, focus, holders = true }: {
           )}
         </div>
       )}
-      {holders && uid && <div className="tsec tsocial"><WhoIsIn uid={uid} s={s} /></div>}
+      {uid && <div className="tsec tsocial"><WhoIsIn uid={uid} s={s} /></div>}
     </>
   )
 }
 
 /**
+ * The social strip under the picked row of the list, on a desk: the thread on
+ * the left, who is in it on the right. The ticket then holds only the numbers
+ * and the words, and the proof and the talk are read where the choice is
+ * made. On a phone, where the ticket covers the list, both stay at the
+ * ticket's foot (`TicketSocial`). It unfolds (a 0fr→1fr track, no measuring)
+ * and shows placeholders until the index answers.
+ */
+export function RowSocial({ uid, thread, s, focus }: { uid: string | null; thread: ThreadRef | null; s: Strategy; focus?: boolean }) {
+  const [open, setOpen] = React.useState(false)
+  React.useEffect(() => { const t = requestAnimationFrame(() => setOpen(true)); return () => cancelAnimationFrame(t) }, [])
+  const what = s.kind === 'loop' ? 'loop' : 'strategy'
+  if (!uid && !thread) return null
+  return (
+    <div className={`xp-x${open ? ' open' : ''}`}>
+      <div className="xp-xi">
+        <div className="rowsocial">
+          {thread && (
+            <div className="rs-talk">
+              <div className="ts-h"><span className="lbl">What people say</span><span className="sp" /><FollowButton kind={thread.kind} target={thread.key} small quiet /></div>
+              <Thread kind={thread.kind} subjectKey={thread.key} compact max={focus ? undefined : 2} placeholder={`What do you make of this ${what}?`} />
+            </div>
+          )}
+          {uid && <WhoIsIn uid={uid} s={s} wide />}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Who else is in it: the market's biggest holders, each a door to their
- * wallet. On a desk it sits in the list, as a strip under the picked row
- * (`wide`): the ticket then holds only the numbers and the words, and the
- * proof is read where the choice is made. On a phone, where the ticket covers
- * the list, it stays at the ticket's foot.
+ * wallet. `wide` is the strip's layout (pills in a row); the ticket's foot
+ * stacks them.
  */
 export function WhoIsIn({ uid, s, wide }: { uid: string; s: Strategy; wide?: boolean }) {
   // NOT filtered to `supply`: a vault market's holders sit on the `share`
@@ -83,7 +110,9 @@ export function WhoIsIn({ uid, s, wide }: { uid: string; s: Strategy; wide?: boo
         <span className="sp" />
         <a className="t50" href={marketHref(uid)}>Market page ›</a>
       </div>
-      {holders.isLoading && <p className="foot">reading the index…</p>}
+      {holders.isLoading && (wide
+        ? <div className="ts-holders" aria-busy="true" aria-label="reading the index">{[0, 1, 2, 3].map((i) => <span key={i} className="ts-holder sk"><Sk w={24} h={24} /><Sk w={70 + i * 12} h={12} /><Sk w={32} h={12} /></span>)}</div>
+        : <p className="foot">reading the index…</p>)}
       {!holders.isLoading && !rows.length && <p className="foot">The index has no holder for this market yet — it may be outside what it follows, or simply new.</p>}
       {rows.length > 0 && (
         <div className="ts-holders">

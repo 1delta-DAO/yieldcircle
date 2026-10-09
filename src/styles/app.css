@@ -2084,3 +2084,34 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
   .drawer.get-drawer{top:auto;bottom:0;left:0;right:0;width:100%;max-height:92vh;border:0;border-radius:var(--r-xl) var(--r-xl) 0 0;animation-name:sheet-up;padding-bottom:env(safe-area-inset-bottom)}
 }
 @keyframes sheet-up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+/* the strip unfolds like the positions card does; the thread sits left, the holders right */
+.tbl.strat-t tr.xp td{padding:0 20px}
+.xp-x{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s cubic-bezier(.4,0,.2,1)}
+.xp-x.open{grid-template-rows:1fr}
+.xp-xi{overflow:hidden;min-height:0;opacity:0;transform:translateY(-4px);transition:opacity .2s ease .06s,transform .28s cubic-bezier(.4,0,.2,1)}
+.xp-x.open .xp-xi{opacity:1;transform:none}
+.rowsocial{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;padding:2px 0 14px}
+.rs-talk{display:flex;flex-direction:column;gap:8px;min-width:0}
+.rs-talk .thread{min-width:0}
+.ts-holder.sk{pointer-events:none;background:rgba(255,255,255,.04)}
+.ts-holder.sk .sk{border-radius:999px}
+@media (max-width:1100px){.rowsocial{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.xp-x,.xp-xi{transition:none}}
+/* the loop's swap routes, under its value row: the same list as the swap drawer's, smaller */
+.routes.mini{gap:4px;margin-top:6px}
+.routes.mini .route{min-height:36px;padding:0 10px;border-radius:12px;font-size:12.5px;grid-template-columns:minmax(70px,1fr) minmax(40px,1fr) auto;gap:10px}
+.routes.mini .route .ro b{font-size:12.5px}
+.routes.mini .route .rbar{height:4px}
+.qval .imp b.ok{color:var(--success)}
+.qval .imp b.warn{color:var(--warning)}
+.qval .imp b.bad{color:var(--error)}
+.rowsocial .whoin.wide .ts-holders{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.rowsocial .whoin.wide .ts-holder{width:100%}
+.routes.mini .lbl{margin:2px 0 2px;font-size:11.5px}
+.rowsocial .whoin.wide .ts-holders{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.rowsocial .whoin.wide .ts-holder{padding-right:10px;overflow:hidden}
+.rowsocial .whoin.wide .ts-holder .who{flex:1 1 auto;min-width:0}
+.rowsocial .whoin.wide .ts-holder .who .wn{min-width:0}
+.rowsocial .whoin.wide .ts-holder .who .wn b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rowsocial .whoin.wide .ts-holder .pill,.rowsocial .whoin.wide .ts-holder .xtag{display:none}
+.rowsocial .whoin.wide .ts-holder > span:last-child{flex:none}

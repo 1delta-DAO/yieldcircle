@@ -2,11 +2,11 @@
  * #/deck - the pitch deck, as a hidden route. Deep link only: nothing in the
  * app points here, and it renders without the Shell. One slide per section,
  * scroll-snapped; arrow keys, Space and PageDown step through it like the
- * lander (src/ui/Landing.tsx), whose look it borrows. Numbers on the ask and
+ * lander (landing/Landing.tsx), whose look it borrows. Numbers on the ask and
  * traction slides are draft placeholders, flagged in place.
  */
 import React from 'react'
-import { Logo, Mark } from './Logo'
+import { Logo, Mark } from '@yieldcircle/design'
 
 const hic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
 

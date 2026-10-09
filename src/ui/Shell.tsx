@@ -24,7 +24,7 @@
  */
 import React from 'react'
 import { normAddr } from '../model/address'
-import { Logo } from './Logo'
+import { Logo } from '@yieldcircle/design'
 import { ConnectButton } from '../wallet/ConnectButton'
 import { useApp, useRoute, type View } from '../state/AppState'
 import { Character } from '../identity/character'

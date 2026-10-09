@@ -5,13 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:landing": "vite --config landing/vite.config.ts",
     "build": "tsc --noEmit && vite build",
+    "build:landing": "tsc --noEmit && vite build --config landing/vite.config.ts && node landing/build-worker.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "shots": "node scripts/shots.mjs",
     "shots:baseline": "node scripts/shots.mjs --baseline",
     "deploy": "node scripts/menu-seed.mjs && pnpm build && wrangler pages deploy dist --project-name yieldcircle --branch main",
     "deploy:preview": "node scripts/menu-seed.mjs && pnpm build && wrangler pages deploy dist --project-name yieldcircle --branch preview",
+    "deploy:landing": "pnpm build:landing && wrangler pages deploy dist-landing --project-name yieldcircle-landing --branch main",
     "whitelist": "node scripts/whitelist.mjs",
     "logos": "node scripts/logos.mjs",
     "notes": "node scripts/notes.mjs",
@@ -21,6 +24,7 @@
     "brand": "node scripts/brand-characters.mjs && python3 brand/gen.py && node scripts/brand.mjs"
   },
   "dependencies": {
+    "@yieldcircle/design": "workspace:*",
     "@tanstack/react-query": "5.91.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

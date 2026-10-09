@@ -1,7 +1,7 @@
 import { useId } from 'react'
-import { MARK_D, MARK_VIEWBOX, YIELD_D, CIRCLE_D, CIRCLE_BOX, LOCKUP_VIEWBOX } from './brand.generated'
+import { MARK_D, MARK_VIEWBOX, YIELD_D, CIRCLE_D, CIRCLE_BOX, LOCKUP_VIEWBOX } from './brand/brand.generated'
 
-/** Gradient stops follow the theme: --brand-a / --brand-b are set in app.css next to the palette. */
+/** Gradient stops follow the theme: --brand-a / --brand-b are set in tokens.css next to the palette. */
 function Grad({ id, box }: { id: string; box?: { x: number; w: number; top: number; base: number } }) {
   const c = box ? { x1: box.x, y1: box.base, x2: box.x + box.w, y2: box.top } : { x1: 16, y1: 88, x2: 86, y2: 14 }
   return (

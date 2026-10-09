@@ -1,0 +1,6 @@
+/* @yieldcircle/design — one stylesheet for both front ends, imported first by each entry
+   (src/main.tsx, landing/main.tsx); the app's own src/styles/app.css loads after it. */
+@import './tokens.css';
+@import './base.css';
+@import './components.css';
+@import './marketing.css';

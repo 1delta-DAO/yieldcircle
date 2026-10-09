@@ -1,45 +1,48 @@
 /**
- * #/landing — the public landing page. The hero is the join page's field of
- * real farmers (`Showcase.tsx`, hover one and its PnL plays), then what the
- * index sees right now (the top wallets, live), what is broken about yield
- * discovery and how the app fixes it, the three steps, the protocols the
- * proof is read from, and the waitlist again at the end. Renders without the
- * Shell, for a visitor with or without beta access: the top-right button
- * opens the gate's own card (`openGate`, the same modal the app uses) for one
- * without, and opens the app for one who is in.
+ * The public landing page — its own deployment (`landing/`), on its own
+ * origin. The hero is the join page's field of real farmers (`Showcase.tsx`,
+ * hover one and its PnL plays), then what the index sees right now (the top
+ * wallets, live), what is broken about yield discovery and how the app fixes
+ * it, the three steps, the protocols the proof is read from, and the waitlist
+ * again at the end. Every "Join the waitlist" opens the gate's own card
+ * (`openGate`, built into `index.html` by `vite.config.ts`), which puts a
+ * wallet in line through this deployment's Worker; "Sign in" and every link
+ * into the product go to the app (`APP_URL`), where the beta cookie lives.
  */
 import React from 'react'
-import { Logo, Mark } from './Logo'
-import { Socials } from './Socials'
-import { Showcase, SHOWCASE_AT, SHOWCASE_N, SHOWCASE_PNL } from './Showcase'
-import { Character } from '../identity/character'
-import { displayFor } from '../identity/name'
-import { useEarners, useProtocols } from '../index/queries'
-import { protocolName } from './ProtocolFilter'
-import { ProtocolLogo, pct, protocolIconUrls, usdShort } from './bits'
-import { chainLabel } from '../sdk/queries'
-import { WAITLIST_HREF, gated, onAccessCode, openGate } from '../wallet/gate'
-import { TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL } from '../config/links'
+import { Logo, Mark, Socials, TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL } from '@yieldcircle/design'
+import { Showcase, SHOWCASE_AT, SHOWCASE_N, SHOWCASE_PNL } from '../src/ui/Showcase'
+import { Character } from '../src/identity/character'
+import { displayFor } from '../src/identity/name'
+import { useEarners, useProtocols } from '../src/index/queries'
+import { protocolName } from '../src/ui/ProtocolFilter'
+import { ProtocolLogo, pct, protocolIconUrls, usdShort } from '../src/ui/bits'
+import { chainLabel } from '../src/sdk/queries'
+import { openGate } from '../src/wallet/gate'
+import { APP_URL } from './config'
 
 const hic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
 
 const BOARD_ROWS = 6
 
 export function Landing() {
-  const inside = !gated()
-  const pass = inside && onAccessCode()
-  // the gate's card is the modal; without one (the visitor is in) the link goes through into the app
+  // the field of farmers stays put behind the page (fixed, design/marketing.css); past the hero it dims to a backdrop
+  const [deep, setDeep] = React.useState(false)
+  React.useEffect(() => {
+    const f = () => setDeep(window.scrollY > window.innerHeight * 0.45)
+    f()
+    window.addEventListener('scroll', f, { passive: true })
+    return () => window.removeEventListener('scroll', f)
+  }, [])
+  // the gate's card is the modal; should it be missing, the link goes through to the app, which has its own
   const join = (e: React.MouseEvent) => { if (openGate()) e.preventDefault() }
-  /** the top-right button and every CTA on the page: one meaning per visitor */
-  const cta = (label = 'Join the waitlist', className = 'join-cta') =>
-    pass ? <a className={className} href={WAITLIST_HREF} target="_blank" rel="noopener">{label}</a>
-      : inside ? <a className={className} href="#/">Open the app</a>
-      : <a className={className} href="#/" onClick={join}>{label}</a>
+  /** the top-right button and every CTA on the page */
+  const cta = (label = 'Join the waitlist', className = 'join-cta') => <a className={className} href={APP_URL} onClick={join}>{label}</a>
 
   return (
-    <div className="lp">
+    <div className={deep ? 'lp lp-deep' : 'lp'}>
       <header className="lp-top">
-        <Logo height={28} href="#/landing" />
+        <Logo height={28} href="/" />
         <nav className="lp-nav" aria-label="Sections">
           <a href="#broken">What's broken</a>
           <a href="#fix">How we fix it</a>
@@ -50,22 +53,19 @@ export function Landing() {
         {cta('Join the waitlist', 'join-cta lp-btn')}
       </header>
 
-      <Showcase className="lp-hero">
+      <Showcase className="lp-hero" quiet={deep}>
         <main className="join-hero">
-          {inside && <span className="join-pill">{pass ? 'Access code' : 'Welcome to the beta'}</span>}
           <h1>Everything you hold, <span className="land-grad">earning.</span></h1>
           <p>See what real yield farmers actually make — the PnL the chain can prove, not the APR on the poster — and copy them in one tap.</p>
           {cta()}
-          {inside
-            ? <a className="join-in" href="#/board">See the leaderboard</a>
-            : <a className="join-in" href="#/" onClick={join}>Already on the list? Sign in</a>}
+          <a className="join-in" href={APP_URL}>Already on the list? Sign in</a>
         </main>
         <a className="land-hint lp-hint" href="#live" aria-label="Scroll down">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8l6 6 6-6" /></svg>
         </a>
       </Showcase>
 
-      <Live inside={inside} join={join} />
+      <Live join={join} />
 
       <section className="lp-sec lp-why" id="broken">
         <div className="land-h prob lp-kick">
@@ -188,7 +188,7 @@ export function Landing() {
       </section>
 
       <footer className="lp-foot">
-        <Logo height={22} href="#/landing" />
+        <Logo height={22} href="/" />
         <span>Realized PnL from on-chain records as of {SHOWCASE_AT}. Board figures are live from the position index.</span>
         <Socials label="Telegram" />
       </footer>
@@ -197,7 +197,7 @@ export function Landing() {
 }
 
 /** What the index sees now: the showcase's realized total, the protocols the proof is read from, and the top wallets by carry. */
-function Live({ inside, join }: { inside: boolean; join: (e: React.MouseEvent) => void }) {
+function Live({ join }: { join: (e: React.MouseEvent) => void }) {
   // the Board's own default key, so this hits the index's pre-warmed answer rather than a cold query
   const board = useEarners({ by: 'wallet', sort: 'perDay', people: true })
   const protos = useProtocols('7d')
@@ -253,7 +253,7 @@ function Live({ inside, join }: { inside: boolean; join: (e: React.MouseEvent) =
           )
         })}
         <div className="lp-board-f">
-          {inside ? <a className="btn" href="#/board">See the full board</a> : <a className="btn" href="#/board" onClick={join}>See the full board — join the waitlist</a>}
+          <a className="btn" href={`${APP_URL}/#/board`} onClick={join}>See the full board — join the waitlist</a>
         </div>
       </div>
     </section>

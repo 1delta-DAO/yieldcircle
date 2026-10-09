@@ -20,7 +20,7 @@ import { SettingsPanel } from './SettingsPanel'
 import { useUnseen } from './Alerts'
 import { MyStats } from './Stats'
 import { useSettings } from '../state/Settings'
-import { Socials } from './Socials'
+import { Socials } from '@yieldcircle/design'
 
 export function ProfileSheet() {
   const { account, signer, solSigner, viewAs, allChains, chainLabelFor } = useApp()

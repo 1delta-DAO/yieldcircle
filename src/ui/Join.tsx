@@ -1,7 +1,8 @@
 /**
- * #/join — the one-screen waitlist page. A visitor WITHOUT beta access lands on
- * the full landing (`Landing.tsx`) instead; this stays as a deep link and as the
- * welcome the gate lands a new member on after the signature.
+ * #/join — the one-screen waitlist page: the app's front door for a visitor
+ * WITHOUT beta access, whatever the route (the full landing page is its own
+ * deployment, `landing/`), and the welcome the gate lands a new member on after
+ * the signature.
  * One button in the middle, the join flow is the overlay's own card
  * (`openGate`), and the field behind it is real farmers (`Showcase.tsx`).
  * A visitor who is IN (whitelisted, or the gate is off) sees the same page at
@@ -9,9 +10,8 @@
  * after the signature — and an access-code holder gets the nudge to join.
  */
 import React from 'react'
-import { Logo } from './Logo'
+import { Logo, Socials } from '@yieldcircle/design'
 import { WAITLIST_HREF, gated, onAccessCode, openGate } from '../wallet/gate'
-import { Socials } from './Socials'
 import { Showcase } from './Showcase'
 
 export { gated }

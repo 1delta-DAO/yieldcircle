@@ -8,6 +8,7 @@ import { SettingsProvider } from './state/Settings'
 import { initTxTrace } from './sdk/txTrace'
 import App from './App'
 import { GateBridge } from './wallet/GateBridge'
+import '@yieldcircle/design/index.css'
 import './styles/app.css'
 // a 429 has already waited out the backend's `retryAfter` and tried again inside `http.ts`; retrying it here too only spends the limit
 const qc = new QueryClient({ defaultOptions: { queries: { retry: (n, e) => n < 1 && (e as { status?: number })?.status !== 429, refetchOnWindowFocus: false } } })

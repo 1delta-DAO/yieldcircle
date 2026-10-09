@@ -7,7 +7,7 @@ where the next turn begins — around a solid centre. One path on a 100-unit gri
 Wordmark: YIELD in ink, CIRCLE in the gradient, Montserrat SemiBold, tracked.
 
 Emits brand/out/*.svg (text converted to paths → no font dependency downstream),
-src/ui/brand.generated.ts for the React <Logo>, and the README / social banner.
+design/brand/brand.generated.ts for the React <Logo>, and the README / social banner.
 `pnpm brand` runs this, then scripts/brand.mjs rasterises into public/ and docs/.
 Fonts (Montserrat 600, IBM Plex Sans 400 — both OFL) are fetched once into brand/.fonts/.
 """
@@ -23,7 +23,7 @@ _N = lambda v: (f'{v:.2f}'.rstrip('0').rstrip('.')) if isinstance(v, float) else
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'out')
 FONTS = os.path.join(HERE, '.fonts')
-TS_OUT = os.path.join(HERE, '..', 'src', 'ui', 'brand.generated.ts')
+TS_OUT = os.path.join(HERE, '..', 'design', 'brand', 'brand.generated.ts')
 DOCS = os.path.join(HERE, '..', 'docs')
 
 # ── palette — change here, run `pnpm brand`, and mirror --primary / --brand-* in src/styles/app.css

@@ -17,9 +17,18 @@ where to add a new one: [`docs/apis.md`](docs/apis.md).
 ```
 cp .env.example .env     # VITE_BACKEND_BASE_URL — the credited backend for development
 pnpm install
-pnpm dev                 # http://localhost:3200
+pnpm dev                 # the app,     http://localhost:3200
 pnpm build               # tsc + vite → dist/
+pnpm dev:landing         # the landing, http://localhost:3201
+pnpm build:landing       # tsc + vite → dist-landing/
 ```
+
+Two front ends, two deployments: the **app** (`index.html`, `src/`) and the
+**landing page** (`landing/` — the public page and the waitlist signup, which
+links into the app). The landing shares `src/` and `public/` and has its own
+Vite config and Worker. The design both wear — tokens, base styles, shared
+components, the brand — is the workspace package
+[`design/`](design/README.md) (`@yieldcircle/design`).
 
 Append `?as=0x…` to the URL to read an address's positions without a wallet
 (or type it in the wallet dialog). Connect an injected wallet to sign;
@@ -248,11 +257,12 @@ brand/gen.py               the mark (an open turn of yield), the YIELD·CIRCLE l
 docs/simplify.md           why the asset page is one list with a toggle
 ```
 
-## Deploy (Cloudflare Workers)
+## Deploy (Cloudflare)
 
-A Worker serving the static Vite build; git-linked, builds on push. Settings
-are in [`docs/deploy.md`](docs/deploy.md). No variable is required: the API,
-index and social URLs and the site URL all default to production. Optional:
+Two git-linked projects that build on push: the app (Pages, `app.yieldcircle.io`)
+and the landing (a second Pages project, `yieldcircle.io`). Settings are in
+[`docs/deploy.md`](docs/deploy.md). No variable is required: the API, index and
+social URLs and the site URLs all default to production. Optional:
 `VITE_WC_PROJECT_ID` (WalletConnect on phones), `VITE_XLINK_URL`.
 
 ## Known gaps

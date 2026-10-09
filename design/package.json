@@ -1,0 +1,17 @@
+{
+  "name": "@yieldcircle/design",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "YieldCircle's design: tokens, base styles, shared components and the brand — one source for the app and the landing.",
+  "exports": {
+    ".": "./index.ts",
+    "./brand": "./brand/index.ts",
+    "./index.css": "./index.css",
+    "./*.css": "./*.css"
+  },
+  "sideEffects": ["*.css"],
+  "peerDependencies": {
+    "react": "^19"
+  }
+}

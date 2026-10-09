@@ -16,12 +16,15 @@
  * code (`/?waitlist`, linked from the app's nudge): different words, a way
  * back to the app, and nothing here is blocking them.
  *
- * `hidden: true` ships it closed behind the app's landing (`src/ui/Join.tsx`
+ * `hidden: true` ships it closed behind the app's join page (`src/ui/Join.tsx`
  * opens it; "Not now" closes it again) — nothing is frosted over any more.
+ *
+ * `app: <url>` is the landing's copy (`landing/`, its own deployment and
+ * origin): it puts a wallet in line, but a whitelisted one is sent on to the
+ * app to sign in there — the beta cookie belongs to the app's origin.
  */
 
-import { MARK_D, MARK_VIEWBOX } from '../src/ui/brand.generated'
-import { TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL, X_D, X_URL } from '../src/config/links'
+import { MARK_D, MARK_VIEWBOX, TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL, X_D, X_URL } from '../design/brand'
 
 /** The key an address is stored and signed under: EVM lower-cased, a Solana pubkey as is (base58 is case-sensitive). */
 export const norm = (address: string) => (address.startsWith('0x') ? address.toLowerCase() : address)
@@ -32,7 +35,7 @@ export const message = (address: string, issued: string) =>
 
 const tgMark = (fill: string) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${TELEGRAM_D}" fill="${fill}"/></svg>`
 
-export const overlay = ({ waitlist = false, hidden = false } = {}) => `
+export const overlay = ({ waitlist = false, hidden = false, app = '' } = {}) => `
 <div id="yc-gate"${hidden ? ' style="display:none"' : ''}>
 <style>
   #yc-gate { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: center; padding: 24px 16px;
@@ -92,6 +95,7 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
   <h1 id="yc-title">Join the waitlist</h1>
   <p id="yc-sub">${waitlist
     ? 'You&rsquo;re in on an access code, which isn&rsquo;t yours to keep. Connect your wallet and leave an email to hold a place of your own &mdash; access opens in waves.'
+    : app ? 'Access opens in waves down the waitlist &mdash; connect your wallet to join it, or to see if it&rsquo;s your turn.'
     : 'Everything you see is live. Access opens in waves down the waitlist &mdash; connect your wallet to join it, or to walk in if it&rsquo;s your turn.'}</p>
   <div class="yc-row" id="yc-row">
     <input id="yc-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" hidden />
@@ -105,6 +109,7 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
 </div>
 <script>
 (() => {
+  var APP = ${JSON.stringify(app)};
   var TG = ${JSON.stringify(`<a class="yc-btn yc-tg-btn" target="_blank" rel="noopener noreferrer" href="${TELEGRAM_URL}">${tgMark('#fff')}Join the Telegram</a>`)};
   var T_VERIFY = ${JSON.stringify(message('__a__', '__i__'))};
   var $ = function (id) { return document.getElementById(id); };
@@ -180,7 +185,7 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
       return w.connect().then(function (a) {
         address = a;
         return fetch('/gate/check?address=' + address).then(function (r) { return r.json(); });
-      }).then(function (out) { return out.listed ? (w.tap ? ready() : enter()) : out.waitlisted ? waiting() : lineup(); });
+      }).then(function (out) { return out.listed ? (APP ? onList() : w.tap ? ready() : enter()) : out.waitlisted ? waiting() : lineup(); });
     });
   }
 
@@ -197,6 +202,14 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
     btn.disabled = false;
     status('');
     next = enter;
+  }
+
+  /** The landing: a whitelisted wallet signs in on the app, whose origin holds the cookie. */
+  function onList() {
+    $('yc-title').textContent = 'It\u2019s your turn';
+    $('yc-sub').textContent = address.slice(0, 6) + '\u2026' + address.slice(-4) + ' is on the list. Open the app and sign in \u2014 one signature, free.';
+    $('yc-row').innerHTML = '<a class="yc-btn" href="' + APP + '">Open the app</a>';
+    status('');
   }
 
   function enter() {
@@ -238,7 +251,7 @@ export const overlay = ({ waitlist = false, hidden = false } = {}) => `
     status('Joining\\u2026');
     return post('/gate/request', { address: address, email: email }).then(function (out) {
       // whitelisted after all: straight to signing in; already in line: the email on file stands
-      return out.listed ? ready() : waiting(out.again ? undefined : email);
+      return out.listed ? (APP ? onList() : ready()) : waiting(out.again ? undefined : email);
     });
   }
 })();

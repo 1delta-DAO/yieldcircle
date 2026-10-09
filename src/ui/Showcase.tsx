@@ -3,7 +3,7 @@
  * (`src/data/showcase.json`, rendered by `video/scripts/showcase.sh` — hover
  * one and its PnL plays) plus the live board's top earners (`useEarners`)
  * drifting further back, blurred. The join page (`Join.tsx`) and the landing
- * (`Landing.tsx`) both put their hero in the middle of it: `children` render
+ * (`landing/Landing.tsx`) both put their hero in the middle of it: `children` render
  * over the field, and a click on the ground closes an open card.
  */
 import React from 'react'
@@ -36,7 +36,8 @@ export const SHOWCASE_PNL = showcase.reduce((s, p) => s + p.pnl, 0)
 export const SHOWCASE_N = showcase.length
 export const SHOWCASE_AT = showcase[0]?.at
 
-export function Showcase({ className = '', children }: { className?: string; children: React.ReactNode }) {
+/** `quiet`: the field is only a backdrop for now (the landing, scrolled past its hero) — no card open, no tour. */
+export function Showcase({ className = '', quiet = false, children }: { className?: string; quiet?: boolean; children: React.ReactNode }) {
   const [open, setOpen] = React.useState<string | null>(null)
   // under 1280px there is no room beside the hero for a card: it is a sheet in the corner instead (full width on a phone)
   const wide = useWide()
@@ -58,8 +59,13 @@ export function Showcase({ className = '', children }: { className?: string; chi
     setOpen(name)
   }, [])
   const lastShown = React.useRef<string | null>(null)
+  const hush = React.useRef(quiet)
+  React.useEffect(() => {
+    hush.current = quiet
+    if (quiet) { tour.current = null; setOpen(null) }
+  }, [quiet])
   const next = React.useCallback(() => {
-    if (Date.now() - touched.current < IDLE_MS) return
+    if (hush.current || Date.now() - touched.current < IDLE_MS) return
     const rest = showcase.filter((p) => p.name !== lastShown.current)
     const name = rest[Math.floor(Math.random() * rest.length)].name
     lastShown.current = name
@@ -102,7 +108,7 @@ export function Showcase({ className = '', children }: { className?: string; chi
       <div className="join-glow" aria-hidden="true" />
       <div className="join-field" aria-hidden={open ? undefined : true}>
         {back.map((b, i) => (
-          <div key={b.account} className="join-orb back" style={{ '--x': `${BACK[i].x}%`, '--y': `${BACK[i].y}%`, animationDelay: `${-i * 1.7}s`, animationDuration: `${9 + (i % 4) * 2}s` } as React.CSSProperties} title={`${b.pair} · ${b.apr?.toFixed(1) ?? '—'}% APR`}>
+          <div key={b.account} className="join-orb far" style={{ '--x': `${BACK[i].x}%`, '--y': `${BACK[i].y}%`, animationDelay: `${-i * 1.7}s`, animationDuration: `${9 + (i % 4) * 2}s` } as React.CSSProperties} title={`${b.pair} · ${b.apr?.toFixed(1) ?? '—'}% APR`}>
             <Character addr={b.account} size={44} title="" />
             <span className="join-tag"><b>{b.pair}</b>{b.apr != null && <i>{b.apr.toFixed(1)}%</i>}</span>
           </div>

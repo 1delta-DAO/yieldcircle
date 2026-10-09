@@ -1,7 +1,7 @@
 /**
  * Where the community lives: the Telegram group and the X account. Plain
  * strings so the gate overlay (`gate/page.ts`, bundled into the Pages
- * middleware, no React) and the app share one source.
+ * middleware, no React), the app and the landing share one source.
  */
 export const TELEGRAM_URL = 'https://t.me/+0DXiyX5tac80ODJi'
 

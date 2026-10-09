@@ -1,8 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// The app's own build. The landing page is a separate deployment with its own config
+// (`landing/vite.config.ts`, docs/deploy.md); it shares `src/` and `public/` with this one.
 // index.html's canonical / og tags need an absolute origin, or share cards break.
-process.env.VITE_SITE_URL ||= 'https://yieldcircle.io'
+process.env.VITE_SITE_URL ||= 'https://app.yieldcircle.io'
 
 /**
  * Warns, never fails: without `VITE_WC_PROJECT_ID` the build ships

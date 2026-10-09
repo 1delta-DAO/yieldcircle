@@ -19,7 +19,7 @@
  *                   signature over the same text instead of EIP-191
  *   GATE_SECRET     Secret — HMAC key for the cookie; rotating it logs everyone out
  *   RESEND_API_KEY  Secret, optional — emails each new request to NOTIFY_EMAIL
- *   NOTIFY_EMAIL    optional, where requests are mailed (default below)
+ *   NOTIFY_EMAIL    optional, where requests are mailed (default in `gate/waitlist.ts`)
  *   GATE_OFF        optional, "1" opens the app to everyone (the end of the beta)
  *   GATE_PASS       Secret, optional — an access code: `/?access=<code>` lets the holder in
  *                   without a whitelisted wallet (hackathon judges, reviewers). Such a
@@ -30,32 +30,22 @@
  * Unconfigured (missing binding or secret) the gate is OFF and the app serves
  * normally — a misconfiguration must never take the site down.
  */
-import { recoverMessageAddress, isAddress, isHex } from 'viem'
+import { recoverMessageAddress, isHex } from 'viem'
 import { overlay, message, norm } from '../gate/page'
+import { check, join, json, okAddress, type KV, type WaitUntil, type WaitlistEnv } from '../gate/waitlist'
 import { isSolAddr, base58Decode } from '../src/model/address'
 
-interface KV {
-  get(key: string): Promise<string | null>
-  getWithMetadata<M>(key: string): Promise<{ value: string | null; metadata: M | null }>
-  put(key: string, value: string, options?: { metadata?: unknown }): Promise<void>
-}
-interface Env {
-  WHITELIST?: KV
+interface Env extends Partial<WaitlistEnv> {
   GATE_SECRET?: string
-  RESEND_API_KEY?: string
-  NOTIFY_EMAIL?: string
   GATE_OFF?: string
   GATE_PASS?: string
 }
 type Gated = Env & { WHITELIST: KV; GATE_SECRET: string }
-type Ctx = { request: Request; env: Env; next: () => Promise<Response>; waitUntil: (p: Promise<unknown>) => void }
+type Ctx = { request: Request; env: Env; next: () => Promise<Response>; waitUntil: WaitUntil }
 
 const COOKIE = 'yc_beta'
 const COOKIE_DAYS = 30
 const SIGNATURE_MAX_AGE_MS = 10 * 60_000
-const NOTIFY_EMAIL = 'achim@1delta.io'
-const THREAD_ANCHOR = '<beta-requests@yieldcircle.io>'
-const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/
 
 export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise<Response> => {
   const configured = !!(env.WHITELIST && env.GATE_SECRET) && env.GATE_OFF !== '1'
@@ -75,8 +65,9 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
   const holder = await readCookie(request.headers.get('cookie'), env.GATE_SECRET!).catch(() => null)
   if (holder && holder !== 'pass') return res
 
-  // no access: the app shows its landing (window.ycGated, src/ui/Landing.tsx) and the overlay ships
-  // hidden — the landing's button is what opens it. An access-code holder is in, but not on the
+  // no access: the app shows its one-screen join page (window.ycGated, src/ui/Join.tsx) and the
+  // overlay ships hidden — the join page's button is what opens it. (The full landing is its own
+  // deployment, `landing/`, which only puts wallets in line; signing in always happens here.) An access-code holder is in, but not on the
   // list: the app asks them to join (window.ycPass), and the page it links to, `/?waitlist`, is
   // the overlay's own waitlist flow
   const inject = holder !== 'pass' ? `<script>window.ycGated=true</script>${overlay({ hidden: true })}`
@@ -87,15 +78,6 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
   headers.set('cache-control', 'no-store')
   headers.delete('content-length')
   return new Response(body, { status: res.status, headers })
-}
-
-/** GET /gate/check?address=0x… — whitelisted, waitlisted, or neither (membership is not a secret) */
-async function check(url: URL, env: Gated): Promise<Response> {
-  const address = url.searchParams.get('address') ?? ''
-  if (!okAddress(address)) return json({ error: 'bad address' }, 400)
-  const account = norm(address)
-  if (await env.WHITELIST.get(`wl:${account}`)) return json({ listed: true })
-  return json({ listed: false, waitlisted: !!(await env.WHITELIST.get(`wait:${account}`)) })
 }
 
 /** POST /gate/verify — prove the address; a whitelisted one is let in. */
@@ -116,29 +98,6 @@ async function verify(request: Request, env: Gated): Promise<Response> {
   if (await env.WHITELIST.get(`wl:${account}`)) return admit(account, env)
   return json({ listed: false })
 }
-
-/**
- * POST /gate/request — put an address in line, no signature. Nothing is proven, so nothing is
- * overwritten: an address already in line keeps its first email (anyone could send this one).
- */
-async function join(request: Request, env: Gated, waitUntil: Ctx['waitUntil']): Promise<Response> {
-  const body = (await request.json().catch(() => null)) as { address?: string; email?: string } | null
-  const address = body?.address
-  const email = body?.email?.trim().toLowerCase() ?? ''
-  if (!address || !okAddress(address)) return json({ error: 'bad request' }, 400)
-  if (!EMAIL.test(email)) return json({ error: 'enter a valid email address' }, 400)
-
-  const account = norm(address)
-  if (await env.WHITELIST.get(`wl:${account}`)) return json({ listed: true })
-  const key = `wait:${account}`
-  if (await env.WHITELIST.get(key)) return json({ listed: false, requested: true, again: true })
-  const ts = new Date().toISOString()
-  await env.WHITELIST.put(key, JSON.stringify({ ts, email }), { metadata: { ts, email } })
-  if (env.RESEND_API_KEY) waitUntil(notify(env, account, email, ts))
-  return json({ listed: false, requested: true, again: false })
-}
-
-const okAddress = (a: string) => isAddress(a) || isSolAddr(a)
 
 /** A Solana wallet signs the raw UTF-8 text with its ed25519 key — the pubkey IS the address. */
 export async function verifySol(address: string, text: string, signatureHex: string): Promise<boolean> {
@@ -175,24 +134,6 @@ async function cookie(account: string, env: Gated): Promise<string> {
   return `${COOKIE}=${value}; Path=/; Max-Age=${COOKIE_DAYS * 86_400}; HttpOnly; Secure; SameSite=Lax`
 }
 
-/** One email per new request. A failure is logged, never shown — the request is stored either way. */
-async function notify(env: Gated, account: string, email: string, ts: string): Promise<void> {
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      from: 'YieldCircle <onboarding@resend.dev>',
-      to: [env.NOTIFY_EMAIL || NOTIFY_EMAIL],
-      reply_to: email,
-      // A fixed subject plus a shared References anchor keeps every request in ONE mail thread.
-      subject: 'YieldCircle beta requests',
-      headers: { References: THREAD_ANCHOR, 'In-Reply-To': THREAD_ANCHOR },
-      text: `${account},${email},${ts}\n`,
-    }),
-  }).catch((e) => new Response(String(e), { status: 599 }))
-  if (!res.ok) console.error('beta request email failed', res.status, await res.text())
-}
-
 async function readCookie(header: string | null, secret: string): Promise<string | null> {
   const raw = header?.split(/;\s*/).find((c) => c.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1)
   const [account, exp, mac] = raw?.split('.') ?? []
@@ -209,6 +150,3 @@ async function hmac(secret: string, data: string): Promise<string> {
   const sig = new Uint8Array(await crypto.subtle.sign('HMAC', await hmacKey(secret), new TextEncoder().encode(data)))
   return btoa(String.fromCharCode(...sig)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
-
-const json = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
-  new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...headers } })

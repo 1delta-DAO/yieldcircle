@@ -126,7 +126,7 @@
 .lp-hero-copy p b{color:var(--tx);font-weight:600}
 /* the marker: a word highlighted by a slanted swipe of the brand, under the ink */
 .lp-mark{position:relative;display:inline-block;white-space:nowrap;color:#031417;isolation:isolate;padding:0 .06em}
-.lp-mark::before{content:'';position:absolute;z-index:-1;left:-.04em;right:-.06em;top:.1em;bottom:.02em;border-radius:.2em .3em .18em .35em;transform:rotate(-1.4deg) skewX(-8deg);background:linear-gradient(90deg,var(--brand-b),var(--primary) 60%,var(--brand-a))}
+.lp-mark::before{content:'';position:absolute;z-index:-1;left:-.04em;right:-.08em;top:.1em;bottom:-.14em;border-radius:.2em .3em .18em .35em;transform:rotate(-1.4deg) skewX(-8deg);background:linear-gradient(90deg,var(--brand-b),var(--primary) 60%,var(--brand-a))}
 /* a word that wobbles */
 .lp-wob{display:inline-block;color:var(--warning);animation:lp-wob 2.4s ease-in-out infinite;transform-origin:50% 80%}
 @keyframes lp-wob{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}

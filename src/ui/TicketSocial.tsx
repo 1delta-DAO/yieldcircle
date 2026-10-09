@@ -79,7 +79,7 @@ export function RowSocial({ uid, thread, s, focus }: { uid: string | null; threa
           {thread && (
             <div className="rs-talk">
               <div className="ts-h"><span className="lbl">What people say</span><span className="sp" /><FollowButton kind={thread.kind} target={thread.key} small quiet /></div>
-              <Thread kind={thread.kind} subjectKey={thread.key} compact max={focus ? undefined : 2} placeholder={`What do you make of this ${what}?`} />
+              <Thread kind={thread.kind} subjectKey={thread.key} compact fold max={focus ? undefined : 2} placeholder={`What do you make of this ${what}?`} />
             </div>
           )}
           {uid && <WhoIsIn uid={uid} s={s} wide />}

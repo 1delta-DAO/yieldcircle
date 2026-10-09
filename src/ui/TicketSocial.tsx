@@ -23,20 +23,16 @@ import { Thread } from './Thread'
 import type { Strategy } from '../model/strategies'
 import type { ThreadRef } from '../model/uid'
 
-export function TicketSocial({ uid, thread, s, focus }: {
+export function TicketSocial({ uid, thread, s, focus, holders = true }: {
   /** the market the strategy sits in (a loop's collateral leg): whose holders these are */
   uid: string | null
   thread: ThreadRef | null
   s: Strategy
   /** opened from a row's 💬: scroll here and show the whole thread */
   focus?: boolean
+  /** false when the list already shows who is in it under the picked row (`WhoIsIn`), so the ticket stays the numbers and the words */
+  holders?: boolean
 }) {
-  // NOT filtered to `supply`: a vault market's holders sit on the `share`
-  // side, and half the deposit menu is a vault — filtering here showed an
-  // empty "who else is in it" on every one of them.
-  const holders = useHolders(uid ?? undefined, undefined, 6)
-  const rows = holders.data?.holders ?? []
-  const { profile } = useProfiles(rows.map((h) => h.account))
   // a loop on its own thread: what was said on its collateral market stays one link away
   const onMarket = useCounts(thread?.kind === 'strategy' && uid ? [{ kind: 'market', key: uid }] : [])
   const nMarket = uid && thread?.kind === 'strategy' ? onMarket.count('market', uid) : 0
@@ -59,28 +55,47 @@ export function TicketSocial({ uid, thread, s, focus }: {
           )}
         </div>
       )}
-      {uid && (
-        <div className="tsec tsocial">
-          <div className="ts-h">
-            <span className="lbl">Who else is in it</span>
-            <span className="sp" />
-            <a className="t50" href={marketHref(uid)}>Market page ›</a>
-          </div>
-          {holders.isLoading && <p className="foot">reading the index…</p>}
-          {!holders.isLoading && !rows.length && <p className="foot">The index has no holder for this market yet — it may be outside what it follows, or simply new.</p>}
-          {rows.length > 0 && (
-            <div className="ts-holders">
-              {rows.map((h) => (
-                <a key={h.account} className="ts-holder" href={`#/w/${h.account}`}>
-                  <Who account={h.account} profile={profile(h.account)} idx={h} size={24} plain />
-                  <span className="sp" />
-                  <Money usd={h.amountUsd} short />
-                </a>
-              ))}
-            </div>
-          )}
+      {holders && uid && <div className="tsec tsocial"><WhoIsIn uid={uid} s={s} /></div>}
+    </>
+  )
+}
+
+/**
+ * Who else is in it: the market's biggest holders, each a door to their
+ * wallet. On a desk it sits in the list, as a strip under the picked row
+ * (`wide`): the ticket then holds only the numbers and the words, and the
+ * proof is read where the choice is made. On a phone, where the ticket covers
+ * the list, it stays at the ticket's foot.
+ */
+export function WhoIsIn({ uid, s, wide }: { uid: string; s: Strategy; wide?: boolean }) {
+  // NOT filtered to `supply`: a vault market's holders sit on the `share`
+  // side, and half the deposit menu is a vault — filtering here showed an
+  // empty "who else is in it" on every one of them.
+  const holders = useHolders(uid, undefined, 6)
+  const rows = holders.data?.holders ?? []
+  const { profile } = useProfiles(rows.map((h) => h.account))
+  const total = rows.reduce((a, h) => a + (h.amountUsd ?? 0), 0)
+  return (
+    <div className={`whoin${wide ? ' wide' : ''}`}>
+      <div className="ts-h">
+        <span className="lbl">Who else is in {wide ? `this ${s.kind === 'loop' ? 'loop' : 'market'}` : 'it'}</span>
+        {wide && rows.length > 0 && <span className="t50 whoin-n">top {rows.length} hold <Money usd={total} short /></span>}
+        <span className="sp" />
+        <a className="t50" href={marketHref(uid)}>Market page ›</a>
+      </div>
+      {holders.isLoading && <p className="foot">reading the index…</p>}
+      {!holders.isLoading && !rows.length && <p className="foot">The index has no holder for this market yet — it may be outside what it follows, or simply new.</p>}
+      {rows.length > 0 && (
+        <div className="ts-holders">
+          {rows.map((h) => (
+            <a key={h.account} className="ts-holder" href={`#/w/${h.account}`}>
+              <Who account={h.account} profile={profile(h.account)} idx={h} size={24} plain />
+              <span className="sp" />
+              <Money usd={h.amountUsd} short />
+            </a>
+          ))}
         </div>
       )}
-    </>
+    </div>
   )
 }

@@ -14,7 +14,8 @@ import { useSwitchTo } from '../wallet/useSwitchTo'
 import { base58Encode, isSolAddr, isSvmChain, normAddr } from '../model/address'
 import { isSvmTx, type AnyTx } from '../sdk/types'
 import { solSignAndSend } from '../wallet/solana'
-import { DecimalInput, Info, Popover, Tok, num, usd } from './bits'
+import { DecimalInput, Info, Tok, num, usd } from './bits'
+import { Drawer } from './Drawer'
 import { LossAck, ValueRow, useValueCheck } from './ValueCheck'
 
 export interface Target { chainId: string; address: string; symbol: string; decimals: number; price: number; logo?: string }
@@ -23,9 +24,10 @@ export type GetTarget = Target & { have: number }
 
 /**
  * "Get <asset>": fund the strategy from anything the wallet holds, on any chain, without leaving the
- * ticket. One choice (what to pay with), one amount (prefilled with the shortfall), one button. The
- * API picks the route: spot swap on the same chain, bridge aggregation across chains — the same
- * endpoints a full swap terminal uses, minus the route table and the order toggle.
+ * ticket. It opens as a drawer beside the ticket on a desk and as a bottom sheet on a phone. One
+ * choice (what to pay with), one amount (prefilled with the shortfall), the routes the API found
+ * with the best picked, one button. Spot swap on the same chain, bridge aggregation across chains —
+ * the same endpoints a full swap terminal uses.
  *
  * `targets` are the forms the strategy takes the same money in — the gas coin and its wrapper,
  * when the venue has a payable entry — PREFERRED FIRST: arriving as the coin, the deposit needs no
@@ -81,12 +83,9 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
     }, 600)
     return () => clearTimeout(t)
   }, [src?.address, src?.chainId, amount, target.address, target.chainId, account, solSigner, sent])
-  // the route: the API's best by default; the quote line is a button that unfolds the others, subtly
+  // the route: the API's best by default; every other one it found is listed under it, picked in a tap
   const [sel, setSel] = React.useState(0)
-  const [routesOpen, setRoutesOpen] = React.useState(false)
-  const qRef = React.useRef<HTMLButtonElement>(null)
-  const panelRef = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => { setSel(0); setRoutesOpen(false) }, [quote])
+  React.useEffect(() => { setSel(0) }, [quote])
   const quotes = quote?.data?.quotes ?? []
   const best = quotes[sel]
   const tx = quote?.actions?.alternatives?.[sel] as AnyTx | undefined
@@ -149,8 +148,10 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   // what the route is worth at market prices (`ValueCheck.tsx`): a severe loss is confirmed before it is signed
   const v = useValueCheck(src && src.price > 0 ? amount * src.price : 0, target.price > 0 ? out * target.price : 0, `${sel}|${out}|${amount}`)
   return (
-    <div className="get" ref={panelRef}>
-      <div className="gh2"><span className="lbl">Get {target.symbol} <Info label="How this works">Pay with anything you hold. The API swaps it on the same chain, or bridges it from another chain, into {target.symbol} on {chainLabel(target.chainId)}. It lands in your wallet; then you continue with the strategy.</Info></span><span className="sp" /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
+    <Drawer open onClose={onClose} side="right" label={`Get ${target.symbol}`} cls="get-drawer">
+    <div className="get">
+      <p className="get-why">Pay with anything you hold, on any chain. <Info label="How this works">The API swaps it on the same chain, or bridges it from another chain, into {target.symbol} on {chainLabel(target.chainId)}. It lands in your wallet; then you continue with the strategy.</Info></p>
+      {need > 0 && <div className="get-need"><Tok sym={target.symbol} logo={target.logo} size={22} /><span>You need <b>{num(need, need > 100 ? 2 : 4)} {target.symbol}</b> more on {chainLabel(target.chainId)}</span></div>}
       {targets.length > 1 && (
         <div className="seg get-as" role="radiogroup" aria-label="Receive as">
           {targets.map((t, k) => <button key={t.address} role="radio" aria-checked={k === ti} aria-pressed={k === ti} disabled={!!sent} onClick={() => { setTi(k); setPendingApprove(undefined) }}>
@@ -161,6 +162,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
       {!opts.length && !custom && <div className="hint">No listed balance in the wallet to pay with on the selected chains. Pay with any other token by its address, or fund the wallet first.</div>}
       {(
         <>
+          <span className="lbl">Pay with</span>
           <div className="srcs" role="radiogroup" aria-label="Pay with">
             {[...(custom ? [custom] : []), ...opts.slice(0, 8)].map((o) => <button key={o.chainId + o.address} role="radio" aria-checked={src === o} className="src" onClick={() => choose(o)}><Tok sym={o.symbol} size={18} /><span className="s">{o.symbol}<small>{chainLabel(o.chainId)}</small></span><span className="b">{o.price > 0 ? usd(o.usd) : num(o.amount, 4)}</span></button>)}
             {!otherOpen && <button className="src other" onClick={() => setOtherOpen(true)}><span className="s">Other token<small>paste an address</small></span><span className="b">+</span></button>}
@@ -174,26 +176,22 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
               <div className="amt-sub"><span>{src.price > 0 ? `≈ ${usd(amount * src.price)}` : 'no price for it'}{amount > src.amount + 1e-9 && <span className="warn"> · more than you hold</span>}</span><span>{cross ? `bridge ${chainLabel(src.chainId)} → ${chainLabel(target.chainId)}` : 'swap on ' + chainLabel(src.chainId)}</span></div>
               {/* once sent the quote is gone (nothing to re-quote): the status line below takes its place */}
               {!sent && <div className="qline">
-                {quoting && !best ? <span className="t50">Finding the best route…</span>
-                  : best ? (
-                    <button ref={qRef} className="qbtn" aria-expanded={routesOpen} disabled={quotes.length < 2 || !!sent} onClick={() => setRoutesOpen((o) => !o)} title={quotes.length > 1 ? 'other routes' : undefined}>
-                      You get <b className={covers ? 'ok' : 'warn'}>~{num(out, out > 100 ? 2 : 4)} {target.symbol}</b>{need > 0 && !covers && <span className="warn"> · short of the {num(need, 4)} needed</span>}
-                      <span className="t50"> · via {best.bridge ?? best.aggregator}{Number(best.estimatedDuration) > 0 ? ` · ~${Math.max(1, Math.round(Number(best.estimatedDuration) / 60))} min` : ''}{quotes.length > 1 ? <> · {sel === 0 ? 'best' : `#${sel + 1}`} of {quotes.length}<span className="chev">{routesOpen ? '▴' : '▾'}</span></> : ''}</span>
-                    </button>)
+                {quoting && !best ? <span className="t50"><Spin sm /> Finding routes…</span>
+                  : best ? <>You get <b className={covers ? 'ok' : 'warn'}>~{num(out, out > 100 ? 2 : 4)} {target.symbol}</b>{need > 0 && !covers && <span className="warn"> · short of the {num(need, 4)} needed</span>}</>
                   : err ? <span className="bad">{err}</span> : <span className="t50">{src.price > 0 ? 'Enter an amount.' : `Enter how much ${src.symbol} to spend; the quote shows what it buys.`}</span>}
               </div>}
-              <Popover anchor={panelRef} open={routesOpen && quotes.length > 1 && !sent} onClose={() => setRoutesOpen(false)} align="stretch" near={qRef}>
+              {/* every route the API found, the best first and picked: a swap terminal's table, in one column */}
+              {!sent && quotes.length > 0 && (
                 <div className="routes" role="radiogroup" aria-label="Route">
+                  <span className="lbl">{quotes.length === 1 ? 'Route' : `${quotes.length} routes`}{quoting ? <span className="t40"> · refreshing…</span> : null}</span>
                   {quotes.map((q, i) => { const o = q.tradeOutput ?? 0; const top = quotes[0].tradeOutput || 1; const d = (o / top - 1) * 1e4; return (
-                    <button key={i} role="radio" aria-checked={i === sel} className="route" onClick={() => { setSel(i); setRoutesOpen(false) }}>
-                      <span className="rn">{q.bridge ?? q.aggregator ?? 'route'}</span>
+                    <button key={i} role="radio" aria-checked={i === sel} className="route" onClick={() => setSel(i)}>
+                      <span className="rn"><b>{q.bridge ?? q.aggregator ?? 'route'}</b><small>{Number(q.estimatedDuration) > 0 ? `~${Math.max(1, Math.round(Number(q.estimatedDuration) / 60))} min` : 'instant'}{cross && q.bridge && q.aggregator ? ` · via ${q.aggregator}` : ''}</small></span>
                       <span className="rbar"><i style={{ width: `${Math.max(3, Math.min(100, (o / top) * 100))}%` }} /></span>
-                      <span className="ro">{num(o, o > 100 ? 2 : 4)}</span>
-                      <span className={`rd ${i === 0 ? 't40' : d < -20 ? 'warn' : 't50'}`}>{i === 0 ? 'best' : `${d > 0 ? '+' : '−'}${Math.abs(d) >= 100 ? (Math.abs(d) / 100).toFixed(1) + '%' : Math.abs(d).toFixed(0) + ' bp'}`}</span>
-                      <span className="rt">{Number(q.estimatedDuration) > 0 ? `~${Math.max(1, Math.round(Number(q.estimatedDuration) / 60))} min` : 'instant'}</span>
+                      <span className="ro"><b>{num(o, o > 100 ? 2 : 4)}</b><small className={i === 0 ? 'ok' : d < -20 ? 'warn' : ''}>{i === 0 ? 'best' : `${d > 0 ? '+' : '−'}${Math.abs(d) >= 100 ? (Math.abs(d) / 100).toFixed(1) + '%' : Math.abs(d).toFixed(0) + ' bp'}`}</small></span>
                     </button>) })}
                 </div>
-              </Popover>
+              )}
               {best && !sent && <>
                 <ValueRow v={v} labels={['Pay', 'Receive', 'Price impact']} missing={v.inUsd > 0 ? target.symbol : src.symbol}
                   info={<>What you receive is worth this much more or less than what you pay, both at market prices. It includes the route's fees{cross ? ' and the bridge\'s' : ''}.</>} />
@@ -221,6 +219,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
         </>
       )}
     </div>
+    </Drawer>
   )
 }
 const shortErr = (m: string) => (m.length > 140 ? m.slice(0, 140) + '…' : m)

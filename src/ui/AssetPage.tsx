@@ -5,6 +5,8 @@ import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
 import { useBook } from './useBook'
 import { HoldingTicket, Ticket } from './Ticket'
+import { WhoIsIn } from './TicketSocial'
+import { uidOf } from '../model/uid'
 import { GroupIcon, Info, KindPill, LegsPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort, HealthPill } from './bits'
 import { chainLabel } from '../sdk/queries'
 import type { ThreadRef } from '../model/uid'
@@ -164,8 +166,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
               <table className="tbl strat-t">
                 <colgroup><col /><col className="c-rate" /><col className="c-tail" /></colgroup>
                 <thead><tr><th>{kind === 'simple' ? 'Deposit' : 'Loop'}</th><th className="r">{kind === 'simple' ? 'APR' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier (Defensive for a market-exposure loop, whose price moves on its own): earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}<button className="rw-toggle" aria-pressed={withRewards} title={withRewards ? 'The 30-day line includes reward streams — click to show the rate without them' : 'The 30-day line excludes reward streams — click to include them'} onClick={() => setWithRewards(!withRewards)}>{withRewards ? '+rewards' : 'no rewards'}</button></th><th /></tr></thead>
-                <tbody>{list.map((s) => { const h = held(s); const pick = picks.has(s.id); return (
-                  <tr key={s.id} aria-selected={sel?.id === s.id} onClick={() => go(group.id, { u, s: s.id, k: s.kind })}>
+                <tbody>{list.map((s) => { const h = held(s); const pick = picks.has(s.id); const on = sel?.id === s.id; const uid = on ? uidOf(s) : null; return (<React.Fragment key={s.id}>
+                  <tr aria-selected={on} onClick={() => go(group.id, { u, s: s.id, k: s.kind })}>
                     <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}<NaturePill n={s.nature} /><WhyIn s={s} /></div>
                       {/* the qualifiers read as one sentence. Risk had a column of
                           its own where eight rows in nine said the same word; here it
@@ -182,14 +184,17 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                       {commentsOn(s) > 0 && <Comments n={commentsOn(s)} onClick={() => talkOn(s)} />}
                       <span className="t40">›</span>
                     </td>
-                  </tr>) })}</tbody>
+                  </tr>
+                  {/* the picked row opens: who is in it, read where the choice is made rather than at the ticket's foot */}
+                  {on && uid && <tr className="xp"><td colSpan={3}><WhoIsIn uid={uid} s={s} wide /></td></tr>}
+                </React.Fragment>) })}</tbody>
               </table>
             ) : <div className="empty">No {kind === 'simple' ? 'plain deposit' : 'loop'} for this filter{b.errors.length ? ` (${b.errors[0].message})` : ''}{heldBack.length ? ` — ${heldBack.length} held back by the floors below` : ''}.</div>}
           </div>}
           <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />
         </div>
         <aside ref={aside} className={ticketOpen ? '' : 'closed'} id="aside">
-          {sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} onClose={close} />}
+          {sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} holdersInList={!phone} onClose={close} />}
           {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '')} s={offSel} idle={b.idlePerChain} holding={offMenu ?? held(offSel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
           {offMenu && !offSel && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
         </aside>

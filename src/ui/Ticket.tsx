@@ -38,7 +38,7 @@ import { AssetLink } from './TokenPage'
 const TicketCtx = React.createContext<{ uid: string | null; thread?: ThreadRef | null; copy?: string }>({ uid: null })
 
 /** The ticket: what you do in plain words, amount (+ leverage), the numbers, what can go wrong, one button. */
-export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, talk, onClose }: { s: Strategy; idle: Idle[]; holding: Holding | null; mode?: Mode; copy?: string; offMenu?: string; talk?: boolean; onClose: () => void }) {
+export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, talk, holdersInList, onClose }: { s: Strategy; idle: Idle[]; holding: Holding | null; mode?: Mode; copy?: string; offMenu?: string; talk?: boolean; /** the list shows who is in it under the picked row, so the ticket need not */ holdersInList?: boolean; onClose: () => void }) {
   const [mode, setMode] = React.useState<Mode>(holding ? mode0 ?? 'add' : 'add')
   const uid = uidOf(s)
   const thread = useThreadOf()(s)
@@ -64,7 +64,7 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, talk, onC
       )}
       {holding && mode !== 'add' ? (s.kind === 'loop' ? <ManageLoop s={s} h={holding} closeFirst={mode === 'close'} /> : <ManageTicket s={s} h={holding} mode={mode} />)
         : s.kind === 'simple' ? <SimpleTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} /> : <LoopTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={holding} />}
-      <TicketSocial uid={uid} thread={thread} s={s} focus={talk} />
+      <TicketSocial uid={uid} thread={thread} s={s} focus={talk} holders={!holdersInList} />
     </div>
     </TicketCtx.Provider>
   )
@@ -809,7 +809,13 @@ function getForms<T extends { role: string; address: string; symbol: string }>(o
 }
 function GetLine({ account, short, symbol, open, onOpen }: { account?: string; short: boolean; symbol: string; open: boolean; onOpen: () => void }) {
   if (!account || open) return null
-  return <button className={`getline ${short ? 'short' : ''}`} onClick={onOpen}>{short ? <><b>Don't have enough {symbol}?</b> Get it from anything you hold, on any chain ›</> : <>Get more {symbol} from another asset or chain ›</>}</button>
+  return (
+    <button className={`getline ${short ? 'short' : ''}`} onClick={onOpen}>
+      <span className="gl-ic" aria-hidden><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h11l-3-3M17 13H6l3 3" /></svg></span>
+      <span className="gl-t">{short ? <><b>Don't have enough {symbol}?</b><small>Swap or bridge it from anything you hold, on any chain.</small></> : <><b>Get more {symbol}</b><small>from another asset or chain</small></>}</span>
+      <span className="gl-go">Get {symbol} →</span>
+    </button>
+  )
 }
 function AmountBox({ unit, value, onChange, onMax }: { unit: string; value: number; onChange: (v: number) => void; onMax?: () => void }) {
   return (

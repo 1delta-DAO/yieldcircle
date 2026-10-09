@@ -1,7 +1,8 @@
 /**
- * The home: **what are people doing?**
+ * The feed (`#/feed`): **what are people doing?**
  *
- * It used to be the catalogue — every asset, sorted by the biggest number it
+ * It was the home page; the Start dashboard is the home now, and this is the
+ * second tab. Before that it used to be the catalogue — every asset, sorted by the biggest number it
  * could earn — which answers "what pays most" once and then never again. The
  * social side is what this app is for, so the home is where people are:
  *
@@ -16,7 +17,7 @@
  * nav that has to hold both, so they are one page now.
  *
  * Your own money is not here: it is the balance chip in the header, on every
- * page. The catalogue is the Earn tab.
+ * page. The catalogue is the Earn tab, and where to begin is the home.
  */
 import React from 'react'
 import { Hot } from './Hot'

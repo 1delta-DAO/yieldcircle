@@ -79,7 +79,7 @@ function GroupTile({ g, strategies, books, loading, rank, get }: { g: Group; str
   const best = strategies.length ? strategies.reduce((m, s) => (savingsFirst(s, m, rank) > 0 ? s : m)) : null
   const busy = loading && !strategies.length
   return (
-    <a className="tile" href={`#/${g.id}`}>
+    <a className="tile" href={`#/${g.id}`} style={{ '--gc': g.color } as React.CSSProperties}>
       <div className="h"><GroupIcon id={g.id} color={g.color} size={22} /><span className="n">{g.id === 'MORE' ? 'More' : g.name}</span></div>
       <div className={`v${total ? '' : ' t40'}`}>{busy ? <Sk w={64} h={15} /> : total ? usd(total) : '—'}</div>
       <div className="ft">

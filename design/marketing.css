@@ -142,8 +142,8 @@
 @media (max-width:720px){.rv{--tk:.5}} /* a phone's cards are the width of the screen: half the tilt reads as the same gesture */
 @media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:rotate(calc(var(--tilt,0deg) * var(--tk)));transition:none}}
 /* sections */
-.lp-sec{position:relative;max-width:1060px;margin:0 auto;padding:96px var(--gutter)}
-.lp-head{display:flex;flex-direction:column;align-items:flex-start;gap:16px;max-width:760px;margin-bottom:44px}
+.lp-sec{position:relative;max-width:1060px;margin:0 auto;padding:112px var(--gutter)}
+.lp-head{display:flex;flex-direction:column;align-items:flex-start;gap:16px;max-width:720px;margin-bottom:48px}
 .lp-h2{font-size:clamp(30px,5vw,56px);line-height:1.04;letter-spacing:-.03em;font-weight:700;margin:0;text-transform:none;color:var(--tx);max-width:16em;text-shadow:0 1px 24px #000,0 0 2px #000}
 .lp-h2.center{text-align:center;margin:0 auto}
 .lp-h2 .lp-mark{text-shadow:none}
@@ -167,18 +167,10 @@
 @media (prefers-reduced-motion:reduce){.lp-tape-t{animation:none}.lp-tape-l .dot{animation:none}.lp-wob{animation:none}}
 /* live: the stat stickers and the podium */
 .lp-live{padding-top:72px;padding-bottom:56px}
-.lp-live-h{display:flex;align-items:center;gap:8px;margin-bottom:22px}
+.lp-live-h{display:flex;align-items:center;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+.lp-live-sub{margin-left:8px;font-family:var(--mono);font-size:11.5px;color:var(--tx50)}
+@media (max-width:640px){.lp-live-sub{flex-basis:100%;margin-left:0}}
 .lp-live-h .dot{animation:lp-blink 2s ease-in-out infinite}
-.lp-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin-bottom:28px}
-.lp-tile{position:relative;display:flex;flex-direction:column;gap:8px;padding:22px 20px 18px;border:1px solid color-mix(in srgb,var(--c) 40%,var(--line2));border-radius:18px;background:linear-gradient(160deg,var(--c-soft),rgba(11,11,11,.88) 55%);backdrop-filter:blur(4px);box-shadow:0 20px 50px rgba(0,0,0,.45);transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s}
-.lp-tile.in:hover{transform:translateY(-4px) rotate(0deg) scale(1.02);box-shadow:0 26px 60px rgba(0,0,0,.6),0 0 0 1px color-mix(in srgb,var(--c) 60%,transparent)}
-.lp-tile b{font-size:clamp(34px,3.6vw,46px);font-weight:700;letter-spacing:-.03em;line-height:1;color:var(--tx);font-variant-numeric:tabular-nums}
-.lp-tile.ok b{color:var(--success)}
-.lp-tile>span{font-size:13px;line-height:1.45;color:var(--tx70)}
-.lp-tile-face{position:absolute;top:-16px;right:14px;box-shadow:0 0 0 3px #000,0 8px 20px rgba(0,0,0,.6);transform:rotate(8deg);transition:transform .25s}
-.lp-tile:hover .lp-tile-face{transform:rotate(-6deg) translateY(-3px) scale(1.08)}
-@media (max-width:860px){.lp-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:420px){.lp-tiles{grid-template-columns:minmax(0,1fr)}}
 .lp-board{border:1px solid var(--line2);border-radius:22px;background:rgba(11,11,11,.9);overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)}
 .lp-board-h{display:flex;align-items:baseline;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line)}
 .lp-board-h b{font-size:16px;font-weight:700}
@@ -268,7 +260,8 @@
 /* how we fix it: four stickers, each in a colour, a mock of the thing on top */
 .lp-fix{overflow:hidden;background:radial-gradient(42% 34% at 78% 38%,rgba(47,211,232,.1),transparent 70%)}
 .lp-fix>*:not(.land-rings){position:relative}
-.lp-stickers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;padding-top:30px}
+.lp-stickers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;padding-top:30px}
+@media (max-width:1000px){.lp-stickers{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .lp-card{display:flex;flex-direction:column;gap:8px;padding:22px;border-radius:22px;border:1px solid color-mix(in srgb,var(--c) 45%,var(--line2));background:linear-gradient(165deg,var(--c-soft),rgba(11,11,11,.9) 50%);backdrop-filter:blur(4px);box-shadow:0 24px 60px rgba(0,0,0,.5);transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s}
 .lp-card.in:hover{transform:rotate(0deg) translateY(-5px);box-shadow:0 30px 70px rgba(0,0,0,.6),0 0 0 1px color-mix(in srgb,var(--c) 70%,transparent)}
 .lp-card>b{font-size:18px;font-weight:700;letter-spacing:-.01em;margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -294,20 +287,6 @@
 .lp-mock-cut small{font-family:var(--mono);font-size:10.5px;color:var(--tx50)}
 .lp-card .verb{font-size:13px}
 @media (max-width:760px){.lp-stickers{grid-template-columns:minmax(0,1fr)}.lp-mock-board{min-width:0;width:100%}}
-/* the steps: three stops on a dashed path */
-.lp-how{padding-top:72px}
-.lp-path{position:relative;list-style:none;margin:56px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
-.lp-path-line{position:absolute;left:0;right:0;top:-6px;height:120px;width:100%;pointer-events:none}
-.lp-path-line path{fill:none;stroke:var(--primary);stroke-opacity:.45;stroke-width:2;stroke-dasharray:6 10;stroke-linecap:round;animation:lp-dash 30s linear infinite}
-@keyframes lp-dash{to{stroke-dashoffset:-640}}
-.lp-path li{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px}
-.lp-step{position:relative;display:grid;place-items:center;width:104px;height:104px;border-radius:50%;background:#000;border:1px solid var(--line2);box-shadow:0 0 0 8px #000,0 16px 40px rgba(0,0,0,.6);margin-bottom:10px;transition:transform .25s}
-.lp-path li:hover .lp-step{transform:rotate(-6deg) scale(1.06)}
-.lp-step i{position:absolute;right:-6px;bottom:-2px;font:700 11px/1 var(--mono);color:var(--primary-ink);background:var(--primary);border-radius:999px;padding:6px 8px;transform:rotate(8deg);box-shadow:0 4px 12px rgba(0,0,0,.5)}
-.lp-path li b{font-size:17px;font-weight:700;letter-spacing:-.01em}
-.lp-path li span{font-size:13.5px;line-height:1.5;color:var(--tx70);max-width:28em;text-shadow:0 1px 20px #000}
-@media (max-width:760px){.lp-path{grid-template-columns:minmax(0,1fr);gap:40px}.lp-path-line{display:none}}
-@media (prefers-reduced-motion:reduce){.lp-path-line path{animation:none}.lp-champ .chr,.lp-bubble,.lp-swarm i{animation:none}}
 /* the protocols: a marquee, two rows the opposite way, still under the pointer */
 .lp-protos{padding-top:40px;padding-bottom:40px;text-align:center;max-width:none}
 .lp-protos>.lbl{display:block;margin-bottom:18px}

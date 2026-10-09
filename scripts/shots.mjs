@@ -53,6 +53,7 @@ const REMOTE = /^https:\/\//
  */
 const ROUTES = [
   { id: 'home', hash: '#/' },
+  { id: 'feed', hash: '#/feed' },
   { id: 'earn', hash: '#/earn' },
   { id: 'asset', hash: '#/USD?u=USDC' },
   { id: 'ticket', hash: '#/USD?u=USDC', open: async (p) => p.locator('table.strat-t tbody tr, .slist .lr').first().click() },

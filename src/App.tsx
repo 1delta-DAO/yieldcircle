@@ -12,17 +12,11 @@ import { Alerts } from './ui/Alerts'
 import { Deck } from './ui/Deck'
 import { Join } from './ui/Join'
 import { gated } from './wallet/gate'
-import { Start, startSeen } from './ui/Start'
-import { parseRoute, useRoute } from './state/AppState'
+import { Start } from './ui/Start'
+import { useRoute } from './state/AppState'
 import { GROUPS } from './model/assets'
-import React from 'react'
 
 export default function App() {
-  // the first visit lands on the Start tab instead of the feed: decided once,
-  // synchronously before the first render (an effect is too late — Start's own
-  // mount marks the visit seen and would swallow the redirect). Start marks
-  // the browser, so the Home tab is the feed from then on.
-  React.useState(() => { if (!startSeen() && parseRoute().view === 'home') location.hash = '#/start' })
   const r = useRoute()
   // no beta access: the join page is the front door, whatever the hash (the hash survives — the gate
   // reloads into it). The full landing page is its own deployment (`landing/`).
@@ -40,8 +34,8 @@ export default function App() {
         : r.view === 'alerts' ? <Alerts />
         : group ? <AssetPage key={group.id} group={group} route={r} />
         : r.view === 'earn' ? <Earn />
-        : r.view === 'start' ? <Start />
-        : <Home tab={r.t} />}
+        : r.view === 'feed' ? <Home tab={r.t} />
+        : <Start />}
     </Shell>
   )
 }

@@ -5,8 +5,8 @@
  * scrolls past it dims to a backdrop the rest of the page scrolls over.
  *
  * The page is PLAYFUL on purpose: the creatures every wallet wears in the app
- * are the cast here — they shout the poster APRs, stand on the podium, peek
- * from the stat stickers and crowd the finish line. Stickers tilt, numbers
+ * are the cast here — they shout the poster APRs, top the board and crowd the
+ * finish line. Stickers tilt, numbers
  * count up when they come into view, the tape of real moves runs under the
  * hero, the protocols run as a marquee. Everything that moves holds still
  * under `prefers-reduced-motion`.
@@ -18,7 +18,7 @@
  */
 import React from 'react'
 import { Logo, Mark, Socials, TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL } from '@yieldcircle/design'
-import { Showcase, SHOWCASE_AT, SHOWCASE_N, SHOWCASE_PNL } from '../src/ui/Showcase'
+import { Showcase, SHOWCASE_AT } from '../src/ui/Showcase'
 import { Character, type Spec } from '../src/identity/character'
 import { displayFor } from '../src/identity/name'
 import { useQueries } from '@tanstack/react-query'
@@ -45,7 +45,7 @@ import { APP_URL } from './config'
  * the next ones with a different trade first — one row per wallet.
  */
 const BOARD_CHAINS = ['1', 'solana', '56']
-const BOARD_UNDER = 3
+const BOARD_UNDER = 2
 const BOARD_DEPTH = 60
 
 /** What a position holds and what it owes, by symbol. */
@@ -106,9 +106,6 @@ const CAST = {
   kol: { b: 4, c: 1, e: 3, m: 3, a: 7, p: 2 } as Spec, // a fox with rays and a bolt, grinning: the paid voice
   lost: { b: 8, c: 4, e: 7, m: 2, a: 3, p: 4 } as Spec, // an owl in specs, eyes spinning: too many pools
   sold: { b: 0, c: 3, e: 2, m: 1, a: 2, p: 9 } as Spec, // a bear in a beanie, flat: bought the poster
-  reader: { b: 1, c: 2, e: 1, m: 0, a: 3, p: 0 } as Spec, // a cat in specs: reads the chain
-  climber: { b: 4, c: 0, e: 4, m: 3, a: 8, p: 6 } as Spec, // an otter with a crown: made the board
-  wallet: { b: 2, c: 10, e: 5, m: 0, a: 0, p: 7 } as Spec, // a robot: connects
 }
 
 export function Landing() {
@@ -144,7 +141,7 @@ export function Landing() {
         <main className="join-hero lp-hero-copy">
           <span className="lp-sticker lp-sticker-hero">Closed beta · free to join</span>
           <h1>Everything you hold, <span className="lp-mark">earning.</span></h1>
-          <p>See what real yield farmers <b>actually</b> make — the PnL the chain can prove, not the APR on the poster — and copy them in one tap.</p>
+          <p>See what real yield farmers <b>actually</b> make, proven on-chain — and copy them in one tap.</p>
           {cta()}
           <a className="join-in" href={APP_URL}>Already on the list? Sign in</a>
         </main>
@@ -163,14 +160,14 @@ export function Landing() {
         <div className="lp-head rv">
           <span className="lp-sticker prob">What's broken</span>
           <h2 className="lp-h2">Yield is <span className="lp-wob">noisy.</span> Nobody shows you the proof.</h2>
-          <p className="lp-lead">Finding yield in DeFi means reading posters: a listing's APR, a thread's promise, a sponsor's number. None of it says who is in the position, for how long, or what they walked away with.</p>
+          <p className="lp-lead">Yield discovery runs on posters — a listing's APR, a thread's promise, a sponsor's number. None of it says who holds the position, or what they walked away with.</p>
         </div>
         <div className="lp-comic">
           <div className="lp-panel rv" style={{ '--tilt': '-1.5deg' } as React.CSSProperties}>
             <div className="lp-bubble shout"><b>500% APR!!</b> trust me bro <i className="lp-tag-s">sponsored</i></div>
             <Character addr="kol" spec={CAST.kol} size={96} title="" />
             <b>The loudest voices are paid.</b>
-            <span>KOLs are paid by the issuers and lenders they promote — marketing biased by construction. You hear what was sponsored, not what works.</span>
+            <span>KOLs promote whoever pays them.</span>
           </div>
           <div className="lp-panel rv" style={{ '--tilt': '1deg' } as React.CSSProperties}>
             <div className="lp-swarm" aria-hidden="true">
@@ -178,13 +175,13 @@ export function Landing() {
             </div>
             <Character addr="lost" spec={CAST.lost} size={96} title="" />
             <b>Too many pools, no signal.</b>
-            <span>Thousands of pools, vaults and loops across a dozen chains. Every one of them quotes a rate, and nothing tells safe apart from what merely looks it.</span>
+            <span>Thousands of quoted rates, and nothing says which ones hold up.</span>
           </div>
           <div className="lp-panel rv" style={{ '--tilt': '-0.8deg' } as React.CSSProperties}>
             <div className="lp-poster"><s>APR 18.0%</s><em>realized <b>3.1%</b></em></div>
             <Character addr="sold" spec={CAST.sold} size={96} title="" />
-            <b>The poster APR is not what you earn.</b>
-            <span>Rates move, incentives end, a loop's spread changes with every rate update. A projected number says nothing about a realized one — and realized is the only one you keep.</span>
+            <b>The poster APR isn't what you earn.</b>
+            <span>Rates move. Realized is the only number you keep.</span>
           </div>
         </div>
       </section>
@@ -205,7 +202,7 @@ export function Landing() {
         <div className="lp-head rv">
           <span className="lp-sticker sol"><Mark size={14} mono /> How we fix it</span>
           <h2 className="lp-h2">Follow the <span className="lp-mark">proof,</span> not the promotion.</h2>
-          <p className="lp-lead">YieldCircle reads positions straight off the chain. The feed, the leaderboard and every number on this page come from wallets that hold the position — nothing is written by hand, and nothing is sponsored.</p>
+          <p className="lp-lead">Every number here comes from a wallet that holds the position. Nothing is written by hand, nothing is sponsored.</p>
         </div>
         <div className="lp-stickers">
           <div className="lp-card c-cyan rv" style={{ '--tilt': '-2deg' } as React.CSSProperties}>
@@ -217,7 +214,7 @@ export function Landing() {
               <span className="lp-mock-copy">Copy this ›</span>
             </div>
             <b>A feed of real wallets.</b>
-            <span>Every post is an on-chain position: who holds what, since when, and what it has made so far. The FOMO is real because the numbers are.</span>
+            <span>Who holds what, since when, and what it has made.</span>
           </div>
           <div className="lp-card c-gold rv" style={{ '--tilt': '1.5deg' } as React.CSSProperties}>
             <div className="lp-mock lp-mock-board">
@@ -226,7 +223,7 @@ export function Landing() {
               ))}
             </div>
             <b>A leaderboard ranked on proof.</b>
-            <span>Wallets ranked on the yield the chain can verify: the carry their positions actually pay, net of debt — not a quote, and not who paid.</span>
+            <span>Ranked on the yield positions actually pay, net of debt — not a quote.</span>
           </div>
           <div className="lp-card c-moss rv" style={{ '--tilt': '1deg' } as React.CSSProperties}>
             <div className="lp-mock lp-mock-ticket">
@@ -235,40 +232,9 @@ export function Landing() {
               <span className="lp-mock-btn">Hold it</span>
             </div>
             <b>Copy any position in one tap.</b>
-            <span>A position in the feed opens as a ready-made ticket: deposits and loops on Kamino, Morpho, Euler, Pendle, Jupiter Lend and more, EVM and Solana, in one flow.</span>
-          </div>
-          <div className="lp-card c-plum rv" style={{ '--tilt': '-1.2deg' } as React.CSSProperties}>
-            <div className="lp-mock lp-mock-share">
-              <Character addr="kol2" spec={{ ...CAST.kol, e: 1, p: 3 }} size={40} title="" />
-              <span className="lp-mock-arrow">→</span>
-              <span className="lp-mock-cut"><b>+0.4%</b><small>of the margin</small></span>
-            </div>
-            <b>Aligned incentives for KOLs. <i className="land-tag">building</i></b>
-            <span>Interest-margin sharing: a KOL who refers users earns a cut of the margin on the positions they build — paid for performance, not for promotion.</span>
+            <span>Any position opens as a ready-made ticket — EVM and Solana.</span>
           </div>
         </div>
-      </section>
-
-      <section className="lp-sec lp-how">
-        <h2 className="lp-h2 center rv">Three steps. <span className="lp-mark">No transaction</span> to start.</h2>
-        <ol className="lp-path">
-          <svg className="lp-path-line" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true"><path d="M60 60 C 250 -20, 350 140, 500 60 S 750 -20, 940 60" /></svg>
-          <li className="rv">
-            <span className="lp-step"><Character addr="wallet" spec={CAST.wallet} size={64} title="" /><i>01</i></span>
-            <b>Connect a wallet</b>
-            <span>EVM or Solana, any wallet, a signature and nothing else. Joining the waitlist is free and never a transaction.</span>
-          </li>
-          <li className="rv">
-            <span className="lp-step"><Character addr="reader" spec={CAST.reader} size={64} title="" /><i>02</i></span>
-            <b>Follow the proof</b>
-            <span>Browse the feed and the board. Hover a farmer and watch their PnL count up from the day they opened the position.</span>
-          </li>
-          <li className="rv">
-            <span className="lp-step"><Character addr="climber" spec={CAST.climber} size={64} title="" /><i>03</i></span>
-            <b>Copy it, hold it, climb</b>
-            <span>Open any position as a ticket and hold it in a tap. From then on your own carry is on the board, proven the same way.</span>
-          </li>
-        </ol>
       </section>
 
       <Protocols />
@@ -277,7 +243,7 @@ export function Landing() {
         <div className="land-glow" aria-hidden="true" />
         <span className="lp-sticker rv">Closed beta</span>
         <h2 className="lp-h2 center rv">Early members <span className="lp-mark">earn rewards.</span></h2>
-        <p className="lp-lead center rv">Access opens in waves down the waitlist. What counts for early rewards is what you actually do on YieldCircle — positions held, days held, who you follow — not how many wallets you sign up.</p>
+        <p className="lp-lead center rv">Access opens in waves. Early rewards go to what you actually do here — positions held, days held — not how many wallets you sign up.</p>
         <div className="lp-end-row rv">
           {cta()}
           <a className="tg-link lp-tg" href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer">
@@ -343,17 +309,13 @@ function Live({ join }: { join: (e: React.MouseEvent) => void }) {
   const facets = protos.data?.protocols ?? []
   const chains = new Set(facets.flatMap((p) => p.chains)).size
   const markets = facets.reduce((s, p) => s + p.markets, 0)
-  const bestApr = Math.max(0, ...columns.map((c) => c.top?.apr24hPct ?? c.top?.netAprPct ?? 0))
   const href = (r: EarnerRow) => { const { hold } = legsOf(r); return hold[0]?.marketUid ? `${APP_URL}/${marketHref(hold[0].marketUid)}` : APP_URL }
   const apr = (r: { apr24hPct: number | null; netAprPct: number | null; exact: boolean }) => `${r.exact ? '' : '≈ '}${pct(r.apr24hPct ?? r.netAprPct, 1)}`
   return (
     <section className="lp-sec lp-live" id="live">
-      <div className="lp-live-h rv"><span className="dot" /><span className="lbl">Live from the index</span></div>
-      <div className="lp-tiles">
-        <Stat n={SHOWCASE_PNL} fmt={(v) => `+${usdShort(v)}`} cls="ok c-moss" tilt="-1.5deg" face={{ b: 6, c: 7, e: 1, m: 0, a: 0, p: 1 }}>realized by the {SHOWCASE_N} farmers on the field, from on-chain records</Stat>
-        <Stat n={facets.length} fmt={(v) => String(Math.round(v))} cls="c-cyan" tilt="1deg" face={{ b: 5, c: 10, e: 5, m: 1, a: 0, p: 0 }}>protocols read on-chain, across {chains || '—'} chains, EVM and Solana</Stat>
-        <Stat n={markets} fmt={(v) => Math.round(v).toLocaleString('en-US')} cls="c-plum" tilt="-0.8deg" face={{ b: 8, c: 13, e: 4, m: 2, a: 0, p: 3 }}>markets with moves this week — each one a page, a tape and its holders</Stat>
-        <Stat n={bestApr} fmt={(v) => pct(v, 1)} cls="c-gold" tilt="1.4deg" face={{ b: 4, c: 0, e: 4, m: 3, a: 8, p: 6 }}>APR the best position on the board is making right now, net of its debt</Stat>
+      <div className="lp-live-h rv">
+        <span className="dot" /><span className="lbl">Live from the index</span>
+        {facets.length > 0 && <span className="lp-live-sub">{facets.length} protocols · {chains} chains · {markets.toLocaleString('en-US')} markets with moves this week</span>}
       </div>
       <div className="lp-board rv">
         <div className="lp-board-h">
@@ -435,14 +397,14 @@ function Finder() {
     at(i === 0 ? 900 : 0, () => type(1))
     return () => { alive = false; clearTimeout(t) }
   }, [i, still])
-  const hits = (answers[i].data?.groups.find((g) => g.kind === 'wallet')?.hits ?? []).slice(0, 4)
+  const hits = (answers[i].data?.groups.find((g) => g.kind === 'wallet')?.hits ?? []).slice(0, 3)
   const count = answers[i].data?.groups.find((g) => g.kind === 'wallet')?.count ?? 0
   return (
     <section className="lp-sec lp-find" onPointerEnter={() => { hover.current = true }} onPointerLeave={() => { hover.current = false }}>
       <div className="lp-head center rv">
         <span className="lp-sticker">Search anyone</span>
         <h2 className="lp-h2 center">If a wallet has a <span className="lp-mark">name,</span> it's in here.</h2>
-        <p className="lp-lead center">Known people, ENS and Basenames, <code>.sol</code> and <code>.skr</code> — the index knows the wallet behind the name, and every position it holds.</p>
+        <p className="lp-lead center">Known people, ENS, Basenames, <code>.sol</code> and <code>.skr</code>.</p>
       </div>
       <div className="lp-search rv" style={{ '--tilt': '-0.6deg' } as React.CSSProperties}>
         <div className="lp-search-box">
@@ -463,16 +425,6 @@ function Finder() {
         </div>
       </div>
     </section>
-  )
-}
-
-function Stat({ n, fmt, cls, tilt, face, children }: { n: number; fmt: (v: number) => string; cls: string; tilt: string; face: Spec; children: React.ReactNode }) {
-  return (
-    <div className={`lp-tile rv ${cls}`} style={{ '--tilt': tilt } as React.CSSProperties}>
-      <Character addr="stat" spec={face} size={44} title="" className="lp-tile-face" />
-      <b>{n ? <Count n={n} fmt={fmt} /> : '—'}</b>
-      <span>{children}</span>
-    </div>
   )
 }
 
@@ -513,10 +465,9 @@ function Protocols() {
       if (cur) cur.markets += p.markets
       else by.set(name, { key: p.protocol, name, logo: p.logoUri, markets: p.markets })
     }
-    return [...by.values()].sort((a, b) => b.markets - a.markets).slice(0, 24)
+    return [...by.values()].sort((a, b) => b.markets - a.markets).slice(0, 16)
   }, [protos.data])
   if (list.length === 0) return null
-  const half = Math.ceil(list.length / 2)
   const row = (items: typeof list, back: boolean) => (
     <div className={back ? 'lp-marq back' : 'lp-marq'}>
       <div className="lp-marq-t">
@@ -533,8 +484,7 @@ function Protocols() {
   return (
     <section className="lp-sec lp-protos">
       <span className="lbl rv">Where the proof is read from</span>
-      {row(list.slice(0, half), false)}
-      {row(list.slice(half), true)}
+      {row(list, false)}
     </section>
   )
 }

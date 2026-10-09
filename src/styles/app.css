@@ -1746,3 +1746,208 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 @keyframes pulse-run{to{transform:translateX(-50%)}}
 @keyframes chip-sk{to{background-position:-200% 0}}
 @keyframes txspin{to{transform:rotate(360deg)}}
+/* ---------------------------------------------------------------- the playful refit (2026-10)
+   Rounder, warmer, simpler: one typeface (the mono stays for addresses), bigger numbers, a tint
+   per meaning instead of a hairline, sentence-case headings, pill tabs and chips. These rules
+   override the surfaces above on purpose — they load last, so a selector here wins its twin. */
+h1{font-size:26px;font-weight:700;letter-spacing:-.02em}
+h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;color:var(--tx)}
+.lbl{font-size:12px;letter-spacing:0;text-transform:none;font-weight:600;color:var(--tx50)}
+.sec{margin-top:36px}
+.sec-h{gap:6px 10px}
+.sec-h .sub{font-size:13.5px}
+/* the frame */
+.top{background:rgba(0,0,0,.86);border-bottom-color:var(--line-soft)}
+.meface{border-color:transparent;background:var(--b300)}
+.search input{border-color:transparent;background:var(--b300)}
+.search input:focus{border-color:var(--primary);background:var(--b200)}
+.moneychip{border-radius:999px;border-color:transparent;background:var(--b300);padding:0 14px}
+.moneychip:hover,.moneychip[aria-expanded="true"]{background:var(--b400);border-color:transparent}
+.moneychip b,.statchip b{font-family:var(--sans);font-size:14px;font-weight:650}
+.moneychip small,.statchip small{font-family:var(--sans)}
+.tabs-top{gap:4px}
+.tabs-top a{border-radius:999px;padding:0 14px;font-weight:500;transition:background .12s,color .12s}
+.tabs-top a:hover{background:var(--b300)}
+.tabs-top a[aria-current="page"]{background:var(--pri-bg);color:var(--primary)}
+.tabbar a{gap:2px;font-weight:600}
+.tabbar svg{width:48px;height:28px;padding:4px 14px;border-radius:999px;transition:background .15s}
+.tabbar a[aria-current="page"] svg{background:var(--pri-bg)}
+.back,.bell,.drawer-h .x{border-radius:999px}
+.drawer.right{border-top-left-radius:var(--r-xl);border-bottom-left-radius:var(--r-xl)}
+.drawer.left{border-top-right-radius:var(--r-xl);border-bottom-right-radius:var(--r-xl)}
+.crumb{border-radius:999px;font-weight:500}
+/* surfaces: rounder, and lifted by tone rather than by a hairline */
+.card,.tile,.stcard,.strat,.wcard,.wstat,.scard,.waitnudge,.idle-row,.fcard,.hotcard,.mystats a,.ps-links,.ps-fold,.err,.ps-sec .chainmenu,.ps-sec .setmenu{border-radius:var(--r-lg)}
+.note{border-radius:var(--r-lg);border-style:solid;border-color:transparent;background:var(--b200);padding:12px 16px;font-size:13px;color:var(--tx70)}
+.note b{color:var(--tx)}
+.card .ch{background:none}
+.tbl tbody tr:hover td,.row:hover,.xrow:hover,.gsum-h:hover,.tape-row:hover,.tape-item:hover,.said-row:hover{background:var(--b300)}
+/* numbers: the sans, heavier — a figure is read, not typed */
+.tbl td.r,.row .v,.xv,.gsum-v,.pos-v,.tile .v,.tile .ft b,.wstat .v,.stcard-rate b,.scard .sc-rate,.mystats b,.tr-v,.apill .m,.apill .ok,.row .lev,.blend,.idle-row .t b,.fc-n .big{font-family:var(--sans);font-weight:600;font-variant-numeric:tabular-nums}
+.tbl td small,.tbl.strat-t td > small,.tbl td.upto small,.row .v small,.xv small,.xh .m,.gh .sub,.tile .ft small,.wstat .s,.scard .sc-meta,.chip .c,.gtag,.pill,.tile .cnt,.nested,.seg.kind button .c,.feed-h .seg button .c,.rank,.tape-legs,.chip.more{font-family:var(--sans)}
+.tbl th,.tbl.strat-t th{font-family:var(--sans);font-size:11.5px;letter-spacing:0;text-transform:none;font-weight:600;color:var(--tx40)}
+.tbl.strat-t th{padding-bottom:4px}
+.tbl.strat-t td{height:68px}
+.tbl.strat-t td > small{font-size:12px;margin-top:4px;color:var(--tx50)}
+.tbl.strat-t td.r > span{font-size:16px;font-weight:650}
+.tbl.strat-t td .nm b{font-weight:600;font-size:14.5px}
+.tbl.strat-t tr[aria-selected="true"] td{background:var(--pri-bg)}
+.tbl.strat-t tr[aria-selected="true"] td:first-child{box-shadow:none}
+.tbl.strat-t tr.leg td{background:transparent;height:46px}
+.tbl.strat-t tr.leg td:first-child{box-shadow:inset 3px 0 0 var(--b400)}
+.tbl.slim td{height:60px}
+.tbl.slim td.upto > span:nth-child(2){font-size:17px;font-weight:650}
+.row[aria-selected="true"],.scard[aria-selected="true"]{background:var(--pri-bg);box-shadow:none;border-color:transparent}
+/* pills: a soft tint, sentence case, never a hairline */
+.pill{text-transform:none;letter-spacing:0;font-size:11px;font-weight:600;padding:2px 8px;border-color:transparent;background:var(--b400);color:var(--tx70)}
+.pill.loop,.pill.pick{background:var(--pri-bg);color:var(--primary)}
+.pill.dep,.pill.run{background:var(--ok-bg);color:var(--success)}
+.pill.pt{background:var(--violet-bg);color:var(--violet)}
+.pill.legs,.pill.k-borrow{background:var(--warn-bg);color:var(--warning)}
+.gtag{text-transform:none;letter-spacing:0;font-size:10.5px;font-weight:600;border-color:transparent;background:var(--b400);padding:2px 8px}
+.risk i{width:9px;height:9px}
+/* chips and segments: filled, not outlined; the picked one is the brand */
+.chip,.dchip,.s-chip,.apill,.tape-k,.chainchip{border-color:transparent;background:var(--b300)}
+.chip:hover,.dchip:hover,.apill:hover{border-color:transparent;background:var(--b400);color:var(--tx)}
+.chip[aria-pressed="true"],.dchip[aria-pressed="true"],.s-chip[aria-selected="true"]{background:var(--primary);color:var(--primary-ink);border-color:var(--primary);font-weight:600}
+.chip[aria-pressed="true"] .c{color:var(--primary-ink);opacity:.7}
+.chip,.dchip{min-height:32px;padding:0 13px;font-size:13px}
+.seg{border-radius:999px;background:var(--b300);border-color:transparent;padding:3px;gap:2px}
+.seg button{border:0!important;border-radius:999px;min-height:28px;padding:0 12px;color:var(--tx70)}
+.seg button[aria-pressed="true"]{background:var(--b200);color:var(--tx);box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.seg.kind button{min-height:30px}
+/* Earn: a group tile wears its colour; the digest rows carry one big number each */
+.tile{border-color:transparent;padding:18px 20px;gap:10px;background:linear-gradient(135deg,color-mix(in srgb,var(--gc,#fff) 16%,var(--b200)),var(--b200) 72%);transition:transform .15s,background .15s}
+.tile:hover{border-color:transparent;transform:translateY(-2px)}
+.tile .n{font-size:16px}
+.tile .v{font-size:22px}
+.tile .ft{font-size:12.5px;gap:3px}
+.tile .ft b{font-size:19px}
+.tile .ft small{font-size:12px;color:var(--tx50)}
+.gic{border-radius:30%!important}
+/* the asset page: a row is a name, a plain-words line and one rate */
+.hdr .t .sub{font-size:14px}
+.kind-bar .hint{font-size:13px}
+.pick-star{color:var(--warning)}
+.scard{border-color:transparent;padding:14px;gap:4px}
+.scard .sc-rate{font-size:24px;letter-spacing:-.02em;font-weight:700}
+.scard .sc-meta{font-size:12px}
+.idle-row{border-color:transparent;background:var(--warn-bg);color:var(--tx);min-height:48px;border-radius:999px}
+.idle-row:hover{background:rgba(226,163,58,.2)}
+.idle-row .cta{font-weight:600}
+/* the wallet page's stats and book */
+.wstat{border-color:transparent;padding:14px 16px;gap:4px}
+.wstat .k{text-transform:none;letter-spacing:0;font-size:12px}
+.wstat .v{font-size:22px;letter-spacing:-.01em}
+.wstat .s{font-family:var(--sans);font-size:12px}
+.tbl.strat-t tr.grp td .nm b{font-size:15px}
+.wcard{border-color:transparent}
+.wc-t h1{font-size:26px}
+/* the board, the feed: rounder cards, friendlier numbers */
+.fcard{border-color:transparent}
+.fcard:hover{border-color:transparent;background:var(--b300)}
+.fc-n .big{font-size:21px;font-weight:650;letter-spacing:-.01em}
+.pulse{border-radius:999px;border-color:transparent;background:var(--b200)}
+.hotcard{border-color:transparent}
+.row.board{min-height:60px}
+.rank.lead{color:var(--gold)}
+/* ---- Home (Start): three lanes, one colour each, a big rate per card */
+.start{max-width:1020px}
+.start-hero{margin:14px 0 26px}
+.start-hero h1{font-size:34px;line-height:1.12;margin-bottom:10px}
+.start-hero p{font-size:15.5px;line-height:1.5;max-width:560px}
+.start-hero .wave{display:inline-block;animation:wave 2.4s ease-in-out 1 .4s;transform-origin:70% 70%}
+@keyframes wave{0%,100%{transform:rotate(0)}15%{transform:rotate(16deg)}30%{transform:rotate(-8deg)}45%{transform:rotate(14deg)}60%{transform:rotate(-4deg)}75%{transform:rotate(8deg)}}
+.start-cta .btn{min-height:42px;padding:0 20px;font-size:14px}
+.start-cta .linklike{color:var(--tx70);font-size:14px}
+.start-cta .linklike:hover{color:var(--tx)}
+.start-idle{background:var(--ok-bg);border-color:transparent;color:var(--tx)}
+.denoms{gap:8px;margin-bottom:24px}
+.denoms-lbl{font-size:13px;font-weight:600}
+.bandsec{position:relative;margin-top:20px;padding:20px 20px 22px;border-radius:var(--r-xl);background:linear-gradient(180deg,color-mix(in srgb,var(--bc) 11%,var(--b200)),var(--b200) 60%)}
+.bandsec .sec-h{align-items:center;gap:10px 12px;margin-bottom:6px}
+.bandsec .sec-h h2{display:inline-flex;align-items:center;gap:10px;font-size:20px;white-space:normal}
+.bandsec .sec-h .sub{flex:1 1 100%;font-size:13.5px;color:var(--tx70)}
+.band-ico{width:38px;height:38px;border-radius:13px;display:grid;place-items:center;font-size:20px;line-height:1;background:color-mix(in srgb,var(--bc) 24%,transparent);flex:none}
+.bandsec .band-tend{display:inline-flex;align-items:center;gap:6px;margin:4px 0 16px;padding:5px 12px;border-radius:999px;background:color-mix(in srgb,var(--bc) 14%,transparent);color:var(--tx);font-size:12.5px}
+.bandsec .band-tend::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--bc)}
+.eff{height:16px;gap:3px}
+.eff i{width:5px;border-radius:2px;background:color-mix(in srgb,var(--bc) 25%,transparent)}
+.eff i:nth-child(1){height:7px}.eff i:nth-child(2){height:11px}.eff i:nth-child(3){height:16px}
+.eff i.on{background:var(--bc)}
+.stcards{gap:12px}
+.stcard{border-color:transparent;padding:16px 18px;gap:12px;transition:transform .15s,background .15s}
+.stcard:hover{border-color:transparent;background:var(--b300);transform:translateY(-2px)}
+.stcard-n b{font-size:15.5px;font-weight:650}
+.stcard-n small{font-size:12px}
+.stcard-rate b{font-size:30px;line-height:1;letter-spacing:-.025em;font-weight:700}
+.stcard-rate .t50{font-size:12px;font-weight:600}
+.stcard-rate .pill{margin-left:auto}
+.stcard-proof{border-top-color:var(--line-soft);padding-top:12px}
+.stcard-proof small{font-size:12px}
+.stcard-go{align-self:flex-start;margin-top:2px;padding:7px 14px;border-radius:999px;background:var(--primary);color:var(--primary-ink);font-weight:650;font-size:13px}
+.stcard:hover .stcard-go{filter:brightness(1.08)}
+.deeper{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.deeper a{display:flex;flex-direction:column;gap:6px;padding:16px 18px;border-radius:var(--r-lg);background:var(--b200);color:var(--tx);transition:background .15s,transform .15s}
+.deeper a:hover{background:var(--b300);transform:translateY(-2px)}
+.deeper .ico{font-size:22px;line-height:1}
+.deeper b{font-size:15px;font-weight:650}
+.deeper small{font-size:12.5px;color:var(--tx50);line-height:1.4}
+@media (max-width:640px){.deeper{grid-template-columns:1fr}.bandsec{padding:16px 14px 18px;margin:16px calc(-1 * var(--gutter) + 6px) 0;border-radius:var(--r-lg)}.start-hero h1{font-size:28px}}
+/* ---- your money (ui/Positions.tsx): one big number, a split bar, a card per group */
+.pos-head{gap:10px;margin-bottom:18px}
+.pos-v{font-size:36px;font-weight:700;letter-spacing:-.025em;line-height:1.05}
+.pos-s{font-family:var(--sans);font-size:13px;color:var(--tx70)}
+.split{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--b400);gap:2px}
+.split i{display:block;height:100%;transition:flex-basis .4s ease;border-radius:999px}
+.split .w{background:var(--success)}
+.split .i{background:var(--warning)}
+.split.sm{height:6px}
+.split-k{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--tx70)}
+.split-k span::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0}
+.split-k .w::before{background:var(--success)}
+.split-k .i::before{background:var(--warning)}
+.split-k b{color:var(--tx);font-weight:600}
+.gcards{gap:12px}
+.gsum{border-color:transparent;background:linear-gradient(160deg,color-mix(in srgb,var(--gc,#fff) 12%,var(--b200)),var(--b200) 60%)}
+.gsum-h{background:none;padding:14px 16px 10px;gap:12px}
+.gsum-h:hover{background:rgba(255,255,255,.03)}
+.gsum-h .gic{width:36px;height:36px;font-size:15px}
+.gsum-t .t{font-size:15.5px;font-weight:650}
+.gsum-t small{font-size:12px;font-family:var(--sans)}
+.gsum-v{font-size:18px;letter-spacing:-.01em}
+.gsum-v small{font-size:12px;font-weight:500}
+.gsum .split{margin:0 16px 10px}
+.apills{padding:0 16px 14px;gap:8px}
+.apill{min-height:36px;padding:0 12px 0 8px;font-size:13px;background:rgba(255,255,255,.05)}
+.apill:hover{background:rgba(255,255,255,.1)}
+.apill .m{color:var(--tx);font-size:12.5px}
+.apill .ok{font-size:12.5px}
+.apill.dir{border:1px dashed var(--line2);background:none}
+.gsum-xw{border-top-color:var(--line-soft);padding:4px 0 10px}
+.xasset + .xasset{border-top-color:var(--line-soft)}
+.xh{padding:12px 16px 4px}
+.xh .t{font-size:13px}
+.xrow{padding:9px 16px;min-height:56px;gap:12px;border-radius:12px;margin:0 6px;width:calc(100% - 12px)}
+.xrow .tok{width:26px;height:26px}
+.xt .n{font-size:14px;font-weight:600;gap:8px}
+.xt small{font-size:12px}
+.xv b{font-size:15px;font-weight:650}
+.xv small{font-size:11.5px}
+.xrow.idle{background:var(--warn-bg)}
+.xrow.idle:hover{background:rgba(226,163,58,.22)}
+.xrow.idle .n,.xrow.idle .xv b{color:var(--tx)}
+.xrow.idle .tok.xdash{background:var(--warning);color:#2a1d05;font-size:14px;font-weight:700}
+/* health, in a word: healthy · watch · at risk */
+.hp{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:650;white-space:nowrap;line-height:1.6}
+.hp::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.hp.ok{background:var(--ok-bg);color:var(--success)}
+.hp.warn{background:var(--warn-bg);color:var(--warning)}
+.hp.bad{background:var(--bad-bg);color:var(--error)}
+.hp b{font-weight:500;opacity:.8}
+.earn-h h1{font-size:26px}
+.avg30,.trend-avg,.who .wn small{font-family:var(--sans)}
+.bandsec .band-tend{display:inline-flex;max-width:100%;align-items:flex-start;white-space:normal;border-radius:14px;padding:8px 12px;line-height:1.4}
+.bandsec .band-tend::before{flex:none;margin-top:6px}
+.mystats a{border-color:transparent;background:var(--b300)}
+.mystats b{font-size:19px}

@@ -2,13 +2,15 @@
    tabular numerals. Everything else in either front end reads these; a colour written as a literal
    elsewhere is a token waiting to happen. */
 :root{
-  --bg:#000;--b200:#0b0b0b;--b300:#161616;--b400:#1f1f1f;--line:#242424;--line2:#333;
+  --bg:#000;--b200:#0e0e11;--b300:#17171c;--b400:#212128;--line:#232329;--line2:#34343c;
   --tx:#e8e8e8;--tx70:rgba(232,232,232,.7);--tx50:rgba(232,232,232,.5);--tx40:rgba(232,232,232,.4);
   --primary:#2fd3e8;--primary-ink:#042028;--brand-a:#7ce9f5;--brand-b:#0b8fb5;
   --success:#3fbf7f;--error:#e5534b;--warning:#e2a33a;--info:#4fb3d9;--violet:#c084fc;
   --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
-  --r:10px;--gutter:16px;--line-soft:#161616;--page:1240px;
+  --r:12px;--r-lg:18px;--r-xl:24px;--gutter:16px;--line-soft:#1a1a1f;--page:1240px;
+  /* a tint per meaning: the colour at 12 %, for a pill's or a lane's ground */
+  --pri-bg:rgba(47,211,232,.12);--ok-bg:rgba(63,191,127,.13);--warn-bg:rgba(226,163,58,.14);--bad-bg:rgba(229,83,75,.13);--violet-bg:rgba(192,132,252,.14);
 }
 :root{--gold:#f5c542;--silver:#c9d1d9;--bronze:#d08a4e}
 @media (min-width:1400px){:root{--gutter:32px}}

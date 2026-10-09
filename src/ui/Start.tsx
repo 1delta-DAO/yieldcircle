@@ -1,7 +1,8 @@
 /**
- * Start — the beginner's dashboard, and the first page a new visitor sees.
+ * Start — the home page (`#/`): the beginner's dashboard, and the first page
+ * every visitor sees.
  *
- * The home answers "what are people doing?", the Earn tab "what pays what?".
+ * The feed answers "what are people doing?", the Earn tab "what pays what?".
  * Neither answers the question someone NEW actually has: *what should I do
  * with my money, and how much work is it?* This page does, in three bands
  * (`model/activity.ts`) — passive savings, medium loops, active strategies on a
@@ -13,9 +14,7 @@
  * rate, never tonight's spike, and a premium over the passive card
  * (`recommend` in `model/activity.ts`).
  *
- * It is the first of the four tabs, and a first visit without a wallet is
- * redirected here from `#/` (`useSeenStart`, marked in App.tsx) — once, so the
- * Home tab is the social feed from then on.
+ * It is the first of the four tabs, the Home one; the feed is the second.
  */
 import React from 'react'
 import { useApp, walletHref } from '../state/AppState'
@@ -34,16 +33,12 @@ import { dateOf, type Strategy } from '../model/strategies'
 import { nameOf } from '../model/assets'
 import { ChainChip } from './ChainPicker'
 
-// ---------------------------------------------------------------- first visit
-/** Has this browser been pointed at the Start tab once? App.tsx redirects the first `#/` here and marks it. */
-const SEEN_KEY = 'yieldcircle.start-seen:v1'
-let seen: boolean = (() => { try { return localStorage.getItem(SEEN_KEY) === '1' } catch { return true } })()
-export function markStartSeen() {
-  if (seen) return
-  seen = true
-  try { localStorage.setItem(SEEN_KEY, '1') } catch { /* private mode */ }
+/** Each lane's colour and face: calm green, warm amber, electric violet. */
+const LANE: Record<Band, { color: string; ico: string; tag: string }> = {
+  passive: { color: 'var(--success)', ico: '🌱', tag: 'set and forget' },
+  medium: { color: 'var(--warning)', ico: '☕', tag: 'a look now and then' },
+  active: { color: 'var(--violet)', ico: '⏰', tag: 'on a clock' },
 }
-export const startSeen = () => seen
 
 // ---------------------------------------------------------------- the page
 export function Start() {
@@ -66,8 +61,6 @@ export function Start() {
   const picks = recommendAll(menu, book, rank)
   // one profiles request for every face the cards show
   const { profile } = useProfiles(BAND_ORDER.flatMap((band) => picks[band].map((p) => p.proof?.best?.account)).filter((a): a is string => !!a))
-  // being here IS the first visit done — the Home tab goes to the feed from now on
-  React.useEffect(() => { markStartSeen() }, [])
   // the teaser counts only money already IN this denomination — moving a coin
   // into dollars first would be an exposure change, not parking idle money
   const idleUsd = b.books.filter((x) => denomOfAsset(x.group, x.asset) === denom).reduce((a, x) => a + x.idleUsd, 0)
@@ -85,16 +78,16 @@ export function Start() {
   return (
     <div className="start">
       <header className="start-hero">
-        <h1>Where to start</h1>
+        <h1><span className="wave" aria-hidden>👋</span> Where should your money go?</h1>
         <p>
-          Three ways to put money to work, sorted by how much attention they ask — and in each,
-          what real wallets on the chain actually hold. Every rate is an APR read off the
-          chain, and every card opens as a ready-made ticket.
+          Three lanes, sorted by how much attention they ask. Every card is something real
+          wallets hold right now, with the rate read off the chain — tap one and it opens as a
+          ready-made ticket.
         </p>
         {!isConnected && (
           <div className="start-cta">
             <ConnectButton />
-            <a className="linklike" href="#/">or look around first — see the live feed ›</a>
+            <a className="linklike" href="#/feed">or look around first — see the live feed ›</a>
           </div>
         )}
         {isConnected && !loading && idleUsd > 0 && bestPassive && (
@@ -111,7 +104,7 @@ export function Start() {
         {DENOMS.map((d) => (
           <button key={d.id} className="dchip" aria-pressed={denom === d.id} onClick={() => setDenom(d.id)}>{d.word}</button>
         ))}
-        <span className="sub t50 hide-m">rates are in the asset you pick — exposures are never mixed</span>
+        <span className="sub t50 hide-m">rates are in the asset you pick, never mixed</span>
         <span className="sp" />
         <ChainChip />
       </div>
@@ -121,11 +114,11 @@ export function Start() {
       ))}
 
       <section className="sec">
-        <div className="note">
-          <b>How to go deeper.</b> The <a href="#/">home feed</a> shows
-          every move real wallets make, as it happens — any position there opens as a ticket you can
-          copy in one tap. The <a href="#/board">board</a> ranks wallets by what they verifiably earn,
-          and the <a href="#/earn">Earn tab</a> lists the whole catalogue, asset by asset.
+        <div className="sec-h"><h2>Go deeper</h2></div>
+        <div className="deeper">
+          <a href="#/feed"><span className="ico" aria-hidden>📡</span><b>Feed</b><small>Every move real wallets make, as it happens. Any one of them copies in a tap.</small></a>
+          <a href="#/board"><span className="ico" aria-hidden>🏆</span><b>Board</b><small>Wallets ranked by what they verifiably earn — not by what they say.</small></a>
+          <a href="#/earn"><span className="ico" aria-hidden>🗂️</span><b>Earn</b><small>The whole catalogue, asset by asset, with every desk and every rate.</small></a>
         </div>
       </section>
     </div>
@@ -145,14 +138,15 @@ function BandSection({ band, picks, loading, get, profile, scoped }: {
   scoped: boolean
 }) {
   const m = BANDS[band]
+  const lane = LANE[band]
   return (
-    <section className="sec bandsec">
+    <section className="sec bandsec" style={{ '--bc': lane.color } as React.CSSProperties}>
       <div className="sec-h">
-        <h2>{m.word}</h2>
+        <h2><span className="band-ico" aria-hidden>{lane.ico}</span>{m.word} <span className="t50">· {lane.tag}</span></h2>
         <Effort n={m.effort} />
         <span className="sub">{m.why}</span>
       </div>
-      <div className="band-tend t50">{m.tend}</div>
+      <div className="band-tend">{m.tend}</div>
       <div className="stcards">
         {loading
           ? [0, 1, 2].map((i) => <StartCardSk key={i} />)
@@ -235,7 +229,7 @@ function StartCard({ p, get, profile }: { p: Pick_; get: HistoryGet; profile: Pr
           </small>
         </div>
       ) : <div className="stcard-proof t40"><small>steadiest rate in its band this month</small></div>}
-      <span className="stcard-go">Earn this ›</span>
+      <span className="stcard-go">Earn this →</span>
     </a>
   )
 }

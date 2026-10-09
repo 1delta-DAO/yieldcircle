@@ -5,7 +5,7 @@ import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
 import { useBook } from './useBook'
 import { HoldingTicket, Ticket } from './Ticket'
-import { GroupIcon, Info, KindPill, LegsPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort } from './bits'
+import { GroupIcon, Info, KindPill, LegsPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort, HealthPill } from './bits'
 import { chainLabel } from '../sdk/queries'
 import type { ThreadRef } from '../model/uid'
 import { useCounts, useThreadOf } from '../social/queries'
@@ -118,7 +118,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                       <small className="hide-m">{chainLabel(h.chainId)}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}{h.kind === 'loop' && h.debtSymbol ? ` · owes ${amt(h.debtSymbol, h.debtAmount ?? 0)}` : ''}</small></td>
                     <td className="r"><span>{usd(h.valueUsd)}</span><small>{h.kind === 'loop' ? 'equity' : num(h.amount, h.amount >= 100 ? 0 : 3)}</small></td>
                     <td className="r">{(() => { const ser = s ? seriesFor(s, get, withRewards, h.kind === 'loop' && h.leverage && h.leverage > 1 ? h.leverage : undefined) : null; return <span className="rate-row">{ser && <RateTrend ser={ser} now={s!.rate} spike={isSpike(s!.rate, ser)} />}<span className={total != null && total >= 0 ? 'ok' : total != null ? 'bad' : ''}>{total != null ? pct(total) : '—'}</span></span> })()}{rewards > 0.05 ? <small className="hide-m">incl. {pct(rewards)} rewards</small> : null}<small>{usd(h.valueUsd * (total ?? 0) / 100)}/yr</small></td>
-                    <td className="r hide-m hide-t">{h.health != null ? <span className={h.health < 1.1 ? 'bad' : h.health < 1.25 ? 'warn' : 'ok'}>{h.health.toFixed(2)}</span> : <span className="t40">—</span>}</td>
+                    <td className="r hide-m hide-t">{h.health != null ? <HealthPill h={h.health} /> : <span className="t40">—</span>}</td>
                     <td className="r hide-m hide-t" onClick={(e) => e.stopPropagation()}>{s ? <span className="acts"><button className="btn sm" onClick={() => open('add')}>Add</button><button className="btn sm" onClick={() => open(h.kind === 'loop' ? 'manage' : 'reduce')}>{h.kind === 'loop' ? 'Manage' : 'Withdraw'}</button></span> : can ? <span className="acts"><button className="btn sm" title="Not in the menu: this position can be reduced or closed here, not added to" onClick={openOff}>{h.kind === 'loop' ? 'Manage' : 'Withdraw'}</button></span> : <span className="t40" style={{ fontSize: 12 }}>not in the menu</span>}</td>
                     <td className="r t40" style={{ width: 20 }}>{s || can ? '›' : ''}</td>
                   </tr>) })}</tbody>

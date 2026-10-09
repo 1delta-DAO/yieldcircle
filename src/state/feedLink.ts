@@ -4,10 +4,10 @@ import type { IssuerMatch } from '../index/api'
 /**
  * The feed's filters as a link, so a view can be sent to someone:
  *
- *   #/?t=everyone&c=avalanche,ethereum&p=AAVE_V3,BENQI
+ *   #/feed?t=everyone&c=avalanche,ethereum&p=AAVE_V3,BENQI
  *
- * The feed is the home page, so its link is the home's. `#/feed?…` — where it
- * lived before — is still read, so the links already sent keep working.
+ * `#/?…` — the feed's address while it was the home page — is still read, so
+ * the links already sent keep working.
  *
  *   c    chains, by lowercase label (`43114` is read too)
  *   p    protocol keys, as the index names them
@@ -16,7 +16,7 @@ import type { IssuerMatch } from '../index/api'
  *
  * A link that carries ANY of these carries all of them: what it leaves out is
  * cleared, not kept from the reader's last visit — otherwise a sent view would
- * arrive mixed with whatever the reader had picked. A bare `#/` (the tab,
+ * arrive mixed with whatever the reader had picked. A bare `#/feed` (the tab,
  * a crumb) carries none and leaves the reader's own filters alone.
  *
  * Defaults are dropped and lists sorted, so one view is one URL.
@@ -71,7 +71,7 @@ export function feedHash(tab: string, f: FeedFilters): string {
   if (f.curator) q.set('cur', f.curator)
   // commas are safe in a hash and a link that reads `avalanche,ethereum` is one a person can edit
   const s = q.toString().replace(/%2C/g, ',')
-  return '#/' + (s ? '?' + s : '')
+  return '#/feed' + (s ? '?' + s : '')
 }
 
 /** Same filters, whatever order they were picked in. */

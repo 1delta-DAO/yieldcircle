@@ -295,6 +295,17 @@ export function GroupIcon({ id, color, size = 20 }: { id: string; color: string;
 }
 
 /** ` · matures 17 Dec 2026 · 75d` on a held PT's meta line; amber once it is due or past (it then earns nothing). */
+/**
+ * A loop's health factor as a word first and the number second: `healthy 1.82`,
+ * `watch 1.12`, `at risk 1.04`. Liquidation is at 1.00; the bands match the
+ * asset page's colours (amber under 1.25, red under 1.10).
+ */
+export function HealthPill({ h }: { h: number }) {
+  const cls = h < 1.1 ? 'bad' : h < 1.25 ? 'warn' : 'ok'
+  const word = cls === 'bad' ? 'at risk' : cls === 'warn' ? 'watch' : 'healthy'
+  return <span className={`hp ${cls}`} title={`Health factor ${h.toFixed(2)} — liquidation at 1.00`}>{word} <b>{h.toFixed(2)}</b></span>
+}
+
 export function MaturityNote({ t }: { t: number }) {
   const c = maturityClock(t)
   return <> · <span className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span></>

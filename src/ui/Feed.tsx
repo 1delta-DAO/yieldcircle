@@ -165,7 +165,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   }, [here]);
   /**
    * A link followed while already here (pasted, or Back onto another view)
-   * takes over; a bare `#/` (the Home tab) keeps this view and gets its filters
+   * takes over; a bare `#/feed` (the Feed tab) keeps this view and gets its filters
    * written back into the address.
    */
   const live = React.useRef({ filters, pf, inf, cf });
@@ -177,7 +177,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
       const { filters: cur, pf, inf, cf } = live.current;
       const link = readFeedLink();
       if (!link) {
-        if (parseRoute().view !== "home") return;
+        if (parseRoute().view !== "feed") return;
         const want = feedHash(tabOf(parseRoute().t), cur);
         if (location.hash !== want)
           history.replaceState(history.state, "", location.pathname + location.search + want);

@@ -11,8 +11,8 @@ import { readFeedLink } from './feedLink'
  * new segments beside them, so every social object is a URL and back, forward
  * and a pasted link all work without a router.
  *
- *   #/                       the home: pulse · hot · the feed  (?t=following|everyone|menu, filters: see feedLink.ts)
- *   #/start                  the beginner dashboard (what `#/` shows a first visit)
+ *   #/                       the home: the beginner dashboard (src/ui/Start.tsx)
+ *   #/feed                   pulse · hot · the feed  (?t=following|everyone|menu, filters: see feedLink.ts)
  *   #/earn                   the catalogue, by asset
  *   #/USD?u=USDC&s=<id>&k=loop   asset page + ticket
  *   #/w/0x…                  a wallet
@@ -23,11 +23,12 @@ import { readFeedLink } from './feedLink'
  *   #/t                      the asset book (every token the index lends)
  *   #/t/<group>              one asset (group percent-encoded: `Lista Staked BNB::slisBNB`)
  *
- * Two old heads are still read, so links already out in the world land:
- * `#/feed` is the home (the feed moved onto it) and `#/explore` is `#/earn`.
+ * Old heads are still read, so links already out in the world land: `#/start`
+ * is the home, a bare `#/?t=…` (the feed, when it was the home) is `#/feed`,
+ * and `#/explore` is `#/earn`.
  */
 export type Mode = 'add' | 'reduce' | 'close' | 'manage'
-export type View = 'home' | 'start' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'deck' | 'join'
+export type View = 'home' | 'feed' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'deck' | 'join'
 export interface Route {
   view: View
   group?: string
@@ -84,8 +85,10 @@ export function parseRoute(hash = location.hash): Route {
   }
   const head = seg[0]
   if (head === 'earn' || head === 'explore') return { view: 'earn', ...base }
-  // the beginner dashboard (src/ui/Start.tsx) — also what `#/` shows a first visit
-  if (head === 'start') return { view: 'start', ...base }
+  // the beginner dashboard (src/ui/Start.tsx) is the home; `#/start` was its old address
+  if (head === 'start') return { view: 'home', ...base }
+  // the feed; a bare `#/` with a tab or a filter is a feed link from when the feed was the home
+  if (head === 'feed' || (!head && (base.t || readFeedLink(hash)))) return { view: 'feed', ...base }
   // the pitch deck (docs/solana.md submission) — deep link only, no button leads here
   // the investor deck (src/ui/Deck.tsx) — also deep link only
   if (head === 'deck') return { view: 'deck', ...base }

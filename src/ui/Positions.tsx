@@ -13,7 +13,7 @@ import React from 'react'
 import { GROUPS, nameOf, whatIs, type GroupId } from '../model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
-import { GroupIcon, KindPill, LegsPill, MaturityNote, Sk, Tok, amt, pct, usd } from './bits'
+import { GroupIcon, HealthPill, KindPill, LegsPill, MaturityNote, Sk, Tok, amt, pct, usd } from './bits'
 import type { AssetBook, Holding } from '../model/positions'
 import { chainLabel } from '../sdk/queries'
 
@@ -34,14 +34,15 @@ export function Positions({ b }: { b: Book }) {
   return (
     <>
       <div className="pos-head">
-        <div className="lbl">Your positions</div>
-        <div className="pos-v">{b.positionsLoading && !b.books.length ? <Sk w={120} h={24} /> : usd(tot)}</div>
+        <div className="lbl">Total, on the chains you picked</div>
+        <div className="pos-v">{b.positionsLoading && !b.books.length ? <Sk w={120} h={30} /> : usd(tot)}</div>
         {b.books.length > 0 && (
-          <div className="pos-s mono">
-            {usd(work)} at work{work ? ` at ${pct(yearly / work * 100)}` : ''}
-            {idle > 0 && <span className="warn"> · {usd(idle)} idle</span>}
-            {' · ≈ '}{usd(yearly)} / year
-          </div>
+          <>
+            <SplitBar work={work} idle={idle} />
+            <div className="pos-s">
+              {yearly >= 1 ? <>Earning about <b className="ok">{usd(yearly)}</b> a year{work ? <> — {pct(yearly / work * 100, 1)} on what is at work</> : null}.</> : 'Nothing is earning yet.'}
+            </div>
+          </>
         )}
       </div>
       {b.positionsError && <div className="err">Positions could not be read: {b.positionsError.message}</div>}
@@ -49,6 +50,31 @@ export function Positions({ b }: { b: Book }) {
         <div className="note">Nothing on the selected chains: no idle balance in a base asset, no deposit, no loop. <a className="pri" href="#/earn">Find something to earn ›</a></div>
       )}
       <div className="gcards">{GROUPS.filter((g) => byGroup(g.id).length).map((g) => <GroupCard key={g.id} gid={g.id} books={byGroup(g.id)} directional={b.holdings.filter((h) => h.directional && h.group === g.id)} />)}</div>
+    </>
+  )
+}
+
+/**
+ * How much of the money works and how much sits: one bar, green against amber,
+ * with the two figures under it. The proportion is the point — a reader sees
+ * "a third of it is idle" before reading any number.
+ */
+function SplitBar({ work, idle, sm }: { work: number; idle: number; sm?: boolean }) {
+  const tot = work + idle
+  if (tot < 1) return null
+  const w = Math.round(work / tot * 100)
+  return (
+    <>
+      <div className={`split${sm ? ' sm' : ''}`} role="img" aria-label={`${w}% at work, ${100 - w}% idle`}>
+        {work >= 1 && <i className="w" style={{ flex: `0 0 ${w}%` }} />}
+        {idle >= 1 && <i className="i" style={{ flex: '1 1 auto' }} />}
+      </div>
+      {!sm && (
+        <div className="split-k">
+          {work >= 1 && <span className="w"><b>{usd(work)}</b> at work</span>}
+          {idle >= 1 && <span className="i"><b>{usd(idle)}</b> idle</span>}
+        </div>
+      )}
     </>
   )
 }
@@ -66,15 +92,16 @@ function GroupCard({ gid, books, directional }: { gid: GroupId; books: AssetBook
   const total = books.reduce((a, b) => a + b.totalUsd, 0), idle = books.reduce((a, b) => a + b.idleUsd, 0), work = books.reduce((a, b) => a + b.atWorkUsd, 0), yearly = books.reduce((a, b) => a + b.yearlyUsd, 0)
   const dirUsd = directional.reduce((a, h) => a + h.valueUsd, 0)
   return (
-    <div className="card gsum">
+    <div className="card gsum" style={{ '--gc': g.color } as React.CSSProperties}>
       <button type="button" className="gsum-h" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <GroupIcon id={g.id} color={g.color} size={22} />
+        <GroupIcon id={g.id} color={g.color} size={36} />
         <span className="gsum-t"><span className="t">{g.name}</span>
-          <small>{work >= 1 ? <>{pct(yearly / work * 100, 1)} on {usd(work)}</> : 'nothing at work'}{idle > 0 && <span className="warn"> · {usd(idle)} idle</span>}</small></span>
+          <small>{work >= 1 ? <>earning <span className="ok">{pct(yearly / work * 100, 1)}</span> on {usd(work)}</> : 'nothing at work yet'}{idle >= 1 && <span className="warn"> · {usd(idle)} idle</span>}</small></span>
         <span className="sp" />
-        <span className="gsum-v">{usd(total)}{yearly >= 1 && <small className="ok">≈ {usd(yearly)}/yr</small>}</span>
+        <span className="gsum-v">{usd(total)}{yearly >= 1 && <small className="ok">+{usd(yearly)}/yr</small>}</span>
         <svg className="chev" viewBox="0 0 12 12" width="12" height="12" aria-hidden><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </button>
+      {idle >= 1 && work >= 1 && <SplitBar work={work} idle={idle} sm />}
       <div className="apills">
         {books.map((b) => <AssetPill key={b.asset} b={b} />)}
         {dirUsd >= 1 && <button type="button" className="apill dir" onClick={() => setOpen(true)}
@@ -120,8 +147,8 @@ function AssetDetail({ b }: { b: AssetBook }) {
       {b.idle && (
         <button type="button" className="xrow idle" onClick={() => go(b.group, { u: b.asset })}>
           <span className="tok xdash" aria-hidden>—</span>
-          <span className="xt"><span className="n">Idle in wallet</span>
-            <small>{b.idle.chainId ? `${chainLabel(b.idle.chainId)} · ` : ''}earning nothing</small></span>
+          <span className="xt"><span className="n">Sitting idle</span>
+            <small>{b.idle.chainId ? `${chainLabel(b.idle.chainId)} · ` : ''}earning nothing yet</small></span>
           <span className="sp" />
           <span className="xv"><b>{amt(b.asset, b.idle.amount, b.idle.usd)}</b><small className="pri">Put to work ›</small></span>
         </button>
@@ -130,10 +157,10 @@ function AssetDetail({ b }: { b: AssetBook }) {
         <button key={h.key} type="button" className="xrow" onClick={() => go(h.group, { u: h.asset, k: h.kind })}>
           <Tok sym={h.label.split(' ')[0]} logo={h.logo} size={20} />
           <span className="xt"><span className="n"><span>{h.label}</span><KindPill kind={h.kind} /><LegsPill others={h.others} /></span>
-            <small>{h.venue} · {chainLabel(h.chainId)}{h.maturity ? <MaturityNote t={h.maturity} /> : ''}{h.health != null ? <> · health <span className={h.health < 1.15 ? 'warn' : ''}>{h.health.toFixed(2)}</span></> : ''}</small></span>
+            <small>{h.venue} · {chainLabel(h.chainId)}{h.maturity ? <MaturityNote t={h.maturity} /> : ''}{h.health != null ? <> · <HealthPill h={h.health} /></> : ''}</small></span>
           <span className="sp" />
           <span className="xv"><b>{usd(h.valueUsd)}</b>
-            <small>{h.apr != null ? <span className="ok">{pct(h.apr)}</span> : '—'}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''} · ≈ {usd(h.valueUsd * (h.apr ?? 0) / 100)}/yr</small></span>
+            <small>{h.apr != null ? <span className="ok">{pct(h.apr)}</span> : '—'}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''} · +{usd(h.valueUsd * (h.apr ?? 0) / 100)}/yr</small></span>
         </button>
       ))}
     </div>

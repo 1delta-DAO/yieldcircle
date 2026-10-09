@@ -2139,3 +2139,10 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .routes.mini .route{min-height:44px}
 .routes.mini .route .rn small{font-size:11px;color:var(--tx50)}
 .thread.fold .rct{white-space:nowrap}
+/* the wallet dialog: one section per chain family, each connected or offering its wallets */
+.modal.wallets{width:min(460px,calc(100vw - 32px))}
+.vm-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.vm-h .lbl{margin:0}
+.vm-h .foot{margin:0}
+.vm-on{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border-radius:14px;background:var(--b300)}
+.vm-on .addr{font-size:13px}

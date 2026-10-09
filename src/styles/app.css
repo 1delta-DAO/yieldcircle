@@ -1951,3 +1951,70 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .bandsec .band-tend::before{flex:none;margin-top:6px}
 .mystats a{border-color:transparent;background:var(--b300)}
 .mystats b{font-size:19px}
+/* ---- a wallet's page: the face card, two hero numbers, the month's flows, one card per position */
+.wcard{padding:22px 24px;gap:20px;background:linear-gradient(135deg,rgba(47,211,232,.1),var(--b200) 55%)}
+.wcard .chr{width:88px!important;height:88px!important;box-shadow:0 0 0 4px rgba(255,255,255,.06)}
+.wc-t h1{font-size:28px}
+.wc-t .sub{font-size:13px}
+.wc-a .btn{min-height:38px;padding:0 18px}
+.wstats.hero{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}
+.wstats.hero .wstat{padding:18px 20px;gap:6px}
+.wstats.hero .wstat .v{font-size:32px;font-weight:700;letter-spacing:-.02em}
+.wstats.hero .wstat .s{font-size:12.5px;white-space:normal}
+.wstats.flows{display:flex;flex-direction:row;align-items:stretch;gap:0;margin-top:10px;padding:6px 8px;border-radius:var(--r-lg);background:var(--b200);overflow-x:auto;scrollbar-width:none}
+.wstats.flows::-webkit-scrollbar{display:none}
+.wstats.flows .flows-k{flex:none;display:flex;align-items:center;padding:0 12px;font-size:12px;font-weight:600;color:var(--tx50);border-right:1px solid var(--line);margin-right:4px}
+.wstats.flows .wstat{flex:1 1 0;min-width:120px;background:none;border:0;padding:8px 12px;gap:1px;border-radius:12px}
+.wstats.flows .wstat:hover{background:var(--b300)}
+.wstats.flows .wstat .k{font-size:11.5px}
+.wstats.flows .wstat .v{font-size:17px;font-weight:650}
+.wstats.flows .wstat .s{font-size:11px}
+.book{display:flex;flex-direction:column;gap:10px;padding:10px}
+.posc{border-radius:var(--r-lg);background:var(--b300);overflow:hidden}
+.posc-h{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;gap:14px;align-items:center;padding:14px 16px;cursor:pointer;transition:background .12s}
+.posc-h:hover{background:rgba(255,255,255,.035)}
+.posc-h > .tok,.posc-h > a > .tok{width:34px;height:34px}
+.posc-n{display:flex;flex-direction:column;gap:3px;min-width:0}
+.posc-n .t{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:15.5px;line-height:1.25}
+.posc-n .t b{font-weight:650}
+.posc-n .t .mkt:hover{text-decoration:underline}
+.posc-n .t .venue{color:var(--tx50);font-size:13px;font-weight:400}
+.posc-n small{font-size:12.5px;color:var(--tx50);line-height:1.4}
+.posc-v,.posc-r{text-align:right;line-height:1.2;white-space:nowrap}
+.posc-v b{display:block;font-size:19px;font-weight:700;letter-spacing:-.01em}
+.posc-v small{display:block;font-size:11.5px;color:var(--tx50);margin-top:2px}
+.posc-r{font-size:19px;font-weight:700;min-width:78px}
+.posc-a{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.posc-a .pnl-btn{color:var(--tx70)}
+.legs{display:flex;flex-direction:column;gap:3px;padding:0 8px 8px;margin-top:-4px}
+.leg{display:grid;grid-template-columns:62px minmax(0,1fr) auto 78px;gap:12px;align-items:center;padding:8px 10px;border-radius:12px;color:var(--tx);transition:background .12s}
+.leg:hover{background:rgba(255,255,255,.05)}
+.leg .side{display:inline-flex;justify-content:center;padding:3px 0;border-radius:999px;font-size:11px;font-weight:650}
+.leg .side.collateral,.leg .side.supply{background:var(--ok-bg);color:var(--success)}
+.leg .side.debt{background:var(--warn-bg);color:var(--warning)}
+.leg .n{display:flex;flex-direction:column;min-width:0;gap:1px}
+.leg .n b{font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.leg .n small{font-size:11.5px;color:var(--tx50);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.leg .v{text-align:right;line-height:1.2;white-space:nowrap}
+.leg .v b{display:block;font-size:14px;font-weight:650}
+.leg .v small{display:block;font-size:11px;color:var(--tx50)}
+.leg .r{text-align:right;font-size:14px;font-weight:650;white-space:nowrap}
+@media (max-width:640px){
+  .wcard{padding:18px 16px}.wcard .chr{width:64px!important;height:64px!important}.wc-t h1{font-size:22px}
+  .wstats.hero .wstat .v{font-size:24px}
+  .posc-h{grid-template-columns:auto minmax(0,1fr) auto;gap:10px 12px;padding:12px 14px}
+  .posc-r{grid-column:2;grid-row:2}.posc-a{grid-column:3;grid-row:2}
+  .posc-r{text-align:left;font-size:16px;min-width:0}
+  .posc-a{justify-self:end}
+  .leg{grid-template-columns:52px minmax(0,1fr) auto;gap:8px 10px;padding:8px}
+  .leg .side{font-size:10px}.leg .r{grid-column:3;grid-row:2;font-size:12.5px}
+}
+.lender{display:inline-flex;align-items:center;gap:5px}
+.lender img,.lender .plogo{width:16px;height:16px;border-radius:50%;background:var(--b400);display:inline-grid;place-items:center;font-size:9px;font-style:normal;color:var(--tx50);flex:none}
+.leg .n small:empty{display:none}
+.posc-v small,.leg .v small{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:640px){
+  .posc-v{max-width:38%}.posc-v b{font-size:17px}
+  .leg .v small{display:none}
+  .leg{grid-template-columns:50px minmax(0,1fr) auto auto}.leg .r{grid-column:4;grid-row:1}
+}

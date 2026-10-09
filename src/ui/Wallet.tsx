@@ -14,7 +14,7 @@ import React from 'react'
 import { accountCarry } from '../model/accountCarry'
 import { useMenu, type Menu } from './useMenu'
 import { parseUid, uidOf } from '../model/uid'
-import { ptMaturityOf, termClock, type Strategy } from '../model/strategies'
+import { maturityClock, ptMaturityOf, termClock, type Strategy } from '../model/strategies'
 import { useAccount } from 'wagmi'
 import { go, marketHref, parseRoute, useApp, useRoute, walletHref } from '../state/AppState'
 import { PnlDrawer } from './PnlDrawer'
@@ -26,7 +26,7 @@ import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
 import { isEvmAddr, isEvmChain, normAddr } from '../model/address'
-import { AddrExplorers, CopyButton, MaturityNote, Sk, TermNote, Tip, Tok, TxLink, pct, usd, usdShort } from './bits'
+import { AddrExplorers, CopyButton, ProtocolLogo, Sk, TermNote, Tip, Tok, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
 import { Said } from './Talk'
@@ -215,15 +215,18 @@ export function Wallet({ addr }: { addr: string }) {
 
       {vaults.map((v) => <VaultCard key={v.marketUid} v={v} />)}
 
-      <div className="wstats">
+      <div className="wstats hero">
         <Stat k="Net value" v={hidden ? '—' : usd(nav)} s={hidden ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={syncing || (!hidden && pos.isLoading)} />
         <Stat k="Net APR" v={hidden ? '—' : carry.netAprPct == null ? '—' : <span className={carry.netAprPct >= 0 ? 'ok' : 'warn'}>{carry.exact ? '' : '≈ '}{pct(carry.netAprPct)}</span>}
           s={hidden ? 'on the live path' : <AccountAprNote c={carry} />} loading={syncing || (!hidden && pos.isLoading)} />
-        <Stat k="Deposited · 30d" v={usdShort(f?.depositedUsd)} s={f ? `net ${usdShort(f.depositedUsd - f.withdrawnUsd)} in` : ''} loading={flows.isLoading} />
-        <Stat k="Withdrawn · 30d" v={usdShort(f?.withdrawnUsd)} s="supply taken out" loading={flows.isLoading} />
-        <Stat k="Borrowed · 30d" v={usdShort(f?.borrowedUsd)} s={f ? `net ${usdShort(f.borrowedUsd - f.repaidUsd)} drawn` : ''} loading={flows.isLoading} />
-        <Stat k="Repaid · 30d" v={usdShort(f?.repaidUsd)} s="debt paid down" loading={flows.isLoading} />
-        <Stat k="Moves · 30d" v={f ? String(f.nEvents) : '—'} s={f?.unpriced ? `${f.unpriced} unvalued` : 'valued at the block'} loading={flows.isLoading} />
+      </div>
+      <div className="wstats flows">
+        <span className="flows-k">Last 30 days</span>
+        <Stat k="Deposited" v={usdShort(f?.depositedUsd)} s={f ? `net ${usdShort(f.depositedUsd - f.withdrawnUsd)} in` : ''} loading={flows.isLoading} />
+        <Stat k="Withdrawn" v={usdShort(f?.withdrawnUsd)} s="supply taken out" loading={flows.isLoading} />
+        <Stat k="Borrowed" v={usdShort(f?.borrowedUsd)} s={f ? `net ${usdShort(f.borrowedUsd - f.repaidUsd)} drawn` : ''} loading={flows.isLoading} />
+        <Stat k="Repaid" v={usdShort(f?.repaidUsd)} s="debt paid down" loading={flows.isLoading} />
+        <Stat k="Moves" v={f ? String(f.nEvents) : '—'} s={f?.unpriced ? `${f.unpriced} unvalued` : 'valued at the block'} loading={flows.isLoading} />
       </div>
 
       <section className="sec">
@@ -468,46 +471,128 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
   const byLeg = new Map(rows.map((r) => [`${r.marketUid}|${r.side}|${r.posId}`, r]))
   const gs = groupsOrLegs(rows, groups)
   return (
-    <table className="tbl strat-t">
-      <colgroup><col /><col style={{ width: 110 }} /><col className="hide-m" style={{ width: 90 }} /><col style={{ width: copyOf ? 74 : 28 }} /></colgroup>
-      <thead><tr><th>Position</th><th className="r">Value</th><th className="r hide-m">Rate</th><th /></tr></thead>
-      <tbody>
-        {gs.map((g) => {
-          const found = g.legs.map((l) => byLeg.get(`${l.marketUid}|${l.side}|${l.posId}`)).filter((r): r is IndexPosition => !!r)
-          if (found.length === 0) return null
-          const c = copyOf?.(found) ?? null
-          const st = c && 'st' in c ? c.st : null
-          if (found.length === 1) return <LegRow key={g.key} r={found[0]} share={navShare(g.equityUsd, navUsd)} copy={c ? <CopyCell c={c} who={who} /> : undefined} maturity={st?.kind === 'simple' ? st.maturity : undefined} pnl={<PnlButton who={who} posKey={g.key} />} onOpen={() => openPnl(who, g.key)} />
-          const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
-          // the debt's own fixed term, the earliest when several loans share the group
-          const termLeg = s.debt.reduce<IndexPosition | null>((m, r) => r.termEndsAt && (!m || r.termEndsAt < m.termEndsAt!) ? r : m, null)
-          const term = termLeg ? termClock(termLeg.termEndsAt!, termLeg.termDays) : null
-          return <React.Fragment key={g.key}>
-            <tr className="grp" title="value, money in and PnL since this position opened" onClick={() => openPnl(who, g.key)}>
-              <td>
-                <div className="nm">
-                  <TokLink group={lead.assetGroup} sym={lead.symbol ?? '?'} logo={lead.assetLogo ?? undefined} />
-                  <span><b title={s.basket ? composition(s) : undefined}>{groupLabel(s)}</b> <span className="t50">· {lead.lenderName ?? lead.lenderKey}</span></span>
-                  {g.leverage != null && g.leverage > 1.05 && <span className="pill">{g.leverage.toFixed(2)}×</span>}
-                  {s.basket && <span className="pill" title="several assets share this account's one health factor">cross-margin</span>}
-                  <PnlButton who={who} posKey={g.key} />
-                </div>
-                <small className="hide-m">
-                  {indexChainLabel(lead.chainId, chainLabel)} · {usdShort(g.supplyUsd)} {s.debt.length ? 'collateral' : 'supplied'}{s.collSyms.length > 1 ? ` in ${s.collSyms.join(', ')}` : ''}
-                  {s.debt.length > 0 && <> over {usdShort(g.debtUsd)} of debt{s.debtSyms.length > 1 ? ` in ${s.debtSyms.join(', ')}` : ''}</>}
-                  {term && <> · <span className={term.due ? 'warn' : undefined} title={term.title}>{term.short}</span></>}
-                </small>
-              </td>
-              <td className="r"><b>{usd(g.equityUsd)}</b><small>equity{navShare(g.equityUsd, navUsd)}</small></td>
-              <td className="r hide-m"><NetRate g={g} /></td>
-              <td className="r t40">{c ? <CopyCell c={c} who={who} lev={g.leverage} /> : '›'}</td>
-            </tr>
-            {legs.map((r) => <LegRow key={`${r.marketUid}:${r.side}:${r.posId}`} r={r} sub />)}
-          </React.Fragment>
-        })}
-      </tbody>
-    </table>
+    <div className="book">
+      {gs.map((g) => {
+        const found = g.legs.map((l) => byLeg.get(`${l.marketUid}|${l.side}|${l.posId}`)).filter((r): r is IndexPosition => !!r)
+        if (found.length === 0) return null
+        const c = copyOf?.(found) ?? null
+        const st = c && 'st' in c ? c.st : null
+        const open = () => openPnl(who, g.key)
+        if (found.length === 1) {
+          const r = found[0]
+          return <PosCard key={g.key} lead={r} onOpen={open} action={<>{c && <CopyCell c={c} who={who} />}<PnlButton who={who} posKey={g.key} /></>}
+            name={<a className="mkt" href={marketHref(r.marketUid)} onClick={(e) => e.stopPropagation()}>{r.marketName ?? r.symbol}</a>}
+            venue={<Lender r={r} />}
+            pills={r.side === 'borrow' ? <span className="pill k-borrow">debt</span> : null}
+            meta={<><LegNote r={r} maturity={st?.kind === 'simple' ? st.maturity : undefined} />{navShare(g.equityUsd, navUsd)}</>}
+            value={r.valueStatus === 'impaired' ? <Impaired x={r} /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}
+            valueSub={r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}
+            rate={<LegRate r={r} />} />
+        }
+        const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
+        // the debt's own fixed term, the earliest when several loans share the group
+        const termLeg = s.debt.reduce<IndexPosition | null>((m, r) => r.termEndsAt && (!m || r.termEndsAt < m.termEndsAt!) ? r : m, null)
+        const term = termLeg ? termClock(termLeg.termEndsAt!, termLeg.termDays) : null
+        return <PosCard key={g.key} lead={lead} onOpen={open} action={<>{c && <CopyCell c={c} who={who} lev={g.leverage} />}<PnlButton who={who} posKey={g.key} /></>}
+          name={<span title={s.basket ? composition(s) : undefined}>{groupLabel(s)}</span>}
+          venue={<Lender r={lead} />}
+          pills={<>{g.leverage != null && g.leverage > 1.05 && <span className="pill loop">{g.leverage.toFixed(2)}×</span>}{s.basket && <span className="pill" title="several assets share this account's one health factor">cross-margin</span>}</>}
+          meta={<>
+            {indexChainLabel(lead.chainId, chainLabel)} · {usdShort(g.supplyUsd)} {s.debt.length ? 'collateral' : 'supplied'}{s.collSyms.length > 1 ? ` in ${s.collSyms.join(', ')}` : ''}
+            {s.debt.length > 0 && <> over {usdShort(g.debtUsd)} of debt{s.debtSyms.length > 1 ? ` in ${s.debtSyms.join(', ')}` : ''}</>}
+            {navShare(g.equityUsd, navUsd)}
+            {term && <> · <span className={term.due ? 'warn' : undefined} title={term.title}>{term.short}</span></>}
+          </>}
+          value={usd(g.equityUsd)} valueSub="equity" rate={<NetRate g={g} />}
+          legs={legs} />
+      })}
+    </div>
   )
+}
+
+/**
+ * One position as a card: the token, the name and where it sits, the plain
+ * words under them, then the equity and the rate, big, and the buttons. A
+ * looped position carries its legs inside the card, each tagged with its side,
+ * so collateral and debt read as parts of one thing rather than as two rows.
+ */
+function PosCard({ lead, name, venue, pills, meta, value, valueSub, rate, action, legs, onOpen }: {
+  lead: IndexPosition; name: React.ReactNode; venue: React.ReactNode; pills?: React.ReactNode; meta: React.ReactNode
+  value: React.ReactNode; valueSub?: React.ReactNode; rate: React.ReactNode; action: React.ReactNode; legs?: IndexPosition[]; onOpen: () => void
+}) {
+  return (
+    <div className="posc">
+      <div className="posc-h" role="button" tabIndex={0} title="value, money in and PnL since this position opened" onClick={onOpen} onKeyDown={(e) => { if (e.key === 'Enter') onOpen() }}>
+        <TokLink group={lead.assetGroup} sym={lead.symbol ?? '?'} logo={lead.assetLogo ?? undefined} />
+        <div className="posc-n">
+          <span className="t"><b>{name}</b><span className="venue">{venue}</span>{pills}</span>
+          <small>{meta}</small>
+        </div>
+        <div className="posc-v"><b>{value}</b>{valueSub && <small>{valueSub}</small>}</div>
+        <div className="posc-r">{rate}</div>
+        <div className="posc-a" onClick={(e) => e.stopPropagation()}>{action}</div>
+      </div>
+      {legs && legs.length > 0 && (
+        <div className="legs">
+          {legs.map((r) => <Leg key={`${r.marketUid}:${r.side}:${r.posId}`} r={r} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** The lender's mark and name: `[logo] Morpho`. */
+function Lender({ r }: { r: IndexPosition }) {
+  const name = r.lenderName ?? r.lenderKey
+  const urls = React.useMemo(() => protocolIconUrls(r.lenderKey, r.lenderLogo), [r.lenderKey, r.lenderLogo])
+  return <span className="lender"><ProtocolLogo urls={urls} name={name} />{name}</span>
+}
+
+/**
+ * One leg inside a looped position's card: its side, the market, its value and
+ * its own rate. The chain is the card's and is not said again. Tap → the market.
+ */
+function Leg({ r }: { r: IndexPosition }) {
+  const side = r.side === 'borrow' ? 'debt' : r.side === 'collateral' ? 'collateral' : 'supply'
+  return (
+    <a className="leg" href={marketHref(r.marketUid)}>
+      <span className={`side ${side}`}>{side === 'debt' ? 'Owes' : side === 'collateral' ? 'Holds' : 'Lends'}</span>
+      <span className="n"><b>{r.marketName ?? r.symbol}</b><small><LegNote r={r} chain={false} /></small></span>
+      <span className="v"><b>{r.valueStatus === 'impaired' ? <Impaired x={r} short /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}</b>{r.amount ? <small>{tokens(r.amount)} {r.symbol ?? ''}</small> : null}</span>
+      <span className="r"><LegRate r={r} /></span>
+    </a>
+  )
+}
+
+/** The leg's chain (unless the card already said it) and its clock: a PT's maturity, a loan's term, or how its accrual is known. */
+function LegNote({ r, maturity, chain = true }: { r: IndexPosition; maturity?: number; chain?: boolean }) {
+  const pt = maturity ?? ptMaturityOf(r.symbol)
+  const parts: React.ReactNode[] = []
+  if (chain) parts.push(indexChainLabel(r.chainId, chainLabel))
+  if (pt) {
+    // a PT's units never grow (its value does, toward par), so the index's accrual reads 0 — the maturity is what to show
+    const c = maturityClock(pt)
+    parts.push(<span key="pt" className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span>)
+  } else {
+    if (r.termEndsAt) { const c = termClock(r.termEndsAt, r.termDays); parts.push(<span key="term" className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span>) }
+    if (r.accrual) parts.push(r.accrual.exact ? 'accrual exact' : 'accrual ≈')
+  }
+  return <>{parts.map((x, i) => <React.Fragment key={i}>{i > 0 && ' · '}{x}</React.Fragment>)}</>
+}
+
+/**
+ * A leg's rate: the EFFECTIVE one — the pool's plus what the token itself
+ * earns — because a Morpho collateral leg pays 0.00 % from the pool and
+ * 4.68 % from inside syrupUSDT, and only one of those numbers was ever on
+ * this page. A debt's is the cost, in amber.
+ */
+function LegRate({ r }: { r: IndexPosition }) {
+  const rate = r.aprEffective ?? r.aprNow
+  const why = r.intrinsicApr != null
+    ? `${pct(r.intrinsicApr)} the token itself${r.intrinsicSource === 'asset' ? ' (from the asset, not this market)' : ''} + ${pct(r.aprNow ?? 0)} the pool`
+    : 'the pool’s own rate; nobody publishes a yield for this token'
+  if (rate == null) return <span className="t40">—</span>
+  return <span className={r.side === 'borrow' ? 'warn' : 'ok'} title={why}>{r.side === 'borrow' ? '−' : ''}{pct(rate)}</span>
 }
 
 /**
@@ -554,12 +639,6 @@ function NetRate({ g }: { g: PositionGroup }) {
 }
 
 /**
- * One leg. The rate is the EFFECTIVE one — the pool's plus what the token
- * itself earns — because a Morpho collateral leg pays 0.00 % from the pool
- * and 4.68 % from inside syrupUSDT, and only one of those numbers was ever
- * on this page.
- */
-/**
  * Opens a position's PnL history (`?pos=`) and marks the entry that pushes, so
  * closing the drawer can go Back to the page it opened over (`closePnl`).
  * Setting the hash creates the entry synchronously; `useBack`'s depth stamp
@@ -570,42 +649,12 @@ function openPnl(who: string, posKey: string) {
   history.replaceState({ ...(history.state ?? {}), pnl: true }, '')
 }
 
-/** Opens the position's PnL history, without following the row's own market link. */
+/** Opens the position's PnL history, without following the card's own click. */
 function PnlButton({ who, posKey }: { who: string; posKey: string }) {
   return (
-    <button className="pill pnl-btn" title="value, money in and PnL since this position opened" onClick={(e) => { e.stopPropagation(); openPnl(who, posKey) }}>
+    <button className="btn sm pnl-btn" title="value, money in and PnL since this position opened" onClick={(e) => { e.stopPropagation(); openPnl(who, posKey) }}>
       PnL
     </button>
-  )
-}
-
-function LegRow({ r, sub, share = '', copy, maturity, pnl, onOpen }: { r: IndexPosition; sub?: boolean; share?: string; copy?: React.ReactNode; maturity?: number; pnl?: React.ReactNode; onOpen?: () => void }) {
-  const rate = r.aprEffective ?? r.aprNow
-  const pt = maturity ?? ptMaturityOf(r.symbol)
-  const why = r.intrinsicApr != null
-    ? `${pct(r.intrinsicApr)} the token itself${r.intrinsicSource === 'asset' ? ' (from the asset, not this market)' : ''} + ${pct(r.aprNow ?? 0)} the pool`
-    : 'the pool’s own rate; nobody publishes a yield for this token'
-  return (
-    <tr className={sub ? 'leg' : undefined} title={onOpen ? 'value, money in and PnL since this position opened' : undefined} onClick={onOpen ?? (() => { location.hash = marketHref(r.marketUid) })}>
-      <td>
-        <div className="nm">
-          {!sub && <TokLink group={r.assetGroup} sym={r.symbol ?? '?'} logo={r.assetLogo ?? undefined} />}
-          <span>{sub && <span className="t40">└ </span>}<b>{onOpen
-            // the row itself opens the PnL history now, so the market keeps its own link
-            ? <a className="mkt" href={marketHref(r.marketUid)} onClick={(e) => e.stopPropagation()}>{r.marketName ?? r.symbol}</a>
-            : r.marketName ?? r.symbol}</b> <span className="t50">· {r.lenderName ?? r.lenderKey}</span></span>
-          {r.side === 'borrow' && <span className="pill k-borrow">debt</span>}
-          {pnl}
-        </div>
-        <small className="hide-m">{indexChainLabel(r.chainId, chainLabel)}{pt
-          // a PT's units never grow (its value does, toward par), so the index's accrual reads 0 — the maturity is what to show
-          ? <MaturityNote t={pt} />
-          : <>{r.termEndsAt ? <TermNote end={r.termEndsAt} days={r.termDays} /> : null}{r.accrual?.exact ? ' · accrual exact' : r.accrual ? ' · accrual ≈' : ''}</>}</small>
-      </td>
-      <td className="r">{r.valueStatus === 'impaired' ? <Impaired x={r} /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}<small>{r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}{share}</small></td>
-      <td className="r hide-m">{rate != null ? <span className={r.side === 'borrow' ? 'warn' : 'ok'} title={why}>{pct(rate)}</span> : <span className="t40">—</span>}</td>
-      <td className="r t40">{copy ?? '›'}</td>
-    </tr>
   )
 }
 

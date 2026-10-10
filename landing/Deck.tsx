@@ -59,7 +59,7 @@ const CURATED = [4.86, 4.82, 4.91, 4.92, 4.88, 4.87, 4.86, 4.7, 4.6, 4.57, 4.58,
 const TIERS = [
   { label: 'Lending pool', sub: 'Aave · Morpho', apr: 3.8, c: 'c-ink' },
   { label: 'Curated vault', sub: 'median of the menu', apr: 4.8, c: 'c-cyan' },
-  { label: 'Top-quartile vault', sub: '', apr: 7.9, c: 'c-moss' },
+  { label: 'Top-quartile vault', sub: 'p75 of the menu', apr: 7.9, c: 'c-moss' },
   { label: 'Stable loop, 3×', sub: 'sUSDe / USDT', apr: 17.4, c: 'c-gold' },
 ]
 
@@ -296,19 +296,26 @@ export function Deck() {
           </div>
           <table className="deck-tbl">
             <thead>
-              <tr><th>$10k user · 15 % of yield</th><th>Curated vaults</th><th>Vaults + loops</th></tr>
+              <tr><th>$10k user</th><th>Curated vaults</th><th>Vaults + loops</th><th>Protected loop 3×</th></tr>
             </thead>
             <tbody>
-              <tr><td>Gross APR</td><td>6.7 %</td><td>11.0 %</td></tr>
-              <tr><td>User keeps</td><td>5.7 %</td><td>9.4 %</td></tr>
-              <tr><td>Uplift over the pool</td><td>+1.9 pp</td><td>+5.6 pp</td></tr>
-              <tr className="hi"><td>Revenue / user / yr</td><td>$120</td><td>$185</td></tr>
-              <tr><td>10k users · $100m</td><td>$1.2m</td><td>$1.9m</td></tr>
-              <tr><td>100k users · $1b</td><td>$12m</td><td>$19m</td></tr>
+              <tr><td>Gross APR</td><td>6.7 %</td><td>11.0 %</td><td>17.4 %</td></tr>
+              <tr><td>User keeps</td><td>5.7 %</td><td>9.4 %</td><td>13.8 %</td></tr>
+              <tr><td>Uplift over the pool</td><td>+1.9 pp</td><td>+5.6 pp</td><td>+10.0 pp</td></tr>
+              <tr className="hi"><td>Revenue / user / yr</td><td>$120</td><td>$185</td><td>$361</td></tr>
+              <tr><td>10k users · $100m</td><td>$1.2m</td><td>$1.9m</td><td>$3.6m</td></tr>
+              <tr><td>100k users · $1b</td><td>$12m</td><td>$19m</td><td>$36m</td></tr>
             </tbody>
           </table>
         </div>
-        <p className="deck-foot">Gross APR of USD rows, risk ≤ 3, TVL-weighted, 2026-10-10. Loop: sUSDe/USDT at 3× on Aave, upper quartile of liquid pairs. Revenue at 15 % of gross yield plus 10 bps in and out.</p>
+        <div className="deck-prot">
+          <span className="deck-prot-l">Liquidation protection, a premium on debt, priced by the pair</span>
+          <span className="lp-sticker c-moss"><b>0.5 %</b> correlated · sUSDe / USDT</span>
+          <span className="lp-sticker c-cyan"><b>1 %</b> same asset, levered · weETH / ETH</span>
+          <span className="lp-sticker c-gold"><b>2 %</b> volatile · ETH / USDC</span>
+          <span className="lp-sticker c-plum"><b>+0.25 %</b> high-yield collateral · RWA credit</span>
+        </div>
+        <p className="deck-foot">Gross APR of USD rows, risk ≤ 3, TVL-weighted, 2026-10-10. Loop: sUSDe/USDT at 3× on Aave, upper quartile of liquid pairs. Revenue at 15 % of gross yield plus 10 bps in and out; the protected loop adds 0.5 % a year on $20k of debt.</p>
       </Slide>
 
       {/* 8 - business model */}

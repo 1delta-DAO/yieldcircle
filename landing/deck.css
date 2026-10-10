@@ -82,6 +82,13 @@
 .deck-tbl tr.hi td{color:var(--success);font-weight:700}
 .deck-tbl tr.hi td:first-child{color:var(--tx)}
 
+.deck-prot{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;max-width:1000px;margin-top:2px}
+.deck-prot-l{flex-basis:100%;font:600 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--tx50);margin-bottom:2px}
+.deck-prot .lp-sticker{text-transform:none;letter-spacing:0;font:500 12.5px/1.2 var(--sans);padding:8px 13px;gap:8px;color:var(--tx80)}
+.deck-prot .lp-sticker b{font:700 13px/1 var(--mono);color:var(--c)}
+.deck-prot .lp-sticker:nth-child(2){transform:rotate(-1deg)}.deck-prot .lp-sticker:nth-child(3){transform:rotate(.7deg)}.deck-prot .lp-sticker:nth-child(4){transform:rotate(-.6deg)}.deck-prot .lp-sticker:nth-child(5){transform:rotate(.9deg)}
+.deck-tbl{font-size:13px}
+.deck-tbl th,.deck-tbl td{padding:7px 12px}
 /* 8 · business model: the stickers again; a crossed-out "sponsored" poster */
 .deck-poster{position:static;transform:rotate(-3deg);padding:6px 10px}
 .deck-poster s{font-size:13px}

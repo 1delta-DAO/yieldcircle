@@ -285,9 +285,11 @@ job) — a different namespace. Two consequences:
 Position keys for the social thread are
 `chainId|wallet|marketUid|side|posId`, `posId` = `''` except on Euler
 (sub-account index) and Dolomite (account number) — `subAccountPosId` in
-`position-events/src/util.ts` is the definition. For v1 the ticket writes
-`posId: ''`, which is correct for every family this app can open a position in
-today.
+`position-events/src/util.ts` is the definition. The app never builds one
+itself: tickets talk on the STRATEGY's thread (`threadOf`), and the feed reads
+`posId` off the index's own legs (`cardKey` in `ui/Feed.tsx`). Anything that
+starts minting position keys client-side must take the sub-account from
+`Holding.subAccount` — `''` is only right for account 0.
 
 Chains: this app offers 1 / 8453 / 42161 / 56; the index follows those plus
 43114. Full overlap, nothing to reconcile.

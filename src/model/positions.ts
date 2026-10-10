@@ -43,6 +43,12 @@ export interface Holding {
   collateralAddress?: string
   debtAddress?: string
   accountId?: string
+  /**
+   * Which of the lender's isolated accounts this is (Euler sub-account, Dolomite account, Fluid /
+   * Jupiter Lend NFT, Kamino obligation…) and how many the wallet runs there. Each is its own
+   * solvency: collateral in one does not back debt in another, and an action names exactly one.
+   */
+  subAccount?: { id: string; label: string; count: number; /** why the API cannot build for it (a Kamino Multiply obligation): shown, not managed */ unsupported?: string }
   lender?: string
   /**
    * A fixed-rate loop's loans (Lista's broker): one per term opened, on shared collateral, largest
@@ -95,6 +101,8 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
     // sub-account 3 (or a Fluid NFT) alone is still "cross-margin", and a close sent without its id
     // goes to account 0. Keep the active one's id; '0' is the default and stays unsent.
     const lone = p.crossMargin ? p.subAccounts.find((s) => s.netUsd !== 0 || s.legs.some((l) => l.depositsUsd > 0 || l.debtUsd > 0))?.accountId : undefined
+    const count = p.crossMargin ? 1 : p.subAccounts.length
+    const sub = (id: string) => { const a = p.subAccounts.find((x) => x.accountId === id); return { id, label: a?.label ?? subAccountLabel(p.lender, id), count, ...(a?.unsupported ? { unsupported: a.unsupported } : {}) } }
     const accounts = p.crossMargin ? [{ accountId: lone ?? '0', health: p.health, legs: p.legs, netUsd: p.netUsd, borrowedUsd: p.borrowedUsd, suppliedUsd: p.suppliedUsd }] : p.subAccounts
     for (const a of accounts) {
       // a leg with a `loanId` is one broker loan the market's unbound leg already counts: kept aside, never summed
@@ -124,19 +132,37 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         const loans = a.legs.filter((l) => l.loanId && l.marketUid === d.marketUid && l.debtUsd > 0.005)
           .map((l) => ({ id: l.loanId!, debt: parseFloat(l.debt) || 0, debtUsd: l.debtUsd })).sort((x, y) => y.debtUsd - x.debtUsd)
         out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'loop', label: `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
-          amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, collateralAddress: normAddr(coll.asset.address), debtAddress: normAddr(d.asset.address), debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
+          amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, collateralAddress: normAddr(coll.asset.address), debtAddress: normAddr(d.asset.address), debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
       } else {
         for (const l of supply) {
           const asset = keyOfToken({ ...l.asset, chainId: p.chainId }); if (!asset) continue
           // the label is the FAMILY, `venue` the market inside it: the two are printed together
           // (the asset page) and one under the other (the explorer), so neither may repeat the other
           out.push({ key: `${p.positionUid}:${a.accountId}:${l.marketUid}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${l.asset.symbol} · Lend on ${protocol}`, venue: venueOf(l.asset.symbol), valueUsd: l.depositsUsd, apr: p.depositApr, earnUid: l.earnUid, logo: l.asset.logoURI,
-            amount: parseFloat(l.deposits) || 0, amountRaw: rawOf(l.deposits, l.asset.decimals), symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, assetAddress: normAddr(l.asset.address), accountId: a.accountId === '0' ? undefined : a.accountId, lender: p.lender })
+            amount: parseFloat(l.deposits) || 0, amountRaw: rawOf(l.deposits, l.asset.decimals), symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, assetAddress: normAddr(l.asset.address), accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender })
         }
       }
     }
   }
   return out
+}
+
+/**
+ * A sub-account in the venue's own words. The id is what `accountId` takes on the action routes:
+ * an index (Euler 0..255, Dolomite, Init), a position NFT (Fluid, Jupiter Lend), a pubkey (Kamino /
+ * Save obligation, Project 0 account), an address (Gearbox credit account), or Dolomite's
+ * `iso:<marketId>:<n>` for a position inside an isolation-mode vault.
+ */
+export function subAccountLabel(lender: string, id: string): string {
+  const short = (x: string) => (x.length > 12 ? `${x.slice(0, 4)}…${x.slice(-4)}` : x)
+  if (id.startsWith('iso:')) return `Isolation vault #${id.split(':').pop()}`
+  if (lender.startsWith('EULER')) return id === '0' ? 'Main account' : `Sub-account ${id}`
+  if (lender.startsWith('DOLOMITE')) return id === '0' ? 'Main account' : `Account ${id}`
+  if (lender.startsWith('FLUID') || lender.startsWith('JUPITER_LEND')) return `Position #${id}`
+  if (lender.startsWith('KAMINO') || lender.startsWith('SAVE')) return `Obligation ${short(id)}`
+  if (lender.startsWith('GEARBOX')) return `Credit account ${short(id)}`
+  if (lender.startsWith('LOOPSCALE')) return `Loan ${short(id)}`
+  return id === '0' ? 'Main account' : `Account ${short(id)}`
 }
 
 /** One idle balance: one TOKEN on one chain (native ETH and WETH are two entries with the same base `asset`). */

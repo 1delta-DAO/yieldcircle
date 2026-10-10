@@ -101,6 +101,15 @@ after the positions show the change those are read fresh until they move too —
 the Solana balance read answers at `finalized`, behind the positions — and what
 went up is said under the step (`to your wallet: +0.001484 nOPAL`, a swap's dust).
 
+**Sub-accounts.** Every action on a held position sends its `accountId`
+(`Holding.accountId`, `'0'` left unsent) — `earnDeposit` on an Add,
+`earnWithdraw`, `loopOpen` on an Add or a leverage step, `loopClose`. Without it
+Euler acts on sub-account 0, Fluid / Jupiter Lend refuse a withdraw (or mint a
+new position on a deposit), Kamino uses the vanilla obligation. A lending row's
+`subAccounts[]` are isolated positions: never summed in a ticket — it picks one
+(`Ticket`'s "Which position"). `subAccounts[].unsupported` (a Kamino Multiply
+obligation) means the builders refuse it: show it, send the user to the venue.
+
 `ZERO` (`0x000…0`) is the native coin everywhere (`payAsset`, `receiveAsset`,
 `tokenIn`, balance reads).
 

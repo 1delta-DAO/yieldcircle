@@ -12,7 +12,7 @@ import { useApp, type Mode } from '../state/AppState'
 import { useSticky } from '../state/sticky'
 import { slippageFor, useSettings } from '../state/Settings'
 import { SlippagePicker } from './SettingsPanel'
-import { DecimalInput, Info, KindPill, LegsPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
+import { DecimalInput, Info, KindPill, LegsPill, SubAccountPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
 import { Who } from './social-bits'
 import { LossAck, ValueRow, cents, useValueCheck } from './ValueCheck'
 import { isSvmChain, normAddr } from '../model/address'
@@ -38,7 +38,17 @@ import { AssetLink } from './TokenPage'
 const TicketCtx = React.createContext<{ uid: string | null; thread?: ThreadRef | null; copy?: string }>({ uid: null })
 
 /** The ticket: what you do in plain words, amount (+ leverage), the numbers, what can go wrong, one button. */
-export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, talk, socialInList, onClose }: { s: Strategy; idle: Idle[]; holding: Holding | null; mode?: Mode; copy?: string; offMenu?: string; talk?: boolean; /** the list shows the thread and who is in it under the picked row, so the ticket need not */ socialInList?: boolean; onClose: () => void }) {
+/**
+ * `holdings`: every position the wallet runs on this strategy — more than one when the venue keeps
+ * isolated sub-accounts (Euler, Dolomite, Fluid / Jupiter Lend NFTs, Kamino obligations). They are
+ * never summed: each has its own health, and every action names one (`accountId`), so the ticket
+ * shows a picker and works on the picked one. `pick`: the `Holding.key` to start on.
+ */
+export function Ticket({ s, idle, holdings, pick, mode: mode0, copy, offMenu, talk, socialInList, onClose }: { s: Strategy; idle: Idle[]; holdings: Holding[]; pick?: string; mode?: Mode; copy?: string; offMenu?: string; talk?: boolean; /** the list shows the thread and who is in it under the picked row, so the ticket need not */ socialInList?: boolean; onClose: () => void }) {
+  const [hk, setHk] = React.useState(pick)
+  const holding = holdings.find((h) => h.key === hk) ?? holdings[0] ?? null
+  // what an Add builds on: the picked position, unless the API cannot build for its account — then a new one, never figures for a book it will not touch
+  const into = holding && !holding.subAccount?.unsupported ? holding : null
   const [mode, setMode] = React.useState<Mode>(holding ? mode0 ?? 'add' : 'add')
   const uid = uidOf(s)
   const thread = useThreadOf()(s)
@@ -49,11 +59,18 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, talk, soc
       <div className="th">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />}
         <div style={{ flex: 1, minWidth: 0 }}><div className="n">{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds} <Info label="How this strategy works">{s.kind === 'loop' ? <>Deposit <b>{s.holds}</b>, borrow <b>{s.debt}</b> against it, swap the {s.debt} into more {s.holds}, repeat. One transaction does all of it. You earn the {s.holds} rate on the whole position and pay the {s.debt} rate on the borrowed part{s.terms ? <>, fixed for the term you pick</> : ''}.{s.desk ? <> Your exposure is <b>{nameOf(s.asset)}</b>{s.instrument ? <> (through {s.instrument})</> : ''}: a dollar debt cannot depeg upward, so {s.debt} is a rate you pay, not a risk you hold.</> : ''}{!isSavings(s.nature) ? <> This is not a carry: you owe {s.debt} and hold <b>{s.holds}</b>, whose price moves on its own, so the leverage multiplies that move as well as the rate.</> : ''}</> : <SimpleWords s={s} />}{!isSavings(s.nature) && <p style={{ margin: '8px 0 0' }}><b>Not a saving · {NATURES[s.nature].word}.</b> {NATURES[s.nature].why}</p>}</Info></div><div className="s">{nameOf(s.asset)} strategy · {s.kind === 'loop' ? `${s.venue}${s.terms ? ' · fixed rate' : ''}` : s.via} · {chainLabel(s.chainId)}</div><TicketAssetLinks s={s} /></div>
         <KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} />{holding && <LegsPill others={holding.others} />}<button className="x" onClick={onClose} aria-label="Close">✕</button></div>
+      {holdings.length > 1 && (
+        <div className="tsec">
+          <span className="lbl">Which position <Info label="Separate positions">You run this strategy in {holdings.length} separate accounts on {holding!.venue.split(' · ')[0]}. Each is its own position with its own health: collateral in one does not back debt in another. Adding, withdrawing, deleveraging and closing act on the one picked here.</Info></span>
+          <div className="seg" role="radiogroup" aria-label="Which position">{holdings.map((h) => <button key={h.key} role="radio" aria-checked={h.key === holding!.key} aria-pressed={h.key === holding!.key} onClick={() => setHk(h.key)}>{h.subAccount?.label ?? 'Main account'}<span className="c" style={{ marginLeft: 6 }}>{usdShort(h.valueUsd)}</span></button>)}</div>
+        </div>
+      )}
       {holding && (
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
           <button role="tab" aria-selected={mode === 'add'} onClick={() => setMode('add')}>Add</button>
           <button role="tab" aria-selected={mode !== 'add'} onClick={() => setMode(s.kind === 'loop' ? 'manage' : 'reduce')}>{s.kind === 'loop' ? 'Manage' : 'Withdraw'}</button>
           <span className="sp" /><span className="sum">{usd(holding.valueUsd)}{s.kind === 'loop' && holding.leverage && holding.leverage > 1.05 ? ` · ${holding.leverage.toFixed(1)}×` : ''}{holding.health != null ? ` · health ${holding.health.toFixed(2)}` : ''}</span>
+          {holdings.length < 2 && <SubAccountPill sub={holding.subAccount} venue={holding.venue} />}
         </div></div>
       )}
       {copy && <CopyBanner who={copy} s={s} />}
@@ -62,8 +79,9 @@ export function Ticket({ s, idle, holding, mode: mode0, copy, offMenu, talk, soc
           <b>Not in the menu.</b> {offMenu} Check the liquidity, rate and risk yourself before you size it.
         </div>
       )}
-      {holding && mode !== 'add' ? (s.kind === 'loop' ? <ManageLoop s={s} h={holding} closeFirst={mode === 'close'} /> : <ManageTicket s={s} h={holding} mode={mode} />)
-        : s.kind === 'simple' ? <SimpleTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} /> : <LoopTicket s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={holding} />}
+      {holding && mode !== 'add' ? (holding.subAccount?.unsupported ? <CannotManage h={holding} /> : s.kind === 'loop' ? <ManageLoop key={holding.key} s={s} h={holding} closeFirst={mode === 'close'} /> : <ManageTicket key={holding.key} s={s} h={holding} mode={mode} />)
+        : s.kind === 'simple' ? <SimpleTicket key={into?.key} s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} into={into} /> : <LoopTicket key={into?.key} s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={into} />}
+      {holding && mode === 'add' && !into && <div className="tsec plain t50" style={{ fontSize: 12 }}>This opens a new position beside your {holding.subAccount?.label ?? 'existing one'}: YieldCircle cannot add to that one.</div>}
       {!socialInList && <TicketSocial uid={uid} thread={thread} s={s} focus={talk} />}
     </div>
     </TicketCtx.Provider>
@@ -95,10 +113,10 @@ export function HoldingTicket({ h, onClose }: { h: Holding; onClose: () => void 
       <div className="grab" />
       <div className="th"><Tok sym={h.symbol} logo={h.logo} size={26} />
         <div style={{ flex: 1, minWidth: 0 }}><div className="n">{h.label.split(' · ')[0]}</div><div className="s">{nameOf(h.asset)} position · {h.venue} · {chainLabel(h.chainId)}</div></div>
-        <KindPill kind={h.kind} /><LegsPill others={h.others} /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
+        <KindPill kind={h.kind} /><SubAccountPill sub={h.subAccount} venue={h.venue} /><LegsPill others={h.others} /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
       <div className="tsec"><div className="modes"><span className="t50" style={{ fontSize: 12 }}>Not in the menu — you can {h.kind === 'loop' ? 'deleverage or close' : 'withdraw from'} it here.</span>
         <span className="sp" /><span className="sum">{usd(h.valueUsd)}{h.kind === 'loop' && h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}{h.health != null ? ` · health ${h.health.toFixed(2)}` : ''}</span></div></div>
-      {h.kind === 'loop' ? <ManageLoop s={null} h={h} /> : <ManageTicket s={null} h={h} mode="reduce" />}
+      {h.subAccount?.unsupported ? <CannotManage h={h} /> : h.kind === 'loop' ? <ManageLoop s={null} h={h} /> : <ManageTicket s={null} h={h} mode="reduce" />}
     </div>
     </TicketCtx.Provider>
   )
@@ -206,7 +224,8 @@ function paysNative(a: LoopActions | null | undefined): boolean {
  */
 const hasRoute = (d: { quotes?: unknown[] } | null | undefined) => !!d?.quotes?.length
 const NO_ROUTE = 'No swap route at this size right now, so there is nothing to sign. Try another amount or leverage, or come back later.'
-function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[] }) {
+/** `into`: the held position an Add tops up — its sub-account is named, or the deposit lands in the venue's default (Euler 0) or a new Fluid / Jupiter Lend position */
+function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[]; into?: Holding | null }) {
   const { account, isConnected, solSigner } = useApp()
   // who the API builds for: the VM's own signer — a Solana row is built for the Solana wallet
   const actor = isSvmChain(s.chainId) ? solSigner : account
@@ -228,9 +247,9 @@ function SimpleTicket({ s, idle: chainIdle, allIdle }: { s: SimpleStrategy; idle
   // a PT is bought on its AMM: the API wants a bound on the fill, and a PT against its underlying is one money
   const st = useSettings().st
   const slip = s.booked ? slippageFor(st, isSavings(s.nature)) : undefined
-  const key = [s.id, amount, chosen.role, actor ?? '', slip ?? ''].join('|')
+  const key = [s.id, into?.accountId ?? '', amount, chosen.role, actor ?? '', slip ?? ''].join('|')
   const ladder = useLadder(key, s.chainId, async () => {
-    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: actor!, payAsset: chosen.role === 'native' ? chosen.address : undefined, slippageBp: slip })
+    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: actor!, payAsset: chosen.role === 'native' ? chosen.address : undefined, slippageBp: slip, accountId: into?.accountId })
     if (chosen.role === 'native' && !paysNative(env.actions)) throw new Error(`${s.brand} does not take ${chosen.symbol} directly here. Pay with ${s.assetSymbol}.`)
     return stepsFrom(env.actions, s.via, s.chainId)
   }, [s.earnUid, s.marketUid], [chosen])
@@ -437,12 +456,14 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const fitLev = short?.fit.leverage ?? 0
   const fitTier = fitLev ? [...TIERS].reverse().find((t) => s.tiers[t.id] <= fitLev) : undefined
   const yearly = E * net / 100
-  const key = [s.id, amount, L, term?.id ?? '', tenor?.id ?? '', chosen?.role ?? '', actor ?? '', slip, routeName ?? ''].join('|')
+  const key = [s.id, holding?.accountId ?? '', amount, L, term?.id ?? '', tenor?.id ?? '', chosen?.role ?? '', actor ?? '', slip, routeName ?? ''].join('|')
   const ladder = useLadder(key, s.chainId, async () => {
     const debtTokens = s.priceShort ? D / s.priceShort : 0
     const env = await loopOpen({
       collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!,
       payAsset: chosen?.address, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined, termId: term?.id, tenor,
+      // into the position the after-figures below are computed for, not a fresh account beside it
+      accountId: holding?.accountId,
     })
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     if (chosen?.role === 'native' && !paysNative(env.actions)) throw new Error(`This loop does not take ${chosen.symbol} directly. Pay with another asset.`)
@@ -607,9 +628,9 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const booked = s?.booked ?? isBooked(h.earnUid ?? '')
   const st = useSettings().st
   const slip = booked ? slippageFor(st, s ? isSavings(s.nature) : true) : undefined
-  const key = [s?.id ?? h.key, mode, eff, native ? 'native' : 'token', actor ?? '', slip ?? ''].join('|')
+  const key = [s?.id ?? h.key, h.accountId ?? '', mode, eff, native ? 'native' : 'token', actor ?? '', slip ?? ''].join('|')
   const ladder = useLadder(key, h.chainId, async () => {
-    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: (all || (booked && fullExit)) && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: actor!, isAll: fullExit && !booked, receiveAsset: native ? nativeAsset(h.chainId) : undefined, slippageBp: slip })
+    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: (all || (booked && fullExit)) && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: actor!, isAll: fullExit && !booked, receiveAsset: native ? nativeAsset(h.chainId) : undefined, slippageBp: slip, accountId: h.accountId })
     return stepsFrom(env.actions, 'Withdraw', h.chainId)
   }, [s?.earnUid, h.earnUid], [native ? { address: nativeAsset(h.chainId), symbol: coin } : { address: h.assetAddress ?? s?.assetAddress, symbol: h.symbol }])
   const price = h.amount > 0 ? h.valueUsd / h.amount : 0
@@ -634,6 +655,20 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
       {booked && <BookedSlippage pegged={s ? isSavings(s.nature) : true} what={h.symbol} sell />}
       <Action ladder={ladder} label={`Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={!(eff > 0)} chainId={h.chainId} />
     </>
+  )
+}
+
+/**
+ * A position in an account the API cannot build for (`subAccount.unsupported` — today a Kamino
+ * Multiply / Leverage obligation: the hosted builder reaches only the vanilla one). Said here,
+ * before anything is sized, instead of a withdraw or close that comes back refused.
+ */
+function CannotManage({ h }: { h: Holding }) {
+  const venue = h.venue.split(' · ')[0]
+  return (
+    <div className="tsec"><div className="caution">
+      <b>Manage this one on {venue}.</b> It sits in your {h.subAccount?.label ?? 'separate account'}, which YieldCircle cannot build transactions for yet: {venue} only lets us reach your main account there. Your {usd(h.valueUsd)} is safe and still shown here; withdraw{h.kind === 'loop' ? ', deleverage or close' : ''} it in the {venue} app.
+    </div></div>
   )
 }
 
@@ -716,7 +751,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const leftover = owed * keepPad
   const backUsd = !sale ? null : keep ? (keepOk ? (backColl! * rate! + leftover) * pDebt : null) : backDebt! * pDebt
   const closeBlock = !closing ? null : cq.isPending ? 'pricing' : !sale ? 'no-route' : !covers ? 'short' : keep && !keepOk ? 'keep-short' : null
-  const key = [s?.id ?? h.key, 'manage', L, keep ? 'keep' : 'sell', actor ?? '', slip].join('|')
+  const key = [s?.id ?? h.key, h.accountId ?? '', 'manage', L, keep ? 'keep' : 'sell', actor ?? '', slip].join('|')
   // a full close at market prices against the equity the venue's oracle says it holds: the sale's
   // slippage and fees, and any gap between the oracle and the market (`ValueCheck.tsx`). Only for the
   // loop's own pair — other legs stay where they are, so the account's equity is not what comes back.

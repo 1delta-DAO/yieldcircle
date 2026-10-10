@@ -223,6 +223,13 @@ export function LegsPill({ others }: { others?: { side: 'collateral' | 'debt'; s
   const words = (['collateral', 'debt'] as const).filter((k) => n(k)).map((k) => `+${n(k)} ${k}${n(k) > 1 ? 's' : ''}`).join(' ')
   return <span className="pill legs" title={`Also in this account: ${others.map((o) => `${o.symbol} ${usd(o.usd)} (${o.side})`).join(', ')}. The ticket manages one collateral against one debt; the rest is left as it is.`}>{words}</span>
 }
+/** Which isolated account a position sits in — shown only when the wallet runs more than one on that venue */
+export function SubAccountPill({ sub, venue }: { sub?: { label: string; count: number; unsupported?: string }; venue: string }) {
+  if (!sub || (sub.count < 2 && !sub.unsupported)) return null
+  const v = venue.split(' · ')[0]
+  const why = sub.unsupported ? ` YieldCircle cannot build for this account yet: manage it on ${v}.` : ''
+  return <span className={`pill sub${sub.unsupported ? ' legs' : ''}`} title={`${sub.count > 1 ? `You run ${sub.count} separate accounts on ${v}. Each is its own position with its own health: collateral in one does not back debt in another, and adding, withdrawing or closing acts on this one only.` : `A separate account on ${v}.`}${why}`}>{sub.label}{sub.unsupported ? ` · manage on ${v}` : ''}</span>
+}
 export function KindPill({ kind, source }: { kind: 'simple' | 'loop'; source?: string }) {
   if (kind === 'loop') return <span className="pill loop">Loop</span>
   if (source === 'fixed') return <span className="pill pt">Fixed</span>

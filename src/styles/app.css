@@ -150,6 +150,7 @@
 .pill.dep{border-color:#1f4a35;color:var(--success)}
 .pill.pt{border-color:#3b2a52;color:var(--violet)}
 .pill.legs{border-color:#4a3a1a;color:var(--warning);text-transform:none;letter-spacing:.02em}
+.pill.sub{text-transform:none;letter-spacing:.02em}
 .risk{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--tx70);white-space:nowrap}
 .risk i{width:8px;height:8px;border-radius:50%;display:inline-block}
 .risk.r1 i{background:var(--success)}

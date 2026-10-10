@@ -7,7 +7,7 @@ import { useBook } from './useBook'
 import { HoldingTicket, Ticket } from './Ticket'
 import { RowSocial } from './TicketSocial'
 import { uidOf } from '../model/uid'
-import { GroupIcon, Info, KindPill, LegsPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort, HealthPill } from './bits'
+import { GroupIcon, Info, KindPill, LegsPill, SubAccountPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort, HealthPill } from './bits'
 import { chainLabel } from '../sdk/queries'
 import type { ThreadRef } from '../model/uid'
 import { useCounts, useThreadOf } from '../social/queries'
@@ -77,6 +77,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   // a loop is identified by BOTH legs: several loops on one venue share the collateral market
   const matches = (s: Strategy, h: Holding) => h.kind === s.kind && (s.kind === 'simple' ? h.earnUid === s.earnUid : h.earnUid === s.marketLongUid && (!h.debtUid || h.debtUid.toLowerCase() === s.marketShortUid.toLowerCase()))
   const held = (s: Strategy) => b.holdings.find((h) => matches(s, h))
+  // every position on it: an isolated-account venue can run the same strategy more than once, and the ticket picks one
+  const heldAll = (s: Strategy) => b.holdings.filter((h) => matches(s, h))
   // holdings in scope, each paired with the catalogue strategy it belongs to (none → not actionable here)
   // 💬 on every row in ONE request: the service takes up to 1000 subjects a call
   // the STRATEGY's thread (`threadOf`): a loop's own, not its collateral market's
@@ -115,9 +117,9 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
               <div className="card"><table className="tbl strat-t">
                 <colgroup><col /><col style={{ width: 96 }} /><col className="c-earn" /><col className="hide-m hide-t" style={{ width: 70 }} /><col className="hide-m hide-t" style={{ width: 138 }} /><col style={{ width: 32 }} /></colgroup>
                 <thead><tr><th>Position</th><th className="r">Value</th><th className="r">Earning</th><th className="r hide-m hide-t">Health</th><th className="r hide-m hide-t">Manage</th><th /></tr></thead>
-                <tbody>{running.map(({ h, s }) => { const open = (m: 'add' | 'reduce' | 'manage') => s && go(group.id, { u, s: s.id, k: s.kind, m }); const can = !s && canManage(h); const openOff = () => go(group.id, { u, h: h.key, k: h.kind, m: h.kind === 'loop' ? 'manage' : 'reduce' }); const total = s && s.kind === 'simple' ? s.rate : h.apr; const rewards = s && s.kind === 'simple' ? s.rewards : 0; return (
+                <tbody>{running.map(({ h, s }) => { const open = (m: 'add' | 'reduce' | 'manage') => s && go(group.id, { u, s: s.id, k: s.kind, m, h: h.key }); const can = !s && canManage(h); const openOff = () => go(group.id, { u, h: h.key, k: h.kind, m: h.kind === 'loop' ? 'manage' : 'reduce' }); const total = s && s.kind === 'simple' ? s.rate : h.apr; const rewards = s && s.kind === 'simple' ? s.rewards : 0; return (
                   <tr key={h.key} aria-selected={s ? sel?.id === s.id : offMenu?.key === h.key} onClick={() => (s ? open('add') : can ? openOff() : undefined)} style={s || can ? undefined : { cursor: 'default' }}>
-                    <td><div className="nm">{s ? (s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />) : <Tok sym={h.symbol} logo={h.logo} />}<span><b>{h.label.split(' · ')[0]}</b> <span className="t50">· {h.venue}</span></span><KindPill kind={h.kind} /><LegsPill others={h.others} /></div>
+                    <td><div className="nm">{s ? (s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />) : <Tok sym={h.symbol} logo={h.logo} />}<span><b>{h.label.split(' · ')[0]}</b> <span className="t50">· {h.venue}</span></span><KindPill kind={h.kind} /><SubAccountPill sub={h.subAccount} venue={h.venue} /><LegsPill others={h.others} /></div>
                       <small className="hide-m">{chainLabel(h.chainId)}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}{h.kind === 'loop' && h.debtSymbol ? ` · owes ${amt(h.debtSymbol, h.debtAmount ?? 0)}` : ''}</small></td>
                     <td className="r"><span>{usd(h.valueUsd)}</span><small>{h.kind === 'loop' ? 'equity' : num(h.amount, h.amount >= 100 ? 0 : 3)}</small></td>
                     <td className="r">{(() => { const ser = s ? seriesFor(s, get, withRewards, h.kind === 'loop' && h.leverage && h.leverage > 1 ? h.leverage : undefined) : null; return <span className="rate-row">{ser && <RateTrend ser={ser} now={s!.rate} spike={isSpike(s!.rate, ser)} />}<span className={total != null && total >= 0 ? 'ok' : total != null ? 'bad' : ''}>{total != null ? pct(total) : '—'}</span></span> })()}{rewards > 0.05 ? <small className="hide-m">incl. {pct(rewards)} rewards</small> : null}<small>{usd(h.valueUsd * (total ?? 0) / 100)}/yr</small></td>
@@ -195,8 +197,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
           <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />
         </div>
         <aside ref={aside} className={ticketOpen ? '' : 'closed'} id="aside">
-          {sel && <Ticket key={sel.id + (route.m ?? '')} s={sel} idle={b.idlePerChain} holding={held(sel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} socialInList={!phone} onClose={close} />}
-          {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '')} s={offSel} idle={b.idlePerChain} holding={offMenu ?? held(offSel) ?? null} mode={route.m} copy={route.copy} talk={route.talk} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
+          {sel && <Ticket key={sel.id + (route.m ?? '') + (route.h ?? '')} s={sel} idle={b.idlePerChain} holdings={heldAll(sel)} pick={route.h} mode={route.m} copy={route.copy} talk={route.talk} socialInList={!phone} onClose={close} />}
+          {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '') + (route.h ?? '')} s={offSel} idle={b.idlePerChain} holdings={offMenu ? [offMenu] : heldAll(offSel)} pick={route.h} mode={route.m} copy={route.copy} talk={route.talk} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
           {offMenu && !offSel && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
         </aside>
       </div>

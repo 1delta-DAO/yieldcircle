@@ -237,7 +237,7 @@ export function Deck() {
         <span className="lp-sticker sol">Under the hood</span>
         <h2 className="lp-h2 center">Every market, indexed <span className="lp-mark">the moment it exists.</span></h2>
         <div className="deck-stats">
-          {[['33k', 'markets tracked', 'c-cyan', '-2deg'], ['15k', 'live rate series', 'c-gold', '1.5deg'], ['256k', 'ledger rows a day', 'c-moss', '-1deg'], ['15 + Sol', 'chains', 'c-plum', '2deg'], ['68', 'protocols', 'c-cyan', '-1.5deg']].map(([n, l, c, t]) => (
+          {[['33k', 'markets tracked', 'c-cyan', '-2deg'], ['15k', 'live rate series', 'c-gold', '1.5deg'], ['256k', 'ledger rows a day', 'c-moss', '-1deg'], ['16', 'chains', 'c-plum', '2deg'], ['68', 'protocols', 'c-cyan', '-1.5deg']].map(([n, l, c, t]) => (
             <div key={l} className={`lp-card deck-stat in ${c}`} style={css({ '--tilt': t })}><b>{n}</b><span>{l}</span></div>
           ))}
         </div>

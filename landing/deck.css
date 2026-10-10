@@ -46,7 +46,7 @@
 .deck-stat{flex:0 1 170px;align-items:flex-start;padding:16px 18px;gap:2px}
 .deck-stat>b{font:700 34px/1 var(--sans);letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--c);margin:0}
 .deck-stat>span{font-family:var(--mono);font-size:11.5px;letter-spacing:.02em}
-.deck-mock-wide{max-width:820px;width:100%;margin-top:6px;transform:rotate(-.6deg)}
+.deck-mock-wide{align-self:center;max-width:820px;width:100%;margin:6px 0 0;transform:rotate(-.6deg)}
 .deck-mock-arrow{font-size:18px;color:var(--tx50);padding:0 4px}
 .deck-foot{margin:4px 0 0;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--tx40);max-width:820px}
 
@@ -104,21 +104,34 @@
   .deck .lp-comic,.deck .lp-stickers{grid-template-columns:1fr}
 }
 
-/* print / PDF (scripts/deck-pdf.mjs, the "Save as PDF" button): one 1280×720 page a slide, no scroll frame */
+/* print / PDF (scripts/deck-pdf.mjs, the "Save as PDF" button): one page a slide. The slide is sized by the
+   PAGE (100vw × 100vh are the page's printable box), not by a fixed 1280×720, so whatever margins the print
+   dialog applies the slide still fits: a slide taller than the page would be cut and push the next one down. */
 @page{size:1280px 720px;margin:0}
 @media print{
   html,body,#root{height:auto;overflow:visible;background:var(--bg)}
-  .land.deck{height:auto;overflow:visible;scroll-snap-type:none}
-  .deck-slide{width:1280px;height:720px;min-height:0;padding:40px 64px;gap:16px;break-after:page;page-break-after:always;overflow:hidden}
+  .land.deck{height:auto;overflow:visible;scroll-snap-type:none;background:var(--bg)}
+  .deck-slide{box-sizing:border-box;width:100vw;height:100vh;min-height:0;max-height:100vh;padding:4vh 5vw;gap:2vh;break-after:page;page-break-after:always;break-inside:avoid;overflow:hidden;background:var(--bg)}
   .deck-slide:last-child{break-after:auto;page-break-after:auto}
+  .deck-top{padding:2.5vh 5vw}
   .land-hint,.deck-pdf{display:none}
-  .deck-title{font-size:64px}
-  .deck .lp-h2{font-size:40px}
-  .deck-phone img{width:215px}
+  .deck-title{font-size:8.5vh}
+  .deck .lp-h2{font-size:5.4vh}
+  .deck .lp-lead{font-size:2.3vh}
+  .deck-phone img{width:30vh}
   .deck .lp-panel{padding-top:140px}
   /* a box crossing the page edge is moved to the next page by the print engine: the crowd stays inside it */
   .deck-crowd{bottom:0;height:70px}
   .deck-crowd span{margin-bottom:0!important}
+  /* Chrome lays a margined page out narrower than its CSS size, narrow enough for the phone layouts to kick in
+     (stacked panels, a slide three pages tall). The slide grids are pinned to their desktop shape in print. */
+  .deck .lp-comic,.deck .lp-stickers,.deck-road{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .deck-prod-wrap{grid-template-columns:minmax(0,1fr) auto!important}
+  .deck-prod-copy{align-items:flex-start!important;text-align:left!important}
+  .deck-cmp{grid-template-columns:1fr 1fr!important}
+  .deck-ue{grid-template-columns:minmax(0,1fr) auto!important}
+  .deck-tier{grid-template-columns:150px minmax(0,1fr) 68px!important}
+  .deck-stat{flex:0 1 150px}
   .lp-panel,.lp-card,.lp-sticker,.lp-wob,.lp-crowd span,.lp-swarm i,.lp-bubble{animation:none!important;backdrop-filter:none}
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }

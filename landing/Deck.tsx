@@ -1,12 +1,13 @@
 /**
- * #/deck - the pitch deck, as a hidden route. Deep link only: nothing in the
- * app points here, and it renders without the Shell. One slide per section,
- * scroll-snapped; arrow keys, Space and PageDown step through it like the
- * lander (landing/Landing.tsx), whose look it borrows.
+ * /deck on the landing - the pitch deck, its own page (deck.html + deck-main.tsx
+ * beside this file, a second input of the landing build). Deep link only:
+ * nothing links here. One slide per section, scroll-snapped; arrow keys,
+ * Space and PageDown step through it like the lander (Landing.tsx), whose
+ * look it borrows. Styles: deck.css.
  *
  * PDF: the "Save as PDF" button (and `pnpm deck:pdf`, scripts/deck-pdf.mjs,
  * for a file from the command line) print it 1280×720 a slide through the
- * `@media print` rules at the end of the deck block in app.css. The button
+ * `@media print` rules at the end of deck.css. The button
  * opens the browser's print dialog; pick "Save as PDF" there.
  *
  * Numbers: yields and the stability figures are from the 2026-10-10 pull in
@@ -16,6 +17,7 @@
  */
 import React from 'react'
 import { Logo, Mark } from '@yieldcircle/design'
+import { APP_URL } from './config'
 
 const hic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
 
@@ -98,7 +100,7 @@ export function Deck() {
       {/* 1 - title */}
       <Slide>
         <div className="land-glow" aria-hidden="true" />
-        <Logo height={44} href="#/deck" />
+        <Logo height={44} href="/deck" />
         <h1 className="deck-title">
           The <span className="land-grad">social</span> yield app
         </h1>
@@ -265,11 +267,11 @@ export function Deck() {
       {/* 9 - traction */}
       <Slide n={9} kicker="Traction">
         <h1 className="land-title">
-          Live since <span className="land-grad">September.</span>
+          Pre-launch. <span className="land-grad">Waitlist open.</span>
         </h1>
         <div className="deck-stats">
           <Stat n="174" label="commits in 18 days" />
-          <Stat n="15 + Sol" label="chains live" />
+          <Stat n="15 + Sol" label="chains indexed" />
           <Stat n="49k" label="wallets active / day across indexed protocols" />
           <Stat n={DRAFT.waitlist} label="waitlist wallets (fill in)" />
         </div>
@@ -309,7 +311,7 @@ export function Deck() {
             <p>Plus a token sale via MetaDAO to fund user and KOL incentives.</p>
           </div>
         </div>
-        <a className="btn pri land-cta" href="#/">
+        <a className="btn pri land-cta" href={APP_URL}>
           <Mark size={18} mono /> Open the app
         </a>
       </Slide>

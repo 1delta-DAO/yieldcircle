@@ -9,7 +9,6 @@ import { TokenPage, TokenBook } from './ui/TokenPage'
 import { Board } from './ui/Board'
 import { ProfilePage } from './ui/Profile'
 import { Alerts } from './ui/Alerts'
-import { Deck } from './ui/Deck'
 import { Join } from './ui/Join'
 import { gated } from './wallet/gate'
 import { Start } from './ui/Start'
@@ -22,7 +21,6 @@ export default function App() {
   // reloads into it). The full landing page is its own deployment (`landing/`).
   if (r.view === 'join' || gated()) return <Join />
   const group = GROUPS.find((g) => g.id === r.group)
-  if (r.view === 'deck') return <Deck /> // same deal: the investor deck presents without the Shell
   return (
     <Shell>
       {r.view === 'wallet' && r.addr ? <Wallet key={r.addr} addr={r.addr} />

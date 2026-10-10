@@ -28,7 +28,7 @@ import { readFeedLink } from './feedLink'
  * and `#/explore` is `#/earn`.
  */
 export type Mode = 'add' | 'reduce' | 'close' | 'manage'
-export type View = 'home' | 'feed' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'deck' | 'join'
+export type View = 'home' | 'feed' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'join'
 export interface Route {
   view: View
   group?: string
@@ -89,9 +89,7 @@ export function parseRoute(hash = location.hash): Route {
   if (head === 'start') return { view: 'home', ...base }
   // the feed; a bare `#/` with a tab or a filter is a feed link from when the feed was the home
   if (head === 'feed' || (!head && (base.t || readFeedLink(hash)))) return { view: 'feed', ...base }
-  // the pitch deck (docs/solana.md submission) — deep link only, no button leads here
-  // the investor deck (src/ui/Deck.tsx) — also deep link only
-  if (head === 'deck') return { view: 'deck', ...base }
+  // the investor deck moved to the landing (landing/Deck.tsx, served at /deck); `#/deck` here falls through to home
   if (head === 'join') return { view: 'join', ...base }
   if (head === 'board') return { view: 'board', ...base }
   if (head === 'me') return { view: 'me', ...base }

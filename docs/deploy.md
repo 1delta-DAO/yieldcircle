@@ -84,6 +84,13 @@ The gate's card is built into the landing's `index.html` at build time
 `pnpm build:landing && npx wrangler pages dev dist-landing --kv WHITELIST`),
 or `pnpm deploy:landing` (direct upload).
 
+The investor deck lives on the landing too, at `/deck`: a second page of the
+same build (`landing/deck.html` → `deck-main.tsx` → `Deck.tsx`, styles in
+`deck.css`). Nothing links to it. Pages serves `deck.html` for `/deck`; in dev
+it is `http://localhost:3201/deck.html`. `pnpm deck:pdf` prints it to
+`dist/deck.pdf`, one slide a page; the "Save as PDF" button on the page does the
+same through the browser's print dialog.
+
 ### Cutover from one origin to two
 
 Until now the app (with the landing inside it) lived on `yieldcircle.io`.

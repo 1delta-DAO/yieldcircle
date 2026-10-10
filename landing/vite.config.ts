@@ -26,6 +26,7 @@ export default defineConfig({
   envDir: '..',
   publicDir: '../public',
   plugins: [react(), gateCard()],
-  build: { outDir: '../dist-landing', emptyOutDir: true },
+  // Two pages: the landing, and the deck at /deck (Pages serves `deck.html` for `/deck`; in dev it is /deck.html).
+  build: { outDir: '../dist-landing', emptyOutDir: true, rollupOptions: { input: { main: fileURLToPath(new URL('index.html', import.meta.url)), deck: fileURLToPath(new URL('deck.html', import.meta.url)) } } },
   server: { port: 3201, open: false },
 })

@@ -220,10 +220,10 @@ export function Deck() {
             <span className="lp-sticker sol">Live in closed beta</span>
             <h2 className="lp-h2">It already <span className="lp-mark">works.</span></h2>
             <div className="deck-feats">
-              <div className="c-cyan"><b>Live leaderboard</b><span>Wallets ranked by proven net carry.</span></div>
-              <div className="c-gold"><b>Position feed</b><span>Opens, closes, rebalances. Each one copyable.</span></div>
-              <div className="c-moss"><b>Verified numbers</b><span>Illiquid, locked and capped yield does not rank.</span></div>
-              <div className="c-plum"><b>One-tap tickets</b><span>Loops and vaults on the 1delta engine.</span></div>
+              <div className="c-cyan"><b>Board, feed, threads</b><span>Wallets ranked by proven net carry. Every move copyable, every market talked about.</span></div>
+              <div className="c-gold"><b>Full execution</b><span>Deposit, withdraw, loop, close, swap, bridge. 15 chains and Solana, one engine.</span></div>
+              <div className="c-moss"><b>Realized PnL</b><span>Value, money in and PnL since open, per position and per wallet.</span></div>
+              <div className="c-plum"><b>Verified numbers</b><span>Illiquid, locked and capped yield does not rank.</span></div>
             </div>
           </div>
           <div className="deck-phone" style={css({ '--tilt': '2deg' })}>
@@ -348,7 +348,7 @@ export function Deck() {
         <span className="lp-sticker sol">Where this goes</span>
         <h2 className="lp-h2 center">Raising <span className="lp-mark">$250–500k.</span></h2>
         <div className="deck-road">
-          <div className="lp-card c-cyan in" style={css({ '--tilt': '-1.5deg' })}><i>Now</i><b>Social yield board live</b><span>Leaderboard, feed, copy-tickets. Solana + EVM.</span></div>
+          <div className="lp-card c-cyan in" style={css({ '--tilt': '-1.5deg' })}><i>Built</i><b>The whole stack, in beta</b><span>Board, feed, threads, PnL. Execution for every op incl. swaps and bridging, 15 chains + Solana.</span></div>
           <div className="lp-card c-gold in" style={css({ '--tilt': '1deg' })}><i>Next</i><b>Creator economy</b><span>Margin-sharing for KOLs. Follows, alerts, auto-copy.</span></div>
           <div className="lp-card c-moss in" style={css({ '--tilt': '-0.8deg' })}><i>Then</i><b>The default yield front-end</b><span>Every idle stablecoin one push from proven carry.</span></div>
         </div>

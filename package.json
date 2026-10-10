@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "shots": "node scripts/shots.mjs",
     "shots:baseline": "node scripts/shots.mjs --baseline",
+    "deck:pdf": "node scripts/deck-pdf.mjs",
     "deploy": "node scripts/menu-seed.mjs && pnpm build && wrangler pages deploy dist --project-name yieldcircle --branch main",
     "deploy:preview": "node scripts/menu-seed.mjs && pnpm build && wrangler pages deploy dist --project-name yieldcircle --branch preview",
     "deploy:landing": "pnpm build:landing && wrangler pages deploy dist-landing --project-name yieldcircle-landing --branch main",

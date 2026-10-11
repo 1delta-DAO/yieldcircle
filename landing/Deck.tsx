@@ -299,6 +299,13 @@ export function Deck() {
             <span>Ranking by proof would torch their own revenue.</span>
           </div>
         </div>
+        <div className="deck-prot deck-auto">
+          <span className="deck-prot-l">Automations the user switches on, priced per trigger</span>
+          <span className="lp-sticker c-cyan"><b>Auto-roll</b> a maturing PT or fixed loan into the next date · 15 bps</span>
+          <span className="lp-sticker c-moss"><b>Auto-compound</b> claim rewards, redeposit · 10 % of the claim</span>
+          <span className="lp-sticker c-gold"><b>Re-lever</b> keep a loop at its target · 5 bps of notional</span>
+          <span className="lp-sticker c-plum"><b>Rate floor</b> leave when the 7-day rate drops under the pool · 10 bps</span>
+        </div>
       </Slide>
 
       {/* 8 - ask / roadmap */}

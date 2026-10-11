@@ -79,7 +79,10 @@
 .deck-prot .lp-sticker:nth-child(2){transform:rotate(-1deg)}.deck-prot .lp-sticker:nth-child(3){transform:rotate(.7deg)}.deck-prot .lp-sticker:nth-child(4){transform:rotate(-.6deg)}.deck-prot .lp-sticker:nth-child(5){transform:rotate(.9deg)}
 .deck-tbl{font-size:13px}
 .deck-tbl th,.deck-tbl td{padding:7px 12px}
-/* 7 · business model: the stickers again; a crossed-out "sponsored" poster */
+/* 7 · business model: the automations strip under the three cards */
+.deck-auto{margin-top:14px}
+.deck-auto .lp-sticker{font-size:12px}
+/* 7b: the stickers again; a crossed-out "sponsored" poster */
 .deck-poster{position:static;transform:rotate(-3deg);padding:6px 10px}
 .deck-poster s{font-size:13px}
 

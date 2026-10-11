@@ -1,6 +1,8 @@
 # 0007 — Paper: start on Solana, bridge to get anywhere, count every dollar of friction
 
-- status: planned 2026-10-11 (decisions below); not started
+- status: **A done 2026-10-11** (Solana-only start, Solana top-ups, Solana-origin paper bridges
+  quoted without a sender, the re-bank script — pos-indexer `scripts/paper-rebank.ts`); B–E (network
+  fees, destination gas, friction, telemetry) not started
 - area: `src/model/paper.ts` (starter bank, network fees, friction; copied to pos-indexer),
   `src/ui/GetAsset.tsx` (destination gas, the gas leg), `src/ui/PaperPanel.tsx` / `PaperMoves.tsx` /
   `Board.tsx` (friction), pos-indexer `packages/social/src/paper.ts` (books, re-bank script, events)

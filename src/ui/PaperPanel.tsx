@@ -85,7 +85,7 @@ export function PaperOffer({ empty }: { empty?: boolean }) {
   return (
     <div className="paper-card">
       <div className="row2" style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span className="pill paper">paper</span><b>{empty ? 'Nothing in this wallet yet' : 'No wallet? Try it on paper'}</b></div>
-      <span className="t70" style={{ fontSize: 13 }}>Play money on every chain — 10,000 of each chain's dollar and some of its gas coin — at real rates, real quotes and real risks. Nothing is signed or sent on chain. A name and a password are the whole account.</span>
+      <span className="t70" style={{ fontSize: 13 }}>$10,000 of play money on Solana — bridge it to any chain a strategy lives on, at real routes, real rates and real risks. Nothing is signed or sent on chain. A name and a password are the whole account.</span>
       <div className="actions">
         <button className="btn paper" onClick={openPaperSignIn}>{paper.session ? `Continue as ${paper.session.name}` : 'Try with paper money'}</button>
       </div>

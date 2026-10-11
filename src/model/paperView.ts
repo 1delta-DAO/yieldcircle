@@ -5,12 +5,12 @@
  */
 import type { TokenBalance } from '../sdk/types'
 import { idleFrom, type Holding, type Idle } from './positions'
-import { starterTokens, tokenKey, valueOf, type PaperLedger, type PaperPosition, type PriceFn } from './paper'
+import { knownTokens, tokenKey, valueOf, type PaperLedger, type PaperPosition, type PriceFn } from './paper'
 
 /** What a bank token is called: its symbol, decimals and logo, keyed `chainId:token`. */
 export type TokenMeta = Record<string, { symbol: string; decimals: number; logo?: string }>
 export const metaKey = (chainId: string, token: string) => `${chainId}:${tokenKey(chainId, token)}`
-const STARTER_META: TokenMeta = Object.fromEntries(starterTokens().map((t) => [metaKey(t.chainId, t.address), { symbol: t.symbol, decimals: t.decimals }]))
+const STARTER_META: TokenMeta = Object.fromEntries(knownTokens().map((t) => [metaKey(t.chainId, t.address), { symbol: t.symbol, decimals: t.decimals }]))
 /** Every name the ledger itself can vouch for: the starter bank and every position's legs. */
 export function ledgerMeta(l: PaperLedger | null): TokenMeta {
   const m: TokenMeta = { ...STARTER_META }

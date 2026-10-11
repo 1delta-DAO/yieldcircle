@@ -17,8 +17,18 @@ const prices: Record<string, number> = {
 const feed = (over: Record<string, number> = {}): PriceFn => (c, t) => ({ ...prices, ...over })[`${c}:${t}`]
 const ctx = (days = 0, over: Record<string, number> = {}) => ({ now: T0 + days * DAY, price: feed(over) })
 
-function genesis(): PaperLedger {
-  return apply(emptyLedger('0xabc', T0), { t: 'genesis', sol: 'So1Paper111' }, ctx())
+/**
+ * A genesis (Solana only, tickets/0007) plus balances on the chains these tests trade on — as if
+ * bridged there already. `bare` = the genesis alone.
+ */
+function genesis(bare = false): PaperLedger {
+  const l = apply(emptyLedger('0xabc', T0), { t: 'genesis', sol: 'So1Paper111' }, ctx())
+  if (bare) return l
+  const fund = (c: string, t: string, u: number) => { (l.bank[c] ??= {})[t] = u }
+  fund('1', USDC_ETH, 10_000); fund('1', ZERO_EVM, 1)
+  fund('8453', USDC_BASE, 10_000); fund('8453', ZERO_EVM, 1)
+  fund('42161', USDC_ARB, 10_000); fund('42161', ZERO_EVM, 1)
+  return l
 }
 const vaultSnap: PaperSnap = {
   asset: 'USDC', group: 'USD', label: 'USDC · Steakhouse', venue: 'Morpho', earnUid: 'vault.morpho:8453:0xv',
@@ -32,12 +42,13 @@ const loopSnap: PaperSnap = {
 const deposit = (units = 1000): PaperOp => ({ t: 'open', id: 'p1', chainId: '8453', kind: 'simple', strategyId: 's:vault', snap: vaultSnap, pay: { token: USDC_BASE, units }, units, debtUnits: 0, rate: { supply: 10, borrow: 0 }, entryCostUsd: 0 })
 
 describe('genesis', () => {
-  it('funds every chain the app offers, once', () => {
-    const l = genesis()
-    expect(Object.keys(l.bank).sort()).toEqual(STARTER.map((c) => c.chainId).sort())
-    expect(l.bank['8453'][USDC_BASE]).toBe(10_000)
-    expect(l.bank['solana'][SOL_NATIVE]).toBe(20)
-    expect(l.putInUsd).toBeGreaterThan(180_000)
+  it('funds Solana only — 10,000 USDC and 1 SOL — once', () => {
+    const l = genesis(true)
+    expect(Object.keys(l.bank)).toEqual(STARTER.map((c) => c.chainId))
+    expect(Object.keys(l.bank)).toEqual(['solana'])
+    expect(l.bank['solana'][SOL_NATIVE]).toBe(1)
+    expect(l.bank['solana']['EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v']).toBe(10_000)
+    expect(l.putInUsd).toBeCloseTo(10_100, 6)
     expect(l.sol).toBe('So1Paper111')
     expect(() => apply(l, { t: 'genesis' }, ctx())).toThrow(PaperError)
   })
@@ -131,15 +142,16 @@ describe('trades', () => {
     expect(l.bank['1'][USDC_ETH]).toBe(5000)
     expect(l.bank['8453'][USDC_BASE]).toBe(10_000)
     expect(l.inflight).toHaveLength(1)
-    l = apply(l, { t: 'topup', chainId: '1', units: 10 }, { now: T0 + 200_000, price: feed() })
+    l = apply(l, { t: 'topup', chainId: 'solana', units: 10 }, { now: T0 + 200_000, price: feed() })
     expect(l.inflight).toHaveLength(0)
     expect(l.bank['8453'][USDC_BASE]).toBe(14_995)
   })
-  it('caps top-ups', () => {
+  it('tops up on Solana only, and caps it', () => {
     let l = genesis()
-    for (let i = 0; i < 5; i++) l = apply(l, { t: 'topup', chainId: '8453', units: 10_000 }, ctx())
-    expect(() => apply(l, { t: 'topup', chainId: '8453', units: 1 }, ctx())).toThrow(/at most/)
-    expect(() => apply(genesis(), { t: 'topup', chainId: '8453', units: 50_000 }, ctx())).toThrow(/at most/)
+    for (let i = 0; i < 5; i++) l = apply(l, { t: 'topup', chainId: 'solana', units: 10_000 }, ctx())
+    expect(() => apply(l, { t: 'topup', chainId: 'solana', units: 1 }, ctx())).toThrow(/at most/)
+    expect(() => apply(genesis(), { t: 'topup', chainId: 'solana', units: 50_000 }, ctx())).toThrow(/at most/)
+    expect(() => apply(genesis(), { t: 'topup', chainId: '8453', units: 10 }, ctx())).toThrow(/lands on Solana/)
   })
 })
 
@@ -193,7 +205,7 @@ describe('queued exits and borrow premiums (2026-10-11)', () => {
     expect(l.positions).toHaveLength(0)
     expect(l.bank['8453'][USDC_BASE]).toBe(9000)
     expect(l.inflight[0]).toMatchObject({ toChainId: '8453', units: 1000, bridge: 'cooldown' })
-    l = apply(l, { t: 'topup', chainId: '1', units: 1 }, ctx(8))
+    l = apply(l, { t: 'topup', chainId: 'solana', units: 1 }, ctx(8))
     expect(l.bank['8453'][USDC_BASE]).toBe(10_000)
   })
   it('keeps a borrow premium through a re-rate, clamped at zero', () => {

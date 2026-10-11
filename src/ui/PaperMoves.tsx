@@ -27,7 +27,7 @@ function describe(id: number, at: string, op: PaperOp, prices: Record<string, nu
   const base = { id, at }
   switch (op.t) {
     case 'genesis':
-      return { ...base, chains: [], verb: 'opened the paper account', cls: 'k-move', what: 'the starting bank on every chain', flow: {} }
+      return { ...base, chains: [], verb: 'opened the paper account', cls: 'k-move', what: 'the starting bank', flow: {} }
     case 'topup': {
       return { ...base, chains: [op.chainId], verb: 'added paper cash', cls: 'k-in', what: `${num(op.units, 0)} on ${chainLabel(op.chainId)}`, usd: op.units, flow: {} }
     }
@@ -65,6 +65,8 @@ function describe(id: number, at: string, op: PaperOp, prices: Record<string, nu
       return { ...base, chains: c ? [c] : [], verb: op.all ? 'closed a loop' : 'deleveraged', cls: 'k-repay', what: p?.snap.label ?? 'a loop', sub: c ? `${op.all ? `${op.receive.map((r) => `${num(r.units, 4)} ${sym(c, r.token)}`).join(' + ')} back · ` : ''}${chainLabel(c)}` : undefined, usd: op.all ? got : repaid, uid: p?.snap.marketUid, flow: { withdrawnUsd: got, repaidUsd: repaid } }
     }
   }
+  // an admin entry (pos-indexer scripts/paper-rebank.ts): the account moved to the Solana start (tickets/0007)
+  if ((op as { t: string }).t === 'rebank') return { ...base, chains: [], verb: 'moved to the Solana start', cls: 'k-move', what: 'balances outside Solana removed — every chain now starts with a bridge', flow: {} }
   return { ...base, chains: [], verb: (op as { t: string }).t, cls: 'k-move', what: '', flow: {} }
 }
 

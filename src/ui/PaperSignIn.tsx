@@ -76,7 +76,7 @@ function PaperSignIn({ onClose }: { onClose: () => void }) {
           <div className="tsec">
             <p className="plain" style={{ marginTop: 0 }}>No paper account for <b>{step.keys.name}</b> with this password yet. Create it?</p>
             <ul className="risks">
-              <li><i /><span>You get play money on every chain the app offers: 10,000 of each chain's dollar and some of its gas coin.</span></li>
+              <li><i /><span>You start with 10,000 USDC and 1 SOL on Solana. To use another chain, bridge there — real routes, real fees, real wait.</span></li>
               <li><i /><span>Real rates, real quotes and real risks, but nothing is signed or sent on chain.</span></li>
               <li className="w"><i /><span>There is no password reset. A different password is a different account. Never send real money to it.</span></li>
             </ul>

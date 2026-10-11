@@ -8,7 +8,8 @@
  *
  * The model:
  *   - a BANK of real tokens per chain (`bank[chainId][token] = units`), seeded by
- *     `STARTER` on every chain the app offers;
+ *     `STARTER` — on Solana only (tickets/0007): every position elsewhere starts
+ *     with a bridge, as a real user's would;
  *   - POSITIONS, each a snapshot of the strategy it was opened from plus units of
  *     the held token (and of the debt, for a loop) as of `asOf`, accruing at
  *     `rate` (APR %, simple — the app's rates are APR and add, docs/apis.md);
@@ -56,15 +57,16 @@ export function tokenKey(chainId: string, address: string): string {
 export interface StarterToken { address: string; symbol: string; decimals: number; units: number; refUsd: number }
 export interface StarterChain { chainId: string; dollar: StarterToken; native?: StarterToken }
 /**
- * Every chain the app offers (`CHAINS` in sdk/queries.ts): its dollar and, where the gas coin is
- * not itself the dollar, ~$2–3k of it. Dollars are the API's own token-list entries (read
- * 2026-10-11); the gas-coin figures are round numbers at that day's prices. Arc's and Stable's gas
- * coin IS their dollar (an ERC-20), and Tempo has none, so they get the dollar only.
+ * Every chain the app offers (`CHAINS` in sdk/queries.ts): its dollar and its gas coin. Dollars are
+ * the API's own token-list entries (read 2026-10-11); `refUsd` is that day's price, what a token is
+ * counted at when the feed has none. Arc's and Stable's gas coin IS their dollar (an ERC-20), and
+ * Tempo has none. This table NAMES and values bank rows on every chain; it funds nothing — `STARTER`
+ * does (`units` here are the old all-chain allotment, kept only as a record).
  */
 const ETH = (units = 1): StarterToken => ({ address: ZERO_EVM, symbol: 'ETH', decimals: 18, units, refUsd: 2500 })
 const usd = (address: string, symbol = 'USDC', decimals = 6): StarterToken => ({ address, symbol, decimals, units: 10_000, refUsd: 1 })
 const coin = (symbol: string, units: number, refUsd: number, address = ZERO_EVM, decimals = 18): StarterToken => ({ address, symbol, decimals, units, refUsd })
-export const STARTER: StarterChain[] = [
+export const KNOWN_TOKENS: StarterChain[] = [
   { chainId: '1', dollar: usd('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'), native: ETH() },
   { chainId: '8453', dollar: usd('0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'), native: ETH() },
   { chainId: '42161', dollar: usd('0xaf88d065e77c8cc2239327c5edb3a432268e5831'), native: ETH() },
@@ -82,11 +84,22 @@ export const STARTER: StarterChain[] = [
   { chainId: '98866', dollar: usd('0xdddd73f5df1f0dc31373357beac77545dc5a6f3f', 'pUSD'), native: coin('PLUME', 100_000, 0.0202) },
   { chainId: 'solana', dollar: usd('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'), native: coin('SOL', 20, 109.3, SOL_NATIVE, 9) },
 ]
+/**
+ * What a paper account starts with (tickets/0007): $10,000 of USDC and 1 SOL on Solana, nothing
+ * anywhere else — every position on another chain starts with a bridge. Top-ups land here too.
+ */
+export const STARTER: StarterChain[] = [
+  { chainId: 'solana', dollar: usd('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'), native: coin('SOL', 1, 109.3, SOL_NATIVE, 9) },
+]
+/** The chain a top-up lands on, if this is it (Solana only). */
 export const starterOf = (chainId: string) => STARTER.find((c) => c.chainId === chainId)
-/** Every token the starter bank names, with its symbol and decimals: what a bank row is called without a token list. */
-export function starterTokens(): { chainId: string; address: string; symbol: string; decimals: number }[] {
-  return STARTER.flatMap((c) => [c.dollar, ...(c.native ? [c.native] : [])].map((t) => ({ chainId: c.chainId, address: tokenKey(c.chainId, t.address), symbol: t.symbol, decimals: t.decimals })))
-}
+/** Any chain's dollar and gas coin, for naming and valuing (never for funding). */
+export const knownOf = (chainId: string) => KNOWN_TOKENS.find((c) => c.chainId === chainId)
+const tokensOf = (cs: StarterChain[]) => cs.flatMap((c) => [c.dollar, ...(c.native ? [c.native] : [])].map((t) => ({ chainId: c.chainId, address: tokenKey(c.chainId, t.address), symbol: t.symbol, decimals: t.decimals })))
+/** The tokens the starter bank holds: what a genesis is priced on. */
+export function starterTokens(): { chainId: string; address: string; symbol: string; decimals: number }[] { return tokensOf(STARTER) }
+/** Every chain's dollar and gas coin with its symbol and decimals: what a bank row is called without a token list. */
+export function knownTokens(): { chainId: string; address: string; symbol: string; decimals: number }[] { return tokensOf(KNOWN_TOKENS) }
 
 // ----------------------------------------------------------------- shapes
 export interface PaperRate {
@@ -247,7 +260,7 @@ function clampRate(r: PaperRate): PaperRate {
 }
 /** What a starter token is counted at when the feed has no price: what it was put in at. */
 export const starterRef = (chainId: string, token: string): number | undefined => {
-  const c = starterOf(chainId); if (!c) return undefined
+  const c = knownOf(chainId); if (!c) return undefined
   const k = tokenKey(chainId, token)
   return [c.dollar, ...(c.native ? [c.native] : [])].find((t) => tokenKey(chainId, t.address) === k)?.refUsd
 }
@@ -381,7 +394,7 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       break
     }
     case 'topup': {
-      const c = starterOf(str(op.chainId, 'chainId', 20)); if (!c) throw new PaperError(`no paper bank on chain ${op.chainId}`)
+      const c = starterOf(str(op.chainId, 'chainId', 20)); if (!c) throw new PaperError('paper cash lands on Solana — bridge it from there to where you need it')
       const units = pos(op.units, 'units')
       if (units > TOPUP_UNITS) throw new PaperError(`a top-up is at most ${TOPUP_UNITS} ${c.dollar.symbol}`)
       if (l.topups >= MAX_TOPUPS) throw new PaperError(`at most ${MAX_TOPUPS} top-ups per paper account`)

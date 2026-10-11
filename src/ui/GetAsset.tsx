@@ -80,14 +80,17 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
       try {
         const raw = toRaw(amount, src.decimals)
         const env = cross
-          ? await xchainSwapQuote({ fromChainId: src.chainId, toChainId: target.chainId, tokenIn: src.address, tokenOut: target.address, amountRaw: raw, slippageBp: 50, account: from, receiver: to })
+          // a paper wallet holds nothing on Solana, and Solana-origin bridges (Mayan, NEAR Intents, Relay) build by reading
+          // the sender on chain — they drop every route for an empty one. Paper needs only the quote: ask it without a sender
+          // (tickets/0007; measured 2026-10-11: no sender answers what a funded wallet would)
+          ? await xchainSwapQuote({ fromChainId: src.chainId, toChainId: target.chainId, tokenIn: src.address, tokenOut: target.address, amountRaw: raw, slippageBp: 50, account: paper.active && isSvmChain(src.chainId) ? undefined : from, receiver: to })
           : await spotSwapQuote({ chainId: src.chainId, tokenIn: src.address, tokenOut: target.address, amountRaw: raw, slippageBp: 50, account: from })
         if (id !== reqId.current) return
         setQuote(env); if (!env.data?.quotes?.length) setErr('No route found for this pair. Try another asset to pay with.')
       } catch (e) { if (id === reqId.current) { setQuote(null); setErr(shortErr((e as Error).message)) } } finally { if (id === reqId.current) setQuoting(false) }
     }, 600)
     return () => clearTimeout(t)
-  }, [src?.address, src?.chainId, amount, target.address, target.chainId, account, solSigner, sent])
+  }, [src?.address, src?.chainId, amount, target.address, target.chainId, account, solSigner, sent, paper.active])
   // the route: the API's best by default; every other one it found is listed under it, picked in a tap
   const [sel, setSel] = React.useState(0)
   React.useEffect(() => { setSel(0) }, [quote])
@@ -186,6 +189,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
     <Drawer open onClose={onClose} side="right" label={`Get ${target.symbol}`} cls="get-drawer">
     <div className="get">
       <p className="get-why">{paper.active ? <><span className="pill paper">paper</span> Pay with anything in your paper bank, on any chain — at the real routes' prices, fees and times. </> : 'Pay with anything you hold, on any chain. '}<Info label="How this works">The API swaps it on the same chain, or bridges it from another chain, into {target.symbol} on {chainLabel(target.chainId)}. {paper.active ? 'On paper, the route’s output lands in your paper bank — a bridge when its quoted time is up.' : 'It lands in your wallet; then you continue with the strategy.'}</Info></p>
+      {paper.active && !dollar && <p className="foot" style={{ margin: '0 0 12px' }}><span className="pill paper">paper</span> Paper cash lands on Solana. To fund {chainLabel(target.chainId)}, bridge from there — as a real wallet would.</p>}
       {dollar && <div className="paper-card" style={{ margin: '0 0 12px' }}>
         <span className="t70" style={{ fontSize: 12.5 }}>Short of play money? Add {num(TOPUP_UNITS, 0)} {dollar.symbol} on {chainLabel(target.chainId)} to your paper bank ({topupsLeft > 0 ? `${topupsLeft} top-up${topupsLeft === 1 ? '' : 's'} left` : 'none left'}).</span>
         <div className="actions"><button className="btn paper ghost sm" disabled={topupsLeft <= 0} onClick={() => void topup()}>Add {num(TOPUP_UNITS, 0)} {dollar.symbol}</button></div>

@@ -26,7 +26,8 @@ export function simpleSnap(s: SimpleStrategy, price: number, feed: PriceFn): Pap
 /** A saving earns its whole rate; a position priced live earns it without its token's own yield (the price carries that). */
 export function simpleRate(s: SimpleStrategy): PaperRate {
   const peg = isSavings(s.nature)
-  return { supply: peg ? s.rate : s.rate - (s.intrinsic ?? 0), borrow: 0, supplyRewards: s.rewards || undefined, ...(peg ? {} : { intrinsic: s.intrinsic }) }
+  // the token's own yield is kept either way: a saving's server re-rate falls back on it where no index carries one (tickets/0006 review)
+  return { supply: peg ? s.rate : s.rate - (s.intrinsic ?? 0), borrow: 0, supplyRewards: s.rewards || undefined, intrinsic: s.intrinsic }
 }
 export function depositPlan(s: SimpleStrategy, o: { into?: Holding | null; payToken: string; amount: number; price: number; feed: PriceFn; payName?: { symbol: string; decimals: number } }): () => Promise<PaperBuilt> {
   return async () => {
@@ -45,7 +46,7 @@ export function loopSnap(s: LoopStrategy, liqLtv: number): PaperSnap {
 }
 export function loopRate(s: LoopStrategy, dep: number, bor: number): PaperRate {
   const peg = isSavings(s.nature)
-  return { supply: peg ? dep : dep - (s.intrinsicLong ?? 0), borrow: bor, supplyRewards: s.rewardsLong || undefined, borrowRewards: s.rewardsShort || undefined, ...(peg ? {} : { intrinsic: s.intrinsicLong }) }
+  return { supply: peg ? dep : dep - (s.intrinsicLong ?? 0), borrow: bor, supplyRewards: s.rewardsLong || undefined, borrowRewards: s.rewardsShort || undefined, intrinsic: s.intrinsicLong }
 }
 /** Open (or add to) a loop: the margin in, `L`× held, the borrowed part owed, the quote's entry cost taken off the held side. */
 export function loopPlan(s: LoopStrategy, o: { into?: Holding | null; payToken: string; amount: number; equityUsd: number; L: number; dep: number; bor: number; liqLtv: number; entryCostUsd: number | null; quoting: boolean }): () => Promise<PaperBuilt> {

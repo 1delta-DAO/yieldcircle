@@ -45,6 +45,9 @@ sign, both refuse to send), `state/Paper.tsx` (session, book cache, `act`, sync,
   re-rates every position from the index (`idx.market_latest`, the Solana index). Not the 30-day
   history of §A. **Every open is re-rated by the server**; a market the index lacks keeps the app's
   rate capped at 25 %; any rate is clamped to ±100 %.
+  A saving's own yield (`rate.intrinsic`, recorded at every open) comes from the index, else from
+  the 1delta API, else the recorded figure capped at 25 % — the Solana index has none (first live
+  bug: an apyUSD/USDC loop on Kamino read −7 % at 0 % supply).
 - **No value is created by any op** (±1 % for two feeds; the plan said 0.5 %), and a trade with an
   unpriced side is refused (review finding: unpriced tokens could otherwise be minted).
 - **The paper clock is a preview**: +7 / +30 / +90 days in the sheet; trading waits until it is

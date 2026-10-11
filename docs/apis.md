@@ -183,6 +183,8 @@ final (`balancesChanged`, called only by `txTrace.ts`). See
 
 ## Paper accounts (tickets/0006, pos-indexer tickets/0076)
 
+The whole system, server and app, for agents: pos-indexer `docs/paper.md`.
+
 A paper account is a key pair derived from a name and a password (`wallet/paperKey.ts`) and
 connected like a wallet (`wallet/paper.ts`): it signs, it never sends. Its money is a ledger
 (`model/paper.ts`) the social service keeps and values; the app holds a cache (`state/Paper.tsx`).

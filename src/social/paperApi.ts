@@ -26,6 +26,8 @@ export interface PaperBoardRow {
   account: string; sol: string | null; handle: string | null; displayName: string | null; tags: string[]
   navUsd: number; pnlUsd: number; returnPct: number; netAprPct: number | null; annualUsd: number; deployedUsd: number
   positions: number; chains: string[]; worstHealth: number | null; since: string; warming: boolean
+  /** what getting money to work has cost, USD (tickets/0007 D); absent from a server before it */
+  frictionUsd?: number
 }
 export const paperBoard = (sort: 'return' | 'apr', limit = 50) =>
   call<{ rows: PaperBoardRow[]; computedAt: string | null; sort: string }>(`/paper/board?sort=${sort}&limit=${limit}`)
@@ -40,6 +42,7 @@ export async function paperPrices(keys: string[]): Promise<Record<string, number
   return out
 }
 /** One signed op as the server applied it, with the prices it was judged at (`<chain>:<token>` → usd). */
-export interface PaperOpRow { id: number; kind: string; op: import('../model/paper').PaperOp; prices: Record<string, number | null>; at: string }
+/** `frictionUsd`: what the op cost — fees, slippage, the bridge's cut (tickets/0007 D); null for ops from before it was booked. */
+export interface PaperOpRow { id: number; kind: string; op: import('../model/paper').PaperOp; prices: Record<string, number | null>; at: string; frictionUsd?: number | null }
 export const paperOps = (account: string, limit = 200) =>
   call<{ ops: PaperOpRow[] }>(`/paper/book/${account.toLowerCase()}/ops?limit=${limit}`)

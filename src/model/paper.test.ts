@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { apply, bookOf, emptyLedger, PaperError, STARTER, valueOf, ZERO_EVM, SOL_NATIVE, tokenKey, type PaperLedger, type PaperOp, type PaperSnap, type PriceFn } from './paper'
+import { apply, bookOf, emptyLedger, frictionOf, NO_GAS, networkFeeUsd, PaperError, STARTER, valueOf, ZERO_EVM, SOL_NATIVE, tokenKey, type PaperLedger, type PaperOp, type PaperSnap, type PriceFn } from './paper'
 
 const T0 = Date.UTC(2026, 9, 11)
 const DAY = 86_400_000
@@ -27,7 +27,7 @@ function genesis(bare = false): PaperLedger {
   const fund = (c: string, t: string, u: number) => { (l.bank[c] ??= {})[t] = u }
   fund('1', USDC_ETH, 10_000); fund('1', ZERO_EVM, 1)
   fund('8453', USDC_BASE, 10_000); fund('8453', ZERO_EVM, 1)
-  fund('42161', USDC_ARB, 10_000); fund('42161', ZERO_EVM, 1)
+  fund('42161', USDC_ARB, 10_000); fund('42161', ZERO_EVM, 2)
   return l
 }
 const vaultSnap: PaperSnap = {
@@ -70,7 +70,8 @@ describe('deposits', () => {
     l = apply(l, { t: 'withdraw', id: 'p1', units: 0, all: true, receive: { token: USDC_BASE, units: 1000 * (1 + 0.1 * 30 / 365) } }, ctx(30))
     expect(l.positions).toHaveLength(0)
     expect(l.bank['8453'][USDC_BASE]).toBeCloseTo(9000 + 1000 * (1 + 0.1 * 30 / 365), 6)
-    expect(l.realizedUsd).toBeCloseTo(1000 * 0.1 * 30 / 365, 6)
+    // the interest, less the two network fees on Base (paid in its ETH)
+    expect(l.realizedUsd).toBeCloseTo(1000 * 0.1 * 30 / 365 - networkFeeUsd('8453', 'deposit') - networkFeeUsd('8453', 'withdraw'), 6)
   })
   it('refuses a withdrawal that pays out more than the position is worth', () => {
     const l = apply(genesis(), deposit(1000), ctx())
@@ -95,7 +96,7 @@ describe('loops', () => {
     const v = valueOf(l.positions[0], T0, feed())
     expect(v.equityUsd).toBeCloseTo(E - cost, 6)
     expect(v.health!).toBeCloseTo((0.95 * (E * L - cost)) / (E * (L - 1)), 6)
-    expect(l.bank['42161'][ZERO_EVM]).toBe(0 || undefined)
+    expect(l.bank['42161'][ZERO_EVM]).toBeCloseTo(1 - networkFeeUsd('42161', 'loop') / 2500, 9)
   })
   it('a same-money loop moves with its money, not with the collateral feed', () => {
     const l = apply(genesis(), open, ctx())
@@ -134,7 +135,8 @@ describe('trades', () => {
   it('a swap may lose value but never create it', () => {
     const l = apply(genesis(), { t: 'swap', chainId: '42161', from: USDC_ARB, to: WETH_ARB, unitsIn: 2500, unitsOut: 0.99 }, ctx())
     expect(l.bank['42161'][WETH_ARB]).toBe(0.99)
-    expect(l.realizedUsd).toBeCloseTo(-25, 6)
+    expect(l.realizedUsd).toBeCloseTo(-25 - networkFeeUsd('42161', 'swap'), 6)
+    expect(frictionOf(l)).toMatchObject({ tradeUsd: 25, gasUsd: networkFeeUsd('42161', 'swap') })
     expect(() => apply(genesis(), { t: 'swap', chainId: '42161', from: USDC_ARB, to: WETH_ARB, unitsIn: 2500, unitsOut: 1.2 }, ctx())).toThrow(/cannot create value/)
   })
   it('a bridge is debited now and lands when its time is up', () => {
@@ -160,8 +162,8 @@ describe('the book', () => {
     const l = apply(genesis(), deposit(10_000), ctx())
     const flat = bookOf(l, T0 + 365 * DAY, feed())
     const ethUp = bookOf(l, T0 + 365 * DAY, feed({ [`1:${ZERO_EVM}`]: 5000, [`42161:${ZERO_EVM}`]: 5000, [`8453:${ZERO_EVM}`]: 5000 }))
-    expect(flat.pnlUsd).toBeCloseTo(1000, 6)
-    expect(ethUp.pnlUsd).toBeCloseTo(1000, 6)
+    expect(flat.pnlUsd).toBeCloseTo(1000 - networkFeeUsd('8453', 'deposit'), 6)
+    expect(ethUp.pnlUsd).toBeCloseTo(1000 - networkFeeUsd('8453', 'deposit'), 6)
     expect(ethUp.navUsd).toBeGreaterThan(flat.navUsd)
     expect(flat.netAprPct).toBeCloseTo(10, 6)
   })
@@ -211,5 +213,36 @@ describe('queued exits and borrow premiums (2026-10-11)', () => {
   it('keeps a borrow premium through a re-rate, clamped at zero', () => {
     const l = apply(genesis(), { ...deposit(1000), rate: { supply: 5, borrow: 0, borrowPremium: -3 } } as PaperOp, ctx())
     expect(l.positions[0].rate.borrowPremium).toBe(0)
+  })
+})
+
+describe('network fees, destination gas, friction (tickets/0007)', () => {
+  it('refuses an action on a chain where the wallet has no gas coin, in words a screen can act on', () => {
+    const l = genesis(); delete l.bank['8453'][ZERO_EVM]
+    expect(() => apply(l, deposit(100), ctx())).toThrow(NO_GAS)
+    expect(() => apply(l, deposit(100), ctx())).toThrow(/ETH on Base/)
+  })
+  it('lets a wallet with no gas buy the gas coin, paying the fee out of what it buys', () => {
+    const l = genesis(); delete l.bank['8453'][ZERO_EVM]
+    const after = apply(l, { t: 'swap', chainId: '8453', from: USDC_BASE, to: ZERO_EVM, unitsIn: 25, unitsOut: 0.0099 }, ctx())
+    expect(after.bank['8453'][ZERO_EVM]).toBeCloseTo(0.0099 - networkFeeUsd('8453', 'swap') / 2500, 12)
+  })
+  it('a bridge with a gas leg: the leg is paid in the source gas coin, the gas lands with the tokens', () => {
+    const l = genesis(true)
+    const after = apply(l, { t: 'bridge', id: 'g1', fromChainId: 'solana', toChainId: '8453', from: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', to: USDC_BASE, unitsIn: 1000, unitsOut: 999.8, arrivesAt: T0 + 20_000, gas: { units: 0.0005, costUnits: 0.0129 } },
+      ctx(0, { [`solana:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`]: 1 }))
+    expect(after.bank['solana'][SOL_NATIVE]).toBeCloseTo(1 - 0.0129 - networkFeeUsd('solana', 'bridge') / 100, 9)
+    expect(after.inflight.map((t) => [t.token, t.units])).toEqual([[USDC_BASE, 999.8], [ZERO_EVM, 0.0005]])
+    // in: $1,000 + $1.29 of SOL; out: $999.80 + $1.25 of ETH → $0.24 lost to the bridge
+    expect(frictionOf(after).bridgeUsd).toBeCloseTo(1000 + 1.29 - 999.8 - 1.25, 6)
+    expect(bookOf(after, T0, feed()).frictionUsd).toBeCloseTo(0.24 + networkFeeUsd('solana', 'bridge'), 6)
+  })
+  it('books a loop entry and its exit as friction', () => {
+    const open: PaperOp = { t: 'open', id: 'l1', chainId: '42161', kind: 'loop', strategyId: 'l:wst|weth', snap: loopSnap, pay: { token: ZERO_EVM, units: 1 }, units: (2500 * 4 - 20) / 3000, debtUnits: 7500 / 2500, rate: { supply: 3, borrow: 2 }, entryCostUsd: 20 }
+    let l = apply(genesis(), open, ctx())
+    const v = valueOf(l.positions[0], T0, feed())
+    l = apply(l, { t: 'reduce', id: 'l1', units: 0, debtUnits: 0, all: true, receive: [{ token: WETH_ARB, units: (v.equityUsd - 7) / 2500 }], costUsd: 7 }, ctx())
+    expect(frictionOf(l)).toMatchObject({ entryUsd: 20, exitUsd: 7 })
+    expect(frictionOf(l).gasUsd).toBeCloseTo(networkFeeUsd('42161', 'loop') + networkFeeUsd('42161', 'reduce'), 9)
   })
 })

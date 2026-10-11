@@ -19,6 +19,7 @@ import { isSvmChain, normAddr } from '../model/address'
 import { useProfiles } from '../social/queries'
 import { stepsFrom, useTicketLadder, type Ladder, type Step } from './useLadder'
 import { usePaper } from '../state/Paper'
+import { balanceOf, gasCoinOf, gasTokenOf, networkFeeUsd, NO_GAS, tokenKey, type FeeKind } from '../model/paper'
 import { openPaperSignIn } from './PaperSignIn'
 import { openGate, realTradingGated } from '../wallet/gate'
 import { depositPlan, leverPlan, loopPlan, reducePlan, withdrawPlan } from './paperPlans'
@@ -310,7 +311,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
       <HistorySec s={s} now={s.rate} />
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={(i === 0 && s.risk >= 2) || (!isSavings(s.nature) && i === 0) ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
       {s.booked && <BookedSlippage pegged={isSavings(s.nature)} what={s.holds} />}
-      <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} />
+      <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} fee="deposit" />
     </>
   )
 }
@@ -488,7 +489,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
     // the swap's leftover lands in the wallet as either leg's token (Jupiter's exact-in fill on Solana)
   }, [s.marketLongUid, s.marketShortUid], [{ address: chosen?.address, symbol: chosen?.symbol }, { address: s.collateralAddress, symbol: s.holds }, { address: s.debtAddress, symbol: s.debt }],
     // on paper: the same margin, leverage and rates, and the quote's entry cost (a Solana quote prices none: 0)
-    loopPlan(s, { into: holding, payToken: chosen?.address ?? '', amount, equityUsd: E, L, dep, bor, liqLtv, entryCostUsd: econ ? cost : isSvmChain(s.chainId) && q.data ? 0 : null, quoting: q.isFetching, refuse: paperRefuse }),
+    loopPlan(s, { into: holding, payToken: chosen?.address ?? '', amount, equityUsd: E, L, dep, bor, liqLtv, entryCostUsd: econ ? Math.max(0, cost - (econ.entryCostUsd.gas ?? 0)) : isSvmChain(s.chainId) && q.data ? 0 : null, quoting: q.isFetching, refuse: paperRefuse }),
     // the open's own build, unsigned, on either chain: the same call the quote makes
     true)
   // the open at market prices: your equity right after it is what you put in less the entry cost (`ValueCheck.tsx`)
@@ -618,7 +619,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
         {s.rewardsLong + s.rewardsShort > 0.05 && <li><i /><span>Part of the rate is incentives that can stop without notice.</span></li>}
       </ul></div>
       {noRoute && <div className="err" style={{ margin: '0 0 10px' }}>{NO_ROUTE}</div>}
-      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={short ? 'Too big for one lender — see above' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} />
+      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={short ? 'Too big for one lender — see above' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} fee="loop" />
     </>
   )
 }
@@ -686,7 +687,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
       </div></div>
       {booked && <BookedSlippage pegged={s ? isSavings(s.nature) : true} what={h.symbol} sell />}
       {paper.active && queueSecs > 0 && <div className="tsec plain t70" style={{ fontSize: 12.5 }}><span className="pill paper">paper</span> This exit is queued: on paper the {h.symbol} lands in your bank {s?.exitSecs ? `after the venue's ${exit ? exit.word.toLowerCase() : 'wait'}` : 'after a week (the venue publishes no wait time)'}, and the tray shows it on its way.</div>}
-      <Action ladder={ladder} label={`Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} />
+      <Action ladder={ladder} label={`Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} fee="withdraw" />
     </>
   )
 }
@@ -809,7 +810,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
       if (s.borrowLiquidityUsd > 0 && borrowUsd > s.borrowLiquidityUsd) throw new Error(`The market has only ${usdShort(s.borrowLiquidityUsd)} of ${debt} free to borrow — pick a lower leverage.`)
       const q = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: slip, leverage: L, account: actor })
       if (!hasRoute(q.data)) throw new Error(NO_ROUTE)
-      return leverPlan({ ledger: paper.ledger, h, borrowUsd, costUsd: q.data?.economics?.entryCostUsd.total ?? 0, feed: paper.price })()
+      return leverPlan({ ledger: paper.ledger, h, borrowUsd, costUsd: Math.max(0, (q.data?.economics?.entryCostUsd.total ?? 0) - (q.data?.economics?.entryCostUsd.gas ?? 0)), feed: paper.price })()
     }
   const ladder = useTicketLadder(key, h.chainId, async () => {
     if (down || !s) {
@@ -868,7 +869,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
           <div className="c"><span className="k">Buffer after</span><span className={`v ${drop == null ? '' : drop < 0.05 ? 'bad' : drop < 0.1 ? 'warn' : ''}`}>{drop == null ? '—' : `−${pct(drop * 100, 1)}`}</span><span className="s">{drop == null ? '' : `${holds} fall that liquidates`}</span></div>
         </>}
       </div></div>
-      <Action ladder={ladder} label={same ? 'Nothing to change' : closing ? (keep ? `Close · sell ≈ ${num(sellKeep ?? 0, 4)} ${holds}, keep the rest` : `Close · sell all ${holds} for ${debt}`) : down ? `Deleverage to ${num(L, 2)}× · sell ${num(sellTok, 4)} ${holds}` : `Increase to ${num(L, 2)}× · borrow ${num(borrowTok, 4)} ${debt}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} />
+      <Action ladder={ladder} label={same ? 'Nothing to change' : closing ? (keep ? `Close · sell ≈ ${num(sellKeep ?? 0, 4)} ${holds}, keep the rest` : `Close · sell all ${holds} for ${debt}`) : down ? `Deleverage to ${num(L, 2)}× · sell ${num(sellTok, 4)} ${holds}` : `Increase to ${num(L, 2)}× · borrow ${num(borrowTok, 4)} ${debt}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} fee={closing || down ? 'reduce' : 'lever'} />
     </>
   )
 }
@@ -930,7 +931,7 @@ function AmountBox({ unit, value, onChange, onMax }: { unit: string; value: numb
 }
 
 /** The sticky bottom of the ticket: one button, then the ladder once built. */
-function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string }) {
+function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId, fee }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string; /** what the action pays in network fees on paper (tickets/0007 B) */ fee: FeeKind }) {
   const { setViewAs } = useApp()
   const { thread } = React.useContext(TicketCtx)
   const viewing = !!account && !isConnected
@@ -942,6 +943,7 @@ function Action({ ladder: l, label, account, isConnected, disabled, risky, block
   const solWait = isSvmChain(chainId) && !SOL_POSITIONS_READY
   if (!l.bundle) return (
     <div className="tsec cta">
+      {l.paper && <PaperGas chainId={chainId} fee={fee} refused={!!l.err?.includes(NO_GAS)} />}
       {l.err && <div className="err">{l.err}</div>}
       {realTradingGated() && !l.paper ? <>
           {/* no beta access: a real ticket is the one thing behind the waitlist (tickets/0006) */}
@@ -972,6 +974,33 @@ function Action({ ladder: l, label, account, isConnected, disabled, risky, block
           : <button className="btn wide pri" disabled={!!l.pending || l.switching || (l.signing && !l.remote)} onClick={l.signing ? l.reopen : l.sendNext}>{l.switching ? 'Switching…' : l.wrongChain ? `Switch wallet to ${chainLabel(chainId)}` : l.signing ? (l.remote ? 'Open your wallet to confirm' : 'Confirm in your wallet…') : l.pending ? <><Spin sm /> Waiting for the block…</> : `Send ${l.done + 1} of ${l.total}`}</button>}
         <button className="btn" onClick={l.reset} disabled={!!l.pending}>Reset</button>
       </div>
+    </div>
+  )
+}
+/**
+ * Paper's network fee, said before it is refused (tickets/0007 B): the bank holds too little of the
+ * chain's gas coin for this action, so — as on chain — it cannot happen. One tap opens *Get* with the
+ * gas coin as the target; a bridge into it pays its own fee out of what it buys.
+ */
+function PaperGas({ chainId, fee, refused }: { chainId: string; fee: FeeKind; refused: boolean }) {
+  const paper = usePaper()
+  const [open, setOpen] = React.useState(false)
+  const l = paper.ledger
+  const coin = gasCoinOf(chainId)
+  if (!paper.active || !l || !coin) return null
+  const t = gasTokenOf(chainId), p = paper.price(chainId, t) ?? coin.refUsd
+  // a transfer whose time is up has landed, settled or not: the next op settles it first
+  const now = Date.now(), gasIn = l.inflight.filter((x) => x.toChainId === chainId && x.token === tokenKey(chainId, t))
+  const held = balanceOf(l, chainId, t) + gasIn.filter((x) => x.arrivesAt <= now).reduce((a, x) => a + x.units, 0)
+  const needUsd = networkFeeUsd(chainId, fee)
+  if (!refused && held * p >= needUsd) return null
+  const coming = gasIn.filter((x) => x.arrivesAt > now).reduce((a, x) => a + x.units, 0)
+  const fmt = (x: number) => (x < 0.1 ? `$${x.toFixed(3)}` : usd(x))
+  return (
+    <div className="paper-card" style={{ margin: '0 0 10px' }}>
+      <span className="t70" style={{ fontSize: 12.5 }}>This costs about {fmt(needUsd)} of {coin.symbol} in network fees on {chainLabel(chainId)}, and your paper bank holds {held > 0 ? `only ${num(held, 6)}` : 'none'}{coming > 0 ? ` (${num(coming, 6)} is still on its way)` : ''}. As on chain, nothing happens there without it.</span>
+      <div className="actions"><button className="btn paper ghost sm" onClick={() => setOpen(true)}>Get {coin.symbol} on {chainLabel(chainId)}</button></div>
+      {open && <GetAsset targets={[{ chainId, address: t, symbol: coin.symbol, decimals: coin.decimals, price: p, have: held }]} want={Math.max(5 * needUsd, 1) / p} sources={paper.idle(Object.keys(l.bank))} onClose={() => setOpen(false)} />}
     </div>
   )
 }

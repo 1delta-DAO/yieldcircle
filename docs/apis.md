@@ -89,7 +89,7 @@ that sometimes answer un-enveloped or with `ok` instead of `success`
 | `loopOpen` | `/v1/actions/loop/leverage` | **`marketUidIn` = DEBT, `marketUidOut` = COLLATERAL** on open; `termId` for Lista broker debt; `duration` + `durationType` (0 days · 1 weeks · 2 months) **required** on a Loopscale pair (`LoopStrategy.tenors`) — the feed carries no per-tenor rate, so `useTenorQuotes` quotes each tenor and reads `data.offer` (`apy` / `lqt` in CBPS); a size bigger than the tenor's deepest lender answers 400 `INSUFFICIENT_DEPTH` (one loan = one lender) with a readable message and `error.details` (amounts in tokens, `fit.margin` / `fit.leverage` that fit) — `loopDepthShort` passes them through, `ApiError.details` carries them |
 | `loopClose` | `/v1/actions/loop/close` | **`marketUidIn` = COLLATERAL, `marketUidOut` = DEBT** on close; `loanId` for Lista broker debt |
 | `spotSwapQuote` | `/v1/actions/swap/spot` | one tx per route in `actions.alternatives`, matched by index to `data.quotes` |
-| `xchainSwapQuote` | `/v1/actions/swap/x-chain` | approvals per bridge (`permissions[].spender`) |
+| `xchainSwapQuote` | `/v1/actions/swap/x-chain` | approvals per bridge (`permissions[].spender`); `destinationGas` (a decimal of the destination gas coin, `auto` on Solana) only when the receiver lacks gas there (`model/destGas.ts`) — each route then carries `destinationGas`, and a `gas-leg` one a second `transaction` sent after the bridge; a Solana origin quoted without `account` for paper (the builders read the sender on chain) |
 
 Quotes that the UI shows before signing are hooks: `useLoopQuote`,
 `useCloseQuote` (`sdk/queries.ts`, `staleTime` 20 s). Execution order is

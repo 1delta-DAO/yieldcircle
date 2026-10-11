@@ -7,7 +7,7 @@ import { ApiError, apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } f
 import { isNativeAddress } from '../model/positions'
 import { isSvmChain } from '../model/address'
 import type { RateHistoryResponse } from '../model/rateHistory'
-import type { ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmResponse, LendingBook, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
+import type { AnyTx, ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmResponse, LendingBook, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
 
 // ---------------------------------------------------------------- deposits (supply side)
 // `terms: 'digest'` — NOT 'none'. The digest is where the row's own prose lives:
@@ -247,7 +247,15 @@ export const SOL_NATIVE = '11111111111111111111111111111111'
 export const nativeAsset = (chainId: string): string => (isSvmChain(chainId) ? SOL_NATIVE : ZERO)
 
 // ---------------------------------------------------------------- swap / bridge
-export interface SwapRouteQuote { bridge?: string; aggregator?: string; tradeInput: number; tradeOutput: number; estimatedDuration?: number; approvalTarget?: string; approvalRequired?: boolean }
+/**
+ * Destination gas a cross-chain route delivers (asked with `destinationGas`): `amount` in the
+ * destination gas coin's base units. `paidFrom`: `output` = dropped out of the bridged amount (already
+ * in `tradeOutput`), `value` = in the route's own `msg.value`, `gas-leg` = a second deposit
+ * (`transaction`, NEAR Intents / Gas.zip) the wallet sends right after the route. `cost.amount` is in
+ * the SOURCE gas coin's base units.
+ */
+export interface DestinationGas { amount: string; decimals: number; mode: 'native-drop' | 'batch'; paidFrom: 'output' | 'value' | 'gas-leg'; bridge?: string; cost?: { amount?: string; decimals?: number; usd?: number }; transaction?: AnyTx }
+export interface SwapRouteQuote { bridge?: string; aggregator?: string; tradeInput: number; tradeOutput: number; estimatedDuration?: number; approvalTarget?: string; approvalRequired?: boolean; destinationGas?: DestinationGas }
 export interface SwapQuoteData { fallback?: string; quotes?: SwapRouteQuote[] }
 export interface SwapQuoteActions { alternatives?: ApiTx[]; permissions?: (ApiTx & { spender?: string })[] }
 /** Same-chain meta-aggregator swap. One tx per route in `actions.alternatives`, positionally matched to `data.quotes`. */
@@ -258,9 +266,10 @@ export function spotSwapQuote(p: { chainId: string; tokenIn: string; tokenOut: s
 }
 /** Cross-chain swap via bridge aggregation; falls back to spot when from == to. Approvals are per bridge (`permissions[].spender`). */
 /** `receiver` is required whenever the two chains are different VMs (a Solana destination for an EVM sender): without it the API answers no route. */
-export function xchainSwapQuote(p: { fromChainId: string; toChainId: string; tokenIn: string; tokenOut: string; amountRaw: string; slippageBp: number; account?: string; receiver?: string; order?: 'CHEAPEST' | 'FASTEST' }) {
+/** `destinationGas`: gas to deliver on the destination — a decimal in its gas coin's units, or `auto` on Solana (each route then carries `destinationGas`). */
+export function xchainSwapQuote(p: { fromChainId: string; toChainId: string; tokenIn: string; tokenOut: string; amountRaw: string; slippageBp: number; account?: string; receiver?: string; order?: 'CHEAPEST' | 'FASTEST'; destinationGas?: string }) {
   return apiFetchEnvelope<SwapQuoteData, SwapQuoteActions>('/v1/actions/swap/x-chain', {
-    params: { fromChainId: p.fromChainId, toChainId: p.toChainId, tokenIn: p.tokenIn, tokenOut: p.tokenOut, amount: p.amountRaw, slippage: p.slippageBp, account: p.account, receiver: p.receiver, order: p.order ?? 'CHEAPEST' },
+    params: { fromChainId: p.fromChainId, toChainId: p.toChainId, tokenIn: p.tokenIn, tokenOut: p.tokenOut, amount: p.amountRaw, slippage: p.slippageBp, account: p.account, receiver: p.receiver, order: p.order ?? 'CHEAPEST', destinationGas: p.destinationGas },
   })
 }
 export interface BridgeStatus { bridge: string; status: 'PENDING' | 'DONE' | 'FAILED' | 'TRANSFER_REFUNDED' | 'INVALID' | 'NOT_FOUND' | 'PARTIAL_SUCCESS'; message?: string; toHash?: string }

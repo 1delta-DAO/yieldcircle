@@ -3,19 +3,21 @@ import { useAccount, useSendTransaction } from 'wagmi'
 import type { Idle } from '../model/positions'
 import { toRaw } from '../model/leverage'
 import { useQuery } from '@tanstack/react-query'
-import { fetchTokenBalances, spotSwapQuote, xchainSwapQuote, ZERO, type SwapQuoteActions, type SwapQuoteData } from '../sdk/api'
-import { CHAINS, chainLabel } from '../sdk/queries'
+import { fetchTokenBalances, spotSwapQuote, xchainSwapQuote, ZERO, type DestinationGas, type SwapQuoteActions, type SwapQuoteData } from '../sdk/api'
+import { CHAINS, chainLabel, useBalances } from '../sdk/queries'
 import { hasLanded, isDone, isOk, tracePaper, traceTx, useTrace } from '../sdk/txTrace'
 import { paperId, usePaper } from '../state/Paper'
 import { realTradingGated } from '../wallet/gate'
-import { MAX_TOPUPS, starterOf, TOPUP_UNITS, type PaperOp } from '../model/paper'
+import { balanceOf, gasTokenOf, knownOf, MAX_TOPUPS, starterOf, starterRef, tokenKey, TOPUP_UNITS, type PaperOp } from '../model/paper'
+import { destinationGasFor } from '../model/destGas'
+import { isNativeAddress } from '../model/positions'
 import { Spin, TxTrack, phaseWords, useNow } from './TxTray'
 import type { ApiEnvelope } from '../vendor/allocator/http'
 import { useApp } from '../state/AppState'
 import { isRemote, openWallet } from '../wallet/deeplink'
 import { useSwitchTo } from '../wallet/useSwitchTo'
 import { base58Encode, isSolAddr, isSvmChain, normAddr } from '../model/address'
-import { isSvmTx, type AnyTx } from '../sdk/types'
+import { isSvmTx, type AnyTx, type ApiTx } from '../sdk/types'
 import { solSignAndSend } from '../wallet/solana'
 import { DecimalInput, Info, Tok, num, usd } from './bits'
 import { Drawer } from './Drawer'
@@ -61,7 +63,8 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   const [amount, setAmount] = React.useState<number>(0)
   // with no price for either side there is nothing to work backwards from (no oracle for a reverse
   // quote): the amount starts empty, you say what to spend, and the forward quote says what it buys
-  React.useEffect(() => { if (src) setAmount(src.price > 0 && target.price > 0 ? Math.min(src.amount, +(need * target.price / src.price * 1.01).toFixed(6)) : 0) }, [src?.address, src?.chainId, need])
+  // (and 5 cents: a small buy — gas for a chain — loses more than 1 % to the route's fixed fees)
+  React.useEffect(() => { if (src) setAmount(src.price > 0 && target.price > 0 ? Math.min(src.amount, +((need * target.price * 1.01 + 0.05) / src.price).toFixed(6)) : 0) }, [src?.address, src?.chainId, need])
   const [quote, setQuote] = React.useState<ApiEnvelope<SwapQuoteData, SwapQuoteActions> | null>(null)
   const [quoting, setQuoting] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
@@ -69,28 +72,46 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   const [pendingApprove, setPendingApprove] = React.useState<`0x${string}` | undefined>()
   const reqId = React.useRef(0)
   const cross = !!src && src.chainId !== target.chainId
+  // destination gas (tickets/0007 C): a bridge brings the destination's gas coin along only when the
+  // receiving wallet has too little of it to act there — paper bank and real wallet alike
+  const dstGasTok = gasTokenOf(target.chainId)
+  const dstGas = knownOf(target.chainId)?.native
+  const dstGasRef = starterRef(target.chainId, dstGasTok) ?? 0
+  const realGas = useBalances(!paper.active && cross ? walletOn(target.chainId) : undefined, target.chainId, [dstGasTok])
+  const gasHeldUsd: number | undefined = !cross ? undefined
+    : paper.active ? (paper.ledger ? (balanceOf(paper.ledger, target.chainId, dstGasTok) + paper.ledger.inflight.filter((t) => t.toChainId === target.chainId && t.token === tokenKey(target.chainId, dstGasTok)).reduce((a, t) => a + t.units, 0)) * dstGasRef : undefined)
+    : realGas.data ? (() => { const b = realGas.data.items.find((i) => isNativeAddress(i.address)); const u = b ? parseFloat(b.balance) || 0 : 0; return b?.balanceUSD ?? u * (b?.priceUSD ?? dstGasRef) })()
+    // the read failed: nothing detected, nothing asked for
+    : realGas.isError || !realGas.isFetching && !realGas.isLoading ? Infinity : undefined
+  /** What every route is asked to deliver (`undefined`: nothing), or `wait` while the wallet's gas is still being read. */
+  const askGas: string | undefined | 'wait' = !cross ? undefined : gasHeldUsd === undefined ? 'wait' : destinationGasFor(target.chainId, target.address, gasHeldUsd)
+  // asked for gas, no route could bring it: quoted again without, and the drawer says so
+  const [gasMiss, setGasMiss] = React.useState(false)
   React.useEffect(() => {
     if (!src || !(amount > 0) || sent) { setQuote(null); return }
     const from = walletOn(src.chainId), to = walletOn(target.chainId)
     // a Solana leg with no Solana wallet: there is no one to send from, or to deliver to
+    if (askGas === 'wait') return
     if (!from || !to) { setQuote(null); setErr(`Connect a ${!from ? (isSvmChain(src.chainId) ? 'Solana' : 'EVM') : isSvmChain(target.chainId) ? 'Solana' : 'EVM'} wallet to ${!from ? 'pay from' : 'receive on'} ${chainLabel(!from ? src.chainId : target.chainId)}.`); return }
     const id = ++reqId.current
     const t = setTimeout(async () => {
       setQuoting(true); setErr(null)
       try {
         const raw = toRaw(amount, src.decimals)
-        const env = cross
-          // a paper wallet holds nothing on Solana, and Solana-origin bridges (Mayan, NEAR Intents, Relay) build by reading
-          // the sender on chain — they drop every route for an empty one. Paper needs only the quote: ask it without a sender
-          // (tickets/0007; measured 2026-10-11: no sender answers what a funded wallet would)
-          ? await xchainSwapQuote({ fromChainId: src.chainId, toChainId: target.chainId, tokenIn: src.address, tokenOut: target.address, amountRaw: raw, slippageBp: 50, account: paper.active && isSvmChain(src.chainId) ? undefined : from, receiver: to })
-          : await spotSwapQuote({ chainId: src.chainId, tokenIn: src.address, tokenOut: target.address, amountRaw: raw, slippageBp: 50, account: from })
+        // a paper wallet holds nothing on Solana, and Solana-origin bridges (Mayan, NEAR Intents, Relay) build by reading
+        // the sender on chain — they drop every route for an empty one. Paper needs only the quote: ask it without a sender
+        // (tickets/0007; measured 2026-10-11: no sender answers what a funded wallet would)
+        const x = (destinationGas?: string) => xchainSwapQuote({ fromChainId: src.chainId, toChainId: target.chainId, tokenIn: src.address, tokenOut: target.address, amountRaw: raw, slippageBp: 50, account: paper.active && isSvmChain(src.chainId) ? undefined : from, receiver: to, destinationGas })
+        let env = cross ? await x(askGas) : await spotSwapQuote({ chainId: src.chainId, tokenIn: src.address, tokenOut: target.address, amountRaw: raw, slippageBp: 50, account: from })
+        let miss = false
+        if (cross && askGas && !env.data?.quotes?.length) { env = await x(); miss = !!env.data?.quotes?.length }
         if (id !== reqId.current) return
+        setGasMiss(miss)
         setQuote(env); if (!env.data?.quotes?.length) setErr('No route found for this pair. Try another asset to pay with.')
       } catch (e) { if (id === reqId.current) { setQuote(null); setErr(shortErr((e as Error).message)) } } finally { if (id === reqId.current) setQuoting(false) }
     }, 600)
     return () => clearTimeout(t)
-  }, [src?.address, src?.chainId, amount, target.address, target.chainId, account, solSigner, sent, paper.active])
+  }, [src?.address, src?.chainId, amount, target.address, target.chainId, account, solSigner, sent, paper.active, askGas])
   // the route: the API's best by default; every other one it found is listed under it, picked in a tap
   const [sel, setSel] = React.useState(0)
   React.useEffect(() => { setSel(0) }, [quote])
@@ -127,12 +148,13 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
       const id = paperId()
       const eta = Number(best.estimatedDuration) > 0 ? Number(best.estimatedDuration) * 1000 : 0
       const route = { bridge: best.bridge, aggregator: best.aggregator, estimatedDuration: best.estimatedDuration }
+      const gas = cross ? gasOf(best.destinationGas, knownOf(src.chainId)?.native?.decimals ?? (isSvmChain(src.chainId) ? 9 : 18)) : undefined
       const op: PaperOp = cross
-        ? { t: 'bridge', id, fromChainId: src.chainId, toChainId: target.chainId, from: src.address, to: target.address, unitsIn: amount, unitsOut: out, arrivesAt: Date.now() + eta, route }
+        ? { t: 'bridge', id, fromChainId: src.chainId, toChainId: target.chainId, from: src.address, to: target.address, unitsIn: amount, unitsOut: out, arrivesAt: Date.now() + eta, route, ...(gas ? { gas } : {}) }
         : { t: 'swap', chainId: src.chainId, from: src.address, to: target.address, unitsIn: amount, unitsOut: out, route }
-      await paper.act(op, [{ chainId: target.chainId, address: target.address, symbol: target.symbol, decimals: target.decimals, logo: target.logo }])
+      await paper.act(op, [{ chainId: target.chainId, address: target.address, symbol: target.symbol, decimals: target.decimals, logo: target.logo }, ...(gas && dstGas ? [{ chainId: target.chainId, address: dstGasTok, symbol: dstGas.symbol, decimals: dstGas.decimals }] : [])])
       onTarget?.(target)
-      const what = `${num(amount, 4)} ${src.symbol} → ${target.symbol}`
+      const what = `${num(amount, 4)} ${src.symbol} → ${target.symbol}${gas && dstGas ? ` + ${num(gas.units, 4)} ${dstGas.symbol}` : ''}`
       const h = tracePaper({ id, chainId: src.chainId, account: paper.session!.evm, title: cross ? `Paper bridge ${what}` : `Paper swap ${what}`, label: cross ? `${chainLabel(src.chainId)} → ${chainLabel(target.chainId)}` : `on ${chainLabel(src.chainId)}`,
         bridge: cross ? { name: best.bridge ?? best.aggregator ?? 'bridge', toChainId: target.chainId } : undefined, arrivesAt: cross && eta ? Date.now() + eta : undefined })
       setSent({ hash: h, bridge: best.bridge })
@@ -179,12 +201,26 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
         watch: [{ chainId: target.chainId, address: target.address }],
       })
       setSent({ hash: h, bridge: best?.bridge })
+      // a gas leg (NEAR Intents, Gas.zip) is a second deposit the wallet sends right after the route
+      const leg = best?.destinationGas?.paidFrom === 'gas-leg' ? best.destinationGas.transaction : undefined
+      if (leg && dstGas) {
+        try {
+          const g = isSvmTx(leg) ? base58Encode(await solSignAndSend(Uint8Array.from(atob(leg.transaction), (c) => c.charCodeAt(0)))) : await sendTx(leg as ApiTx)
+          if (signer) traceTx({ hash: g, chainId: src.chainId, account: signer, moves: 'balances', title: `Gas for ${chainLabel(target.chainId)}`, label: `${num(gasOf(best!.destinationGas, 18)?.units ?? 0, 4)} ${dstGas.symbol} via ${best!.destinationGas!.bridge ?? 'gas leg'}`,
+            watch: [{ chainId: target.chainId, address: dstGasTok }] })
+        } catch (e) { setErr(`The bridge is on its way, but the gas for ${chainLabel(target.chainId)} was not sent: ${shortErr((e as Error).message)}`) }
+      }
     } catch (e) { setErr(shortErr((e as Error).message)) } finally { setBusy(false) }
   }
   const out = best?.tradeOutput ?? 0
   const covers = out >= need * 0.995
   // what the route is worth at market prices (`ValueCheck.tsx`): a severe loss is confirmed before it is signed
-  const v = useValueCheck(src && src.price > 0 ? amount * src.price : 0, target.price > 0 ? out * target.price : 0, `${sel}|${out}|${amount}`)
+  // the gas a route brings is part of the trade: what its leg costs is paid, what lands is received (a drop out of
+  // the output is already in `out`)
+  const bg = cross ? best?.destinationGas : undefined
+  const gasPaidUsd = bg && bg.paidFrom !== 'output' ? bg.cost?.usd ?? 0 : 0
+  const gasGotUsd = bg ? (Number(bg.amount) / 10 ** bg.decimals) * (paper.price(target.chainId, dstGasTok) ?? dstGasRef) : 0
+  const v = useValueCheck(src && src.price > 0 ? amount * src.price + gasPaidUsd : 0, target.price > 0 ? out * target.price + gasGotUsd : 0, `${sel}|${out}|${amount}`)
   return (
     <Drawer open onClose={onClose} side="right" label={`Get ${target.symbol}`} cls="get-drawer">
     <div className="get">
@@ -223,13 +259,16 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
                   : best ? <>You get <b className={covers ? 'ok' : 'warn'}>~{num(out, out > 100 ? 2 : 4)} {target.symbol}</b>{need > 0 && !covers && <span className="warn"> · short of the {num(need, 4)} needed</span>}</>
                   : err ? <span className="bad">{err}</span> : <span className="t50">{src.price > 0 ? 'Enter an amount.' : `Enter how much ${src.symbol} to spend; the quote shows what it buys.`}</span>}
               </div>}
+              {!sent && cross && dstGas && askGas && askGas !== 'wait' && <div className="qnote">{gasMiss
+                ? <span className="warn">You hold no {dstGas.symbol} on {chainLabel(target.chainId)}, and no route here can bring some along. Get {dstGas.symbol} there separately — without it, nothing can be done on {chainLabel(target.chainId)}.</span>
+                : <span className="t70">You hold {(gasHeldUsd ?? 0) > 0 ? 'too little' : 'no'} {dstGas.symbol} on {chainLabel(target.chainId)} for network fees, so each route brings some along.</span>}</div>}
               {/* every route the API found, the best first and picked: a swap terminal's table, in one column */}
               {!sent && quotes.length > 0 && (
                 <div className="routes" role="radiogroup" aria-label="Route">
                   <span className="lbl">{quotes.length === 1 ? 'Route' : `${quotes.length} routes`}{quoting ? <span className="t40"> · refreshing…</span> : null}</span>
                   {quotes.map((q, i) => { const o = q.tradeOutput ?? 0; const top = quotes[0].tradeOutput || 1; const d = (o / top - 1) * 1e4; return (
                     <button key={i} role="radio" aria-checked={i === sel} className="route" onClick={() => setSel(i)}>
-                      <span className="rn"><b>{q.bridge ?? q.aggregator ?? 'route'}</b><small>{Number(q.estimatedDuration) > 0 ? `~${Math.max(1, Math.round(Number(q.estimatedDuration) / 60))} min` : 'instant'}{cross && q.bridge && q.aggregator ? ` · via ${q.aggregator}` : ''}</small></span>
+                      <span className="rn"><b>{q.bridge ?? q.aggregator ?? 'route'}</b><small>{Number(q.estimatedDuration) > 0 ? `~${Math.max(1, Math.round(Number(q.estimatedDuration) / 60))} min` : 'instant'}{cross && q.bridge && q.aggregator ? ` · via ${q.aggregator}` : ''}{cross && dstGas && askGas && askGas !== 'wait' && !gasMiss ? (q.destinationGas ? ` · +${num(Number(q.destinationGas.amount) / 10 ** q.destinationGas.decimals, 4)} ${dstGas.symbol}${q.destinationGas.paidFrom !== 'output' && q.destinationGas.cost?.usd != null ? ` for $${q.destinationGas.cost.usd.toFixed(2)}` : ''}` : ` · no ${dstGas.symbol}`) : ''}</small></span>
                       <span className="rbar"><i style={{ width: `${Math.max(3, Math.min(100, (o / top) * 100))}%` }} /></span>
                       <span className="ro"><b>{num(o, o > 100 ? 2 : 4)}</b><small className={i === 0 ? 'ok' : d < -20 ? 'warn' : ''}>{i === 0 ? 'best' : `${d > 0 ? '+' : '−'}${Math.abs(d) >= 100 ? (Math.abs(d) / 100).toFixed(1) + '%' : Math.abs(d).toFixed(0) + ' bp'}`}</small></span>
                     </button>) })}
@@ -237,7 +276,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
               )}
               {best && !sent && <>
                 <ValueRow v={v} labels={['Pay', 'Receive', 'Price impact']} missing={v.inUsd > 0 ? target.symbol : src.symbol}
-                  info={<>What you receive is worth this much more or less than what you pay, both at market prices. It includes the route's fees{cross ? ' and the bridge\'s' : ''}.</>} />
+                  info={<>What you receive is worth this much more or less than what you pay, both at market prices. It includes the route's fees{cross ? ' and the bridge\'s' : ''}{bg ? <>, and the {dstGas?.symbol ?? 'gas'} it brings along for network fees on {chainLabel(target.chainId)}{gasPaidUsd > 0 ? ` (that costs $${gasPaidUsd.toFixed(2)} more, paid in ${knownOf(src!.chainId)?.native?.symbol ?? 'the gas coin'})` : ' (taken out of what arrives)'}</> : null}.</>} />
                 <LossAck v={v} what={cross ? 'This route' : 'This swap'} advice="Pay less, try another route, or pay with another asset." />
               </>}
               {best && !sent && v.sev === 'unk' && <div className="qnote warn">The value of this {cross ? 'route' : 'swap'} can't be checked: compare what you pay and get yourself.</div>}
@@ -266,6 +305,16 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   )
 }
 const shortErr = (m: string) => (m.length > 140 ? m.slice(0, 140) + '…' : m)
+/**
+ * A route's destination gas as the paper bridge op takes it: what lands (destination gas units) and
+ * what it costs in the SOURCE gas coin — nothing extra when it is dropped out of the output itself.
+ */
+function gasOf(g: DestinationGas | undefined, srcGasDecimals: number): { units: number; costUnits?: number } | undefined {
+  const units = g ? Number(g.amount) / 10 ** g.decimals : 0
+  if (!g || !(units > 0)) return undefined
+  const cost = g.paidFrom !== 'output' && g.cost?.amount ? Number(g.cost.amount) / 10 ** (g.cost.decimals ?? srcGasDecimals) : 0
+  return { units, ...(cost > 0 ? { costUnits: cost } : {}) }
+}
 
 /**
  * Any token, by address. Looked up on the chosen chain through the balance route — symbol,

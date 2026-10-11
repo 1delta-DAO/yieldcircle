@@ -24,6 +24,7 @@ import { usePaperBoard, useProfiles } from '../social/queries'
 import { chainLabel } from '../sdk/queries'
 import { CrownIcon, FollowButton, Money, Who, crownTitle } from './social-bits'
 import { Sk, pct, usdShort } from './bits'
+import { costWord } from './PaperMoves'
 import { usePaper } from '../state/Paper'
 import { ChainChip } from './ChainPicker'
 
@@ -196,7 +197,7 @@ function PaperBoard({ window: w }: { window?: string }) {
           <button aria-pressed={sort === 'apr'} onClick={() => go('board', { by: 'paper', t: 'apr' })} title="the net APR of what is at work now">Net APR</button>
         </div>
       </div>
-      <div className="note"><span className="pill paper">paper</span> Paper accounts, ranked by what their <b>strategies</b> earned — not what the gas coins did — valued hourly by the server at real rates and real time. A book shows once it is a day old with $1,000 at work. <a className="pri" href="#/">Start one ›</a></div>
+      <div className="note"><span className="pill paper">paper</span> Paper accounts, ranked by what their <b>strategies</b> earned — not what the gas coins did, and net of every fee, swap and bridge it took to get there — valued hourly by the server at real rates and real time. A book shows once it is a day old with $1,000 at work. <a className="pri" href="#/">Start one ›</a></div>
       <div className={`card board-paper${q.isFetching && q.data ? ' refetching' : ''}`}>
         {q.isLoading && <div className="empty"><Sk w={240} /></div>}
         {q.isError && <div className="empty">The paper board is not answering right now.</div>}
@@ -210,6 +211,7 @@ function PaperBoard({ window: w }: { window?: string }) {
               <span className="sp" />
               <span className={`v apr ${r.returnPct >= 0 ? 'ok' : 'bad'}`}>{pct(r.returnPct, 3)}<small>return</small></span>
               <span className="v hide-m">{pct(r.netAprPct)}<small>net APR</small></span>
+              {r.frictionUsd != null && <span className="v hide-m" title="What getting money to work has cost: swaps, bridges, network fees, loop entries and exits. Already inside the return.">{r.frictionUsd > 0 ? `−${costWord(r.frictionUsd)}` : '$0'}<small>friction</small></span>}
             </a>
           ))}
         </div>

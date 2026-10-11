@@ -7,10 +7,10 @@
 import React from 'react'
 import { usePaper } from '../state/Paper'
 import { openPaperSignIn } from './PaperSignIn'
-import { bookOf, MAX_TOPUPS } from '../model/paper'
+import { bookOf, MAX_TOPUPS, type PaperBook } from '../model/paper'
 import { metaKey, paperHoldings } from '../model/paperView'
 import { usePaperDaily } from '../social/queries'
-import { usePaperLedgerFor } from './PaperMoves'
+import { costWord, usePaperLedgerFor } from './PaperMoves'
 import { HealthPill, Sk } from './bits'
 import { chainLabel } from '../sdk/queries'
 import { num, pct, usd } from './bits'
@@ -54,6 +54,7 @@ export function PaperPanel() {
         <div className="stat"><small>Earned by strategies</small><b className={b.pnlUsd >= 0 ? 'ok' : 'bad'}>{b.pnlUsd >= 0 ? '+' : '−'}{usd(Math.abs(b.pnlUsd))}</b><small>{pct(b.returnPct, 3)} of what was put in</small></div>
         <div className="stat"><small>At work</small><b>{usd(b.deployedUsd)}</b><small>{b.netAprPct != null ? `${pct(b.netAprPct)} net` : 'nothing yet'}</small></div>
         <div className="stat"><small>Put in</small><b>{usd(l?.putInUsd ?? 0)}</b><small>{l?.topups ? `${l.topups} of ${MAX_TOPUPS} top-ups` : 'the starting bank'}</small></div>
+        <FrictionStat b={b} />
       </div>}
       {paper.session && <div className="row2"><span className="lbl" style={{ margin: 0 }}>Daily</span><PaperPnlLine account={paper.session.evm} /></div>}
       {risky.length > 0 && <div className="liq-warn">{risky.map((h) => h.label).join(', ')} would have been liquidated (health {risky.map((h) => h.health!.toFixed(2)).join(', ')}). On paper it stays open — close it to see what is left.</div>}
@@ -138,6 +139,7 @@ export function PaperWalletBook({ account, inScope }: { account: string; inScope
         <div className="paper-sec"><div className="stat"><small>Earned by strategies</small><b className={book.pnlUsd >= 0 ? 'ok' : 'bad'}>{book.pnlUsd >= 0 ? '+' : '−'}{usd(Math.abs(book.pnlUsd))}</b><small>{pct(book.returnPct, 3)} since the start</small></div></div>
         <div className="paper-sec"><div className="stat"><small>At work, every chain</small><b>{usd(book.deployedUsd)}</b><small>{book.positions} position{book.positions === 1 ? '' : 's'}{book.netAprPct != null ? ` · ${pct(book.netAprPct)} net` : ''}</small></div></div>
         <div className="paper-sec"><div className="stat"><small>Put in</small><b>{usd(ledger.putInUsd)}</b><small>{ledger.topups ? `the starting bank + ${ledger.topups} top-up${ledger.topups === 1 ? '' : 's'}` : 'the starting bank'}</small></div></div>
+        <div className="paper-sec"><FrictionStat b={book} /></div>
       </div>}
       {!rows.length && <div className="empty">Nothing at work on these chains — the rest of the book is in the paper bank.</div>}
       {rows.map((h) => (
@@ -148,6 +150,23 @@ export function PaperWalletBook({ account, inScope }: { account: string; inScope
           <span className="xv"><b>{usd(h.valueUsd)}</b><small>{h.apr != null ? <span className="ok">{pct(h.apr)}</span> : '—'}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}</small></span>
         </div>
       ))}
+    </div>
+  )
+}
+
+/**
+ * Friction so far (tickets/0007 D): what getting the money to work has cost — swaps, bridges,
+ * network fees, loop entries and exits. Already inside "Earned by strategies"; shown apart so the
+ * cost of moving money is visible as its own number.
+ */
+export function FrictionStat({ b }: { b: PaperBook }) {
+  const f = b.friction
+  const parts = ([['swaps', f.tradeUsd], ['bridges', f.bridgeUsd], ['network fees', f.gasUsd], ['loop entries', f.entryUsd], ['exits', f.exitUsd]] as const).filter(([, v]) => v > 0.005)
+  const word = costWord
+  return (
+    <div className="stat" title={parts.length ? parts.map(([k, v]) => `${k} ${word(v)}`).join(' · ') : undefined}>
+      <small>Friction so far</small><b className={b.frictionUsd > 0 ? 'warn' : ''}>{b.frictionUsd > 0 ? `−${word(b.frictionUsd)}` : '$0'}</b>
+      <small>{parts.length ? parts.slice().sort((a, z) => z[1] - a[1]).slice(0, 2).map(([k, v]) => `${k} ${word(v)}`).join(' · ') : 'fees, slippage, bridges'}</small>
     </div>
   )
 }

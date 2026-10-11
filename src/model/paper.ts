@@ -101,6 +101,36 @@ export function starterTokens(): { chainId: string; address: string; symbol: str
 /** Every chain's dollar and gas coin with its symbol and decimals: what a bank row is called without a token list. */
 export function knownTokens(): { chainId: string; address: string; symbol: string; decimals: number }[] { return tokensOf(KNOWN_TOKENS) }
 
+// ----------------------------------------------------------------- network fees (tickets/0007 B)
+/**
+ * The token a chain charges its network fee in: the gas coin, or — Arc, Stable, Tempo — the dollar
+ * that is their gas.
+ */
+const GAS_ERC20: Record<string, string> = { '5042': '0x3600000000000000000000000000000000000000', '988': '0x779ded0c9e1022225f8e0630b35a9b54be713736', '4217': '0x20c0000000000000000000000000000000000000' }
+export const gasTokenOf = (chainId: string) => GAS_ERC20[chainId] ?? nativeOf(chainId)
+/** The gas coin's name and decimals (the dollar on Arc, Stable, Tempo). */
+export const gasCoinOf = (chainId: string): StarterToken | undefined => knownOf(chainId)?.[GAS_ERC20[chainId] ? 'dollar' : 'native']
+export const CHAIN_NAME: Record<string, string> = {
+  '1': 'Ethereum', '8453': 'Base', '42161': 'Arbitrum', '56': 'BNB', '43114': 'Avalanche', '10': 'Optimism', '999': 'HyperEVM', '143': 'Monad',
+  '9745': 'Plasma', '137': 'Polygon', '5042': 'Arc', '4663': 'Robinhood', '4217': 'Tempo', '988': 'Stable', '98866': 'Plume', solana: 'Solana',
+}
+/** What an action is, for its network fee: a loop or a leverage step is a flash loan plus a swap; a transfer is one call. */
+export type FeeKind = 'swap' | 'bridge' | 'deposit' | 'withdraw' | 'loop' | 'lever' | 'reduce'
+const FEE_WEIGHT: Record<FeeKind, number> = { swap: 1, bridge: 1, deposit: 1.2, withdraw: 1, loop: 4, lever: 3.5, reduce: 3.5 }
+/**
+ * One plain transaction's fee per chain, USD — typical for October 2026 (Ethereum at a few gwei,
+ * the L2s at fractions of a cent, Solana with a priority fee). A loop pays four of them. Round on
+ * purpose: the point is that a chain without its gas coin cannot be used, and that Ethereum costs
+ * dollars where Base costs cents — not the third decimal.
+ */
+const FEE_BASE_USD: Record<string, number> = {
+  '1': 0.6, '8453': 0.005, '42161': 0.01, '10': 0.005, '56': 0.02, '43114': 0.02, '999': 0.01, '143': 0.01,
+  '9745': 0.005, '137': 0.01, '5042': 0.01, '4663': 0.005, '4217': 0.01, '988': 0.01, '98866': 0.005, solana: 0.002,
+}
+export const networkFeeUsd = (chainId: string, kind: FeeKind) => (FEE_BASE_USD[chainId] ?? 0.01) * FEE_WEIGHT[kind]
+/** A network-fee refusal starts with this, so a screen can offer to fetch the gas coin. */
+export const NO_GAS = 'Network fees:'
+
 // ----------------------------------------------------------------- shapes
 export interface PaperRate {
   /** APR % the held (collateral) units grow at */
@@ -179,17 +209,33 @@ export interface PaperLedger {
   topups: number
   positions: PaperPosition[]
   inflight: PaperTransfer[]
+  /**
+   * Dollars lost to getting money where it works (tickets/0007 D): trades, bridges (gas legs
+   * included), network fees, loop entries, exits. Already inside `realizedUsd` / the positions'
+   * equity — kept apart to be shown. Absent on a ledger from before it existed.
+   */
+  friction?: PaperFriction
   /** ops applied */
   seq: number
   updatedAt: number
 }
+export interface PaperFriction { tradeUsd: number; bridgeUsd: number; gasUsd: number; entryUsd: number; exitUsd: number }
+const NO_FRICTION: PaperFriction = { tradeUsd: 0, bridgeUsd: 0, gasUsd: 0, entryUsd: 0, exitUsd: 0 }
+export const frictionOf = (l: PaperLedger): PaperFriction => ({ ...NO_FRICTION, ...(l.friction ?? {}) })
+export const frictionTotal = (f: PaperFriction) => f.tradeUsd + f.bridgeUsd + f.gasUsd + f.entryUsd + f.exitUsd
 /** What the route said, kept with a trade. */
 export interface QuoteStamp { bridge?: string; aggregator?: string; estimatedDuration?: number }
 export type PaperOp =
   | { t: 'genesis'; sol?: string }
   | { t: 'topup'; chainId: string; units: number }
   | { t: 'swap'; chainId: string; from: string; to: string; unitsIn: number; unitsOut: number; route?: QuoteStamp }
-  | { t: 'bridge'; id: string; fromChainId: string; toChainId: string; from: string; to: string; unitsIn: number; unitsOut: number; arrivesAt: number; route?: QuoteStamp }
+  /**
+   * `gas`: destination gas the route delivers with the transfer (asked for when the destination
+   * wallet has none) — `units` of the destination's gas coin, landing with the tokens, and what it
+   * cost in the SOURCE gas coin when the route charges it apart (a NEAR Intents gas leg, a
+   * LayerZero drop in `msg.value`); a drop paid out of the bridged amount is already in `unitsOut`.
+   */
+  | { t: 'bridge'; id: string; fromChainId: string; toChainId: string; from: string; to: string; unitsIn: number; unitsOut: number; arrivesAt: number; route?: QuoteStamp; gas?: { units: number; costUnits?: number } }
   /** a deposit or a loop: a new position, or more of `into` */
   | { t: 'open'; id: string; into?: string; chainId: string; kind: 'simple' | 'loop'; strategyId: string; snap: PaperSnap; pay: { token: string; units: number }; units: number; debtUnits: number; rate: PaperRate; entryCostUsd: number }
   /**
@@ -216,7 +262,7 @@ const fin = (x: unknown): x is number => typeof x === 'number' && Number.isFinit
 const nonNeg = (x: unknown, what: string): number => { if (!fin(x) || x < 0) throw new PaperError(`${what} must be a number ≥ 0`); return x }
 const pos = (x: unknown, what: string): number => { if (!fin(x) || x <= 0) throw new PaperError(`${what} must be a number > 0`); return x }
 const str = (x: unknown, what: string, max = 200): string => { if (typeof x !== 'string' || !x || x.length > max) throw new PaperError(`${what} is missing or too long`); return x }
-const clone = (l: PaperLedger): PaperLedger => ({ ...l, bank: Object.fromEntries(Object.entries(l.bank).map(([c, b]) => [c, { ...b }])), positions: l.positions.map((p) => ({ ...p, rate: { ...p.rate } })), inflight: l.inflight.map((t) => ({ ...t })) })
+const clone = (l: PaperLedger): PaperLedger => ({ ...l, ...(l.friction ? { friction: { ...l.friction } } : {}), bank: Object.fromEntries(Object.entries(l.bank).map(([c, b]) => [c, { ...b }])), positions: l.positions.map((p) => ({ ...p, rate: { ...p.rate } })), inflight: l.inflight.map((t) => ({ ...t })) })
 /** What the bank holds of a token. */
 export const balanceOf = (l: PaperLedger, chainId: string, token: string) => l.bank[chainId]?.[tokenKey(chainId, token)] ?? 0
 function credit(l: PaperLedger, chainId: string, token: string, units: number) {
@@ -305,6 +351,9 @@ export interface PaperBook {
   worstHealth: number | null
   positions: number
   chains: string[]
+  /** what getting the money to work has cost so far (inside `pnlUsd` already) */
+  frictionUsd: number
+  friction: PaperFriction
 }
 export function bookOf(l: PaperLedger, at: number, price?: PriceFn): PaperBook {
   let bankUsd = 0, inflightUsd = 0, deployedUsd = 0, open = 0, annualUsd = 0
@@ -326,6 +375,7 @@ export function bookOf(l: PaperLedger, at: number, price?: PriceFn): PaperBook {
     returnPct: l.putInUsd > 0 ? (pnlUsd / l.putInUsd) * 100 : 0,
     annualUsd, netAprPct: deployedUsd > 0 ? (annualUsd / deployedUsd) * 100 : null,
     worstHealth: worst, positions: l.positions.length, chains: [...chains].sort(),
+    frictionUsd: frictionTotal(frictionOf(l)), friction: frictionOf(l),
   }
 }
 
@@ -381,6 +431,23 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
   const l = settle(l0, ctx)
   const P = (chainId: string, token: string, fallback?: number) => priceOr(ctx.price, chainId, token, fallback)
   const usdOf = (chainId: string, token: string, units: number, fallback?: number) => { const p = P(chainId, token, fallback); return p == null ? undefined : units * p }
+  const fr = (l.friction = frictionOf(l))
+  /**
+   * The action's network fee, in the chain's gas coin (tickets/0007 B). Computed here, from one
+   * table, so no caller can skip it; without the gas coin the action does not happen — as on chain.
+   */
+  const fee = (chainId: string, kind: FeeKind) => {
+    const t = gasTokenOf(chainId), p = P(chainId, t) ?? starterRef(chainId, t)
+    if (!p) return
+    const usd = networkFeeUsd(chainId, kind), units = usd / p
+    if (units > balanceOf(l, chainId, t) * (1 + 1e-9) + DUST) {
+      const sym = gasCoinOf(chainId)?.symbol ?? 'gas'
+      throw new PaperError(`${NO_GAS} you need about $${usd < 0.1 ? usd.toFixed(3) : usd.toFixed(2)} of ${sym} on ${CHAIN_NAME[chainId] ?? chainId} to pay for this. Bridge some there first — a bridge can bring it along.`)
+    }
+    debit(l, chainId, t, units)
+    l.realizedUsd -= usd
+    fr.gasUsd += usd
+  }
   switch (op.t) {
     case 'genesis': {
       if (l0.seq > 0 || Object.keys(l0.bank).length) throw new PaperError('the paper account already exists')
@@ -408,8 +475,12 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       if (tokenKey(c, op.from) === tokenKey(c, op.to)) throw new PaperError('a swap needs two different tokens')
       const inUsd = usdOf(c, op.from, inU), outUsd = usdOf(c, op.to, outU)
       bound(outUsd, inUsd, 'swap')
+      // buying the gas coin itself pays its fee out of what it buys: a wallet with none is never stuck
+      const intoGas = tokenKey(c, op.to) === tokenKey(c, gasTokenOf(c))
+      if (!intoGas) fee(c, 'swap')
       debit(l, c, op.from, inU); credit(l, c, op.to, outU)
-      if (inUsd != null && outUsd != null) l.realizedUsd += outUsd - inUsd
+      if (intoGas) fee(c, 'swap')
+      if (inUsd != null && outUsd != null) { l.realizedUsd += outUsd - inUsd; fr.tradeUsd += inUsd - outUsd }
       break
     }
     case 'bridge': {
@@ -417,14 +488,28 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       const inU = pos(op.unitsIn, 'unitsIn'), outU = pos(op.unitsOut, 'unitsOut')
       if (from === to) throw new PaperError('a bridge crosses chains — use a swap')
       if (!fin(op.arrivesAt)) throw new PaperError('arrivesAt missing')
-      const inUsd = usdOf(from, op.from, inU), outUsd = usdOf(to, op.to, outU)
+      const gasU = op.gas ? nonNeg(op.gas.units, 'gas.units') : 0, gasCostU = op.gas?.costUnits ? nonNeg(op.gas.costUnits, 'gas.costUnits') : 0
+      const srcGas = gasTokenOf(from), dstGas = gasTokenOf(to)
+      const inUsd0 = usdOf(from, op.from, inU), outUsd0 = usdOf(to, op.to, outU)
+      const gasInUsd = gasCostU ? usdOf(from, srcGas, gasCostU, starterRef(from, srcGas)) : 0
+      const gasOutUsd = gasU ? usdOf(to, dstGas, gasU, starterRef(to, dstGas)) : 0
+      const inUsd = inUsd0 == null || gasInUsd == null ? undefined : inUsd0 + gasInUsd
+      const outUsd = outUsd0 == null || gasOutUsd == null ? undefined : outUsd0 + gasOutUsd
+      // the tokens and the gas together may not come out richer than what went in
       bound(outUsd, inUsd, 'bridge')
+      fee(from, 'bridge')
       debit(l, from, op.from, inU)
+      if (gasCostU) debit(l, from, srcGas, gasCostU)
       // never later than a day, never before now: a quote's ETA, held to something a person waits for
       const arrivesAt = Math.min(ctx.now + 86_400_000, Math.max(ctx.now, op.arrivesAt))
-      if (arrivesAt <= ctx.now) credit(l, to, op.to, outU)
-      else l.inflight.push({ id: str(op.id, 'id', 64), fromChainId: from, toChainId: to, token: tokenKey(to, op.to), units: outU, bridge: op.route?.bridge, sentAt: ctx.now, arrivesAt })
-      if (inUsd != null && outUsd != null) l.realizedUsd += outUsd - inUsd
+      const land = (token: string, units: number, tag: string) => {
+        if (!(units > 0)) return
+        if (arrivesAt <= ctx.now) credit(l, to, token, units)
+        else l.inflight.push({ id: `${str(op.id, 'id', 64)}${tag}`, fromChainId: from, toChainId: to, token: tokenKey(to, token), units, bridge: op.route?.bridge, sentAt: ctx.now, arrivesAt })
+      }
+      land(op.to, outU, '')
+      land(dstGas, gasU, ':gas')
+      if (inUsd != null && outUsd != null) { l.realizedUsd += outUsd - inUsd; fr.bridgeUsd += inUsd - outUsd }
       break
     }
     case 'open': {
@@ -444,7 +529,9 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       // gross: what is held may not be worth more than what was paid plus what was borrowed
       bound(heldP == null ? undefined : units * heldP, payUsd == null || debtP == null ? undefined : payUsd + debtUnits * debtP, op.kind === 'loop' ? 'loop open' : 'deposit')
       if (op.kind === 'loop' && op.snap.liqLtv && debtP && heldP && (units * heldP * op.snap.liqLtv) / (debtUnits * debtP) < 1) throw new PaperError('this loop would be liquidated the moment it opens — lower the leverage')
+      fee(c, op.kind === 'loop' ? 'loop' : 'deposit')
       debit(l, c, op.pay.token, payU)
+      fr.entryUsd += nonNeg(op.entryCostUsd ?? 0, 'entryCostUsd')
       const basis = payUsd!
       // the feed's prices, never the caller's, are what a position is valued at from here on
       const stamp = (leg: PaperLeg | undefined) => (leg ? { ...leg, priceUsd: P(c, leg.address, leg.priceUsd) ?? leg.priceUsd } : undefined)
@@ -478,6 +565,9 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       const { pHeld } = legPrices(p, ctx.price)
       const outUsd = usdOf(p.chainId, op.receive.token, recvU, ownPrice(p, op.receive.token, pHeld, 0))
       bound(outUsd, units * pHeld, 'withdrawal')
+      fee(p.chainId, 'withdraw')
+      // what leaving cost over the position's own value: a PT sold below par, a fee to skip a queue
+      if (outUsd != null) fr.exitUsd += Math.max(0, units * pHeld - outUsd)
       const share = p.units > 0 ? units / p.units : 1
       const basisOut = p.basisUsd * share
       // a queued exit lands later (at most 30 days out), like a bridge; an instant one now
@@ -496,6 +586,8 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       const addU = pos(op.addUnits, 'addUnits'), addD = pos(op.addDebt, 'addDebt')
       const { pHeld, pDebt } = legPrices(p, ctx.price)
       bound(addU * pHeld, addD * pDebt, 'leverage step')
+      fee(p.chainId, 'lever')
+      fr.entryUsd += nonNeg(op.costUsd ?? 0, 'costUsd')
       p.units += addU; p.debtUnits += addD
       p.entryCostUsd += nonNeg(op.costUsd ?? 0, 'costUsd')
       if (p.snap.liqLtv && pDebt > 0 && (p.units * pHeld * p.snap.liqLtv) / (p.debtUnits * pDebt) < 1) throw new PaperError('this would put the loop past liquidation — pick a lower leverage')
@@ -512,6 +604,8 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       for (const r of op.receive) { const u = nonNeg(r.units, 'receive.units'); const v = usdOf(p.chainId, r.token, u, ownPrice(p, r.token, pHeld, pDebt)); if (v == null) priced = false; else outUsd += v }
       // what is sold pays the debt and whatever comes back — never more
       bound(priced ? outUsd + repay * pDebt : undefined, units * pHeld, op.all ? 'close' : 'deleverage')
+      fee(p.chainId, 'reduce')
+      fr.exitUsd += nonNeg(op.costUsd ?? 0, 'costUsd')
       const eqBefore = p.units * pHeld - p.debtUnits * pDebt
       const eqOut = units * pHeld - repay * pDebt
       const share = op.all ? 1 : eqBefore > 0 ? Math.min(1, Math.max(0, eqOut / eqBefore)) : units / p.units

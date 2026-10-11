@@ -13,7 +13,7 @@ import { Ago } from './social-bits'
 import { Sk, num, usdShort } from './bits'
 import { marketHref } from '../state/AppState'
 
-export interface PaperMove { id: number; at: string; chains: string[]; verb: string; cls: string; what: string; sub?: string; usd?: number; uid?: string }
+export interface PaperMove { id: number; at: string; chains: string[]; verb: string; cls: string; what: string; sub?: string; usd?: number; uid?: string; /** what it cost: fees, slippage, the bridge's cut */ costUsd?: number }
 export interface PaperFlows { depositedUsd: number; withdrawnUsd: number; borrowedUsd: number; repaidUsd: number; moves: number }
 
 type PosRef = { chainId: string; snap: PaperSnap }
@@ -116,7 +116,7 @@ export function usePaperHistory(account: string | undefined, inScope: (chainId: 
       // every leg a position ever had names its token, closed positions included
       for (const leg of [o.op.snap.held, o.op.snap.debt, o.op.snap.money]) if (leg?.symbol) meta[metaKey(o.op.chainId, leg.address)] ??= { symbol: leg.symbol, decimals: leg.decimals }
     }
-    const all = ops.map((o) => describe(o.id, o.at, o.op, o.prices ?? {}, pos, meta))
+    const all = ops.map((o) => ({ ...describe(o.id, o.at, o.op, o.prices ?? {}, pos, meta), ...(o.frictionUsd != null && o.frictionUsd > 0 ? { costUsd: o.frictionUsd } : {}) }))
     const rows = all.filter((m) => !m.chains.length || m.chains.some(inScope))
     const since = Date.now() - 30 * DAY
     const flows: PaperFlows = { depositedUsd: 0, withdrawnUsd: 0, borrowedUsd: 0, repaidUsd: 0, moves: 0 }
@@ -131,6 +131,9 @@ export function usePaperHistory(account: string | undefined, inScope: (chainId: 
   }, [q.data, q.error, ledger, mine, paper.tokens, inScope]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
+/** Small costs in cents: a Base deposit's $0.006 is not "$0". */
+export const costWord = (x: number) => (x < 0.01 ? '<$0.01' : x < 10 ? `$${x.toFixed(2)}` : usdShort(x))
+
 /** The moves, in the index's tape rows; a deposit or loop links to its market. */
 export function PaperMovesList({ rows, loading, error, unavailable }: { rows: PaperMove[]; loading: boolean; error: boolean; unavailable?: boolean }) {
   return (
@@ -142,7 +145,7 @@ export function PaperMovesList({ rows, loading, error, unavailable }: { rows: Pa
         <div key={m.id} className="tape-item">
           <a className="tape-row" href={m.uid ? marketHref(m.uid) : undefined}>
             <span className={`verb ${m.cls}`}>{m.verb}</span>
-            <span className="tr-m">{m.what} {m.sub && <span className="t50">{m.sub}</span>}</span>
+            <span className="tr-m">{m.what} {m.sub && <span className="t50">{m.sub}</span>}{m.costUsd != null && <span className="t50" title="What this move cost: network fees, slippage, the bridge's cut, a loop's entry or exit"> · cost {costWord(m.costUsd)}</span>}</span>
             <span className="tr-v">{m.usd != null ? usdShort(m.usd) : <span className="t40">—</span>}</span>
             <span className="tr-t"><Ago ts={m.at} /></span>
           </a>

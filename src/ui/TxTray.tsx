@@ -44,8 +44,10 @@ export function phaseWords(t: Trace, now = Date.now()): { head: string; detail?:
     case 'syncing': return t.moves === 'positions'
       ? { head: 'Updating your positions', detail: `final in block ${blk(t.block)}`, tone: 'run' }
       : { head: 'Updating your balance', detail: t.bridge ? `${t.bridge.name}: delivered` : `final in block ${blk(t.block)}`, tone: 'run' }
-    case 'bridging': return { head: 'Bridging', detail: !t.bridge?.status || t.bridge.status === 'NOT_FOUND' ? 'waiting for the bridge to pick it up' : `${t.bridge.name}: ${t.bridge.status.toLowerCase().replace(/_/g, ' ')}`, tone: 'run' }
-    case 'settled': return { head: 'Done', detail: t.note ?? (t.received?.length ? gained(t.received) : t.block ? `final in block ${blk(t.block)}` : undefined), tone: t.note ? 'warn' : 'ok' }
+    case 'bridging': if (t.paper) return { head: 'Bridging on paper', detail: `${t.bridge?.name ?? 'the route'}: lands ${t.arrivesAt && t.arrivesAt > now ? `in ${ago(t.arrivesAt - now)}` : 'now'}`, tone: 'run' }
+      return { head: 'Bridging', detail: !t.bridge?.status || t.bridge.status === 'NOT_FOUND' ? 'waiting for the bridge to pick it up' : `${t.bridge.name}: ${t.bridge.status.toLowerCase().replace(/_/g, ' ')}`, tone: 'run' }
+    case 'settled': if (t.paper) return { head: 'Done on paper', detail: 'nothing was sent on chain', tone: 'ok' }
+      return { head: 'Done', detail: t.note ?? (t.received?.length ? gained(t.received) : t.block ? `final in block ${blk(t.block)}` : undefined), tone: t.note ? 'warn' : 'ok' }
     case 'reverted': return { head: 'Reverted', detail: t.err, tone: 'bad' }
     case 'dropped': return { head: 'Dropped', detail: t.err, tone: 'bad' }
     case 'failed': return { head: 'Failed', detail: t.err, tone: 'bad' }

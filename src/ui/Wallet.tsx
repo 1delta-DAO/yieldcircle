@@ -34,6 +34,8 @@ import { chainLabel, offMenuQuery, type OffMenuRef } from '../sdk/queries'
 import { HIDES } from '../model/visibility'
 import { useQueryClient } from '@tanstack/react-query'
 import { primaryLeg } from './Feed'
+import { usePaperSession } from '../wallet/paper'
+import { PaperWalletBook } from './PaperPanel'
 import { TokLink } from './TokenPage'
 
 /**
@@ -59,6 +61,9 @@ export function Wallet({ addr }: { addr: string }) {
     || (!!cluster && (cluster.primary === addr || cluster.members.some((m) => m.account === addr)))
   const p = useProfile(addr)
   const profile = p.data?.profile ?? null
+  // a paper account (tickets/0006): its book is the paper ledger, and the index is never asked about it
+  const paperSess = usePaperSession()
+  const paperEvm = paperSess && (addr === paperSess.evm || addr === paperSess.sol) ? paperSess.evm : profile?.tags?.includes('paper') && isEvmAddr(addr) ? addr : undefined
   const followers = useFollowers(addr)
   /**
    * Is this address a desk rather than a wallet? A curated vault and the Safe
@@ -85,12 +90,12 @@ export function Wallet({ addr }: { addr: string }) {
   const cut = !allChains && !one
   const inScope = React.useCallback((id: string) => allChains || chainIds.includes(id), [allChains, chainIds])
   // your own page: sync first, then the index (pos-indexer tickets/0071)
-  const sync = useAccountSync(isMe && isEvmAddr(addr) ? addr : undefined)
+  const sync = useAccountSync(isMe && isEvmAddr(addr) && !paperEvm ? addr : undefined)
   // waiting for the chip's live read counts as syncing: the call has not been sent yet
   const syncing = isMe && isEvmAddr(addr) && !sync.data && !sync.isError
   // hidden = your own page with no synced answer to show (Solana, or the sync failed)
   const hidden = isMe && !sync.data && !syncing
-  const pos = useIndexPositions(!isMe || sync.data ? addr : undefined, one)
+  const pos = useIndexPositions(paperEvm ? undefined : !isMe || sync.data ? addr : undefined, one)
   // `?pos=<group key>`: a position's PnL history is open (pos-indexer tickets/0061)
   const route = useRoute()
   const closePnl = React.useCallback(() => {
@@ -105,8 +110,8 @@ export function Wallet({ addr }: { addr: string }) {
   // the app's menu, joined by market: what on this profile can be copied
   const menu = useMenu()
   const copyOf = useCopyable(menu)
-  const flows = useAccountFlows(addr, 30, one)
-  const txsQ = useAccountTxs(addr, one, cut ? 200 : 40)
+  const flows = useAccountFlows(paperEvm ? undefined : addr, 30, one)
+  const txsQ = useAccountTxs(paperEvm ? undefined : addr, one, cut ? 200 : 40)
   const rows = React.useMemo(() => (pos.data?.positions ?? []).filter((r) => inScope(r.chainId)), [pos.data, inScope])
   const groups = React.useMemo(() => pos.data?.groups?.filter((g) => inScope(g.chainId)), [pos.data, inScope])
   const nav = !cut
@@ -230,6 +235,7 @@ export function Wallet({ addr }: { addr: string }) {
       </div>
 
       <section className="sec">
+        {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} /></> : <>
         <div className="sec-h"><h2>Positions</h2><span className="sub">{hidden ? 'Your own positions come from the live path, not the index.' : syncing ? 'syncing your positions with the chain…' : isMe && sync.data ? <SyncNote s={sync.data} /> : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago</> : 'from the index'}</span></div>
         {hidden ? (
           <div className="note">The index is for <b>other</b> wallets and for history — never for the connected user’s own positions. Yours are behind the balance in the top right, read live.</div>
@@ -240,6 +246,7 @@ export function Wallet({ addr }: { addr: string }) {
             {rows.length > 0 && <Book rows={rows} groups={groups} navUsd={carry.navUsd} copyOf={copyOf} who={addr} />}
           </div>
         )}
+        </>}
         <PnlDrawer account={addr} posKey={route.pos} onClose={closePnl} />
       </section>
 

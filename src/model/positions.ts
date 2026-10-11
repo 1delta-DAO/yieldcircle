@@ -69,6 +69,8 @@ export interface Holding {
   assetAddress?: string
   /** a Pendle PT's maturity (unix s), from its symbol — the positions route carries no expiry */
   maturity?: number
+  /** a paper position (tickets/0006): play money, kept by the paper ledger, never on chain */
+  paper?: true
 }
 /**
  * Vault rows name themselves from the positions route's own `name`/`brand`,

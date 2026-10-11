@@ -125,6 +125,8 @@ export interface SimpleStrategy extends Base {
   ref: string
   /** the share token's own name (`Steakhouse Prime USDC`, `OUSD Vault V1`), from the vault registry */
   vaultName?: string
+  /** the deposited token's own yield inside `rate` (`rate.intrinsic`: an LST or a savings dollar lent out) */
+  intrinsic?: number
   canDeposit: boolean
   reason?: string
   maturity?: number
@@ -184,6 +186,8 @@ export interface LoopStrategy extends Base {
   borrowLiquidityUsd: number
   /** the collateral earns on its own (staking, savings, a PT, a fund) — false makes the loop a pure rate bet */
   collateralYields: boolean
+  /** that own yield, % APR — part of `dep` / `depSpot` (the paper ledger keeps it apart: tickets/0006) */
+  intrinsicLong?: number
   /** whose CONTRACT the collateral is when that is not whose credit (`Pendle` on a PT over sUSDe) */
   instrument?: string
   expiry?: number
@@ -489,7 +493,7 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
     nature: natureOfDeposit(m.venue, asset, m.name, m.risk?.yieldProfile), rate, risk, riskLabel, riskScore, rated: !!m.risk?.score, tvlUsd: tvl,
     earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, assetSymbol: m.asset.symbol, shareGroup: shareSym && shareSym.toUpperCase() !== m.asset.symbol.toUpperCase() ? (share?.assetGroup ? groupKey(share.assetGroup) : shareSym) : undefined, shareLogo: share?.logoURI ?? undefined, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
-    exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, exitSecs: m.exit?.cooldownSecs || undefined, exitFeeBps: m.exit?.feeBps || undefined, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0, passthrough: m.rate?.passthrough || undefined,
+    exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, exitSecs: m.exit?.cooldownSecs || undefined, exitFeeBps: m.exit?.feeBps || undefined, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0, intrinsic: m.rate?.intrinsic || undefined, passthrough: m.rate?.passthrough || undefined,
     // an API that knows the flag sets it on the deposit; then a missing withdraw leg (an async exit) is a no
     booked: isBooked(m.venue, m.capabilities) || undefined,
     nativeIn: dep.acceptsNative, nativeOut: dep.acceptsNative === undefined ? undefined : m.capabilities.find((c) => c.action === 'withdraw')?.acceptsNative ?? false,
@@ -615,7 +619,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     lender: r.lender, debt: S.symbol, marketLongUid: r.marketLongUid, marketShortUid: r.marketShortUid,
     collateralAddress: L.address, debtAddress: S.address, decimalsLong: L.decimals ?? 18, decimalsShort: S.decimals ?? 18,
     priceLong: r.underlyingInfoLong.prices?.priceUsd, priceShort: r.underlyingInfoShort.prices?.priceUsd, logoLong: L.logoURI, logoShort: S.logoURI,
-    dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields,
+    dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields, intrinsicLong: num(r.intrinsicYieldLong) || undefined,
     expiry, instrument,
     ...(terms.length ? { terms, borSpot: bor } : {}),
     ...(r.fixedTerm?.model === 'loopscale' ? { tenors: loopscaleTenors(r) } : {}),

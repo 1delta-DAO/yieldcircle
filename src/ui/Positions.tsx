@@ -16,6 +16,7 @@ import { useBook } from './useBook'
 import { GroupIcon, HealthPill, KindPill, LegsPill, MaturityNote, Sk, Tok, amt, pct, usd } from './bits'
 import type { AssetBook, Holding } from '../model/positions'
 import { chainLabel } from '../sdk/queries'
+import { PaperPanel } from './PaperPanel'
 
 type Book = ReturnType<typeof useBook>
 
@@ -33,8 +34,9 @@ export function Positions({ b }: { b: Book }) {
   const { tot, idle, work, yearly } = totalsOf(b)
   return (
     <>
+      <PaperPanel />
       <div className="pos-head">
-        <div className="lbl">Total, on the chains you picked</div>
+        <div className="lbl">{b.paper ? 'Paper money, on the chains you picked' : 'Total, on the chains you picked'}</div>
         <div className="pos-v">{b.positionsLoading && !b.books.length ? <Sk w={120} h={30} /> : usd(tot)}</div>
         {b.books.length > 0 && (
           <>
@@ -156,8 +158,8 @@ function AssetDetail({ b }: { b: AssetBook }) {
       {b.holdings.map((h) => (
         <button key={h.key} type="button" className="xrow" onClick={() => go(h.group, { u: h.asset, k: h.kind })}>
           <Tok sym={h.label.split(' ')[0]} logo={h.logo} size={20} />
-          <span className="xt"><span className="n"><span>{h.label}</span><KindPill kind={h.kind} /><LegsPill others={h.others} /></span>
-            <small>{h.venue} · {chainLabel(h.chainId)}{h.maturity ? <MaturityNote t={h.maturity} /> : ''}{h.health != null ? <> · <HealthPill h={h.health} /></> : ''}</small></span>
+          <span className="xt"><span className="n"><span>{h.label}</span><KindPill kind={h.kind} /><LegsPill others={h.others} />{h.paper && <span className="pill paper">paper</span>}</span>
+            <small>{h.venue} · {chainLabel(h.chainId)}{h.maturity ? <MaturityNote t={h.maturity} /> : ''}{h.health != null ? <> · <HealthPill h={h.health} /></> : ''}{h.paper && h.health != null && h.health < 1 ? <> · <span className="liq-warn">would have been liquidated</span></> : ''}</small></span>
           <span className="sp" />
           <span className="xv"><b>{usd(h.valueUsd)}</b>
             <small>{h.apr != null ? <span className="ok">{pct(h.apr)}</span> : '—'}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''} · +{usd(h.valueUsd * (h.apr ?? 0) / 100)}/yr</small></span>

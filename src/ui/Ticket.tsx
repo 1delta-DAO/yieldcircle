@@ -17,7 +17,10 @@ import { Who } from './social-bits'
 import { LossAck, ValueRow, cents, useValueCheck } from './ValueCheck'
 import { isSvmChain, normAddr } from '../model/address'
 import { useProfiles } from '../social/queries'
-import { stepsFrom, useLadder, type Ladder, type Step } from './useLadder'
+import { stepsFrom, useTicketLadder, type Ladder, type Step } from './useLadder'
+import { usePaper } from '../state/Paper'
+import { openPaperSignIn } from './PaperSignIn'
+import { depositPlan, leverPlan, loopPlan, reducePlan, withdrawPlan } from './paperPlans'
 import { isDone, useTrace } from '../sdk/txTrace'
 import { Spin, TxNote } from './TxTray'
 import { GetAsset, type Target } from './GetAsset'
@@ -248,11 +251,12 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
   const st = useSettings().st
   const slip = s.booked ? slippageFor(st, isSavings(s.nature)) : undefined
   const key = [s.id, into?.accountId ?? '', amount, chosen.role, actor ?? '', slip ?? ''].join('|')
-  const ladder = useLadder(key, s.chainId, async () => {
+  const paper = usePaper()
+  const ladder = useTicketLadder(key, s.chainId, async () => {
     const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: actor!, payAsset: chosen.role === 'native' ? chosen.address : undefined, slippageBp: slip, accountId: into?.accountId })
     if (chosen.role === 'native' && !paysNative(env.actions)) throw new Error(`${s.brand} does not take ${chosen.symbol} directly here. Pay with ${s.assetSymbol}.`)
     return stepsFrom(env.actions, s.via, s.chainId)
-  }, [s.earnUid, s.marketUid], [chosen])
+  }, [s.earnUid, s.marketUid], [chosen], depositPlan(s, { into, payToken: chosen.address, amount, price, feed: paper.price }))
   const more = !!idle && amount > idle.amount
   // the exit line, said with this market's own numbers where it has them: a
   // pool that is 94 % lent out is not the "rare, short" case the generic
@@ -457,7 +461,8 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const fitTier = fitLev ? [...TIERS].reverse().find((t) => s.tiers[t.id] <= fitLev) : undefined
   const yearly = E * net / 100
   const key = [s.id, holding?.accountId ?? '', amount, L, term?.id ?? '', tenor?.id ?? '', chosen?.role ?? '', actor ?? '', slip, routeName ?? ''].join('|')
-  const ladder = useLadder(key, s.chainId, async () => {
+  const paper = usePaper()
+  const ladder = useTicketLadder(key, s.chainId, async () => {
     const debtTokens = s.priceShort ? D / s.priceShort : 0
     const env = await loopOpen({
       collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!,
@@ -470,7 +475,9 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
     const route = Math.max(0, (env.data?.quotes ?? []).findIndex((r) => r.deltas?.aggregator === routeName))
     return stepsFrom(env.actions, `Open ${num(L, 2)}× loop${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)} term` : s.dueAt ? ` · due ${due}` : ''}`, s.chainId, route)
     // the swap's leftover lands in the wallet as either leg's token (Jupiter's exact-in fill on Solana)
-  }, [s.marketLongUid, s.marketShortUid], [{ address: chosen?.address, symbol: chosen?.symbol }, { address: s.collateralAddress, symbol: s.holds }, { address: s.debtAddress, symbol: s.debt }])
+  }, [s.marketLongUid, s.marketShortUid], [{ address: chosen?.address, symbol: chosen?.symbol }, { address: s.collateralAddress, symbol: s.holds }, { address: s.debtAddress, symbol: s.debt }],
+    // on paper: the same margin, leverage and rates, and the quote's entry cost (a Solana quote prices none: 0)
+    loopPlan(s, { into: holding, payToken: chosen?.address ?? '', amount, equityUsd: E, L, dep, bor, liqLtv, entryCostUsd: econ ? cost : isSvmChain(s.chainId) && q.data ? 0 : null, quoting: q.isFetching }))
   // the open at market prices: your equity right after it is what you put in less the entry cost (`ValueCheck.tsx`)
   const vc = useValueCheck(E, econ && E > 0 ? E - cost : 0, `${key}|${cost}`)
   const more = !!bal && amount > bal.amount
@@ -629,10 +636,12 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const st = useSettings().st
   const slip = booked ? slippageFor(st, s ? isSavings(s.nature) : true) : undefined
   const key = [s?.id ?? h.key, h.accountId ?? '', mode, eff, native ? 'native' : 'token', actor ?? '', slip ?? ''].join('|')
-  const ladder = useLadder(key, h.chainId, async () => {
+  const paper = usePaper()
+  const ladder = useTicketLadder(key, h.chainId, async () => {
     const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: (all || (booked && fullExit)) && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: actor!, isAll: fullExit && !booked, receiveAsset: native ? nativeAsset(h.chainId) : undefined, slippageBp: slip, accountId: h.accountId })
     return stepsFrom(env.actions, 'Withdraw', h.chainId)
-  }, [s?.earnUid, h.earnUid], [native ? { address: nativeAsset(h.chainId), symbol: coin } : { address: h.assetAddress ?? s?.assetAddress, symbol: h.symbol }])
+  }, [s?.earnUid, h.earnUid], [native ? { address: nativeAsset(h.chainId), symbol: coin } : { address: h.assetAddress ?? s?.assetAddress, symbol: h.symbol }],
+    withdrawPlan({ ledger: paper.ledger, h, units: eff, all: fullExit, receiveToken: native ? nativeAsset(h.chainId) : (h.assetAddress ?? s?.assetAddress ?? ''), feed: paper.price, receiveName: native ? { symbol: coin, decimals: nativeDecimals(h.chainId) } : { symbol: h.symbol, decimals: h.decimals } }))
   const price = h.amount > 0 ? h.valueUsd / h.amount : 0
   const exit = s && exitTerms(s)
   return (
@@ -757,7 +766,16 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   // loop's own pair — other legs stay where they are, so the account's equity is not what comes back.
   const valued = closing && !closeBlock && !h.others?.length && h.valueUsd > 0 && backUsd != null && backUsd > 0
   const vc = useValueCheck(valued ? h.valueUsd : 0, valued ? backUsd! : 0, `${key}|${backUsd}`)
-  const ladder = useLadder(key, h.chainId, async () => {
+  const paper = usePaper()
+  // on paper: a deleverage costs what the slippage allows, a close what the sale quote says, a step up what the open quote says
+  const paperPlan = !h.paper ? undefined : down || !s
+    ? reducePlan({ ledger: paper.ledger, h, closing, keep, sellUsd, costUsd: closing ? (sale?.exitCostUsd != null ? sale.exitCostUsd * (keep && keepOk ? sellKeep! / h.amount : 1) : C * slip / 10_000) : sellUsd * slip / 10_000, feed: paper.price })
+    : async () => {
+      let cost = borrowUsd * slip / 10_000
+      try { const q = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: slip, leverage: L, account: actor }); cost = q.data?.economics?.entryCostUsd.total ?? cost } catch { /* the slippage estimate stands */ }
+      return leverPlan({ ledger: paper.ledger, h, borrowUsd, costUsd: cost, feed: paper.price })()
+    }
+  const ladder = useTicketLadder(key, h.chainId, async () => {
     if (down || !s) {
       const amountRaw = closing && !keep ? allRaw : toRaw(closing ? sellKeep! : sellTok, h.decimals)
       const env = await loopClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: slip, isAll: closing, account: actor!, accountId: h.accountId, loanId: loan?.id })
@@ -768,7 +786,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
     const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!, accountId: h.accountId })
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     return stepsFrom(env.actions, `Increase to ${num(L, 2)}×`, h.chainId)
-  }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid], [{ address: h.collateralAddress ?? s?.collateralAddress, symbol: holds }, { address: h.debtAddress ?? s?.debtAddress, symbol: debt }])
+  }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid], [{ address: h.collateralAddress ?? s?.collateralAddress, symbol: holds }, { address: h.debtAddress ?? s?.debtAddress, symbol: debt }], paperPlan)
   const snaps: { l: number; t: string }[] = [...(minL <= 1 ? [{ l: 1, t: 'Close' }] : [{ l: minL, t: 'Repay loan' }]), ...(s ? TIERS.map((t) => ({ l: Math.min(maxL, s.tiers[t.id]), t: t.name })).filter((x) => x.l >= minL) : []), { l: +Lnow.toFixed(2), t: 'Now' }]
   return (
     <>
@@ -890,20 +908,23 @@ function Action({ ladder: l, label, account, isConnected, disabled, risky, block
     <div className="tsec cta">
       {l.err && <div className="err">{l.err}</div>}
       {solWait ? <button className="btn wide" disabled>Transactions on Solana open shortly — browsing and tracking work today</button>
-        : !account ? <button className="btn wide pri" onClick={() => setViewAs(undefined)} disabled>Connect a wallet to continue</button>
+        : !account ? <><button className="btn wide pri" onClick={() => setViewAs(undefined)} disabled>Connect a wallet to continue</button><button className="btn wide paper" style={{ marginTop: 8 }} onClick={openPaperSignIn}>Or try it with paper money</button></>
         : viewing ? <button className="btn wide" disabled>Viewing {account.slice(0, 6)}… · connect to sign</button>
         : !l.isConnected ? <button className="btn wide" disabled>{isSvmChain(chainId) ? 'Connect a Solana wallet (Phantom, Solflare, Backpack) to sign' : 'Connect a wallet to sign'}</button>
+        : l.paper ? <button className={`btn wide pri paperbtn ${risky ? 'risky' : ''}`} disabled={disabled || l.busy} onClick={() => l.start(label)}>{l.busy ? 'Applying on paper…' : blockedNote ?? `Confirm paper ${label.charAt(0).toLowerCase()}${label.slice(1)}${risky ? ' anyway' : ''}`}</button>
         : <button className={`btn wide pri ${risky ? 'risky' : ''}`} disabled={disabled || l.busy} onClick={() => l.start(label)}>{l.busy ? 'Building…' : blockedNote ?? (risky ? `${label} anyway` : label)}</button>}
-      {!viewing && <SayWhy on={thread ?? null} />}
-      <div className="foot" style={{ marginTop: 8 }}>The API builds the exact calls (approvals, then the action); nothing is sent until you sign each one. Gas on {chainLabel(chainId)}.</div>
+      {!viewing && !l.paper && <SayWhy on={thread ?? null} />}
+      {l.paper
+        ? <div className="foot" style={{ marginTop: 8 }}><span className="pill paper">paper</span> Play money on real rates and real quotes. Nothing is signed or sent on chain.</div>
+        : <div className="foot" style={{ marginTop: 8 }}>The API builds the exact calls (approvals, then the action); nothing is sent until you sign each one. Gas on {chainLabel(chainId)}.</div>}
     </div>
   )
   return (
     <div className="tsec cta">
-      <span className="lbl">{l.settled ? 'Done' : l.finished ? 'Updating your positions…' : l.signing ? 'Confirm in your wallet' : l.pending ? 'Waiting for the block…' : 'Sign in your wallet'}</span>
+      <span className="lbl">{l.paper ? 'Done on paper' : l.settled ? 'Done' : l.finished ? 'Updating your positions…' : l.signing ? 'Confirm in your wallet' : l.pending ? 'Waiting for the block…' : 'Sign in your wallet'}</span>
       <ol className="steps">{l.bundle.steps.map((st, i) => <StepRow key={i} st={st} n={i + 1} on={st === l.next} signing={l.signing && st === l.next} chainId={chainId} />)}</ol>
       {l.err && <div className="err" style={{ marginTop: 8 }}>{l.err}</div>}
-      {l.finished && <SayWhy on={thread ?? null} done />}
+      {l.finished && !l.paper && <SayWhy on={thread ?? null} done />}
       <div className="actions" style={{ marginTop: 12 }}>
         {l.finished ? <a className="btn wide pri" href="#/">{l.settled ? 'See your positions' : <><Spin sm /> Updating your positions…</>}</a>
           : <button className="btn wide pri" disabled={!!l.pending || l.switching || (l.signing && !l.remote)} onClick={l.signing ? l.reopen : l.sendNext}>{l.switching ? 'Switching…' : l.wrongChain ? `Switch wallet to ${chainLabel(chainId)}` : l.signing ? (l.remote ? 'Open your wallet to confirm' : 'Confirm in your wallet…') : l.pending ? <><Spin sm /> Waiting for the block…</> : `Send ${l.done + 1} of ${l.total}`}</button>}

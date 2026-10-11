@@ -64,8 +64,9 @@ export const chainInfo = (id: string | undefined): ChainInfo | undefined => (id 
  * to check it is the chain's own explorer. A chain this file does not know
  * gets no link rather than a guessed one.
  */
+/** A paper op (`paper:…`, tickets/0006) has no transaction to link to. */
 export const txUrl = (chainId: string | undefined, hash: string | undefined) =>
-  chainId && hash && chainInfo(chainId) ? `${chainInfo(chainId)!.explorer}/tx/${hash}` : undefined
+  chainId && hash && !hash.startsWith('paper:') && chainInfo(chainId) ? `${chainInfo(chainId)!.explorer}/tx/${hash}` : undefined
 export const addressUrl = (chainId: string | undefined, address: string | undefined) =>
   chainId && address && chainInfo(chainId) ? `${chainInfo(chainId)!.explorer}${chainInfo(chainId)!.accountPath ?? '/address/'}${address}` : undefined
 

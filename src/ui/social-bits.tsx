@@ -148,6 +148,7 @@ export function Who({ account, profile, size = 28, idx, sub, plain }: {
       {name.generated && <AutoTag />}
       {name.kind && name.kind !== 'eoa' && name.kind !== 'unknown' && name.kind !== 'contract' && <span className={`pill kind ${name.kind}`}>{name.kind}</span>}
       {profile?.xHandle && <span className="xtag" title={`linked to @${profile.xHandle} on X`}>𝕏</span>}
+      {profile?.tags?.includes('paper') && <span className="pill paper" title="A paper account: play money on real rates (tickets/0006)">paper</span>}
     </>
   )
   return plain ? <span className="who">{inner}</span> : <a className="who" href={`#/w/${account}`} onClick={(e) => e.stopPropagation()}>{inner}</a>

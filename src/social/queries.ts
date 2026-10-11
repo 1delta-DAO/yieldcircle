@@ -5,6 +5,7 @@ import { threadOf, type ThreadRef } from '../model/uid'
 import type { Strategy } from '../model/strategies'
 import * as api from './api'
 import { entryKey, useQueue, type TargetKind } from './pending'
+import * as paperApi from './paperApi'
 import type { Follow, Profile, SubjectKind } from './types'
 
 const MIN = 60_000
@@ -248,4 +249,29 @@ export function useSocialRefresh() {
     links: () => { void qc.invalidateQueries({ queryKey: ['wallet-links'] }); void qc.invalidateQueries({ queryKey: ['profiles'] }); void qc.invalidateQueries({ queryKey: ['profile'] }) },
     ratings: (kind: api.RatingSubjectKind, key: string) => { void qc.invalidateQueries({ queryKey: ['ratings', kind, key] }); void qc.invalidateQueries({ queryKey: ['rating-counts'] }) },
   }
+}
+
+// ---------------------------------------------------------------- paper (tickets/0006)
+/** A paper account's book as the server keeps it: public, like the board. */
+export function usePaperBook(account: string | undefined) {
+  return useQuery({ queryKey: ['paper-book', account], queryFn: () => paperApi.paperBook(account!), enabled: !!account && /^0x[0-9a-f]{40}$/i.test(account), staleTime: 60_000, retry: false })
+}
+export function usePaperDaily(account: string | undefined, days = 90) {
+  return useQuery({ queryKey: ['paper-daily', account, days], queryFn: () => paperApi.paperDaily(account!, days), enabled: !!account, staleTime: 5 * 60_000, retry: false })
+}
+/** The paper board (pos-indexer tickets/0076): ranked by return since start or by net APR. */
+export function usePaperBoard(sort: 'return' | 'apr', enabled = true) {
+  return useQuery({ queryKey: ['paper-board', sort], queryFn: () => paperApi.paperBoard(sort, 100), enabled, staleTime: 60_000, retry: false })
+}
+/**
+ * Prices for the paper bank, from the paper service's cache (one request, a minute fresh): the
+ * answer is a lookup keyed the way the ledger keys tokens (`model/paper.ts` `tokenKey`).
+ */
+export function usePaperPrices(keys: string[]) {
+  const sorted = [...new Set(keys)].sort()
+  const q = useQuery({ queryKey: ['paper-prices', sorted.join(',')], queryFn: () => paperApi.paperPrices(sorted), enabled: sorted.length > 0, staleTime: 60_000, refetchInterval: 5 * 60_000, retry: 1, placeholderData: (prev) => prev })
+  return React.useMemo(() => {
+    const m = q.data ?? {}
+    return { get: (chainId: string, token: string) => { const v = m[`${chainId}:${token}`]; return v != null && v > 0 ? v : undefined }, ready: !q.isPending, stamp: q.dataUpdatedAt }
+  }, [q.dataUpdatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 }

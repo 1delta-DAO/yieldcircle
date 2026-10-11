@@ -13,4 +13,6 @@
   --pri-bg:rgba(47,211,232,.12);--ok-bg:rgba(63,191,127,.13);--warn-bg:rgba(226,163,58,.14);--bad-bg:rgba(229,83,75,.13);--violet-bg:rgba(192,132,252,.14);
 }
 :root{--gold:#f5c542;--silver:#c9d1d9;--bronze:#d08a4e}
+/* paper money (yieldcircle tickets/0006): amber everywhere play money is shown, so it never passes for real */
+:root{--paper:#f4b740;--paper-ink:#2a1d00;--paper-bg:rgba(244,183,64,.13);--paper-line:#5a4512}
 @media (min-width:1400px){:root{--gutter:32px}}

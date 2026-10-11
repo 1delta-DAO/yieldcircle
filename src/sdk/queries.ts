@@ -797,3 +797,4 @@ export function useLoopPayAssets(l: LoopStrategy | null) {
     queryFn: () => fetchLoopPayAssets({ collateralMarketUid: l!.marketLongUid, debtMarketUid: l!.marketShortUid }),
   })
 }
+

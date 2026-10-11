@@ -74,6 +74,9 @@ export interface Trace {
   /** What it touched, as it stood when it was sent — `null` when there was nothing to compare with. */
   snap?: Snap | null
   seen?: boolean
+  /** a paper op (tickets/0006): nothing was sent, so nothing is watched — recorded at its end, a paper bridge at `bridging` until `arrivesAt` */
+  paper?: true
+  arrivesAt?: number
 }
 export const TERMINAL: Phase[] = ['settled', 'reverted', 'dropped', 'failed']
 export const isDone = (t: Trace) => TERMINAL.includes(t.phase)
@@ -129,7 +132,25 @@ function patch(id: string, p: Partial<Trace>) {
 /** Once, with the app's query client: resumes whatever a reload interrupted. */
 export function initTxTrace(client: QueryClient) {
   qc = client
-  for (const t of traces) if (!isDone(t)) void run(t.id)
+  for (const t of traces) if (!isDone(t)) { if (t.paper) landPaper(t.id, t.arrivesAt ?? 0); else void run(t.id) }
+}
+
+/** A paper op's id as a trace: never a hash any chain or explorer knows. */
+export const isPaperHash = (h: string | undefined) => !!h && h.startsWith('paper:')
+const landPaper = (id: string, at: number) => setTimeout(() => { const t = get(id); if (t && !isDone(t)) patch(id, { phase: 'settled', doneAt: Date.now() }) }, Math.max(0, at - Date.now()))
+/**
+ * A paper op in the tray (tickets/0006): the same row a real transaction gets, so the ticket's
+ * "Done", the tray and Alerts read alike — but recorded at its end, since there is no block to wait
+ * for. A paper bridge sits at `bridging` until the route's quoted time is up, then lands.
+ */
+export function tracePaper(t: { id: string; chainId: string; account: string; title: string; label?: string; bridge?: Trace['bridge']; arrivesAt?: number }) {
+  const id = `paper:${t.id}`
+  if (get(id)) return id
+  const flying = !!t.arrivesAt && t.arrivesAt > Date.now()
+  traces = [{ id, hash: id, chainId: t.chainId, account: normAddr(t.account), title: t.title, label: t.label ?? t.title, moves: 'none', bridge: t.bridge, phase: flying ? 'bridging' : 'settled', at: Date.now(), doneAt: flying ? undefined : Date.now(), need: 1, paper: true, arrivesAt: t.arrivesAt, note: undefined }, ...traces]
+  emit()
+  if (flying) landPaper(id, t.arrivesAt!)
+  return id
 }
 
 /**
@@ -137,6 +158,7 @@ export function initTxTrace(client: QueryClient) {
  * after a reload can call it again without starting a second watcher.
  */
 export function traceTx(t: { hash: string; chainId: string; account: string; title: string; label?: string; moves: Moves; bridge?: Trace['bridge']; touches?: (string | undefined)[]; watch?: Trace['watch']; lastValidHeight?: number }) {
+  if (isPaperHash(t.hash)) return
   if (get(t.hash)) { void run(t.hash); return }
   const account = normAddr(t.account)
   const touches = [...new Set(t.touches?.filter((u): u is string => !!u))]

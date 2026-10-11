@@ -9,6 +9,9 @@ import { hasLanded, isDone, traceTx, useTrace, type Moves } from '../sdk/txTrace
 import { isRemote, openWallet } from '../wallet/deeplink'
 import { solSignAndSend, useSolWallet } from '../wallet/solana'
 import { useSwitchTo } from '../wallet/useSwitchTo'
+import { tracePaper } from '../sdk/txTrace'
+import type { PaperOp } from '../model/paper'
+import { usePaper } from '../state/Paper'
 
 /**
  * The execution ladder, generic over the action that built it: permissions (each mined) →
@@ -172,5 +175,64 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   const finished = !!bundle && !next
   return { bundle, next, done, total: bundle?.steps.length ?? 0, pending, err, busy, start, sendNext, reset, isConnected: svm ? !!sol.account : isConnected, wrongChain, switching, signing: send.isPending, remote, reopen, finished, settled: finished && (!main || isDone(main)), main }
 }
-export type Ladder = ReturnType<typeof useLadder>
+export type Ladder = ReturnType<typeof useLadder> & { paper?: boolean }
+
+/**
+ * What a paper confirm does (tickets/0006): build the op — awaiting a quote if it needs one — and
+ * say what it is in the tray. Nothing is built by the action endpoints and nothing is signed but the
+ * op itself.
+ */
+export interface PaperBuilt {
+  op: PaperOp
+  /** names for tokens the op puts in the bank, so the bank can say them */
+  names?: { chainId: string; address: string; symbol: string; decimals: number; logo?: string }[]
+  /** a paper bridge: the tray shows it in flight until the route's time is up */
+  bridge?: { name: string; toChainId: string }
+  arrivesAt?: number
+}
+const PAPER_TX = { to: '0x0000000000000000000000000000000000000000', data: '0x', value: '0' } as ApiTx
+const PAPER_SS = 'yieldcircle.paperbundle'
+const loadPaper = (key: string): Bundle | null => { try { const v = JSON.parse(sessionStorage.getItem(PAPER_SS) ?? 'null') as { key: string; bundle: Bundle } | null; return v && v.key === key ? v.bundle : null } catch { return null } }
+
+/**
+ * The paper twin of {@link useLadder}: the same shape, so a ticket's button, step list and "Done"
+ * work unchanged — but one tap applies the op to the paper ledger, and it is settled at once.
+ */
+export function usePaperLadder(key: string, chainId: string, plan?: () => Promise<PaperBuilt>): Ladder {
+  const paper = usePaper()
+  // mirrored like the real ladder's: the position a confirm creates remounts the ticket body (its
+  // `key` is the holding), and "Done" must survive that
+  const [bundle, setBundleRaw] = React.useState<Bundle | null>(() => loadPaper(key))
+  const setBundle = (b: Bundle | null) => { setBundleRaw(b); try { b ? sessionStorage.setItem(PAPER_SS, JSON.stringify({ key, bundle: b })) : sessionStorage.removeItem(PAPER_SS) } catch { /* private mode */ } }
+  const [err, setErr] = React.useState<string | null>(null)
+  const [busy, setBusy] = React.useState(false)
+  const first = React.useRef(true)
+  React.useEffect(() => { if (first.current) { first.current = false; return } setBundleRaw(loadPaper(key)); setErr(null) }, [key])
+  const start = async (title?: string) => {
+    if (!plan) { setErr('This action is not available on paper yet.'); return }
+    setBusy(true); setErr(null)
+    try {
+      const b = await plan()
+      await paper.act(b.op, b.names)
+      const id = tracePaper({ id: (b.op as { id?: string }).id ?? Math.random().toString(16).slice(2), chainId, account: paper.session!.evm, title: title ?? 'Paper', label: 'on paper', bridge: b.bridge ? { name: b.bridge.name, toChainId: b.bridge.toChainId } : undefined, arrivesAt: b.arrivesAt })
+      setBundle({ steps: [{ kind: 'route', tx: PAPER_TX, label: title ?? 'Paper', hash: id, done: true, moves: 'positions' }], title })
+    } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
+  }
+  const finished = !!bundle
+  return {
+    bundle, next: undefined, done: bundle ? 1 : 0, total: bundle ? 1 : 0, pending: undefined, err, busy, start, sendNext: async () => {}, reset: () => { setBundle(null); setErr(null) },
+    isConnected: paper.active, wrongChain: false, switching: false, signing: false, remote: false, reopen: () => {}, finished, settled: finished, main: undefined, paper: true,
+  }
+}
+
+/**
+ * The ladder a ticket runs: the real one, or — when the connected account is the paper account —
+ * its paper twin. Both are always called (hooks), and the paper plan is only ever run on paper.
+ */
+export function useTicketLadder(key: string, chainId: string, build: () => Promise<Step[]>, touches: (string | undefined)[] = [], watch: Watch[] = [], plan?: () => Promise<PaperBuilt>): Ladder {
+  const real = useLadder(key, chainId, build, touches, watch)
+  const onPaper = usePaper().active
+  const paper = usePaperLadder(key, chainId, plan)
+  return onPaper ? paper : real
+}
 const shortErr = (m: string) => (m.length > 160 ? m.slice(0, 160) + '…' : m)

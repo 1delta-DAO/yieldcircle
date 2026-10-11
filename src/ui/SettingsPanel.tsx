@@ -11,6 +11,7 @@
  * now, beside the chains: both are settings of the reader, not of a page.
  */
 import React from 'react'
+import { PaperSettings } from './PaperPanel'
 import { AUTO_SLIPPAGE_BP, DEFAULTS, FILTER_KEYS, NO_CAP, slippageFor, useSettings, type Settings } from '../state/Settings'
 
 const MONEY = (x: number) => (x === 0 ? 'Any' : x >= 1e6 ? `$${x / 1e6}m+` : `$${x / 1e3}k+`)
@@ -48,6 +49,7 @@ export function SettingsPanel() {
       <Row label="Max slippage" note="loops, fixed-rate PTs">
         <SlippagePicker />
       </Row>
+      <PaperSettings />
       <p className="sm-p">Auto takes {AUTO_SLIPPAGE_BP.pegged / 100}% when both sides are the same money (an LST and its coin, a savings dollar and a dollar, a PT and its underlying) and {AUTO_SLIPPAGE_BP.floating / 100}% when one is priced on its own. Tight is cheaper: on Solana what the swap fills above its minimum stays idle in your wallet. Too tight only means a reverted transaction, never a worse fill.</p>
     </div>
   )

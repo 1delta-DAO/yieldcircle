@@ -2098,3 +2098,36 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .vm-h .foot{margin:0}
 .vm-on{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border-radius:14px;background:var(--b300)}
 .vm-on .addr{font-size:13px}
+
+/* ---------------------------------------------------------------- paper money (tickets/0006) */
+.pill.paper{border-color:var(--paper-line);color:var(--paper);background:var(--paper-bg)}
+.inp{width:100%;min-height:42px;background:var(--bg);border:1px solid var(--line2);border-radius:var(--r);padding:10px 12px;font:14px/1.4 var(--sans);color:var(--tx);outline:0}
+.inp:focus{border-color:var(--paper)}
+.modal.paper-in .th .pill{flex:none}
+.modal.paper-in .check{margin:0}
+.btn.paperbtn,.btn.paper{background:var(--paper);color:var(--paper-ink);border-color:var(--paper);font-weight:600}
+.btn.paper.ghost{background:transparent;color:var(--paper);border-color:var(--paper-line)}
+.moneychip.paper{border-color:var(--paper-line);background:var(--paper-bg)}
+.moneychip.paper:hover,.moneychip.paper[aria-expanded="true"]{border-color:var(--paper)}
+.moneychip.paper small{color:var(--paper)}
+.paper-strip{display:flex;align-items:center;gap:10px;padding:6px var(--gutter);background:var(--paper-bg);border-bottom:1px solid var(--paper-line);font-size:12.5px;color:var(--tx70)}
+.paper-strip b{color:var(--paper);font-weight:600}
+.paper-strip .sp{flex:1}
+.paper-strip button{color:var(--paper);font-size:12.5px;font-weight:600;padding:4px 6px}
+.paper-card{border:1px solid var(--paper-line);background:var(--paper-bg);border-radius:var(--r-lg);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.paper-card .actions{display:flex;gap:8px;flex-wrap:wrap}
+.paper-sec{display:flex;flex-direction:column;gap:10px}
+.paper-sec .row2{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.paper-sec .stat{display:flex;flex-direction:column;gap:2px;min-width:0}
+.paper-sec .stat b{font-family:var(--mono);font-weight:500;font-size:15px}
+.paper-sec .stat small{font-size:11px;color:var(--tx50)}
+.paper-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.paper-bank{display:flex;flex-direction:column;gap:2px}
+.paper-bank .bk{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--line-soft)}
+.paper-bank .bk .t50{font-size:11px}
+.paper-bank .bk .mono{font-family:var(--mono)}
+.paper-clock{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.paper-clock .seg button{min-height:32px}
+.liq-warn{color:var(--error);font-size:11.5px;font-weight:600}
+.board-paper .pill.paper{margin-left:6px}
+.btn.paperbtn{white-space:normal;line-height:1.25;min-height:46px;height:auto;padding-top:8px;padding-bottom:8px}

@@ -8,7 +8,7 @@ has **no backend of its own**; it reads three services:
 | **1delta API** (worker-api / "allocator") | `VITE_BACKEND_BASE_URL` | `https://allocator.api.1delta.io` | catalogue, the connected user's positions + balances, every transaction built | `src/vendor/allocator/http.ts` → `src/sdk/api.ts` → `src/sdk/queries.ts` |
 | **Position index** (`pos-indexer`) | `VITE_INDEX_BASE_URL` | `https://positions.1delta.io` | other wallets, feed, markets, hot/trending, board, curators, assets, idle-balance snapshots — the EVM chains | `src/index/api.ts` → `src/index/queries.ts` |
 | **Solana position index** (`pos-indexer/apps/sol-indexer`) | `VITE_SOL_INDEX_BASE_URL` | `https://sol-positions.1delta.io` | the same ledger questions for `solana`, a separate service until the merge ([`solana.md`](solana.md)) | `src/index/api.ts` routes to it by chain / address shape / uid; it must answer the EVM index's shapes — no adapter here |
-| **Social service** (`pos-indexer/packages/social`) | `VITE_SOCIAL_BASE_URL` | `https://social.1delta.io` | threads, profiles, follows, ratings (EIP-712 signed writes) | `src/social/api.ts` → `src/social/queries.ts` (see [`social.md`](social.md)) |
+| **Social service** (`pos-indexer/packages/social`) | `VITE_SOCIAL_BASE_URL` | `https://social.1delta.io` | threads, profiles, follows, ratings (EIP-712 signed writes); the **paper ledger** under `/paper/*` | `src/social/api.ts` → `src/social/queries.ts` (see [`social.md`](social.md)); paper: `src/social/paperApi.ts` (tickets/0006) |
 
 All base URLs are resolved in `src/config/backend.ts`. Vite bakes them in at
 **build** time.
@@ -180,6 +180,36 @@ decimals) it reads `/v1/data/token/balances`. A chain is **live** while a
 ticket is open on it (`useLiveBalances`) and for 3 min after one of our txs is
 final (`balancesChanged`, called only by `txTrace.ts`). See
 `src/sdk/liveBalances.ts`.
+
+## Paper accounts (tickets/0006, pos-indexer tickets/0076)
+
+A paper account is a key pair derived from a name and a password (`wallet/paperKey.ts`) and
+connected like a wallet (`wallet/paper.ts`): it signs, it never sends. Its money is a ledger
+(`model/paper.ts`) the social service keeps and values; the app holds a cache (`state/Paper.tsx`).
+
+Rules:
+
+- **A paper account never calls an action builder to act, is never read live, and is never sent
+  to the index.** `useBook` reads its holdings and idle balances from the ledger
+  (`model/paperView.ts`); `useTicketLadder` swaps the signing ladder for `usePaperLadder`; the
+  wallet page skips the index sync and the account reads for it.
+- **Quotes and every other read stay real**: the catalogue, rate history, `useLoopQuote`,
+  `useCloseQuote`, the spot and cross-chain swap quotes (a paper swap or bridge takes the quote's
+  output and, for a bridge, its ETA). A paper leverage step asks `/v1/actions/loop/leverage` for
+  its entry cost only.
+- **`model/paper.ts` is the one ledger**, applied by the app and by the server alike; pos-indexer's
+  `packages/social/src/paperModel.ts` is a verbatim copy (`pnpm paper-check`, `--write` to copy).
+  Change it here, copy it, redeploy social.
+- **The server is the truth**: it prices every op with its own feed, re-rates every open from the
+  index, refuses value created by any op, and its book replaces the app's after each op.
+
+| Function (`social/paperApi.ts`) | Endpoint | Hook |
+|---|---|---|
+| `postPaperOp` | `POST /paper/ops` — a `PaperOp` envelope `{author, op: JSON, nonce, signedAt}` signed EIP-712 by the paper EVM key | `usePaper().act` |
+| `paperBook` | `GET /paper/book/:account` | `usePaper` (sync), `usePaperBook` (anyone's, the wallet page) |
+| `paperDaily` | `GET /paper/book/:account/daily?days=` | `usePaperDaily` |
+| `paperBoard` | `GET /paper/board?sort=return\|apr` | `usePaperBoard` (Board → Paper) |
+| `paperPrices` | `GET /paper/prices?t=<chain>:<token>,…` — the service's shared price cache | `usePaperPrices` |
 
 ## Joining the two: market uids
 

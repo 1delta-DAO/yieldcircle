@@ -118,6 +118,8 @@ export interface OptimizerRowRaw {
    */
   termsShort?: { termId: string; durationDays?: number; apr: number | string; aprAtAmount?: number | string; fillable?: number | string | null; capped?: boolean }[] | null
   intrinsicYieldShort?: string | number
+  /** the collateral token's own yield (staking, savings), already inside `depositAprLong` */
+  intrinsicYieldLong?: string | number
   /** `maturityKind: 'fixed-date'` is a debt that falls due on one date (Midnight, Term, TermMax) */
   debtTerms?: { maturityKind?: string; canOpen?: boolean } | null
   underlyingInfoLong: UnderlyingInfo; underlyingInfoShort: UnderlyingInfo

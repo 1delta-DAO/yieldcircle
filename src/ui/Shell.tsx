@@ -39,6 +39,7 @@ import { Positions, totalsOf } from './Positions'
 import { MyStats, StatsChip } from './Stats'
 import { useBook } from './useBook'
 import { TxInFlight, TxTray } from './TxTray'
+import { PaperStrip } from './PaperPanel'
 import { Sk, usd, usdShort } from './bits'
 import { onAccessCode, useOnList, WAITLIST_HREF } from '../wallet/gate'
 
@@ -74,6 +75,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <Search />
         <Yours />
       </div></header>
+      <PaperStrip />
       <main className="wrap"><Waitlist />{children}</main>
       {tabs('tabbar')}
       <TxTray />
@@ -131,8 +133,8 @@ function Yours() {
     <>
       <StatsChip account={account} />
       {signer && <Bell />}
-      <button className="moneychip" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label={`Your positions${loading ? '' : `, ${usd(t.tot)}`}`}>
-        {loading ? <Sk w={64} /> : <><b>{usdShort(t.tot)}</b>{t.yearly > 0 && <small>≈ {usdShort(t.yearly)}/yr</small>}</>}
+      <button className={`moneychip${b.paper ? ' paper' : ''}`} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label={`Your ${b.paper ? 'paper ' : ''}positions${loading ? '' : `, ${usd(t.tot)}`}`}>
+        {loading ? <Sk w={64} /> : <><b>{usdShort(t.tot)}</b>{b.paper ? <small>paper{t.yearly > 0 ? ` · ≈ ${usdShort(t.yearly)}/yr` : ''}</small> : t.yearly > 0 && <small>≈ {usdShort(t.yearly)}/yr</small>}</>}
       </button>
       <Drawer open={open} onClose={() => setOpen(false)} side="right" label="Your money">
         <div className="hide-d"><MyStats account={account} /></div>

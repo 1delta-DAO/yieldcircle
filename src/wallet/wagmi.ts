@@ -4,6 +4,7 @@ import { injected, walletConnect } from 'wagmi/connectors'
 import { defineChain, type Transport } from 'viem'
 import { APP_METADATA, HAS_WC, WC_PROJECT_ID } from './wc'
 import { rotatingRpc } from './evmRpc'
+import { paperConnector } from './paper'
 
 /**
  * Every EVM chain `CHAINS` in `sdk/queries.ts` offers must be here (that is
@@ -27,6 +28,8 @@ export const wagmiConfig = createConfig({
   chains,
   connectors: [
     injected(),
+    // the paper account (tickets/0006): signs, never sends — `wallet/paper.ts`
+    paperConnector(),
     ...(HAS_WC
       ? [walletConnect({
           projectId: WC_PROJECT_ID!,

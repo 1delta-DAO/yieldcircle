@@ -5,6 +5,8 @@ import { WagmiProvider } from 'wagmi'
 import { wagmiConfig } from './wallet/wagmi'
 import { AppProvider } from './state/AppState'
 import { SettingsProvider } from './state/Settings'
+import { PaperProvider } from './state/Paper'
+import { PaperSignInHost } from './ui/PaperSignIn'
 import { initTxTrace } from './sdk/txTrace'
 import App from './App'
 import { GateBridge } from './wallet/GateBridge'
@@ -18,7 +20,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={qc}>
-        <SettingsProvider><AppProvider><App /><GateBridge /></AppProvider></SettingsProvider>
+        <SettingsProvider><AppProvider><PaperProvider><App /><GateBridge /><PaperSignInHost /></PaperProvider></AppProvider></SettingsProvider>
       </QueryClientProvider>
     </WagmiProvider>
   </React.StrictMode>,

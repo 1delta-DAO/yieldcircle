@@ -155,7 +155,7 @@ export async function signSolanaEnvelope<T extends PrimaryType>(primaryType: T, 
   return { primaryType, message, signature: base58Encode(sig) }
 }
 /** Deterministic JSON: object keys sorted at every depth, arrays kept in order. The exact form the verifier must reproduce. */
-function canonicalJson(v: unknown): string {
+export function canonicalJson(v: unknown): string {
   if (Array.isArray(v)) return '[' + v.map(canonicalJson).join(',') + ']'
   if (v && typeof v === 'object')
     return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + canonicalJson((v as Record<string, unknown>)[k])).join(',') + '}'

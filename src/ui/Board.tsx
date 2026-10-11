@@ -20,7 +20,8 @@ import { useApp, go, marketHref } from '../state/AppState'
 import { isSvmChain } from '../model/address'
 import * as idx from '../index/api'
 import { earnersQuery, useCrowns } from '../index/queries'
-import { useProfiles } from '../social/queries'
+import { usePaperBoard, useProfiles } from '../social/queries'
+import { chainLabel } from '../sdk/queries'
 import { CrownIcon, FollowButton, Money, Who, crownTitle } from './social-bits'
 import { Sk, pct, usdShort } from './bits'
 import { ChainChip } from './ChainPicker'
@@ -165,7 +166,58 @@ function Reigning({ scope }: { scope: string }) {
   )
 }
 
-export function Board({ window: w, by: b, x }: { window?: string; by?: string; x?: string }) {
+/** The board: the real earners, or the paper accounts (`?by=paper`, tickets/0006) — two components, so a switch never changes one's hooks. */
+export function Board(p: { window?: string; by?: string; x?: string }) {
+  return p.by === 'paper' ? <PaperBoard window={p.window} /> : <RealBoard {...p} />
+}
+
+/**
+ * The paper board (tickets/0006 §G): paper accounts ranked by what their strategies earned since
+ * the start, or by the net APR of what they have at work. Valued by the server at real time — never
+ * at anyone's paper clock — and kept apart from the real board: play money never ranks beside money.
+ */
+function PaperBoard({ window: w }: { window?: string }) {
+  const sort = w === 'apr' ? 'apr' : 'return'
+  const q = usePaperBoard(sort)
+  const rows = q.data?.rows ?? []
+  return (
+    <>
+      <div className="feed-h">
+        <h1>Board</h1>
+        <span className="sp" />
+        <div className="seg">
+          <button aria-pressed={false} onClick={() => go('board', {})}>Positions</button>
+          <button aria-pressed={false} onClick={() => go('board', { by: 'wallet' })}>Wallets</button>
+          <button aria-pressed onClick={() => go('board', { by: 'paper' })} title="paper accounts: play money on real rates">Paper</button>
+        </div>
+        <div className="seg">
+          <button aria-pressed={sort === 'return'} onClick={() => go('board', { by: 'paper' })} title="what the strategies earned since the start, over what was put in">Return</button>
+          <button aria-pressed={sort === 'apr'} onClick={() => go('board', { by: 'paper', t: 'apr' })} title="the net APR of what is at work now">Net APR</button>
+        </div>
+      </div>
+      <div className="note"><span className="pill paper">paper</span> Paper accounts, ranked by what their <b>strategies</b> earned — not what the gas coins did — valued hourly by the server at real rates and real time. A book shows once it is a day old with $1,000 at work. <a className="pri" href="#/">Start one ›</a></div>
+      <div className={`card board-paper${q.isFetching && q.data ? ' refetching' : ''}`}>
+        {q.isLoading && <div className="empty"><Sk w={240} /></div>}
+        {q.isError && <div className="empty">The paper board is not answering right now.</div>}
+        {!q.isLoading && !q.isError && !rows.length && <div className="empty">No paper books yet — be the first.</div>}
+        <div className="list">
+          {rows.map((r, i) => (
+            <a key={r.account} className="row wrow board" href={`#/w/${r.account}`}>
+              <span className={`rank${i < 3 && !r.warming ? ' lead' : ''}`}>{r.warming ? '·' : i + 1}</span>
+              <Who account={r.account} plain profile={{ account: r.account, handle: r.handle, displayName: r.displayName, bio: null, avatarUrl: null, tags: r.tags ?? [], visibility: 'public' }}
+                sub={<>{usdShort(r.deployedUsd)} at work · {r.positions} position{r.positions === 1 ? '' : 's'}{r.chains.length ? ` · ${r.chains.slice(0, 3).map(chainLabel).join(', ')}${r.chains.length > 3 ? ` +${r.chains.length - 3}` : ''}` : ''}{r.warming ? <span className="t40"> · warming up</span> : null}{r.worstHealth != null && r.worstHealth < 1 ? <span className="liq-warn"> · would have been liquidated</span> : null}</>} />
+              <span className="sp" />
+              <span className={`v apr ${r.returnPct >= 0 ? 'ok' : 'bad'}`}>{pct(r.returnPct, 3)}<small>return</small></span>
+              <span className="v hide-m">{pct(r.netAprPct)}<small>net APR</small></span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
+function RealBoard({ window: w, by: b, x }: { window?: string; by?: string; x?: string }) {
   const { chainIds, allChains } = useApp()
   const sort: Sort = w === 'day' ? 'perDay' : 'apr'
   const by: By = b === 'wallet' ? 'wallet' : 'position'
@@ -236,6 +288,7 @@ export function Board({ window: w, by: b, x }: { window?: string; by?: string; x
         <div className="seg">
           <button aria-pressed={by === 'position'} onClick={() => nav({ by: 'position' })} title="one row per position">Positions</button>
           <button aria-pressed={by === 'wallet'} onClick={() => nav({ by: 'wallet' })} title="one row per wallet: its net APR across every position, weighted by NAV">Wallets</button>
+          <button aria-pressed={false} onClick={() => go('board', { by: 'paper' })} title="paper accounts: play money on real rates">Paper</button>
         </div>
         <div className="seg">
           <button aria-pressed={sort === 'apr'} onClick={() => nav({ t: 'apr' })} title={by === 'wallet' ? 'highest net APR — exact wallets over $10k NAV only' : 'highest net APR — exact positions over $10k equity only'}>APR</button>

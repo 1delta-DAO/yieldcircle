@@ -5,7 +5,9 @@ import { toRaw } from '../model/leverage'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTokenBalances, spotSwapQuote, xchainSwapQuote, ZERO, type SwapQuoteActions, type SwapQuoteData } from '../sdk/api'
 import { CHAINS, chainLabel } from '../sdk/queries'
-import { hasLanded, isDone, isOk, traceTx, useTrace } from '../sdk/txTrace'
+import { hasLanded, isDone, isOk, tracePaper, traceTx, useTrace } from '../sdk/txTrace'
+import { paperId, usePaper } from '../state/Paper'
+import { MAX_TOPUPS, starterOf, TOPUP_UNITS, type PaperOp } from '../model/paper'
 import { Spin, TxTrack, phaseWords, useNow } from './TxTray'
 import type { ApiEnvelope } from '../vendor/allocator/http'
 import { useApp } from '../state/AppState'
@@ -37,6 +39,8 @@ export type GetTarget = Target & { have: number }
  */
 export function GetAsset({ targets, want, sources, onTarget, onClose }: { targets: GetTarget[]; want: number; sources: Idle[]; onTarget?: (t: Target) => void; onClose: () => void }) {
   const { account, solSigner } = useApp()
+  // a paper account trades its paper bank at the same quotes (tickets/0006 §K): only the send differs
+  const paper = usePaper()
   // each side is signed / received by its own VM's wallet: a Solana leg is the Solana account, never the EVM one
   const walletOn = (chainId: string | undefined) => (isSvmChain(chainId) ? solSigner : account)
   const [ti, setTi] = React.useState(0)
@@ -95,10 +99,10 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   const approveTr = useTrace(pendingApprove)
   const approved = hasLanded(approveTr)
   // a spot quote lists the approval without flagging `approvalRequired`; trust the permission the API returned (never for native)
-  const needsApprove = !srcSvm && perms.length > 0 && src?.address !== ZERO && !approved
+  const needsApprove = !paper.active && !srcSvm && perms.length > 0 && src?.address !== ZERO && !approved
   const { chainId: walletChain, address, connector } = useAccount(); const { switchTo, switching } = useSwitchTo()
   const send = useSendTransaction()
-  const wrongChain = !!src && !srcSvm && walletChain !== Number(src.chainId)
+  const wrongChain = !paper.active && !!src && !srcSvm && walletChain !== Number(src.chainId)
   const sendTx = async (t: { to: string; data: string; value?: string }) => send.sendTransactionAsync({ to: t.to as `0x${string}`, data: t.data as `0x${string}`, value: BigInt(t.value || '0') })
   // settled = final on the source chain (and, across chains, the bridge says DONE); the tracer has
   // already re-read both chains' balances by then
@@ -110,7 +114,35 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   React.useEffect(() => { if (approveTr && isDone(approveTr) && !isOk(approveTr)) { setErr(approveTr.err ?? 'The approval did not go through.'); setPendingApprove(undefined) } }, [approveTr?.phase])
   const [busy, setBusy] = React.useState(false)
   const remote = !srcSvm && isRemote(connector?.id)
+  /** On paper: the source leaves the bank now and the quote's output arrives — at once on a swap, when the route says on a bridge. */
+  const goPaper = async () => {
+    if (!src || !best) return
+    setErr(null); setBusy(true)
+    try {
+      const out = best.tradeOutput ?? 0
+      const id = paperId()
+      const eta = Number(best.estimatedDuration) > 0 ? Number(best.estimatedDuration) * 1000 : 0
+      const route = { bridge: best.bridge, aggregator: best.aggregator, estimatedDuration: best.estimatedDuration }
+      const op: PaperOp = cross
+        ? { t: 'bridge', id, fromChainId: src.chainId, toChainId: target.chainId, from: src.address, to: target.address, unitsIn: amount, unitsOut: out, arrivesAt: Date.now() + eta, route }
+        : { t: 'swap', chainId: src.chainId, from: src.address, to: target.address, unitsIn: amount, unitsOut: out, route }
+      await paper.act(op, [{ chainId: target.chainId, address: target.address, symbol: target.symbol, decimals: target.decimals, logo: target.logo }])
+      onTarget?.(target)
+      const what = `${num(amount, 4)} ${src.symbol} → ${target.symbol}`
+      const h = tracePaper({ id, chainId: src.chainId, account: paper.session!.evm, title: cross ? `Paper bridge ${what}` : `Paper swap ${what}`, label: cross ? `${chainLabel(src.chainId)} → ${chainLabel(target.chainId)}` : `on ${chainLabel(src.chainId)}`,
+        bridge: cross ? { name: best.bridge ?? best.aggregator ?? 'bridge', toChainId: target.chainId } : undefined, arrivesAt: cross && eta ? Date.now() + eta : undefined })
+      setSent({ hash: h, bridge: best.bridge })
+    } catch (e) { setErr(shortErr((e as Error).message)) } finally { setBusy(false) }
+  }
+  const dollar = paper.active ? starterOf(target.chainId)?.dollar : undefined
+  const topupsLeft = MAX_TOPUPS - (paper.ledger?.topups ?? 0)
+  const topup = async () => {
+    setErr(null)
+    try { await paper.act({ t: 'topup', chainId: target.chainId, units: TOPUP_UNITS }); tracePaper({ id: paperId(), chainId: target.chainId, account: paper.session!.evm, title: `Paper cash · ${num(TOPUP_UNITS, 0)} ${dollar?.symbol ?? ''}`, label: `on ${chainLabel(target.chainId)}` }) }
+    catch (e) { setErr(shortErr((e as Error).message)) }
+  }
   const go = async () => {
+    if (paper.active) return goPaper()
     if (!src || !tx) return
     setErr(null)
     if (wrongChain) { try { await switchTo(Number(src.chainId)) } catch (e) { setErr(shortErr((e as Error).message)) } return }
@@ -150,7 +182,11 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   return (
     <Drawer open onClose={onClose} side="right" label={`Get ${target.symbol}`} cls="get-drawer">
     <div className="get">
-      <p className="get-why">Pay with anything you hold, on any chain. <Info label="How this works">The API swaps it on the same chain, or bridges it from another chain, into {target.symbol} on {chainLabel(target.chainId)}. It lands in your wallet; then you continue with the strategy.</Info></p>
+      <p className="get-why">{paper.active ? <><span className="pill paper">paper</span> Pay with anything in your paper bank, on any chain — at the real routes' prices, fees and times. </> : 'Pay with anything you hold, on any chain. '}<Info label="How this works">The API swaps it on the same chain, or bridges it from another chain, into {target.symbol} on {chainLabel(target.chainId)}. {paper.active ? 'On paper, the route’s output lands in your paper bank — a bridge when its quoted time is up.' : 'It lands in your wallet; then you continue with the strategy.'}</Info></p>
+      {dollar && <div className="paper-card" style={{ margin: '0 0 12px' }}>
+        <span className="t70" style={{ fontSize: 12.5 }}>Short of play money? Add {num(TOPUP_UNITS, 0)} {dollar.symbol} on {chainLabel(target.chainId)} to your paper bank ({topupsLeft > 0 ? `${topupsLeft} top-up${topupsLeft === 1 ? '' : 's'} left` : 'none left'}).</span>
+        <div className="actions"><button className="btn paper ghost sm" disabled={topupsLeft <= 0} onClick={() => void topup()}>Add {num(TOPUP_UNITS, 0)} {dollar.symbol}</button></div>
+      </div>}
       {need > 0 && <div className="get-need"><Tok sym={target.symbol} logo={target.logo} size={22} /><span>You need <b>{num(need, need > 100 ? 2 : 4)} {target.symbol}</b> more on {chainLabel(target.chainId)}</span></div>}
       {targets.length > 1 && (
         <div className="seg get-as" role="radiogroup" aria-label="Receive as">
@@ -165,7 +201,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
           <span className="lbl">Pay with</span>
           <div className="srcs" role="radiogroup" aria-label="Pay with">
             {[...(custom ? [custom] : []), ...opts.slice(0, 8)].map((o) => <button key={o.chainId + o.address} role="radio" aria-checked={src === o} className="src" onClick={() => choose(o)}><Tok sym={o.symbol} size={18} /><span className="s">{o.symbol}<small>{chainLabel(o.chainId)}</small></span><span className="b">{o.price > 0 ? usd(o.usd) : num(o.amount, 4)}</span></button>)}
-            {!otherOpen && <button className="src other" onClick={() => setOtherOpen(true)}><span className="s">Other token<small>paste an address</small></span><span className="b">+</span></button>}
+            {!otherOpen && !paper.active && <button className="src other" onClick={() => setOtherOpen(true)}><span className="s">Other token<small>paste an address</small></span><span className="b">+</span></button>}
           </div>
           {otherOpen && (account || solSigner) && <CustomToken walletOn={walletOn} chainId0={src?.chainId ?? target.chainId}
             onUse={(i) => { setCustom(i); choose(i) }}
@@ -207,8 +243,8 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
                 </div>
               ) : (
                 <div className="actions" style={{ marginTop: 10 }}>
-                  <button className={`btn pri ${v.severe ? 'risky' : ''}`} disabled={!tx || v.blocked || (busy && !remote) || switching || (!!pendingApprove && !approved) || amount > src.amount + 1e-9} onClick={busy ? () => openWallet(connector?.id) : go}>
-                    {switching ? 'Switching…' : busy && remote ? 'Open your wallet to confirm' : wrongChain ? `Switch wallet to ${chainLabel(src.chainId)}` : pendingApprove && !approved ? 'Approving…' : needsApprove ? `Approve ${src.symbol}` : busy ? 'Sending…' : `${cross ? 'Bridge' : 'Swap'}${v.severe ? ' anyway' : ''} · ${num(amount, 4)} ${src.symbol}`}
+                  <button className={`btn pri ${paper.active ? 'paperbtn' : ''} ${v.severe ? 'risky' : ''}`} disabled={(!tx && !(paper.active && best)) || v.blocked || (busy && !remote) || switching || (!!pendingApprove && !approved) || amount > src.amount + 1e-9} onClick={busy ? () => openWallet(connector?.id) : go}>
+                    {switching ? 'Switching…' : busy && remote ? 'Open your wallet to confirm' : wrongChain ? `Switch wallet to ${chainLabel(src.chainId)}` : pendingApprove && !approved ? 'Approving…' : needsApprove ? `Approve ${src.symbol}` : busy ? (paper.active ? 'Applying on paper…' : 'Sending…') : `${paper.active ? 'Paper ' : ''}${cross ? (paper.active ? 'bridge' : 'Bridge') : (paper.active ? 'swap' : 'Swap')}${v.severe ? ' anyway' : ''} · ${num(amount, 4)} ${src.symbol}`}
                   </button>
                   <button className="btn" onClick={onClose}>Cancel</button>
                 </div>

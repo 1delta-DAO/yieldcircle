@@ -20,6 +20,7 @@ import React from 'react'
 import { useApp, walletHref } from '../state/AppState'
 import { ConnectButton } from '../wallet/ConnectButton'
 import { useBook } from './useBook'
+import { PaperOffer } from './PaperPanel'
 import { useRateHistory } from '../sdk/queries'
 import { steadyRate, type HistoryGet } from '../model/rateHistory'
 import { BANDS, BAND_ORDER, DENOMS, bandOf, clockOf, denomOf, denomOfAsset, isFixedDebt, recommendAll, type Band, type Denom, type Pick_ } from '../model/activity'
@@ -90,6 +91,8 @@ export function Start() {
             <a className="linklike" href="#/feed">or look around first — see the live feed ›</a>
           </div>
         )}
+        {/* no wallet, or a wallet with nothing in it: the same strategies on paper (tickets/0006) */}
+        {(!isConnected || (!b.paper && !b.positionsLoading && b.books.reduce((a, x) => a + x.totalUsd, 0) < 5)) && <div style={{ marginTop: 14 }}><PaperOffer empty={isConnected} /></div>}
         {isConnected && !loading && idleUsd > 0 && bestPassive && (
           <div className="note start-idle">
             You have <b>{usdShort(idleUsd)}</b> sitting idle. In the passive strategy below it would

@@ -14,8 +14,7 @@
  *
  * Numbers: yields and the stability figures are from the 2026-10-10 pull in
  * economics/ (gitignored; `detail.md`, `scenarios.md`); infrastructure counts
- * from positions.1delta.io/health the same day. The two rate lines on the
- * stability slide are real 30-day series from that pull.
+ * from positions.1delta.io/health the same day.
  */
 import React from 'react'
 import { Logo, Mark } from '@yieldcircle/design'
@@ -51,16 +50,12 @@ const CROWD = [
   '0x6554d9afedffadb62b0384a07c29ac28ba15fe35',
 ]
 
-/** Two real 30-day rate series (APR %, one point a day), economics/raw: a thin Euler Earn vault and sUSDe. */
-const THIN = [8.33, 6.36, 10.9, 8.67, 8.33, 7.73, 8.3, 8.39, 9.27, 10.03, 9.23, 8.12, 7.53, 8.37, 8.97, 7.21, 7.4, 7.71, 9.35, 8.71, 7.66, 7.9, 6.2, 6.9, 7.33, 8.72, 10.58, 9.3, 7.18, 6.87]
-const CURATED = [4.86, 4.82, 4.91, 4.92, 4.88, 4.87, 4.86, 4.7, 4.6, 4.57, 4.58, 4.59, 4.58, 4.6, 4.77, 4.85, 4.89, 4.9, 4.98, 5.01, 5.12, 4.96, 4.93, 4.93, 4.95, 4.88, 4.9, 4.95, 4.78, 4.82]
-
 /** Gross APR tiers for a USD depositor (economics/detail.md). */
 const TIERS = [
-  { label: 'Lending pool', sub: 'Aave · Morpho', apr: 3.8, c: 'c-ink' },
-  { label: 'Curated vault', sub: 'median of the menu', apr: 4.8, c: 'c-cyan' },
-  { label: 'Top-quartile vault', sub: 'p75 of the menu', apr: 7.9, c: 'c-moss' },
-  { label: 'Stable loop, 3×', sub: 'sUSDe / USDT', apr: 17.4, c: 'c-gold' },
+  { label: 'Lending pool', sub: 'Aave · Morpho', apr: 3.8, c: 'c-ink', take: '5 %' },
+  { label: 'Curated vault', sub: 'median of the menu', apr: 4.8, c: 'c-cyan', take: '10 %' },
+  { label: 'Top-quartile vault', sub: 'p75 of the menu', apr: 7.9, c: 'c-moss', take: '10 %' },
+  { label: 'Stable loop, 3×', sub: 'sUSDe / USDT', apr: 17.4, c: 'c-gold', take: '15 %' },
 ]
 
 function Slide({ n, kicker, children, className }: { n?: number; kicker?: string; children: React.ReactNode; className?: string }) {
@@ -100,17 +95,6 @@ function Crowd() {
     <div className="lp-crowd deck-crowd" aria-hidden="true">
       {CROWD.map((a, i) => <span key={a} style={css({ '--i': i, '--n': CROWD.length })}><Character addr={a} size={56} title="" /></span>)}
     </div>
-  )
-}
-
-/** A 30-day rate line on a shared scale, so the two slides' lines can be read against each other. */
-function Line({ v, lo, hi, stroke }: { v: number[]; lo: number; hi: number; stroke: string }) {
-  const W = 320, H = 96
-  const pts = v.map((y, i) => `${(i / (v.length - 1)) * W},${H - ((y - lo) / (hi - lo)) * H}`).join(' ')
-  return (
-    <svg className="deck-line" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-      <polyline points={pts} fill="none" stroke={stroke} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-    </svg>
   )
 }
 
@@ -253,37 +237,11 @@ export function Deck() {
         <p className="deck-foot">Realized yield is units × Δindex, valued, flows removed. The same number for every wallet, checkable by anyone.</p>
       </Slide>
 
-      {/* 6 - re-allocation philosophy: why the rates a user holds stay flat */}
-      <Slide n={6} kicker="Why rates stay flat">
-        <span className="lp-sticker sol">Curation</span>
-        <h2 className="lp-h2 center">Curation is a <span className="lp-mark">volatility filter.</span></h2>
-        <div className="deck-cmp">
-          <div className="lp-card c-gold in deck-cmp-col" style={css({ '--tilt': '-1.5deg' })}>
-            <i>Everything on-chain</i>
-            <Line v={THIN} lo={3} hi={12} stroke="#e2c33a" />
-            <b>6.3 pp</b>
-            <span>30-day swing of the median thin pool</span>
-            <small>a $200k Euler Earn vault, 30 real days</small>
-          </div>
-          <div className="lp-card c-moss in deck-cmp-col" style={css({ '--tilt': '1.5deg' })}>
-            <i>The YieldCircle menu</i>
-            <Line v={CURATED} lo={3} hi={12} stroke="var(--success)" />
-            <b>2.4 pp</b>
-            <span>30-day swing of the median curated row</span>
-            <small>sUSDe, $1.2b, the same 30 days</small>
-          </div>
-        </div>
-        <div className="deck-rules">
-          <span className="lp-sticker"><b>1</b> Size and liquidity floors. 10,500 thin rows hidden.</span>
-          <span className="lp-sticker"><b>2</b> Rank on the 30-day rate. Spikes show, never sort.</span>
-          <span className="lp-sticker"><b>3</b> Vaults re-allocate inside. One move for them, none for you.</span>
-        </div>
-      </Slide>
-
-      {/* 7 - unit economics */}
-      <Slide n={7} kicker="Unit economics">
-        <span className="lp-sticker sol">Per $10k, per point of yield</span>
-        <h2 className="lp-h2 center"><span className="lp-mark">$10</span> a year, per $10k, per point.</h2>
+      {/* 6 - unit economics */}
+      <Slide n={6} kicker="Unit economics">
+        <span className="lp-sticker sol">Unit economics</span>
+        <h2 className="lp-h2 center">We keep <span className="lp-mark">5 to 15 ¢</span> of every yield dollar.</h2>
+        <p className="lp-lead center deck-sub">5 ¢ on a plain pool, 10 ¢ on a vault, 15 ¢ on a loop. A $10k vault at 7 % earns $700 a year; $70 is ours.</p>
         <div className="deck-ue">
           <div className="deck-tiers">
             {TIERS.map((t, i) => (
@@ -291,6 +249,7 @@ export function Deck() {
                 <div className="deck-tier-l"><b>{t.label}</b>{t.sub && <small>{t.sub}</small>}</div>
                 <div className="deck-tier-bar"><i style={{ width: `${(t.apr / max) * 100}%` }} /></div>
                 <b className="deck-tier-n">{t.apr.toFixed(1)}%</b>
+                <small className="deck-tier-take">{t.take} ours</small>
               </div>
             ))}
           </div>
@@ -300,11 +259,11 @@ export function Deck() {
             </thead>
             <tbody>
               <tr><td>Gross APR</td><td>6.7 %</td><td>11.0 %</td><td>17.4 %</td></tr>
-              <tr><td>User keeps</td><td>5.7 %</td><td>9.4 %</td><td>13.8 %</td></tr>
+              <tr><td>User keeps</td><td>6.0 %</td><td>9.7 %</td><td>13.8 %</td></tr>
               <tr><td>Uplift over the pool</td><td>+1.9 pp</td><td>+5.6 pp</td><td>+10.0 pp</td></tr>
-              <tr className="hi"><td>Revenue / user / yr</td><td>$120</td><td>$185</td><td>$361</td></tr>
-              <tr><td>10k users · $100m</td><td>$1.2m</td><td>$1.9m</td><td>$3.6m</td></tr>
-              <tr><td>100k users · $1b</td><td>$12m</td><td>$19m</td><td>$36m</td></tr>
+              <tr className="hi"><td>Revenue / user / yr</td><td>$87</td><td>$152</td><td>$361</td></tr>
+              <tr><td>10k users · $100m</td><td>$0.9m</td><td>$1.5m</td><td>$3.6m</td></tr>
+              <tr><td>100k users · $1b</td><td>$8.7m</td><td>$15m</td><td>$36m</td></tr>
             </tbody>
           </table>
         </div>
@@ -315,11 +274,11 @@ export function Deck() {
           <span className="lp-sticker c-gold"><b>2 %</b> volatile · ETH / USDC</span>
           <span className="lp-sticker c-plum"><b>+0.25 %</b> high-yield collateral · RWA credit</span>
         </div>
-        <p className="deck-foot">Gross APR of USD rows, risk ≤ 3, TVL-weighted, 2026-10-10. Loop: sUSDe/USDT at 3× on Aave, upper quartile of liquid pairs. Revenue at 15 % of gross yield plus 10 bps in and out; the protected loop adds 0.5 % a year on $20k of debt.</p>
+        <p className="deck-foot">Gross APR of USD rows, risk ≤ 3, TVL-weighted, 2026-10-10. Loop: sUSDe/USDT at 3× on Aave, upper quartile of liquid pairs. Our share of yield: 5 % on pools, 10 % on vaults, 15 % on loops, plus 10 bps in and out; the protected loop adds 0.5 % a year on $20k of debt.</p>
       </Slide>
 
-      {/* 8 - business model */}
-      <Slide n={8} kicker="Business model" className="deck-fix">
+      {/* 7 - business model */}
+      <Slide n={7} kicker="Business model" className="deck-fix">
         <Rings />
         <span className="lp-sticker sol">How it pays</span>
         <h2 className="lp-h2 center">Paid for <span className="lp-mark">performance,</span> not promotion.</h2>
@@ -342,8 +301,8 @@ export function Deck() {
         </div>
       </Slide>
 
-      {/* 9 - ask / roadmap */}
-      <Slide n={9} kicker="The ask" className="deck-end">
+      {/* 8 - ask / roadmap */}
+      <Slide n={8} kicker="The ask" className="deck-end">
         <div className="land-glow" aria-hidden="true" />
         <span className="lp-sticker sol">Where this goes</span>
         <h2 className="lp-h2 center">Raising <span className="lp-mark">$250–500k.</span></h2>

@@ -5,7 +5,7 @@ import { dateOf, exitTerms, isBooked, isLoopscale, type LoopStrategy, type LoopT
 import { isSvmTx, type LoopActions } from '../sdk/types'
 import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
 import { earnDeposit, earnWithdraw, loopClose, loopOpen, nativeAsset } from '../sdk/api'
-import { bookAprAt, chainLabel, SOL_POSITIONS_READY, useCloseQuote, useIrm, useLendingBooks, useLoopPayAssets, useLoopQuote, useRateHistory, useTenorQuotes } from '../sdk/queries'
+import { bookAprAt, chainLabel, quoteClose, SOL_POSITIONS_READY, useCloseQuote, useIrm, useLendingBooks, useLoopPayAssets, useLoopQuote, useRateHistory, useTenorQuotes } from '../sdk/queries'
 import { seriesFor } from '../model/rateHistory'
 import { RateHistoryPanel, useSparkRewards } from './Spark'
 import { useApp, type Mode } from '../state/AppState'
@@ -256,7 +256,9 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
     const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: actor!, payAsset: chosen.role === 'native' ? chosen.address : undefined, slippageBp: slip, accountId: into?.accountId })
     if (chosen.role === 'native' && !paysNative(env.actions)) throw new Error(`${s.brand} does not take ${chosen.symbol} directly here. Pay with ${s.assetSymbol}.`)
     return stepsFrom(env.actions, s.via, s.chainId)
-  }, [s.earnUid, s.marketUid], [chosen], depositPlan(s, { into, payToken: chosen.address, amount, price, feed: paper.price }))
+  }, [s.earnUid, s.marketUid], [chosen], depositPlan(s, { into, payToken: chosen.address, amount, price, feed: paper.price }),
+    // the deposit's own build, unsigned — EVM only: Solana's builders simulate against the chain, where a paper address holds nothing
+    !isSvmChain(s.chainId))
   const more = !!idle && amount > idle.amount
   // the exit line, said with this market's own numbers where it has them: a
   // pool that is 94 % lent out is not the "rare, short" case the generic
@@ -462,6 +464,14 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const yearly = E * net / 100
   const key = [s.id, holding?.accountId ?? '', amount, L, term?.id ?? '', tenor?.id ?? '', chosen?.role ?? '', actor ?? '', slip, routeName ?? ''].join('|')
   const paper = usePaper()
+  // on paper, what the chain would refuse is refused too (tickets/0006): a quote with a route, the
+  // market's free liquidity, a dated book deep enough for the size
+  const paperRefuse = !paper.active ? null
+    : overLiquidity ? `The market has only ${usdShort(s.borrowLiquidityUsd)} of ${s.debt} free to borrow — lower the amount or the leverage.`
+    : bookShort ? `The book does not hold ${usd(D)} of ${s.debt} at this date — borrow less or pick another date.`
+    : q.isFetching && !q.data ? 'Quoting the route…'
+    : !q.data || !hasRoute(q.data.data) ? 'No quote with a route at this size right now, so nothing can be opened — try another amount or leverage.'
+    : null
   const ladder = useTicketLadder(key, s.chainId, async () => {
     const debtTokens = s.priceShort ? D / s.priceShort : 0
     const env = await loopOpen({
@@ -477,7 +487,9 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
     // the swap's leftover lands in the wallet as either leg's token (Jupiter's exact-in fill on Solana)
   }, [s.marketLongUid, s.marketShortUid], [{ address: chosen?.address, symbol: chosen?.symbol }, { address: s.collateralAddress, symbol: s.holds }, { address: s.debtAddress, symbol: s.debt }],
     // on paper: the same margin, leverage and rates, and the quote's entry cost (a Solana quote prices none: 0)
-    loopPlan(s, { into: holding, payToken: chosen?.address ?? '', amount, equityUsd: E, L, dep, bor, liqLtv, entryCostUsd: econ ? cost : isSvmChain(s.chainId) && q.data ? 0 : null, quoting: q.isFetching }))
+    loopPlan(s, { into: holding, payToken: chosen?.address ?? '', amount, equityUsd: E, L, dep, bor, liqLtv, entryCostUsd: econ ? cost : isSvmChain(s.chainId) && q.data ? 0 : null, quoting: q.isFetching, refuse: paperRefuse }),
+    // the open's own build, unsigned, on either chain: the same call the quote makes
+    true)
   // the open at market prices: your equity right after it is what you put in less the entry cost (`ValueCheck.tsx`)
   const vc = useValueCheck(E, econ && E > 0 ? E - cost : 0, `${key}|${cost}`)
   const more = !!bal && amount > bal.amount
@@ -605,7 +617,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
         {s.rewardsLong + s.rewardsShort > 0.05 && <li><i /><span>Part of the rate is incentives that can stop without notice.</span></li>}
       </ul></div>
       {noRoute && <div className="err" style={{ margin: '0 0 10px' }}>{NO_ROUTE}</div>}
-      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked} risky={vc.severe} blockedNote={short ? 'Too big for one lender — see above' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={s.chainId} />
+      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={short ? 'Too big for one lender — see above' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} />
     </>
   )
 }
@@ -637,11 +649,21 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const slip = booked ? slippageFor(st, s ? isSavings(s.nature) : true) : undefined
   const key = [s?.id ?? h.key, h.accountId ?? '', mode, eff, native ? 'native' : 'token', actor ?? '', slip ?? ''].join('|')
   const paper = usePaper()
+  // on paper (tickets/0006): an instant exit pays out only what can leave the market now; a queued
+  // one (a cooldown, a request) lands after the venue's wait — a week where it publishes none
+  const px = h.amount > 0 ? h.valueUsd / h.amount : 0
+  const instant = !s || !!s.maturity || ['instant', 'instant-capped', 'market-sale', 'instant-or-queued'].includes(s.exitMode)
+  const queueSecs = instant ? 0 : s?.exitSecs ?? 7 * 86_400
+  const queueWord = instant || !s ? undefined : s.exitMode === 'fixed-cooldown' ? 'cooldown' : 'exit queue'
+  const paperRefuse = !paper.active || !instant || !s || s.liquidityUsd == null || eff * px <= s.liquidityUsd ? null
+    : `Only ${usdShort(s.liquidityUsd)} can leave this market right now — withdraw less, or wait for borrowers to repay.`
   const ladder = useTicketLadder(key, h.chainId, async () => {
     const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: (all || (booked && fullExit)) && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: actor!, isAll: fullExit && !booked, receiveAsset: native ? nativeAsset(h.chainId) : undefined, slippageBp: slip, accountId: h.accountId })
     return stepsFrom(env.actions, 'Withdraw', h.chainId)
   }, [s?.earnUid, h.earnUid], [native ? { address: nativeAsset(h.chainId), symbol: coin } : { address: h.assetAddress ?? s?.assetAddress, symbol: h.symbol }],
-    withdrawPlan({ ledger: paper.ledger, h, units: eff, all: fullExit, receiveToken: native ? nativeAsset(h.chainId) : (h.assetAddress ?? s?.assetAddress ?? ''), feed: paper.price, receiveName: native ? { symbol: coin, decimals: nativeDecimals(h.chainId) } : { symbol: h.symbol, decimals: h.decimals } }))
+    withdrawPlan({ ledger: paper.ledger, h, units: eff, all: fullExit, receiveToken: native ? nativeAsset(h.chainId) : (h.assetAddress ?? s?.assetAddress ?? ''), feed: paper.price, receiveName: native ? { symbol: coin, decimals: nativeDecimals(h.chainId) } : { symbol: h.symbol, decimals: h.decimals }, refuse: paperRefuse, queueSecs, queue: queueWord }))
+    // no dry-run on an exit: where the API cannot build one (Lido's queue, say) a real user leaves on
+    // the venue's own site — a paper account has nowhere else to go, so it is never locked in
   const price = h.amount > 0 ? h.valueUsd / h.amount : 0
   const exit = s && exitTerms(s)
   return (
@@ -662,7 +684,8 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
         {exit && <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{exit.word}</span><span className="s">{exit.when}</span></div>}
       </div></div>
       {booked && <BookedSlippage pegged={s ? isSavings(s.nature) : true} what={h.symbol} sell />}
-      <Action ladder={ladder} label={`Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={!(eff > 0)} chainId={h.chainId} />
+      {paper.active && queueSecs > 0 && <div className="tsec plain t70" style={{ fontSize: 12.5 }}><span className="pill paper">paper</span> This exit is queued: on paper the {h.symbol} lands in your bank {s?.exitSecs ? `after the venue's ${exit ? exit.word.toLowerCase() : 'wait'}` : 'after a week (the venue publishes no wait time)'}, and the tray shows it on its way.</div>}
+      <Action ladder={ladder} label={`Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} />
     </>
   )
 }
@@ -768,12 +791,24 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const vc = useValueCheck(valued ? h.valueUsd : 0, valued ? backUsd! : 0, `${key}|${backUsd}`)
   const paper = usePaper()
   // on paper: a deleverage costs what the slippage allows, a close what the sale quote says, a step up what the open quote says
-  const paperPlan = !h.paper ? undefined : down || !s
-    ? reducePlan({ ledger: paper.ledger, h, closing, keep, sellUsd, costUsd: closing ? (sale?.exitCostUsd != null ? sale.exitCostUsd * (keep && keepOk ? sellKeep! / h.amount : 1) : C * slip / 10_000) : sellUsd * slip / 10_000, feed: paper.price })
+  // on paper every step needs what the real one needs (tickets/0006): a close its sale quote (the
+  // button already waits for it), a deleverage a quote for the part it sells, a step up a quote with
+  // a route and the market's free liquidity — no estimate stands in for a missing quote
+  const paperPlan = !h.paper ? undefined : closing
+    ? reducePlan({ ledger: paper.ledger, h, closing, keep, sellUsd, costUsd: sale?.exitCostUsd != null ? sale.exitCostUsd * (keep && keepOk ? sellKeep! / h.amount : 1) : C * slip / 10_000, feed: paper.price })
+    : down || !s
+    ? async () => {
+      const q = await quoteClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: toRaw(sellTok, h.decimals), accountId: h.accountId, loanId: loan?.id }, slip, false).catch(() => null)
+      if (!q) throw new Error(NO_ROUTE)
+      // what the sale loses against the position's own valuation, at the quote's fill
+      const cost = q.exitCostUsd != null && q.exitCostUsd > 0 ? q.exitCostUsd : Math.max(0, sellUsd - q.output * pDebt)
+      return reducePlan({ ledger: paper.ledger, h, closing: false, keep: false, sellUsd, costUsd: cost, feed: paper.price })()
+    }
     : async () => {
-      let cost = borrowUsd * slip / 10_000
-      try { const q = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: slip, leverage: L, account: actor }); cost = q.data?.economics?.entryCostUsd.total ?? cost } catch { /* the slippage estimate stands */ }
-      return leverPlan({ ledger: paper.ledger, h, borrowUsd, costUsd: cost, feed: paper.price })()
+      if (s.borrowLiquidityUsd > 0 && borrowUsd > s.borrowLiquidityUsd) throw new Error(`The market has only ${usdShort(s.borrowLiquidityUsd)} of ${debt} free to borrow — pick a lower leverage.`)
+      const q = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: slip, leverage: L, account: actor })
+      if (!hasRoute(q.data)) throw new Error(NO_ROUTE)
+      return leverPlan({ ledger: paper.ledger, h, borrowUsd, costUsd: q.data?.economics?.entryCostUsd.total ?? 0, feed: paper.price })()
     }
   const ladder = useTicketLadder(key, h.chainId, async () => {
     if (down || !s) {

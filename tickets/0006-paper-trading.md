@@ -60,6 +60,14 @@ sign, both refuse to send), `state/Paper.tsx` (session, book cache, `act`, sync,
 - **Bridging** (§K): as planned — the real route list and ETA; the tray shows "Bridging on paper"
   until the quoted time is up.
 
+- **Paper may do only what the real path would** (2026-10-11): a loop opens only on a quote with a
+  route, within the market's free liquidity and the book's depth; deposits and loop opens run their
+  own build unsigned first (deposits on EVM only — Solana's builders simulate against an empty
+  wallet); lever-up and deleverage need real quotes; an instant withdrawal is capped by what can leave,
+  and a queued exit lands after the venue's wait (a week where none is published). Exits are never
+  dry-run, so a paper account is never locked in. The server re-checks liquidity on lending markets
+  and keeps a loop's at-size borrow premium over spot (pos-indexer `docs/paper.md`).
+
 **Not done.** A forced close below health 1 (decision 4: a warning only); seasons; the Talk-tab
 filter for paper authors; `pnpm shots` paper screens. A closed loop's ticket falls back to the
 open view at once (the tray says "Done on paper").

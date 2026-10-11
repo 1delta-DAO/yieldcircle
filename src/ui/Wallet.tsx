@@ -36,9 +36,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { primaryLeg } from './Feed'
 import { usePaperSession } from '../wallet/paper'
 import { PaperWalletBook } from './PaperPanel'
-import { PaperMovesList, usePaperHistory } from './PaperMoves'
-import { usePaperBook } from '../social/queries'
-import { usePaper } from '../state/Paper'
+import { PaperMovesList, scopedBook, usePaperHistory, usePaperLedgerFor } from './PaperMoves'
 import { TokLink } from './TokenPage'
 
 /**
@@ -147,9 +145,11 @@ export function Wallet({ addr }: { addr: string }) {
   }, [pos.data, rows, groups, cut])
   // a paper account: its history and flows from the paper ledger, never from the index
   const ph = usePaperHistory(paperEvm, inScope)
-  const pbook = usePaperBook(paperEvm && paperEvm !== paperSess?.evm ? paperEvm : undefined).data?.book
-  const paperNow = usePaper()
-  const pb = paperEvm ? (paperEvm === paperSess?.evm ? paperNow.book : pbook) ?? null : null
+  const pl = usePaperLedgerFor(paperEvm)
+  // the book on the chains in scope, as the chip and the moves below are
+  const pb = React.useMemo(() => scopedBook(pl.ledger, inScope, pl.price), [pl.ledger, inScope, pl.price])
+  const scopeWord = allChains ? '' : ` on ${chainLabelFor()}`
+  const flowV = (x: number) => (ph.unavailable ? '—' : usdShort(x))
   const txList = React.useMemo(() => (txsQ.data?.txs ?? []).filter((t) => inScope(t.chainId)).slice(0, 40).map((t) => ownLegs(t, addr)), [txsQ.data, inScope, addr])
   /**
    * What the index calls this address. The responses the page already loads
@@ -230,16 +230,16 @@ export function Wallet({ addr }: { addr: string }) {
 
       {paperEvm ? <>
       <div className="wstats hero">
-        <Stat k="Paper money" v={pb ? usd(pb.navUsd) : '—'} s={pb ? `${pb.positions} position${pb.positions === 1 ? '' : 's'} · ${usd(pb.deployedUsd)} at work` : ''} loading={!pb} />
-        <Stat k="Net APR" v={pb?.netAprPct == null ? '—' : <span className={pb.netAprPct >= 0 ? 'ok' : 'warn'}>{pct(pb.netAprPct)}</span>} s="on what is at work, at today's rates" loading={!pb} />
+        <Stat k="Paper money" v={pb ? usd(pb.navUsd) : '—'} s={pb ? `${pb.positions} position${pb.positions === 1 ? '' : 's'} · ${usd(pb.deployedUsd)} at work${scopeWord}` : ''} loading={pl.loading} />
+        <Stat k="Net APR" v={pb?.netAprPct == null ? '—' : <span className={pb.netAprPct >= 0 ? 'ok' : 'warn'}>{pct(pb.netAprPct)}</span>} s={`on what is at work${scopeWord}, at today's rates`} loading={pl.loading} />
       </div>
       <div className="wstats flows">
         <span className="flows-k">Last 30 days</span>
-        <Stat k="Deposited" v={usdShort(ph.flows.depositedUsd)} s={`net ${usdShort(ph.flows.depositedUsd - ph.flows.withdrawnUsd)} in`} loading={ph.loading} />
-        <Stat k="Withdrawn" v={usdShort(ph.flows.withdrawnUsd)} s="taken out" loading={ph.loading} />
-        <Stat k="Borrowed" v={usdShort(ph.flows.borrowedUsd)} s={`net ${usdShort(ph.flows.borrowedUsd - ph.flows.repaidUsd)} drawn`} loading={ph.loading} />
-        <Stat k="Repaid" v={usdShort(ph.flows.repaidUsd)} s="debt paid down" loading={ph.loading} />
-        <Stat k="Moves" v={String(ph.flows.moves)} s="paper actions, signed" loading={ph.loading} />
+        <Stat k="Deposited" v={flowV(ph.flows.depositedUsd)} s={ph.unavailable ? 'history not served yet' : `net ${usdShort(ph.flows.depositedUsd - ph.flows.withdrawnUsd)} in`} loading={ph.loading} />
+        <Stat k="Withdrawn" v={flowV(ph.flows.withdrawnUsd)} s="taken out" loading={ph.loading} />
+        <Stat k="Borrowed" v={flowV(ph.flows.borrowedUsd)} s={ph.unavailable ? '' : `net ${usdShort(ph.flows.borrowedUsd - ph.flows.repaidUsd)} drawn`} loading={ph.loading} />
+        <Stat k="Repaid" v={flowV(ph.flows.repaidUsd)} s="debt paid down" loading={ph.loading} />
+        <Stat k="Moves" v={ph.unavailable ? '—' : String(ph.flows.moves)} s="paper actions, signed" loading={ph.loading} />
       </div>
       </> : <>
       <div className="wstats hero">
@@ -258,7 +258,7 @@ export function Wallet({ addr }: { addr: string }) {
       </>}
 
       <section className="sec">
-        {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} /></> : <>
+        {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} inScope={inScope} /></> : <>
         <div className="sec-h"><h2>Positions</h2><span className="sub">{hidden ? 'Your own positions come from the live path, not the index.' : syncing ? 'syncing your positions with the chain…' : isMe && sync.data ? <SyncNote s={sync.data} /> : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago</> : 'from the index'}</span></div>
         {hidden ? (
           <div className="note">The index is for <b>other</b> wallets and for history — never for the connected user’s own positions. Yours are behind the balance in the top right, read live.</div>
@@ -275,7 +275,7 @@ export function Wallet({ addr }: { addr: string }) {
 
       {paperEvm ? <section className="sec">
         <div className="sec-h"><h2>Moves</h2><span className="sub"><span className="pill paper">paper</span> every action this paper account signed, as the paper ledger applied it — nothing on chain</span></div>
-        <PaperMovesList rows={ph.rows} loading={ph.loading} error={ph.error} />
+        <PaperMovesList rows={ph.rows} loading={ph.loading} error={ph.error} unavailable={ph.unavailable} />
       </section> : <section className="sec">
         <div className="sec-h"><h2>Moves</h2><span className="sub">every transaction the index decoded, folded per transaction</span></div>
         <div className="card">

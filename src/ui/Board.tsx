@@ -24,6 +24,7 @@ import { usePaperBoard, useProfiles } from '../social/queries'
 import { chainLabel } from '../sdk/queries'
 import { CrownIcon, FollowButton, Money, Who, crownTitle } from './social-bits'
 import { Sk, pct, usdShort } from './bits'
+import { usePaper } from '../state/Paper'
 import { ChainChip } from './ChainPicker'
 
 type Sort = 'perDay' | 'apr'
@@ -218,6 +219,8 @@ function PaperBoard({ window: w }: { window?: string }) {
 }
 
 function RealBoard({ window: w, by: b, x }: { window?: string; by?: string; x?: string }) {
+  // on a paper account the board that ranks you is the paper one — said up front, one tap away
+  const onPaper = usePaper().active
   const { chainIds, allChains } = useApp()
   const sort: Sort = w === 'day' ? 'perDay' : 'apr'
   const by: By = b === 'wallet' ? 'wallet' : 'position'
@@ -328,6 +331,11 @@ function RealBoard({ window: w, by: b, x }: { window?: string; by?: string; x?: 
         <button className="linklike" onClick={() => setContracts((x) => !x)}>{contracts ? 'people only' : 'include contracts'}</button>
         . Wallets that marked themselves unlisted are not here.
       </div>
+      {onPaper && <div className="paper-card" style={{ marginBottom: 12, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span className="pill paper">paper</span>
+        <span className="t70" style={{ fontSize: 13, flex: 1, minWidth: 200 }}>This board ranks real money. Paper accounts are ranked on their own board.</span>
+        <button className="btn paper sm" onClick={() => go('board', { by: 'paper' })}>See the paper board</button>
+      </div>}
       <Reigning scope={scope} />
       {flags && flags.status !== 'ok' && (
         <div className="note warn">Community exploit flags are {flags.status} on this index right now — the exploited exclusion may be out of date.</div>

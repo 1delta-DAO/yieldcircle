@@ -25,7 +25,7 @@ import { base58Encode } from '../model/address'
 const DAY = 86_400_000
 const PAPER_TYPES = { PaperOp: [{ name: 'author', type: 'address' }, { name: 'op', type: 'string' }, { name: 'nonce', type: 'string' }, { name: 'signedAt', type: 'uint256' }] } as const
 /** Fastify's own 404 (`error: 'Not Found'`): the service answers, but has no paper routes yet — not a refusal. */
-const missingRoute = (e: unknown) => (e as social.SocialError)?.status === 404 && (e as Error).message === 'Not Found'
+export const missingRoute = (e: unknown) => (e as social.SocialError)?.status === 404 && (e as Error).message === 'Not Found'
 const nonce = () => { const b = new Uint8Array(12); crypto.getRandomValues(b); return [...b].map((x) => x.toString(16).padStart(2, '0')).join('') }
 export const paperId = () => nonce()
 

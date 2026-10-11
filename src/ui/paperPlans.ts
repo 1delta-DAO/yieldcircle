@@ -49,8 +49,9 @@ export function loopRate(s: LoopStrategy, dep: number, bor: number): PaperRate {
   return { supply: peg ? dep : dep - (s.intrinsicLong ?? 0), borrow: bor, supplyRewards: s.rewardsLong || undefined, borrowRewards: s.rewardsShort || undefined, intrinsic: s.intrinsicLong }
 }
 /** Open (or add to) a loop: the margin in, `L`× held, the borrowed part owed, the quote's entry cost taken off the held side. */
-export function loopPlan(s: LoopStrategy, o: { into?: Holding | null; payToken: string; amount: number; equityUsd: number; L: number; dep: number; bor: number; liqLtv: number; entryCostUsd: number | null; quoting: boolean }): () => Promise<PaperBuilt> {
+export function loopPlan(s: LoopStrategy, o: { into?: Holding | null; payToken: string; amount: number; equityUsd: number; L: number; dep: number; bor: number; liqLtv: number; entryCostUsd: number | null; quoting: boolean; refuse?: string | null }): () => Promise<PaperBuilt> {
   return async () => {
+    if (o.refuse) throw new Error(o.refuse)
     if (!s.priceLong || !s.priceShort) throw new Error('No price for one of the loop’s tokens right now, so a paper loop cannot be valued.')
     if (o.entryCostUsd == null && o.quoting) throw new Error('Still quoting the entry cost — try again in a second.')
     const cost = o.entryCostUsd ?? 0
@@ -69,11 +70,21 @@ function payout(p: PaperPosition, units: number, token: string, feed: PriceFn): 
   const pr = feed(p.chainId, token)
   return pr && pr > 0 && pHeld > 0 ? (units * pHeld) / pr : units
 }
-export function withdrawPlan(o: { ledger: PaperLedger | null; h: Holding; units: number; all: boolean; receiveToken: string; feed: PriceFn; receiveName: { symbol: string; decimals: number } }): () => Promise<PaperBuilt> {
+/**
+ * Out of a deposit. `refuse`: what the market cannot pay out right now. `queueSecs`: a queued exit
+ * (a cooldown, a withdrawal request) — the payout lands that much later, in the tray like a bridge.
+ */
+export function withdrawPlan(o: { ledger: PaperLedger | null; h: Holding; units: number; all: boolean; receiveToken: string; feed: PriceFn; receiveName: { symbol: string; decimals: number }; refuse?: string | null; queueSecs?: number; queue?: string }): () => Promise<PaperBuilt> {
   return async () => {
+    if (o.refuse) throw new Error(o.refuse)
     const p = posOf(o.ledger, o.h)
     const units = o.all ? valueOf(p, Date.now(), o.feed).units : o.units
-    return { op: { t: 'withdraw', id: p.id, units, all: o.all, receive: { token: o.receiveToken, units: payout(p, units, o.receiveToken, o.feed) } }, names: [{ chainId: p.chainId, address: o.receiveToken, ...o.receiveName }] }
+    const arrivesAt = o.queueSecs ? Date.now() + o.queueSecs * 1000 : undefined
+    return {
+      op: { t: 'withdraw', id: p.id, units, all: o.all, receive: { token: o.receiveToken, units: payout(p, units, o.receiveToken, o.feed) }, ...(arrivesAt ? { arrivesAt, queue: o.queue ?? 'exit queue' } : {}) },
+      names: [{ chainId: p.chainId, address: o.receiveToken, ...o.receiveName }],
+      ...(arrivesAt ? { bridge: { name: o.queue ?? 'exit queue', toChainId: p.chainId }, arrivesAt } : {}),
+    }
   }
 }
 /** A loop up: borrow `borrowUsd` more of the debt and hold what it buys, less the step's cost. */

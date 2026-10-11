@@ -198,7 +198,13 @@ const loadPaper = (key: string): Bundle | null => { try { const v = JSON.parse(s
  * The paper twin of {@link useLadder}: the same shape, so a ticket's button, step list and "Done"
  * work unchanged — but one tap applies the op to the paper ledger, and it is settled at once.
  */
-export function usePaperLadder(key: string, chainId: string, plan?: () => Promise<PaperBuilt>): Ladder {
+/**
+ * A builder's refusal that only says the paper address holds nothing on chain (no balance, no
+ * allowance, no token account): not the action being refused, so the paper action goes ahead.
+ */
+const FUNDS_ONLY = /insufficient|balance|allowance|not enough|funds|AccountNotFound|does not exist on chain|token account/i
+
+export function usePaperLadder(key: string, chainId: string, plan?: () => Promise<PaperBuilt>, dryBuild?: () => Promise<Step[]>): Ladder {
   const paper = usePaper()
   // mirrored like the real ladder's: the position a confirm creates remounts the ticket body (its
   // `key` is the holding), and "Done" must survive that
@@ -212,6 +218,12 @@ export function usePaperLadder(key: string, chainId: string, plan?: () => Promis
     if (!plan) { setErr('This action is not available on paper yet.'); return }
     setBusy(true); setErr(null)
     try {
+      // the real builder, asked and not signed: whatever the API would refuse to build, paper refuses too
+      if (dryBuild) {
+        let steps: Step[] | null = null
+        try { steps = await dryBuild() } catch (e) { if (!FUNDS_ONLY.test((e as Error).message)) throw e }
+        if (steps && !steps.length) throw new Error('The API builds nothing for this right now, so it cannot be done on paper either.')
+      }
       const b = await plan()
       await paper.act(b.op, b.names)
       const id = tracePaper({ id: (b.op as { id?: string }).id ?? Math.random().toString(16).slice(2), chainId, account: paper.session!.evm, title: title ?? 'Paper', label: 'on paper', bridge: b.bridge ? { name: b.bridge.name, toChainId: b.bridge.toChainId } : undefined, arrivesAt: b.arrivesAt })
@@ -229,10 +241,11 @@ export function usePaperLadder(key: string, chainId: string, plan?: () => Promis
  * The ladder a ticket runs: the real one, or — when the connected account is the paper account —
  * its paper twin. Both are always called (hooks), and the paper plan is only ever run on paper.
  */
-export function useTicketLadder(key: string, chainId: string, build: () => Promise<Step[]>, touches: (string | undefined)[] = [], watch: Watch[] = [], plan?: () => Promise<PaperBuilt>): Ladder {
+export function useTicketLadder(key: string, chainId: string, build: () => Promise<Step[]>, touches: (string | undefined)[] = [], watch: Watch[] = [], plan?: () => Promise<PaperBuilt>, dryRun = false): Ladder {
   const real = useLadder(key, chainId, build, touches, watch)
   const onPaper = usePaper().active
-  const paper = usePaperLadder(key, chainId, plan)
+  // `dryRun`: on paper, the real build runs first, unsigned (tickets/0006: paper may do only what the API would build)
+  const paper = usePaperLadder(key, chainId, plan, dryRun ? build : undefined)
   return onPaper ? paper : real
 }
 const shortErr = (m: string) => (m.length > 160 ? m.slice(0, 160) + '…' : m)

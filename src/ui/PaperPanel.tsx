@@ -7,9 +7,10 @@
 import React from 'react'
 import { usePaper } from '../state/Paper'
 import { openPaperSignIn } from './PaperSignIn'
-import { MAX_TOPUPS } from '../model/paper'
+import { bookOf, MAX_TOPUPS } from '../model/paper'
 import { metaKey, paperHoldings } from '../model/paperView'
-import { usePaperBook, usePaperDaily } from '../social/queries'
+import { usePaperDaily } from '../social/queries'
+import { usePaperLedgerFor } from './PaperMoves'
 import { HealthPill, Sk } from './bits'
 import { chainLabel } from '../sdk/queries'
 import { num, pct, usd } from './bits'
@@ -64,7 +65,7 @@ export function PaperPanel() {
       <button className="btn sm ghost" style={{ alignSelf: 'flex-start' }} aria-expanded={bank} onClick={() => setBank(!bank)}>{bank ? 'Hide the bank' : `The bank · ${rows.length} balances`}</button>
       {bank && <div className="paper-bank">{rows.map((r) => (
         <div key={r.c + r.t} className="bk"><span>{r.m?.symbol ?? r.t.slice(0, 8)} <span className="t50">{chainLabel(r.c)}</span></span><span className="mono">{num(r.u, 4)}</span><span className="mono t50">{r.p != null ? usd(r.u * r.p) : '—'}</span></div>
-      ))}{(l?.inflight ?? []).map((t) => <div key={t.id} className="bk"><span>{paper.tokens[metaKey(t.toChainId, t.token)]?.symbol ?? 'token'} <span className="t50">bridging to {chainLabel(t.toChainId)}</span></span><span className="mono">{num(t.units, 4)}</span><span className="mono t50">lands {new Date(t.arrivesAt).toLocaleTimeString()}</span></div>)}</div>}
+      ))}{(l?.inflight ?? []).map((t) => <div key={t.id} className="bk"><span>{paper.tokens[metaKey(t.toChainId, t.token)]?.symbol ?? 'token'} <span className="t50">{t.fromChainId === t.toChainId ? `${t.bridge ?? 'exit queue'} on ${chainLabel(t.toChainId)}` : `bridging to ${chainLabel(t.toChainId)}`}</span></span><span className="mono">{num(t.units, 4)}</span><span className="mono t50">lands {new Date(t.arrivesAt).toLocaleTimeString()}</span></div>)}</div>}
       <div className="actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <a className="btn sm" href="#/earn">Find a strategy</a>
         <a className="btn sm" href="#/board?by=paper">Paper board</a>
@@ -124,24 +125,21 @@ export function PaperSettings() {
  * paper ledger's — your own from here, anyone else's from the server (paper books are public, like
  * the board). Valued at each position's own prices when the page has no feed for them.
  */
-export function PaperWalletBook({ account }: { account: string }) {
-  const paper = usePaper()
-  const mine = paper.session?.evm === account
-  const q = usePaperBook(mine ? undefined : account)
-  const ledger = mine ? paper.ledger : q.data?.ledger ?? null
-  const book = mine ? paper.book : q.data?.book ?? null
-  const price = mine ? paper.price : () => undefined
-  const rows = ledger ? paperHoldings(ledger, Date.now(), price) : []
-  if (!mine && q.isLoading) return <div className="card"><div className="empty"><Sk w={220} /></div></div>
-  if (!ledger) return <div className="card"><div className="empty">{q.isError ? 'This paper account has no book on the server yet.' : 'No paper book.'}</div></div>
+export function PaperWalletBook({ account, inScope }: { account: string; inScope: (chainId: string) => boolean }) {
+  const { ledger, price, loading, error } = usePaperLedgerFor(account)
+  // what the strategies earned is the whole account's; the rows follow the page's chain filter
+  const book = ledger ? bookOf(ledger, Date.now(), price) : null
+  const rows = ledger ? paperHoldings(ledger, Date.now(), price).filter((h) => inScope(h.chainId)) : []
+  if (loading) return <div className="card"><div className="empty"><Sk w={220} /></div></div>
+  if (!ledger) return <div className="card"><div className="empty">{error ? 'This paper account has no book on the server yet.' : 'No paper book.'}</div></div>
   return (
     <div className="card">
       {book && <div className="paper-stats" style={{ padding: '12px 16px' }}>
         <div className="paper-sec"><div className="stat"><small>Earned by strategies</small><b className={book.pnlUsd >= 0 ? 'ok' : 'bad'}>{book.pnlUsd >= 0 ? '+' : '−'}{usd(Math.abs(book.pnlUsd))}</b><small>{pct(book.returnPct, 3)} since the start</small></div></div>
-        <div className="paper-sec"><div className="stat"><small>At work</small><b>{usd(book.deployedUsd)}</b><small>{book.netAprPct != null ? `${pct(book.netAprPct)} net` : 'nothing yet'}</small></div></div>
-        <div className="paper-sec"><div className="stat"><small>Paper money</small><b>{usd(book.navUsd)}</b><small>{book.positions} position{book.positions === 1 ? '' : 's'}</small></div></div>
+        <div className="paper-sec"><div className="stat"><small>At work, every chain</small><b>{usd(book.deployedUsd)}</b><small>{book.positions} position{book.positions === 1 ? '' : 's'}{book.netAprPct != null ? ` · ${pct(book.netAprPct)} net` : ''}</small></div></div>
+        <div className="paper-sec"><div className="stat"><small>Put in</small><b>{usd(ledger.putInUsd)}</b><small>{ledger.topups ? `the starting bank + ${ledger.topups} top-up${ledger.topups === 1 ? '' : 's'}` : 'the starting bank'}</small></div></div>
       </div>}
-      {!rows.length && <div className="empty">Nothing at work yet — the whole book is in the paper bank.</div>}
+      {!rows.length && <div className="empty">Nothing at work on these chains — the rest of the book is in the paper bank.</div>}
       {rows.map((h) => (
         <div key={h.key} className="xrow" style={{ cursor: 'default' }}>
           <span className="xt"><span className="n"><span>{h.label}</span><span className="pill paper">paper</span></span>

@@ -99,6 +99,12 @@ export interface PaperRate {
   borrowRewards?: number
   /** the held token's own yield, left out of a 'live' position's `supply` (its price carries it) — kept to SAY the rate whole */
   intrinsic?: number
+  /**
+   * What borrowing THIS size costs over the market's spot rate (APR %, ≥ 0): the ticket walks the
+   * borrow curve by its own size, the index only knows the spot. The server sets it at the open and
+   * keeps it when it re-rates, so a big loop does not borrow at the small loop's price.
+   */
+  borrowPremium?: number
 }
 export interface PaperLeg { symbol: string; decimals: number; address: string; priceUsd: number; logo?: string }
 /** What a position needs to be named, priced and matched to its catalogue row when that row is gone. */
@@ -173,8 +179,12 @@ export type PaperOp =
   | { t: 'bridge'; id: string; fromChainId: string; toChainId: string; from: string; to: string; unitsIn: number; unitsOut: number; arrivesAt: number; route?: QuoteStamp }
   /** a deposit or a loop: a new position, or more of `into` */
   | { t: 'open'; id: string; into?: string; chainId: string; kind: 'simple' | 'loop'; strategyId: string; snap: PaperSnap; pay: { token: string; units: number }; units: number; debtUnits: number; rate: PaperRate; entryCostUsd: number }
-  /** out of a deposit: `units` of the held token, paid out as `receive` (the token, or the gas coin it wraps) */
-  | { t: 'withdraw'; id: string; units: number; all?: boolean; receive: { token: string; units: number } }
+  /**
+   * out of a deposit: `units` of the held token, paid out as `receive` (the token, or the gas coin it
+   * wraps). `arrivesAt`: a queued exit (a cooldown, a withdrawal request) — the payout waits in
+   * `inflight` until then, as a bridge does.
+   */
+  | { t: 'withdraw'; id: string; units: number; all?: boolean; receive: { token: string; units: number }; arrivesAt?: number; queue?: string }
   /** a loop up: borrow `addDebt` more and hold `addUnits` more */
   | { t: 'lever'; id: string; addUnits: number; addDebt: number; costUsd: number }
   /** a loop down: sell `units` of collateral, repay `debtUnits`, and what is left comes back as `receive`; `all` closes it */
@@ -232,6 +242,7 @@ function clampRate(r: PaperRate): PaperRate {
     ...(r.supplyRewards != null ? { supplyRewards: clampApr(r.supplyRewards, 0) } : {}),
     ...(r.borrowRewards != null ? { borrowRewards: clampApr(r.borrowRewards, 0) } : {}),
     ...(r.intrinsic != null ? { intrinsic: clampApr(r.intrinsic, 0) } : {}),
+    ...(r.borrowPremium != null ? { borrowPremium: clampApr(r.borrowPremium, 0) } : {}),
   }
 }
 /** What a starter token is counted at when the feed has no price: what it was put in at. */
@@ -456,7 +467,10 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       bound(outUsd, units * pHeld, 'withdrawal')
       const share = p.units > 0 ? units / p.units : 1
       const basisOut = p.basisUsd * share
-      credit(l, p.chainId, op.receive.token, recvU)
+      // a queued exit lands later (at most 30 days out), like a bridge; an instant one now
+      const lands = fin(op.arrivesAt) ? Math.min(ctx.now + 30 * 86_400_000, op.arrivesAt) : ctx.now
+      if (lands > ctx.now) l.inflight.push({ id: `${p.id}:${l0.seq + 1}`, fromChainId: p.chainId, toChainId: p.chainId, token: tokenKey(p.chainId, op.receive.token), units: recvU, bridge: op.queue ? String(op.queue).slice(0, 40) : 'exit queue', sentAt: ctx.now, arrivesAt: lands })
+      else credit(l, p.chainId, op.receive.token, recvU)
       l.realizedUsd += (outUsd ?? units * pHeld) - basisOut
       p.basisUsd -= basisOut
       p.units -= units

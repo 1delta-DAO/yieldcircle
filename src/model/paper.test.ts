@@ -185,3 +185,19 @@ describe('closed holes (server review, 2026-10-11)', () => {
     expect(none.navUsd).toBeCloseTo(l.putInUsd, 0)
   })
 })
+
+describe('queued exits and borrow premiums (2026-10-11)', () => {
+  it('a queued withdrawal waits in flight, then lands', () => {
+    let l = apply(genesis(), deposit(1000), ctx())
+    l = apply(l, { t: 'withdraw', id: 'p1', units: 0, all: true, receive: { token: USDC_BASE, units: 1000 }, arrivesAt: T0 + 7 * DAY, queue: 'cooldown' }, ctx())
+    expect(l.positions).toHaveLength(0)
+    expect(l.bank['8453'][USDC_BASE]).toBe(9000)
+    expect(l.inflight[0]).toMatchObject({ toChainId: '8453', units: 1000, bridge: 'cooldown' })
+    l = apply(l, { t: 'topup', chainId: '1', units: 1 }, ctx(8))
+    expect(l.bank['8453'][USDC_BASE]).toBe(10_000)
+  })
+  it('keeps a borrow premium through a re-rate, clamped at zero', () => {
+    const l = apply(genesis(), { ...deposit(1000), rate: { supply: 5, borrow: 0, borrowPremium: -3 } } as PaperOp, ctx())
+    expect(l.positions[0].rate.borrowPremium).toBe(0)
+  })
+})

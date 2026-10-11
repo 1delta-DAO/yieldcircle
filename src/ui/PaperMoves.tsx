@@ -4,10 +4,10 @@
  * flows above them, valued at the prices each op was judged at. Nothing here is on chain.
  */
 import React from 'react'
-import { tokenKey, type PaperLedger, type PaperOp, type PaperSnap } from '../model/paper'
+import { bookOf, starterRef, tokenKey, type PaperBook, type PaperLedger, type PaperOp, type PaperSnap, type PriceFn } from '../model/paper'
 import { ledgerMeta, metaKey, type TokenMeta } from '../model/paperView'
 import { usePaperBook, usePaperOps } from '../social/queries'
-import { usePaper } from '../state/Paper'
+import { missingRoute, usePaper } from '../state/Paper'
 import { chainLabel } from '../sdk/queries'
 import { Ago } from './social-bits'
 import { Sk, num, usdShort } from './bits'
@@ -68,13 +68,41 @@ function describe(id: number, at: string, op: PaperOp, prices: Record<string, nu
   return { ...base, chains: [], verb: (op as { t: string }).t, cls: 'k-move', what: '', flow: {} }
 }
 
+/**
+ * A paper account's ledger for its wallet page: the server's, or — on your own page — whichever of
+ * the server's and this browser's copy is newer (a browser can be behind: an op made on another
+ * device, a sync that has not run). Opening your own page also syncs.
+ */
+export function usePaperLedgerFor(account: string | undefined) {
+  const paper = usePaper()
+  const mine = !!account && paper.session?.evm === account
+  const server = usePaperBook(account)
+  React.useEffect(() => { if (mine && paper.active) void paper.sync() }, [mine, paper.active]) // eslint-disable-line react-hooks/exhaustive-deps
+  const local = mine ? paper.ledger : null
+  const remote = server.data?.ledger ?? null
+  const ledger = local && (!remote || local.seq >= remote.seq) ? local : remote ?? local
+  // someone else's book: the starter tokens at their reference prices, positions at their own stamped prices
+  const price: PriceFn = mine ? paper.price : (c, t) => starterRef(c, t)
+  return { ledger, price, mine, loading: !ledger && server.isLoading, error: !ledger && server.isError }
+}
+/** The book on the chains in scope only — what the page's chain filter says, like the chip and the moves. */
+export function scopedBook(l: PaperLedger | null, inScope: (chainId: string) => boolean, price: PriceFn): PaperBook | null {
+  if (!l) return null
+  const scoped: PaperLedger = {
+    ...l,
+    bank: Object.fromEntries(Object.entries(l.bank).filter(([c]) => inScope(c))),
+    positions: l.positions.filter((p) => inScope(p.chainId)),
+    inflight: l.inflight.filter((t) => inScope(t.toChainId)),
+  }
+  return bookOf(scoped, Date.now(), price)
+}
+
 /** The history and the last 30 days' flows, on the chains in scope. */
 export function usePaperHistory(account: string | undefined, inScope: (chainId: string) => boolean) {
   const paper = usePaper()
   const q = usePaperOps(account)
   const mine = !!account && paper.session?.evm === account
-  const book = usePaperBook(mine ? undefined : account)
-  const ledger: PaperLedger | null = mine ? paper.ledger : book.data?.ledger ?? null
+  const { ledger } = usePaperLedgerFor(account)
   return React.useMemo(() => {
     const meta: TokenMeta = { ...ledgerMeta(ledger), ...(mine ? paper.tokens : {}) }
     const ops = q.data?.ops ?? []
@@ -95,16 +123,18 @@ export function usePaperHistory(account: string | undefined, inScope: (chainId: 
       flows.moves++
       for (const k of ['depositedUsd', 'withdrawnUsd', 'borrowedUsd', 'repaidUsd'] as const) flows[k] += m.flow[k] ?? 0
     }
-    return { rows: rows as PaperMove[], flows, loading: q.isLoading, error: q.isError, ledger }
-  }, [q.data, ledger, mine, paper.tokens, inScope]) // eslint-disable-line react-hooks/exhaustive-deps
+    // a service without the history route answers Fastify's 404: unavailable, not "no moves"
+    const unavailable = q.isError && missingRoute(q.error)
+    return { rows: rows as PaperMove[], flows, loading: q.isLoading, error: q.isError, unavailable, ledger }
+  }, [q.data, q.error, ledger, mine, paper.tokens, inScope]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /** The moves, in the index's tape rows; a deposit or loop links to its market. */
-export function PaperMovesList({ rows, loading, error }: { rows: PaperMove[]; loading: boolean; error: boolean }) {
+export function PaperMovesList({ rows, loading, error, unavailable }: { rows: PaperMove[]; loading: boolean; error: boolean; unavailable?: boolean }) {
   return (
     <div className="card">
       {loading && <div className="empty"><Sk w={200} /></div>}
-      {!loading && error && <div className="empty">The paper history is not answering right now.</div>}
+      {!loading && error && <div className="empty">{unavailable ? 'The paper server does not serve the history yet. Your actions are recorded; they show here once it is updated.' : 'The paper history is not answering right now.'}</div>}
       {!loading && !error && !rows.length && <div className="empty">No paper moves on these chains yet.</div>}
       <div className="tape">{rows.map((m) => (
         <div key={m.id} className="tape-item">

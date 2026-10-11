@@ -30,6 +30,8 @@ const CAST = {
   lost: { b: 8, c: 4, e: 7, m: 2, a: 3, p: 4 } as Spec,
   sold: { b: 0, c: 3, e: 2, m: 1, a: 2, p: 9 } as Spec,
 }
+/** Hackathon first prizes, newest first; the count is the point, the names are the footnote. */
+const WINS = ['StableHacks 2026 (Tenity · Solana)', 'Unite DeFi 2025 (ETHGlobal · 1inch)', 'Superteam Earn (Jito)', 'ETHGlobal Lisbon (Aave)']
 /** A fixed crowd: faces derived from (made-up, full-length) addresses, so the deck needs no fetch and prints the same every time. */
 const CROWD = [
   '0x9d4511bc588f5eaede7f847f6f9a0f4c643a71e7',
@@ -204,10 +206,10 @@ export function Deck() {
             <span className="lp-sticker sol">Live in closed beta</span>
             <h2 className="lp-h2">It already <span className="lp-mark">works.</span></h2>
             <div className="deck-feats">
-              <div className="c-cyan"><b>Board, feed, threads</b><span>Wallets ranked by proven net carry. Every move copyable, every market talked about.</span></div>
+              <div className="c-cyan"><b>Board, feed, threads</b><span>Wallets ranked by proven net carry; illiquid or capped yield does not rank. Every move copyable.</span></div>
               <div className="c-gold"><b>Full execution</b><span>Deposit, withdraw, loop, close, swap, bridge. 15 chains and Solana, one engine.</span></div>
               <div className="c-moss"><b>Realized PnL</b><span>Value, money in and PnL since open, per position and per wallet.</span></div>
-              <div className="c-plum"><b>Verified numbers</b><span>Illiquid, locked and capped yield does not rank.</span></div>
+              <div className="c-plum"><b>Every market, auto-indexed</b><span>A new Morpho or Euler market is picked up at creation, no listing. 33k markets, 16 chains.</span></div>
             </div>
           </div>
           <div className="deck-phone" style={css({ '--tilt': '2deg' })}>
@@ -216,33 +218,39 @@ export function Deck() {
         </div>
       </Slide>
 
-      {/* 5 - infrastructure: the index picks up every market by itself */}
-      <Slide n={5} kicker="Infrastructure">
-        <span className="lp-sticker sol">Under the hood</span>
-        <h2 className="lp-h2 center">Every market, indexed <span className="lp-mark">the moment it exists.</span></h2>
-        <div className="deck-stats">
-          {[['33k', 'markets tracked', 'c-cyan', '-2deg'], ['15k', 'live rate series', 'c-gold', '1.5deg'], ['256k', 'ledger rows a day', 'c-moss', '-1deg'], ['16', 'chains', 'c-plum', '2deg'], ['68', 'protocols', 'c-cyan', '-1.5deg']].map(([n, l, c, t]) => (
-            <div key={l} className={`lp-card deck-stat in ${c}`} style={css({ '--tilt': t })}><b>{n}</b><span>{l}</span></div>
-          ))}
+      {/* 5 - why people will use this: three facts, the cast telling them */}
+      <Slide n={5} kicker="Why people will use this">
+        <span className="lp-sticker sol">The case</span>
+        <h2 className="lp-h2 center">Most money sits idle. <span className="lp-mark">Proof</span> moves it.</h2>
+        <div className="lp-comic deck-comic deck-why">
+          <div className="lp-panel in" style={css({ '--tilt': '-1.2deg' })}>
+            <div className="deck-big c-ink">14 %</div>
+            <Character addr="sold" spec={CAST.sold} size={88} title="" />
+            <b>Most money earns nothing.</b>
+            <span>Of $73b USDC, $10b is in a lending market or vault. $11.6b of BTC sits deposited at 0 %.</span>
+          </div>
+          <div className="lp-panel in" style={css({ '--tilt': '1deg' })}>
+            <div className="deck-big c-gold">1 in 2</div>
+            <Character addr="lost" spec={CAST.lost} size={88} title="" />
+            <b>Yield feels too risky to touch.</b>
+            <span>Half of US retail holders have never earned yield. Safety and an easy exit outrank a higher rate.</span>
+          </div>
+          <div className="lp-panel in" style={css({ '--tilt': '-0.8deg' })}>
+            <div className="deck-big c-moss">28.7 %</div>
+            <Character addr="0x4a7c1e2f9b0d6c3a8e5f7b2d1c9a4e6f8b3d5a7c" size={88} title="" />
+            <b>Seeing who farms changes minds.</b>
+            <span>A real wallet: $270k at 4× on Kamino, exact to the chain. The median top Solana position makes 25 % on $30k.</span>
+          </div>
         </div>
-        <div className="lp-mock deck-mock-wide">
-          <Character addr="0x9994e35db0cd3f5c7b2f0b2c0c7a3d1e8f6a4b2c" size={28} title="" />
-          <span className="lp-mock-who"><b>Morpho</b><small>just now</small></span>
-          <span className="verb k-in">created</span>
-          <span className="lp-mock-amt">a new market</span>
-          <span className="deck-mock-arrow" aria-hidden="true">→</span>
-          <span className="lp-mock-who"><b>indexed</b><small>positions · rates · holders</small></span>
-          <span className="lp-mock-copy">No listing step</span>
-        </div>
-        <p className="deck-foot">Realized yield is units × Δindex, valued, flows removed. The same number for every wallet, checkable by anyone.</p>
+        <p className="deck-foot">Index, 2026-10-10: USDC in circulation vs deposits + vault TVL; BTC lending TVL; Solana position board. Surveys: MoreMarkets 2026 (US retail), EarnPark 2026 (safety 41 %, easy withdrawal 47 % vs higher yield 34 %).</p>
       </Slide>
 
-      {/* 6 - unit economics */}
+      {/* 6 - unit economics, the three numbers */}
       <Slide n={6} kicker="Unit economics">
         <span className="lp-sticker sol">Unit economics</span>
         <h2 className="lp-h2 center">We keep <span className="lp-mark">5 to 15 ¢</span> of every yield dollar.</h2>
-        <p className="lp-lead center deck-sub">5 ¢ on a plain pool, 10 ¢ on a vault, 15 ¢ on a loop. A $10k vault at 7 % earns $700 a year; $70 is ours.</p>
-        <div className="deck-ue">
+        <p className="lp-lead center deck-sub">5 ¢ on a pool, 10 ¢ on a vault, 15 ¢ on a loop. A $10k vault at 7 % earns $700 a year; $70 is ours.</p>
+        <div className="deck-ue deck-ue-simple">
           <div className="deck-tiers">
             {TIERS.map((t, i) => (
               <div className={'deck-tier ' + t.c} key={t.label} style={css({ '--tilt': `${i % 2 ? 0.6 : -0.6}deg` })}>
@@ -253,58 +261,38 @@ export function Deck() {
               </div>
             ))}
           </div>
-          <table className="deck-tbl">
-            <thead>
-              <tr><th>$10k user</th><th>Curated vaults</th><th>Vaults + loops</th><th>Protected loop 3×</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>Gross APR</td><td>6.7 %</td><td>11.0 %</td><td>17.4 %</td></tr>
-              <tr><td>User keeps</td><td>6.0 %</td><td>9.7 %</td><td>13.8 %</td></tr>
-              <tr><td>Uplift over the pool</td><td>+1.9 pp</td><td>+5.6 pp</td><td>+10.0 pp</td></tr>
-              <tr className="hi"><td>Revenue / user / yr</td><td>$87</td><td>$152</td><td>$361</td></tr>
-              <tr><td>10k users · $100m</td><td>$0.9m</td><td>$1.5m</td><td>$3.6m</td></tr>
-              <tr><td>100k users · $1b</td><td>$8.7m</td><td>$15m</td><td>$36m</td></tr>
-            </tbody>
-          </table>
+          <div className="deck-nums">
+            <div className="lp-card c-cyan in" style={css({ '--tilt': '-1.5deg' })}><b>$87</b><span>a year from a $10k vault user</span></div>
+            <div className="lp-card c-moss in" style={css({ '--tilt': '1deg' })}><b>$152</b><span>vaults plus a light loop</span></div>
+            <div className="lp-card c-gold in" style={css({ '--tilt': '-0.8deg' })}><b>$361</b><span>a protected 3× loop</span></div>
+            <small>10,000 such users are $0.9m to $3.6m a year. Protection is a premium on debt, 0.5 % on correlated pairs to 2 % on volatile ones; auto-roll, auto-compound and re-lever bill 5–15 bps per trigger.</small>
+          </div>
         </div>
-        <div className="deck-prot">
-          <span className="deck-prot-l">Liquidation protection, a premium on debt, priced by the pair</span>
-          <span className="lp-sticker c-moss"><b>0.5 %</b> correlated · sUSDe / USDT</span>
-          <span className="lp-sticker c-cyan"><b>1 %</b> same asset, levered · weETH / ETH</span>
-          <span className="lp-sticker c-gold"><b>2 %</b> volatile · ETH / USDC</span>
-          <span className="lp-sticker c-plum"><b>+0.25 %</b> high-yield collateral · RWA credit</span>
-        </div>
-        <p className="deck-foot">Gross APR of USD rows, risk ≤ 3, TVL-weighted, 2026-10-10. Loop: sUSDe/USDT at 3× on Aave, upper quartile of liquid pairs. Our share of yield: 5 % on pools, 10 % on vaults, 15 % on loops, plus 10 bps in and out; the protected loop adds 0.5 % a year on $20k of debt.</p>
       </Slide>
 
-      {/* 7 - business model */}
-      <Slide n={7} kicker="Business model" className="deck-fix">
-        <Rings />
-        <span className="lp-sticker sol">How it pays</span>
-        <h2 className="lp-h2 center">Paid for <span className="lp-mark">performance,</span> not promotion.</h2>
-        <div className="lp-stickers deck-stickers">
-          <div className="lp-card c-cyan in" style={css({ '--tilt': '-1.5deg' })}>
-            <div className="lp-mock"><span className="lp-mock-who"><b>Yield routed</b><small>sUSDe loop, 17.4 %</small></span><span className="lp-mock-cut"><b>15 %</b><small>of the yield</small></span><span className="lp-mock-copy">$261 / yr</span></div>
-            <b>A share of the yield we route.</b>
-            <span>Zero when we add nothing. Paid only while it performs.</span>
+      {/* 7 - founder */}
+      <Slide n={7} kicker="Founder">
+        <div className="deck-founder">
+          <div className="deck-founder-photo" style={css({ '--tilt': '-2deg' })}>
+            <img src="/founder/achim-bw.png" alt="Achim Huebl" width={512} height={476} />
           </div>
-          <div className="lp-card c-plum in" style={css({ '--tilt': '1.5deg' })}>
-            <div className="lp-mock"><Character addr="kol" spec={CAST.kol} size={28} title="" /><span className="lp-mock-who"><b>Fox</b><small>1,200 followers</small></span><span className="deck-mock-arrow" aria-hidden="true">→</span><span className="lp-mock-cut"><b>30 %</b><small>of their margin</small></span></div>
-            <b>KOLs with skin in the game.</b>
-            <span>Bring followers, earn a cut of what they hold.</span>
-          </div>
-          <div className="lp-card c-gold in" style={css({ '--tilt': '-1deg' })}>
-            <div className="lp-mock"><span className="lp-poster deck-poster"><s>sponsored</s></span><span className="lp-mock-who"><b>Aggregators and KOL media</b><small>sell listings</small></span></div>
-            <b>Incumbents can't follow.</b>
-            <span>Ranking by proof would torch their own revenue.</span>
+          <div className="deck-founder-copy">
+            <span className="lp-sticker sol">Who</span>
+            <h2 className="lp-h2">Achim <span className="lp-mark">Huebl.</span></h2>
+            <i className="deck-founder-role">Founder · Co-founder &amp; CTO of 1delta · M.Sc. Mathematics &amp; Finance</i>
+            <div className="deck-founder-pts">
+              <div className="c-cyan"><b>Three years of 1delta.</b><span>Lending aggregation and position data across 16 chains and 68 protocols: the API that routes every trade here and the index that proves every number.</span></div>
+              <div className="c-gold"><b>Author and inventor of the protocol.</b><span>Wrote the 1delta white paper and designed the protocol.</span></div>
+              <div className="c-moss"><b>Trader first, then builder.</b><span>Years of DeFi trading on the protocols underneath; before that quantitative trading, risk management, consulting and investment banking.</span></div>
+            </div>
           </div>
         </div>
-        <div className="deck-prot deck-auto">
-          <span className="deck-prot-l">Automations the user switches on, priced per trigger</span>
-          <span className="lp-sticker c-cyan"><b>Auto-roll</b> a maturing PT or fixed loan into the next date · 15 bps</span>
-          <span className="lp-sticker c-moss"><b>Auto-compound</b> claim rewards, redeposit · 10 % of the claim</span>
-          <span className="lp-sticker c-gold"><b>Re-lever</b> keep a loop at its target · 5 bps of notional</span>
-          <span className="lp-sticker c-plum"><b>Rate floor</b> leave when the 7-day rate drops under the pool · 10 bps</span>
+        <div className="deck-wins">
+          <div className="lp-card c-gold in deck-wincount" style={css({ '--tilt': '-1.5deg' })}>
+            <b>8 × 🥇</b>
+            <span>first prize at the last eight hackathons</span>
+          </div>
+          <small>{WINS.join(' · ')} · and four more</small>
         </div>
       </Slide>
 

@@ -2110,10 +2110,6 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .moneychip.paper{border-color:var(--paper-line);background:var(--paper-bg)}
 .moneychip.paper:hover,.moneychip.paper[aria-expanded="true"]{border-color:var(--paper)}
 .moneychip.paper small{color:var(--paper)}
-.paper-strip{display:flex;align-items:center;gap:10px;padding:6px var(--gutter);background:var(--paper-bg);border-bottom:1px solid var(--paper-line);font-size:12.5px;color:var(--tx70)}
-.paper-strip b{color:var(--paper);font-weight:600}
-.paper-strip .sp{flex:1}
-.paper-strip button{color:var(--paper);font-size:12.5px;font-weight:600;padding:4px 6px}
 .paper-card{border:1px solid var(--paper-line);background:var(--paper-bg);border-radius:var(--r-lg);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
 .paper-card .actions{display:flex;gap:8px;flex-wrap:wrap}
 .paper-sec{display:flex;flex-direction:column;gap:10px}

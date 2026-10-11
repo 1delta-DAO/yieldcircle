@@ -227,22 +227,22 @@ export function Deck() {
             <div className="deck-big c-ink">14 %</div>
             <Character addr="sold" spec={CAST.sold} size={88} title="" />
             <b>Most money earns nothing.</b>
-            <span>Of $73b USDC, $10b is in a lending market or vault. $11.6b of BTC sits deposited at 0 %.</span>
+            <span>Of $73b USDC, $10b earns in a lending market or vault. USDT: 2.6 % of $184b. ETH: 3.3 % of $306b.</span>
           </div>
           <div className="lp-panel in" style={css({ '--tilt': '1deg' })}>
             <div className="deck-big c-gold">1 in 2</div>
             <Character addr="lost" spec={CAST.lost} size={88} title="" />
             <b>Yield feels too risky to touch.</b>
-            <span>Half of US retail holders have never earned yield. Safety and an easy exit outrank a higher rate.</span>
+            <span>Nearly half of US retail holders have never earned yield; 20m do on exchanges, 0.5m in DeFi. Liquidity and security stop them; an easy exit beats a higher APY.</span>
           </div>
           <div className="lp-panel in" style={css({ '--tilt': '-0.8deg' })}>
             <div className="deck-big c-moss">28.7 %</div>
             <Character addr="0x4a7c1e2f9b0d6c3a8e5f7b2d1c9a4e6f8b3d5a7c" size={88} title="" />
             <b>Seeing who farms changes minds.</b>
-            <span>A real wallet: $270k at 4× on Kamino, exact to the chain. The median top Solana position makes 25 % on $30k.</span>
+            <span>A real wallet: $270k at 4× on Kamino, exact to the chain. Seeing a peer hold an asset raises take-up most when the peer is the expert; 40 % of eToro’s users copy.</span>
           </div>
         </div>
-        <p className="deck-foot">Index, 2026-10-10: USDC in circulation vs deposits + vault TVL; BTC lending TVL; Solana position board. Surveys: MoreMarkets 2026 (US retail), EarnPark 2026 (safety 41 %, easy withdrawal 47 % vs higher yield 34 %).</p>
+        <p className="deck-foot">Index, 2026-10-10: market cap vs lending deposits + vault TVL; Solana position board. MoreMarkets Crypto Yield Retail Report 2025 (liquidity 68 %, security 45 %, no lock-up 47 % vs higher APY 34 %). Bursztyn, Ederer, Ferman, Yuchtman, Econometrica 2014. eToro copy usage.</p>
       </Slide>
 
       {/* 6 - unit economics, the three numbers */}

@@ -1,7 +1,8 @@
 /**
- * The paper account on screen (tickets/0006 §C): the strip under the header, the head of the
- * positions sheet, the offers on the home page, and the account tools in settings. Amber
- * everywhere, so play money never passes for real money.
+ * The paper account on screen (tickets/0006 §C): the head of the positions sheet, the offers on
+ * the home page, the account tools in settings and the wallet page's book. Amber everywhere, so
+ * play money never passes for real money; the amber chip top right is what says "paper" on every
+ * page (a strip under the header was dropped as redundant, 2026-10-11).
  */
 import React from 'react'
 import { usePaper } from '../state/Paper'
@@ -14,7 +15,6 @@ import { chainLabel } from '../sdk/queries'
 import { num, pct, usd } from './bits'
 
 const DAYS = [0, 7, 30, 90]
-const STRIP_KEY = 'yc.paper-strip'
 
 /**
  * What the strategies earned, one point a day as the server valued it (`paper.book_daily`) — the
@@ -32,24 +32,6 @@ function PaperPnlLine({ account }: { account: string }) {
       <line x1={2} x2={w - 2} y1={y(0)} y2={y(0)} stroke="var(--line2)" strokeDasharray="2 3" />
       <path d={d} fill="none" stroke="var(--paper)" strokeWidth={1.6} />
     </svg>
-  )
-}
-
-/** One line under the header while the paper account is the one connected. */
-export function PaperStrip() {
-  const paper = usePaper()
-  const [hidden, setHidden] = React.useState(() => { try { return sessionStorage.getItem(STRIP_KEY) === '1' } catch { return false } })
-  if (!paper.active || hidden) return null
-  const hide = () => { try { sessionStorage.setItem(STRIP_KEY, '1') } catch { /* private mode */ } setHidden(true) }
-  return (
-    <div className="paper-strip" role="note">
-      <span className="pill paper">paper</span>
-      <span><b>{paper.session?.name}</b> · play money on real rates — nothing goes on chain{paper.skewDays ? <> · <b>clock +{paper.skewDays} days</b></> : null}</span>
-      <span className="sp" />
-      {paper.status === 'offline' && <span className="warn" title="The paper service is out of reach; your actions are kept and sent when it is back">offline{paper.pending ? ` · ${paper.pending} queued` : ''}</span>}
-      <button onClick={() => void paper.signOut()}>Sign out</button>
-      <button onClick={hide} aria-label="Hide for this session">✕</button>
-    </div>
   )
 }
 

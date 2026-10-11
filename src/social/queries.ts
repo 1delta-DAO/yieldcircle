@@ -275,3 +275,7 @@ export function usePaperPrices(keys: string[]) {
     return { get: (chainId: string, token: string) => { const v = m[`${chainId}:${token}`]; return v != null && v > 0 ? v : undefined }, ready: !q.isPending, stamp: q.dataUpdatedAt }
   }, [q.dataUpdatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 }
+/** A paper account's signed ops, newest first: its wallet page's moves and 30-day flows. */
+export function usePaperOps(account: string | undefined) {
+  return useQuery({ queryKey: ['paper-ops', account], queryFn: () => paperApi.paperOps(account!, 200), enabled: !!account && /^0x[0-9a-f]{40}$/i.test(account), staleTime: 30_000, retry: false })
+}

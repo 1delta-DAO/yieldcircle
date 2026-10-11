@@ -39,3 +39,7 @@ export async function paperPrices(keys: string[]): Promise<Record<string, number
   }
   return out
 }
+/** One signed op as the server applied it, with the prices it was judged at (`<chain>:<token>` → usd). */
+export interface PaperOpRow { id: number; kind: string; op: import('../model/paper').PaperOp; prices: Record<string, number | null>; at: string }
+export const paperOps = (account: string, limit = 200) =>
+  call<{ ops: PaperOpRow[] }>(`/paper/book/${account.toLowerCase()}/ops?limit=${limit}`)

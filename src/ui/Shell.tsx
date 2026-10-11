@@ -39,7 +39,6 @@ import { Positions, totalsOf } from './Positions'
 import { MyStats, StatsChip } from './Stats'
 import { useBook } from './useBook'
 import { TxInFlight, TxTray } from './TxTray'
-import { PaperStrip } from './PaperPanel'
 import { Sk, usd, usdShort } from './bits'
 import { onAccessCode, useOnList, WAITLIST_HREF } from '../wallet/gate'
 
@@ -75,7 +74,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <Search />
         <Yours />
       </div></header>
-      <PaperStrip />
       <main className="wrap"><Waitlist />{children}</main>
       {tabs('tabbar')}
       <TxTray />

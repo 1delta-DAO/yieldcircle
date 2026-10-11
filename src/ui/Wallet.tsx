@@ -36,6 +36,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { primaryLeg } from './Feed'
 import { usePaperSession } from '../wallet/paper'
 import { PaperWalletBook } from './PaperPanel'
+import { PaperMovesList, usePaperHistory } from './PaperMoves'
+import { usePaperBook } from '../social/queries'
+import { usePaper } from '../state/Paper'
 import { TokLink } from './TokenPage'
 
 /**
@@ -142,6 +145,11 @@ export function Wallet({ addr }: { addr: string }) {
       .reduce<PositionGroup | null>((a, g) => (a == null || g.netAprPct! > a.netAprPct! ? g : a), null)
     return { ...c, best, bestShare: best && c.navUsd > 0 ? best.equityUsd / c.navUsd : null }
   }, [pos.data, rows, groups, cut])
+  // a paper account: its history and flows from the paper ledger, never from the index
+  const ph = usePaperHistory(paperEvm, inScope)
+  const pbook = usePaperBook(paperEvm && paperEvm !== paperSess?.evm ? paperEvm : undefined).data?.book
+  const paperNow = usePaper()
+  const pb = paperEvm ? (paperEvm === paperSess?.evm ? paperNow.book : pbook) ?? null : null
   const txList = React.useMemo(() => (txsQ.data?.txs ?? []).filter((t) => inScope(t.chainId)).slice(0, 40).map((t) => ownLegs(t, addr)), [txsQ.data, inScope, addr])
   /**
    * What the index calls this address. The responses the page already loads
@@ -220,6 +228,20 @@ export function Wallet({ addr }: { addr: string }) {
 
       {vaults.map((v) => <VaultCard key={v.marketUid} v={v} />)}
 
+      {paperEvm ? <>
+      <div className="wstats hero">
+        <Stat k="Paper money" v={pb ? usd(pb.navUsd) : '—'} s={pb ? `${pb.positions} position${pb.positions === 1 ? '' : 's'} · ${usd(pb.deployedUsd)} at work` : ''} loading={!pb} />
+        <Stat k="Net APR" v={pb?.netAprPct == null ? '—' : <span className={pb.netAprPct >= 0 ? 'ok' : 'warn'}>{pct(pb.netAprPct)}</span>} s="on what is at work, at today's rates" loading={!pb} />
+      </div>
+      <div className="wstats flows">
+        <span className="flows-k">Last 30 days</span>
+        <Stat k="Deposited" v={usdShort(ph.flows.depositedUsd)} s={`net ${usdShort(ph.flows.depositedUsd - ph.flows.withdrawnUsd)} in`} loading={ph.loading} />
+        <Stat k="Withdrawn" v={usdShort(ph.flows.withdrawnUsd)} s="taken out" loading={ph.loading} />
+        <Stat k="Borrowed" v={usdShort(ph.flows.borrowedUsd)} s={`net ${usdShort(ph.flows.borrowedUsd - ph.flows.repaidUsd)} drawn`} loading={ph.loading} />
+        <Stat k="Repaid" v={usdShort(ph.flows.repaidUsd)} s="debt paid down" loading={ph.loading} />
+        <Stat k="Moves" v={String(ph.flows.moves)} s="paper actions, signed" loading={ph.loading} />
+      </div>
+      </> : <>
       <div className="wstats hero">
         <Stat k="Net value" v={hidden ? '—' : usd(nav)} s={hidden ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={syncing || (!hidden && pos.isLoading)} />
         <Stat k="Net APR" v={hidden ? '—' : carry.netAprPct == null ? '—' : <span className={carry.netAprPct >= 0 ? 'ok' : 'warn'}>{carry.exact ? '' : '≈ '}{pct(carry.netAprPct)}</span>}
@@ -233,6 +255,7 @@ export function Wallet({ addr }: { addr: string }) {
         <Stat k="Repaid" v={usdShort(f?.repaidUsd)} s="debt paid down" loading={flows.isLoading} />
         <Stat k="Moves" v={f ? String(f.nEvents) : '—'} s={f?.unpriced ? `${f.unpriced} unvalued` : 'valued at the block'} loading={flows.isLoading} />
       </div>
+      </>}
 
       <section className="sec">
         {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} /></> : <>
@@ -250,7 +273,10 @@ export function Wallet({ addr }: { addr: string }) {
         <PnlDrawer account={addr} posKey={route.pos} onClose={closePnl} />
       </section>
 
-      <section className="sec">
+      {paperEvm ? <section className="sec">
+        <div className="sec-h"><h2>Moves</h2><span className="sub"><span className="pill paper">paper</span> every action this paper account signed, as the paper ledger applied it — nothing on chain</span></div>
+        <PaperMovesList rows={ph.rows} loading={ph.loading} error={ph.error} />
+      </section> : <section className="sec">
         <div className="sec-h"><h2>Moves</h2><span className="sub">every transaction the index decoded, folded per transaction</span></div>
         <div className="card">
           {txsQ.isLoading && <div className="empty"><Sk w={200} /></div>}
@@ -270,7 +296,7 @@ export function Wallet({ addr }: { addr: string }) {
             )
           })}</div>
         </div>
-      </section>
+      </section>}
 
       <Said account={addr} menu={menu.all} />
 

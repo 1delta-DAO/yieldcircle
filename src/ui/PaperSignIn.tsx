@@ -15,9 +15,18 @@ import * as social from '../social/api'
 const EVENT = 'yc:paper-signin'
 export const openPaperSignIn = () => window.dispatchEvent(new CustomEvent(EVENT))
 
+/** `?paper` on the app's address (the landing's "Try it on paper" link) opens the form on arrival. */
+export const PAPER_PARAM = 'paper'
 export function PaperSignInHost() {
   const [open, setOpen] = React.useState(false)
   React.useEffect(() => { const f = () => setOpen(true); window.addEventListener(EVENT, f); return () => window.removeEventListener(EVENT, f) }, [])
+  React.useEffect(() => {
+    const u = new URL(location.href)
+    if (!u.searchParams.has(PAPER_PARAM)) return
+    u.searchParams.delete(PAPER_PARAM)
+    history.replaceState(history.state, '', u.pathname + u.search + u.hash)
+    setOpen(true)
+  }, [])
   return open ? <PaperSignIn onClose={() => setOpen(false)} /> : null
 }
 
@@ -37,7 +46,11 @@ function PaperSignIn({ onClose }: { onClose: () => void }) {
 
   const enter = async (keys: PaperKeys, create: boolean) => {
     setStep({ at: 'working', what: create ? 'Creating your paper account…' : 'Signing in…' })
-    try { await paper.signIn(keys, { remember, create }); onClose() }
+    try {
+      await paper.signIn(keys, { remember, create }); onClose()
+      // in from the join page: on to the app
+      if (location.hash.startsWith('#/join')) location.hash = '#/'
+    }
     catch (e) { setErr((e as Error).message); setStep({ at: 'form' }) }
   }
   const go = async () => {

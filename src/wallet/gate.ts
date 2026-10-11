@@ -14,6 +14,13 @@ export const onAccessCode = () => window.ycPass === true
 
 /** No beta access: the middleware marked the HTML (`window.ycGated`) and shipped the overlay hidden. */
 export const gated = () => window.ycGated === true
+/**
+ * Real trading needs beta access; paper trading does not (tickets/0006). A gated visitor may use the
+ * whole app on a paper account, while every real wallet path — connecting one, signing a ticket, a
+ * swap or bridge — sends them to the waitlist instead. Cosmetic like the gate itself (the data is
+ * public and acting still needs a wallet), and consistent with it.
+ */
+export const realTradingGated = () => gated()
 
 /**
  * Open the gate's card — the waitlist / sign-in modal the middleware ships

@@ -7,6 +7,7 @@ import { fetchTokenBalances, spotSwapQuote, xchainSwapQuote, ZERO, type SwapQuot
 import { CHAINS, chainLabel } from '../sdk/queries'
 import { hasLanded, isDone, isOk, tracePaper, traceTx, useTrace } from '../sdk/txTrace'
 import { paperId, usePaper } from '../state/Paper'
+import { realTradingGated } from '../wallet/gate'
 import { MAX_TOPUPS, starterOf, TOPUP_UNITS, type PaperOp } from '../model/paper'
 import { Spin, TxTrack, phaseWords, useNow } from './TxTray'
 import type { ApiEnvelope } from '../vendor/allocator/http'
@@ -143,6 +144,8 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   }
   const go = async () => {
     if (paper.active) return goPaper()
+    // no beta access: real swaps and bridges are behind the waitlist (tickets/0006)
+    if (realTradingGated()) { setErr('Trading with a real wallet is in closed beta. Join the waitlist, or use a paper account.'); return }
     if (!src || !tx) return
     setErr(null)
     if (wrongChain) { try { await switchTo(Number(src.chainId)) } catch (e) { setErr(shortErr((e as Error).message)) } return }

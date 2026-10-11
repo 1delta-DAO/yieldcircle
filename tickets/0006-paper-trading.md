@@ -68,6 +68,12 @@ sign, both refuse to send), `state/Paper.tsx` (session, book cache, `act`, sync,
   dry-run, so a paper account is never locked in. The server re-checks liquidity on lending markets
   and keeps a loop's at-size borrow premium over spot (pos-indexer `docs/paper.md`).
 
+- **Paper skips the beta gate** (2026-10-11): a visitor without beta access gets "Try it with paper
+  money" on the join page (and `?paper` from the landing) and the whole app on a paper account; real
+  wallets, real tickets and real swaps or bridges stay behind the waitlist (`wallet/gate.ts`
+  `realTradingGated`, the wallet sheet's `BetaOnly`, the ticket's and GetAsset's blocks, the shell's
+  nudge). The gate's own sign-in still offers every wallet, so a listed wallet gets in as before.
+
 **Not done.** A forced close below health 1 (decision 4: a warning only); seasons; the Talk-tab
 filter for paper authors; `pnpm shots` paper screens. A closed loop's ticket falls back to the
 open view at once (the tray says "Done on paper").

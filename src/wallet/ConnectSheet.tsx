@@ -11,6 +11,9 @@ import type { Connector } from 'wagmi'
 import { useConnectFlow, type ConnectFlow } from './useConnectFlow'
 import { forgetWallet } from './deeplink'
 import { WALLETS } from './wallets'
+import { openGate, realTradingGated } from './gate'
+import { usePaper } from '../state/Paper'
+import { openPaperSignIn } from '../ui/PaperSignIn'
 import { HAS_WC } from './wc'
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`
@@ -44,8 +47,13 @@ export function ConnectSheet({ onClose, onPick }: { onClose: () => void; onPick?
       <div className="modal wallets" ref={box} tabIndex={-1} onPointerDown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Wallet">
         <div className="th"><span className="n">Wallets</span><span className="sp" /><button className="x" onClick={onClose} aria-label="Close">✕</button></div>
         <p className="foot" style={{ margin: 0, padding: '10px 16px 0' }}>One wallet per chain family: an EVM wallet for Ethereum and its rollups, a Solana wallet for Solana. Both can be connected at once.</p>
-        <EvmSection f={f} touch={touch} onPick={onPick} />
-        <SolanaSection onPick={onPick} />
+        {/* no beta access: real wallets wait for the waitlist, paper does not (tickets/0006). The gate's own
+            sign-in (`onPick`) still offers every wallet — that is how a listed wallet gets in */}
+        {realTradingGated() && !gate ? <BetaOnly /> : <>
+          <EvmSection f={f} touch={touch} onPick={onPick} />
+          <SolanaSection onPick={onPick} />
+        </>}
+        {!gate && <PaperSection onClose={onClose} />}
         {SOCIAL_LINKS_READY && evmConnected && !!sol.account && (
           <div className="tsec"><p className="foot" style={{ margin: 0 }}>These two wallets can share one profile — <a href="#/me">link them</a>.</p></div>
         )}
@@ -55,6 +63,42 @@ export function ConnectSheet({ onClose, onPick }: { onClose: () => void; onPick?
           <p className="foot" style={{ marginTop: 6 }}>Read any wallet's positions without connecting. Signing still needs a wallet.</p>
         </div>}
       </div>
+    </div>
+  )
+}
+
+/** Real wallets in the closed beta: a gated visitor is pointed at the waitlist, and at paper meanwhile. */
+function BetaOnly() {
+  return (
+    <div className="tsec vm">
+      <VmHead word="Real wallets" on={false} />
+      <p className="plain" style={{ margin: '0 0 10px' }}>Trading with a real wallet is in closed beta. Join the waitlist, or sign in if your wallet is on it.</p>
+      <div className="actions">
+        <button className="btn pri" onClick={() => openGate()}>Join the waitlist</button>
+        <button className="btn" onClick={() => openGate()}>Sign in</button>
+      </div>
+    </div>
+  )
+}
+
+/** The paper account beside the wallets: play money, a name and a password, no wallet and no waitlist. */
+function PaperSection({ onClose }: { onClose: () => void }) {
+  const paper = usePaper()
+  return (
+    <div className="tsec vm">
+      <VmHead word="Paper account" on={paper.active} via={paper.session?.name} />
+      {paper.active ? (
+        <div className="vm-on">
+          <span className="pill paper">paper</span><span className="addr">{paper.session!.name}</span>
+          <span className="sp" />
+          <button className="btn sm" onClick={() => void paper.signOut()}>Sign out</button>
+        </div>
+      ) : (
+        <>
+          <p className="foot" style={{ margin: '0 0 8px' }}>Every strategy with play money at real rates — nothing is signed or sent on chain. No wallet{realTradingGated() ? ', no waitlist' : ''} needed.</p>
+          <button className="btn paper" onClick={() => { onClose(); openPaperSignIn() }}>{paper.session ? `Continue as ${paper.session.name}` : 'Try with paper money'}</button>
+        </>
+      )}
     </div>
   )
 }

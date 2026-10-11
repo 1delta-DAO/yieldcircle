@@ -5,6 +5,8 @@
  * the signature.
  * One button in the middle, the join flow is the overlay's own card
  * (`openGate`), and the field behind it is real farmers (`Showcase.tsx`).
+ * A visitor without access can also go in on PAPER (a name and a password, play money): the app
+ * opens for a paper session, and only real trading stays behind the waitlist (tickets/0006).
  * A visitor who is IN (whitelisted, or the gate is off) sees the same page at
  * `#/join` with a banner instead of the waitlist — the gate lands them here
  * after the signature — and an access-code holder gets the nudge to join.
@@ -13,6 +15,7 @@ import React from 'react'
 import { Logo, Socials } from '@yieldcircle/design'
 import { WAITLIST_HREF, gated, onAccessCode, openGate } from '../wallet/gate'
 import { Showcase } from './Showcase'
+import { openPaperSignIn } from './PaperSignIn'
 
 export { gated }
 
@@ -40,6 +43,8 @@ export function Join() {
           <a className="join-in" href="#/board">See the leaderboard</a>
         </> : <>
           <a className="join-cta" href="#/" onClick={join}>Join the waitlist</a>
+          {/* paper trading needs no beta: a name and a password, play money, the whole app (tickets/0006) */}
+          <button type="button" className="join-paper" onClick={openPaperSignIn}>Try it with paper money <small>no wallet, no waitlist</small></button>
           <a className="join-in" href="#/" onClick={join}>Already on the list? Sign in</a>
         </>}
       </main>

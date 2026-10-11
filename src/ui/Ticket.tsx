@@ -20,6 +20,7 @@ import { useProfiles } from '../social/queries'
 import { stepsFrom, useTicketLadder, type Ladder, type Step } from './useLadder'
 import { usePaper } from '../state/Paper'
 import { openPaperSignIn } from './PaperSignIn'
+import { openGate, realTradingGated } from '../wallet/gate'
 import { depositPlan, leverPlan, loopPlan, reducePlan, withdrawPlan } from './paperPlans'
 import { isDone, useTrace } from '../sdk/txTrace'
 import { Spin, TxNote } from './TxTray'
@@ -942,7 +943,13 @@ function Action({ ladder: l, label, account, isConnected, disabled, risky, block
   if (!l.bundle) return (
     <div className="tsec cta">
       {l.err && <div className="err">{l.err}</div>}
-      {solWait ? <button className="btn wide" disabled>Transactions on Solana open shortly — browsing and tracking work today</button>
+      {realTradingGated() && !l.paper ? <>
+          {/* no beta access: a real ticket is the one thing behind the waitlist (tickets/0006) */}
+          <div className="plain" style={{ marginBottom: 8 }}>Trading with a real wallet is in closed beta.</div>
+          <button className="btn wide paper" onClick={openPaperSignIn}>Do it on paper instead</button>
+          <button className="btn wide" style={{ marginTop: 8 }} onClick={() => openGate()}>Join the waitlist</button>
+        </>
+        : solWait ? <button className="btn wide" disabled>Transactions on Solana open shortly — browsing and tracking work today</button>
         : !account ? <><button className="btn wide pri" onClick={() => setViewAs(undefined)} disabled>Connect a wallet to continue</button><button className="btn wide paper" style={{ marginTop: 8 }} onClick={openPaperSignIn}>Or try it with paper money</button></>
         : viewing ? <button className="btn wide" disabled>Viewing {account.slice(0, 6)}… · connect to sign</button>
         : !l.isConnected ? <button className="btn wide" disabled>{isSvmChain(chainId) ? 'Connect a Solana wallet (Phantom, Solflare, Backpack) to sign' : 'Connect a wallet to sign'}</button>

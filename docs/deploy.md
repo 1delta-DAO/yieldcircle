@@ -48,7 +48,12 @@ both Production and Preview:
 | Variables and Secrets (Secret, optional) | `GATE_PASS` | an access code: `https://<site>/?access=<code>` lets the holder in for 30 days without a whitelisted wallet (hackathon judges, reviewers). Change it to stop new entries; rotate `GATE_SECRET` to also log out those already in |
 
 The gate is an **overlay**: the app always loads and stays visible behind a
-frosted layer; only the HTML document is touched. Missing binding or secret =
+frosted layer; only the HTML document is touched. **Paper trading skips it**
+(tickets/0006): a visitor without access can sign in to a paper account from
+the join page (or arrive with `?paper`, the landing's "Try it with paper
+money" link) and use the whole app on play money; only real trading — a real
+wallet in the wallet sheet, a real ticket, a real swap or bridge — sends them
+to the waitlist. Client-side, like the gate itself. Missing binding or secret =
 gate **off**, app open (a misconfiguration never takes the site down). Manage the list with `pnpm whitelist`
 (`add`, `remove`, `list`, `waitlist`, `wait`, `promote N` — see
 `scripts/whitelist.mjs`).

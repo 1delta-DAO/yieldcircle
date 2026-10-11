@@ -43,6 +43,10 @@
 .join-cta{margin-top:10px;display:inline-flex;align-items:center;justify-content:center;min-height:56px;padding:0 36px;border-radius:999px;font-size:17px;font-weight:600;color:var(--primary-ink);background:linear-gradient(90deg,var(--brand-b),var(--brand-a));box-shadow:0 0 0 1px rgba(124,233,245,.4),0 0 40px rgba(47,211,232,.45);transition:transform .15s,box-shadow .15s}
 .join-cta:hover{transform:translateY(-1px) scale(1.02);box-shadow:0 0 0 1px rgba(124,233,245,.6),0 0 60px rgba(47,211,232,.6)}
 .join-in{font-size:13px;color:var(--tx50);border-bottom:1px solid transparent}
+/* the paper door (yieldcircle tickets/0006): amber, a step quieter than the waitlist */
+.join-paper{display:inline-flex;flex-direction:column;align-items:center;gap:2px;min-height:46px;padding:7px 26px;border-radius:999px;border:1px solid var(--paper-line);background:var(--paper-bg);color:var(--paper);font:600 15px/1.2 var(--sans);cursor:pointer;transition:border-color .15s,transform .15s}
+.join-paper small{font-size:11px;font-weight:500;color:var(--tx50)}
+.join-paper:hover{border-color:var(--paper);transform:translateY(-1px)}
 .join-in:hover{color:var(--tx);border-color:var(--tx50)}
 .join-foot{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:11px;color:var(--tx40);z-index:2;pointer-events:none}
 /* the field */

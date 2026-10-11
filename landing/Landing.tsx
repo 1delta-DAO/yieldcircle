@@ -143,6 +143,8 @@ export function Landing() {
           <h1>Everything you hold, <span className="lp-mark">earning.</span></h1>
           <p>See what real yield farmers <b>actually</b> make, proven on-chain — and copy them in one tap.</p>
           {cta()}
+          {/* paper trading needs no beta (yieldcircle tickets/0006): `?paper` opens the app's paper sign-in on arrival */}
+          <a className="join-paper" href={`${APP_URL.replace(/\/$/, '')}/?paper`}>Try it with paper money <small>no wallet, no waitlist</small></a>
           <a className="join-in" href={APP_URL}>Already on the list? Sign in</a>
         </main>
         <a className="land-hint lp-hint" href="#live" aria-label="Scroll down">

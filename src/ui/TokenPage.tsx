@@ -695,10 +695,11 @@ export function TokenBook() {
     .filter((r) => !needle || [r.group, r.symbol, r.name].some((s) => s?.toLowerCase().includes(needle)))
     .slice()
     .sort((a, b) => (desc ? val(b) - val(a) : val(a) - val(b)))
-  const head = (id: BookSort, label: string) => (
-    <th className="r tk-sort" aria-sort={sort === id ? (desc ? 'descending' : 'ascending') : undefined}
+  const top = rows.reduce((m, r) => Math.max(m, r.depositsUsd), 0)
+  const head = (id: BookSort, label: string, cls = '') => (
+    <th className={`r tk-sort${sort === id ? ' on' : ''}${cls ? ' ' + cls : ''}`} aria-sort={sort === id ? (desc ? 'descending' : 'ascending') : undefined}
       onClick={() => { if (sort === id) setDesc(!desc); else { setSort(id); setDesc(true) } }}>
-      {label}{sort === id ? (desc ? ' ↓' : ' ↑') : ''}
+      {label}<i aria-hidden>{sort === id ? (desc ? '↓' : '↑') : '↕'}</i>
     </th>
   )
   return (
@@ -712,7 +713,7 @@ export function TokenBook() {
         <span className="sp" />
         <input className="tk-search" type="search" placeholder="Search a token…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search assets" />
       </header>
-      <div className="card tk-scroll">
+      <div className="card tk-scroll" onScroll={(e) => e.currentTarget.classList.toggle('scrolled', e.currentTarget.scrollLeft > 0)}>
         {book.isLoading && <div className="empty"><Sk w={220} /></div>}
         {book.isError && <div className="empty">The index did not answer — this deploy may have no asset book yet. <span className="t40">{(book.error as Error).message}</span></div>}
         {!book.isLoading && !book.isError && !rows.length && <div className="empty">{needle ? `No asset matches “${q.trim()}”.` : 'No asset in the index yet.'}</div>}
@@ -721,31 +722,46 @@ export function TokenBook() {
             <thead><tr>
               <th>Asset</th><th className="r">Price</th>
               {head('deposits', 'Deposited')}{head('change', '24 h')}{head('borrows', 'Borrowed')}
-              <th className="r hide-m">Util.</th>{head('collateral', 'Collateral')}<th className="r hide-m" title="held inside tokens built on it — their own assets, not lent">Wrapped</th>
-              <th className="r hide-m">Own yield</th><th className="r hide-m">Markets</th>
+              <th className="r hide-l">Util.</th>{head('collateral', 'Collateral')}<th className="r hide-l" title="held inside tokens built on it — their own assets, not lent">Wrapped</th>
+              <th className="r hide-l" title="what the token earns by itself — staking, a vault's rate">Own yield</th><th className="r hide-m">Markets</th>
             </tr></thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.group} onClick={() => { location.hash = tokenHref(r.group) }}>
-                  <td>
-                    <div className="nm">
-                      <Tok sym={r.symbol ?? r.group} logo={r.logoUri ?? undefined} />
-                      <a href={tokenHref(r.group)} onClick={(e) => e.stopPropagation()}>{r.symbol ?? r.group}</a>
-                      {r.issuerName && <span className="desk-chip hide-m" title={`issued by ${r.issuerName}`}>{r.issuerName}</span>}
-                    </div>
-                    {r.name && r.name !== r.symbol && <small className="hide-m">{r.name}</small>}
-                  </td>
-                  <td className="r">{r.priceUsd == null ? '—' : usd(r.priceUsd)}{r.priceChange24hPct != null && <small className={r.priceChange24hPct >= 0 ? 'ok' : 'bad'}>{signed(r.priceChange24hPct)}</small>}</td>
-                  <td className="r">{usdShort(r.depositsUsd)}</td>
-                  <td className="r">{r.depositsChange24hPct == null ? <span className="t40">—</span> : <span className={r.depositsChange24hPct >= 0 ? 'ok' : 'bad'}>{signed(r.depositsChange24hPct, 1)}</span>}</td>
-                  <td className="r">{usdShort(r.borrowsUsd)}</td>
-                  <td className="r hide-m">{utilPct(r.utilization)}</td>
-                  <td className="r">{usdShort(r.collateralUsd)}</td>
-                  <td className="r hide-m">{r.wrappedUsd ? usdShort(r.wrappedUsd) : <span className="t40">—</span>}</td>
-                  <td className="r hide-m">{r.intrinsicApr == null ? <span className="t40">—</span> : <span className="ok">{pct(r.intrinsicApr)}</span>}</td>
-                  <td className="r hide-m">{r.markets}<small>{r.chains.length} chain{r.chains.length === 1 ? '' : 's'} · {r.protocols} prot.</small></td>
-                </tr>
-              ))}
+              {rows.map((r, i) => {
+                const u = r.utilization == null ? null : r.utilization <= 1.5 ? r.utilization * 100 : r.utilization
+                return (
+                  <tr key={r.group} onClick={() => { location.hash = tokenHref(r.group) }}>
+                    <td>
+                      <div className="nm">
+                        <span className="tk-rank hide-m" aria-hidden>{i + 1}</span>
+                        <Tok sym={r.symbol ?? r.group} logo={r.logoUri ?? undefined} size={30} />
+                        <span className="tk-id">
+                          <span className="tk-sym"><a href={tokenHref(r.group)} onClick={(e) => e.stopPropagation()}>{r.symbol ?? r.group}</a>
+                            {r.issuerName && <span className="desk-chip hide-m" title={`issued by ${r.issuerName}`}>{r.issuerName}</span>}</span>
+                          {r.name && r.name !== r.symbol && <small className="hide-m">{r.name}</small>}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="r">{r.priceUsd == null ? <span className="t40">—</span> : usd(r.priceUsd)}{r.priceChange24hPct != null && <small className={r.priceChange24hPct >= 0 ? 'ok' : 'bad'}>{signed(r.priceChange24hPct)}</small>}</td>
+                    <td className="r tk-dep">
+                      <span>{usdShort(r.depositsUsd)}</span>
+                      <i className="tk-bar" aria-hidden style={{ '--w': `${top > 0 ? Math.max(2, (r.depositsUsd / top) * 100) : 0}%` } as React.CSSProperties} />
+                    </td>
+                    <td className="r">{r.depositsChange24hPct == null ? <span className="t40">—</span> : <span className={`tk-chg ${r.depositsChange24hPct >= 0 ? 'ok' : 'bad'}`}>{signed(r.depositsChange24hPct, 1)}</span>}</td>
+                    <td className="r">{usdShort(r.borrowsUsd)}</td>
+                    <td className="r hide-l">
+                      {u == null ? <span className="t40">—</span> : (
+                        <span className="tk-util" title={`${pct(u, 1)} of what is lent is borrowed`}>
+                          <i aria-hidden style={{ '--u': `${Math.min(100, u)}%` } as React.CSSProperties} /><span>{pct(u, 1)}</span>
+                        </span>
+                      )}
+                    </td>
+                    <td className="r">{usdShort(r.collateralUsd)}</td>
+                    <td className="r hide-l">{r.wrappedUsd ? usdShort(r.wrappedUsd) : <span className="t40">—</span>}</td>
+                    <td className="r hide-l">{r.intrinsicApr == null ? <span className="t40">—</span> : <span className="tk-own">{pct(r.intrinsicApr)}</span>}</td>
+                    <td className="r hide-m">{r.markets}<small>{r.chains.length} chain{r.chains.length === 1 ? '' : 's'} · {r.protocols} prot.</small></td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}

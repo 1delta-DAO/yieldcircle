@@ -27,3 +27,7 @@ docs/metadao/
 
 # unit economics / pricing research stays local
 economics/
+
+# Yield Cup teaser renders (regenerate with node docs/yield-cup/render.mjs)
+docs/yield-cup/*.png
+docs/yield-cup/graphics.html

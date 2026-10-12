@@ -1308,15 +1308,83 @@ i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-sty
 .assetlink{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 8px 2px 4px;border:1px solid var(--line);border-radius:999px;color:inherit;text-decoration:none;white-space:nowrap}
 .assetlink:hover{border-color:var(--primary)}
 .assetlinks{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.tk-scroll{overflow-x:auto}
+.tk-scroll{overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
 .tk-scroll .tbl td{white-space:nowrap}
 .tk-markets td.tk-name{max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .tk-markets .nm a:hover,.tk-book .nm a:hover{color:var(--primary)}
+/* ---- the asset book: ten columns that have to fit a 1240 page, so the cells are tighter than
+   .tbl's 16/18 and only the outer two keep a full gutter; below that it scrolls as a unit,
+   the Asset column pinned so a row never loses its name while the figures slide. */
+.tbl.tk-book{min-width:100%;border-collapse:separate;border-spacing:0}
+.tbl.tk-book th,.tbl.tk-book td{padding:0 10px}
+.tbl.tk-book th:first-child,.tbl.tk-book td:first-child{padding-left:18px}
+.tbl.tk-book th:last-child,.tbl.tk-book td:last-child{padding-right:18px}
+.tbl.tk-book th{height:42px;padding-top:0;padding-bottom:0;vertical-align:middle;font-size:11.5px;font-weight:600;color:var(--tx50);background:var(--b200);border-bottom:1px solid var(--line)}
+.tbl.tk-book td{height:60px;border-bottom:1px solid var(--line-soft)}
+.tbl.tk-book tr:last-child td{border-bottom:0}
+.tbl.tk-book td.r{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--tx)}
+.tbl.tk-book td.r > small{font-size:11.5px;font-weight:500;margin-top:2px;color:var(--tx40)}
+.tbl.tk-book td.r > small.ok{color:var(--success)}
+.tbl.tk-book td.r > small.bad{color:var(--error)}
+/* rank: a faint counter in front of the mark, not a column someone reads */
+.tk-rank{flex:none;width:20px;margin-right:2px;font-size:11.5px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--tx40);text-align:right}
+/* the asset: a bigger mark, the symbol on one line with its issuer, the long name under it */
+.tbl.tk-book .nm{gap:11px}
+.tbl.tk-book .nm .tok{border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+.tk-id{display:flex;flex-direction:column;min-width:0;max-width:200px;line-height:1.25}
+.tk-sym{display:flex;align-items:center;gap:7px;min-width:0;font-size:14.5px;font-weight:600;color:var(--tx)}
+/* a Pendle PT symbol carries its maturity — "PT-srUSDe-22OCT2026" — and would otherwise set the column's width */
+.tk-sym a{flex:0 1 auto;min-width:0;color:inherit;text-decoration:none;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tk-sym .desk-chip{flex:none}
+.tk-sym .desk-chip{font-size:10.5px;line-height:17px;color:var(--tx50);border-color:transparent;background:var(--b400)}
+.tk-id > small{display:block;margin-top:2px;font:400 12px/1.25 var(--sans);color:var(--tx50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+/* deposited: the figure, and under it how it compares to the top row */
+.tbl.tk-book td.tk-dep{min-width:118px}
+.tbl.tk-book td.tk-dep > span{display:block}
+.tk-bar{display:block;margin:5px 0 0 auto;height:3px;width:var(--w,0%);max-width:100%;border-radius:2px;background:linear-gradient(90deg,var(--brand-b),var(--primary));opacity:.8}
+/* 24 h change: a soft tint so the sign reads at a glance */
+.tk-chg{display:inline-block;min-width:54px;padding:2px 7px;border-radius:999px;font-size:12.5px;font-weight:600;text-align:center}
+.tk-chg.ok{background:var(--ok-bg);color:var(--success)}
+.tk-chg.bad{background:var(--bad-bg);color:var(--error)}
+/* utilization: a short track with the lent-out share filled, the number beside it */
+.tk-util{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px}
+.tk-util > i{position:relative;display:block;width:36px;height:4px;border-radius:2px;background:var(--b400);overflow:hidden}
+.tk-util > i::after{content:"";position:absolute;inset:0;width:var(--u,0%);border-radius:2px;background:var(--tx50)}
+.tk-util > span{min-width:46px;text-align:right}
+.tk-own{color:var(--success)}
+.tbl.tk-book td:last-child > small{color:var(--tx40)}
+/* the pinned first columns while the book scrolls sideways */
+.tbl.tk-book th:first-child,.tbl.tk-book td:first-child{position:sticky;left:0;z-index:1;background:var(--b200)}
+.tbl.tk-book tbody tr:hover td:first-child{background:var(--b300)}
+.tk-scroll.scrolled .tbl.tk-book th:first-child,.tk-scroll.scrolled .tbl.tk-book td:first-child{box-shadow:8px 0 12px -8px rgba(0,0,0,.8)}
+.tbl.tk-book tbody tr:hover td{background:var(--b300)}
+/* sort headers: the active one is lit, the glyph lives in a fixed slot so labels never shift */
+.tbl.tk-book th.tk-sort{padding-right:9px}
+.tbl.tk-book th.tk-sort > i{display:inline-block;width:12px;margin-left:2px;font-style:normal;text-align:center;opacity:0;transition:opacity .12s}
+.tbl.tk-book th.tk-sort:hover > i{opacity:.5}
+.tbl.tk-book th.tk-sort.on{color:var(--tx)}
+.tbl.tk-book th.tk-sort.on > i{opacity:1;color:var(--primary)}
+@media (max-width:1100px){.tbl.tk-book .hide-l{display:none!important}.tk-id{max-width:170px}}
+@media (max-width:640px){
+  .tbl.tk-book th,.tbl.tk-book td{padding:0 8px}
+  .tbl.tk-book th:first-child,.tbl.tk-book td:first-child{padding-left:12px}
+  .tbl.tk-book th:last-child,.tbl.tk-book td:last-child{padding-right:12px}
+  .tbl.tk-book td{height:54px}
+  .tbl.tk-book td.r{font-size:13px}
+  .tbl.tk-book .nm{gap:8px}
+  .tbl.tk-book .nm .tok{width:24px!important;height:24px!important}
+  .tk-sym{font-size:14px}
+  .tk-sym a{max-width:92px}
+  .tk-chg{min-width:0;padding:1px 6px;font-size:12px}
+}
 .tk-chain{display:inline-flex;align-items:center;gap:6px}
 .tk-more{margin:10px 16px 12px}
 .tbl tr.held td{opacity:.62}
 .heldchip{margin-left:6px;font-size:10.5px;padding:1px 6px;border:1px dashed var(--line2);border-radius:999px;color:var(--tx50);white-space:nowrap}
 .tk-about{margin-top:14px;font-size:13px;line-height:1.55;color:var(--tx70)}
+/* no header strip here, so .card.pad's 4px top would jam a one-liner against the border */
+.card.pad.tk-about{padding:11px 16px}
+.tk-about>:last-child{margin-bottom:0}
 .tk-about p{margin:0 0 6px}
 .tk-about b{color:var(--tx);font-weight:600}
 .tk-about ul{margin:4px 0 8px;padding-left:18px;color:var(--tx50);font-size:12.5px}

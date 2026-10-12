@@ -354,9 +354,10 @@ export function useCatalog(chainIds: string[]) {
  *     deposits, the ones paying only its own yield included;
  *   - one `/v1/data/earn?shareGroup=<group>` — the vaults that mint it (Nest's savings vault
  *     for nOPAL), by the `shareToken` the API stamps from the token lists;
- *   - one `pairs/optimize?collaterals=<its addresses>&includeIlliquid=true` per chain — every
- *     loop with it as collateral, tagged or not, any debt, an empty one too (`classifyPair`
- *     still refuses a price bet; `softHide` marks the empty one `thin-borrow`).
+ *   - one `pairs/optimize?collaterals=<its addresses>&includeIlliquid=true&maxConfigRiskScore=5`
+ *     per chain — every loop with it as collateral, tagged or not, any debt, an empty one and a
+ *     score-5 one too (`classifyPair` still refuses a price bet; `softHide` marks the empty one
+ *     `thin-borrow` and the score-5 one `risky`; the API's default ceiling is 4).
  *
  * No floor cuts a row here: a row the menu would hold back comes with `held` (the code that
  * would hide it), so the page can show it muted with its reason. Rows that cannot be a
@@ -392,7 +393,7 @@ export function useAssetStrategies(group: string | undefined, members: { chainId
   const loops = useQueries({
     queries: chains.map((chainId) => ({
       queryKey: ['asset-loops', chainId, [...byChain[chainId]].sort().join(',')],
-      queryFn: async () => sortOut((await optimizerPages({ chainIds: [chainId], collaterals: byChain[chainId], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, includeIlliquid: true })).map(classifyPair), 'loop'),
+      queryFn: async () => sortOut((await optimizerPages({ chainIds: [chainId], collaterals: byChain[chainId], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, includeIlliquid: true, maxConfigRiskScore: 5 })).map(classifyPair), 'loop'),
       staleTime: 10 * 60_000,
     })),
   })
@@ -646,7 +647,10 @@ export async function fetchOffMenu({ id, by }: OffMenuRef): Promise<OffMenuRow> 
     const [long, short] = id.slice(2).split('|')
     const chainId = parseUid(long)?.chainId
     if (!chainId || !short) return null
-    const r = await fetchOptimizerPairs({ chainIds: [chainId], collaterals: [by], minBorrowLiquidityUsd: 0, count: 100 })
+    // one named pair, so no floor may cut it: the API's own default config-risk ceiling is 4 and
+    // drops every score-5 market (Morpho PT-apxUSD-5NOV2026 / apxUSD at 94.5 % LLTV answered
+    // nothing, 2026-10-12); the ticket's off-menu warning and `softHide` carry the risk instead
+    const r = await fetchOptimizerPairs({ chainIds: [chainId], collaterals: [by], minBorrowLiquidityUsd: 0, maxConfigRiskScore: 5, includeIlliquid: true, includeExpired: true, count: 100 })
     const row = r.items.find((x) => sameUid(x.marketLongUid, long) && sameUid(x.marketShortUid, short))
     return row ? classifyPair(row) : null
   }

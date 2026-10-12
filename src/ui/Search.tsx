@@ -465,7 +465,13 @@ export function Search() {
           <div ref={listRef} id="search-results" className="sresults" role="listbox" aria-label="Results">
             {!needle && idle.length > 0 && (
               <>
-                {recent.length > 0 && <div className="s-sec">Recent</div>}
+                {recent.length > 0 && (
+                  <div className="s-sec">Recent
+                    {/* mousedown kept off the input, so the box stays open on what is left */}
+                    <button type="button" className="s-sec-x" onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => { setRecent([]); ls.set(RECENT_KEY, []); setAt(0) }}>Clear</button>
+                  </div>
+                )}
                 {idle.slice(0, recent.length).map((r) => row(r, i++))}
                 {idle.length > recent.length && <div className="s-sec">Following</div>}
                 {idle.slice(recent.length).map((r) => row(r, i++))}

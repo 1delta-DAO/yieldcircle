@@ -885,6 +885,8 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .s-chip .s-n{font-family:var(--mono);font-size:10.5px;opacity:.7}
 .s-sec{display:flex;align-items:center;justify-content:space-between;padding:8px 9px 3px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;color:var(--tx40)}
 .s-sec:first-child{padding-top:3px}
+.s-sec-x{font-size:11px;letter-spacing:0;text-transform:none;font-weight:500;color:var(--tx50);padding:2px 4px;margin:-2px -4px;border-radius:6px}
+.s-sec-x:hover{color:var(--tx);background:var(--b300)}
 .s-more{font-size:11px;letter-spacing:0;text-transform:none;font-weight:500;color:var(--primary)}
 .sr-icon{flex:none;display:grid;place-items:center;width:24px;height:24px}
 .sr-icon .tok,.sr-icon .chr,.sr-img{border-radius:50%}

@@ -2149,3 +2149,10 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .liq-warn{color:var(--error);font-size:11.5px;font-weight:600}
 .board-paper .pill.paper{margin-left:6px}
 .btn.paperbtn{white-space:normal;line-height:1.25;min-height:46px;height:auto;padding-top:8px;padding-bottom:8px}
+/* the loop's route: the chosen one in a row, the others behind the settings button beside it */
+.route-one{display:flex;gap:6px;align-items:stretch}
+.route-one > .route{flex:1;min-width:0;cursor:default;color:var(--tx);border-color:var(--primary);background:var(--pri-bg)}
+.route-one > .route:hover{background:var(--pri-bg)}
+.route-set{flex:none;width:44px;display:grid;place-items:center;border-radius:12px;border:1px solid transparent;background:var(--b300);color:var(--tx70)}
+.route-set:hover,.route-set[aria-expanded="true"]{background:var(--b400);color:var(--tx)}
+.route-pop{padding:6px;margin:0;max-height:min(360px,60vh);overflow:auto}

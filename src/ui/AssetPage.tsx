@@ -95,6 +95,28 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   // what an off-menu row can still do: a loop can always be unwound; a deposit needs the earn uid to withdraw through
   const canManage = (h: Holding) => h.kind === 'loop' ? !!h.collateralUid && !!h.debtUid : !!h.earnUid
   const ticketOpen = !!sel || !!offSel || !!offMenu
+  /** one held position's cells, shared by the desktop row and the phone card */
+  const posOf = (h: Holding, s: Strategy | null) => {
+    const open = (m: 'add' | 'reduce' | 'manage') => s && go(group.id, { u, s: s.id, k: s.kind, m, h: h.key })
+    const can = !s && canManage(h)
+    const openOff = () => go(group.id, { u, h: h.key, k: h.kind, m: h.kind === 'loop' ? 'manage' : 'reduce' })
+    const total = s && s.kind === 'simple' ? s.rate : h.apr
+    const out = h.kind === 'loop' ? 'Manage' : 'Withdraw'
+    return {
+      on: s ? sel?.id === s.id : offMenu?.key === h.key,
+      tap: s ? () => { open('add') } : can ? openOff : undefined,
+      mark: s ? (s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />) : <Tok sym={h.symbol} logo={h.logo} />,
+      meta: `${chainLabel(h.chainId)}${h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}${h.kind === 'loop' && h.debtSymbol ? ` · owes ${amt(h.debtSymbol, h.debtAmount ?? 0)}` : ''}`,
+      unit: h.kind === 'loop' ? 'equity' : num(h.amount, h.amount >= 100 ? 0 : 3),
+      total,
+      rewards: s && s.kind === 'simple' ? s.rewards : 0,
+      cls: total != null && total >= 0 ? 'ok' : total != null ? 'bad' : '',
+      ser: s ? seriesFor(s, get, withRewards, h.kind === 'loop' && h.leverage && h.leverage > 1 ? h.leverage : undefined) : null,
+      acts: s ? <span className="acts"><button className="btn sm" onClick={() => open('add')}>Add</button><button className="btn sm" onClick={() => open(h.kind === 'loop' ? 'manage' : 'reduce')}>{out}</button></span>
+        : can ? <span className="acts"><button className="btn sm" title="Not in the menu: this position can be reduced or closed here, not added to" onClick={openOff}>{out}</button></span>
+        : <span className="t40" style={{ fontSize: 12 }}>not in the menu</span>,
+    }
+  }
   const close = () => go(group.id, { u, k: kind })
   const aside = useAsideTop(ticketOpen)
   return (
@@ -114,20 +136,36 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
           )}
           {b.account && running.length > 0 && (
             <section className="sec" style={{ marginTop: 14 }}><div className="sec-h"><h2>Your positions</h2><span className="sub">{usd(running.reduce((a, r) => a + r.h.valueUsd, 0))} at work in {group.name.toLowerCase()}{u !== 'all' ? ` · ${nameOf(u)}` : ''}.</span></div>
-              <div className="card"><table className="tbl strat-t">
-                <colgroup><col /><col style={{ width: 96 }} /><col className="c-earn" /><col className="hide-m hide-t" style={{ width: 70 }} /><col className="hide-m hide-t" style={{ width: 138 }} /><col style={{ width: 32 }} /></colgroup>
+              {phone ? (
+                /* a phone gets a card per position: the row had to fit the name,
+                   four pills, value, rate and health across 357px and the name
+                   lost. The card gives the name its own line and the numbers a row. */
+                <div className="pcards">{running.map(({ h, s }) => { const r = posOf(h, s); return (
+                  <div key={h.key} className="pcard" role={r.tap ? 'button' : undefined} tabIndex={r.tap ? 0 : undefined} aria-selected={r.on} onClick={r.tap} onKeyDown={(e) => { if (r.tap && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); r.tap() } }} style={r.tap ? undefined : { cursor: 'default' }}>
+                    <div className="pc-top">{r.mark}<b>{h.label.split(' · ')[0]}</b>{r.tap && <span className="t40">›</span>}</div>
+                    <span className="pc-via">{h.venue} · {r.meta}</span>
+                    <span className="pc-pills"><KindPill kind={h.kind} /><SubAccountPill sub={h.subAccount} venue={h.venue} /><LegsPill others={h.others} />{h.paper && <span className="pill paper">paper</span>}</span>
+                    <div className="pc-stats">
+                      <div><small>Value</small><b>{usd(h.valueUsd)}</b><small>{r.unit}</small></div>
+                      <div><small>Earning</small><b className={r.cls}>{r.total != null ? pct(r.total) : '—'}</b><small>{usd(h.valueUsd * (r.total ?? 0) / 100)}/yr</small>{r.ser && <span className="pc-trend"><RateTrend ser={r.ser} now={s!.rate} spike={isSpike(s!.rate, r.ser)} /></span>}</div>
+                      {h.health != null && <div><small>Health</small><HealthPill h={h.health} /></div>}
+                    </div>
+                    <div className="pc-acts" onClick={(e) => e.stopPropagation()}>{r.acts}</div>
+                  </div>) })}</div>
+              ) : <div className="card"><table className="tbl strat-t">
+                <colgroup><col /><col style={{ width: 104 }} /><col className="c-earn" /><col className="hide-m hide-t" style={{ width: 136 }} /><col className="hide-m hide-t" style={{ width: 156 }} /><col style={{ width: 32 }} /></colgroup>
                 <thead><tr><th>Position</th><th className="r">Value</th><th className="r">Earning</th><th className="r hide-m hide-t">Health</th><th className="r hide-m hide-t">Manage</th><th /></tr></thead>
-                <tbody>{running.map(({ h, s }) => { const open = (m: 'add' | 'reduce' | 'manage') => s && go(group.id, { u, s: s.id, k: s.kind, m, h: h.key }); const can = !s && canManage(h); const openOff = () => go(group.id, { u, h: h.key, k: h.kind, m: h.kind === 'loop' ? 'manage' : 'reduce' }); const total = s && s.kind === 'simple' ? s.rate : h.apr; const rewards = s && s.kind === 'simple' ? s.rewards : 0; return (
-                  <tr key={h.key} aria-selected={s ? sel?.id === s.id : offMenu?.key === h.key} onClick={() => (s ? open('add') : can ? openOff() : undefined)} style={s || can ? undefined : { cursor: 'default' }}>
-                    <td><div className="nm">{s ? (s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />) : <Tok sym={h.symbol} logo={h.logo} />}<span><b>{h.label.split(' · ')[0]}</b> <span className="t50">· {h.venue}</span></span><KindPill kind={h.kind} /><SubAccountPill sub={h.subAccount} venue={h.venue} /><LegsPill others={h.others} />{h.paper && <span className="pill paper">paper</span>}</div>
-                      <small className="hide-m">{chainLabel(h.chainId)}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}{h.kind === 'loop' && h.debtSymbol ? ` · owes ${amt(h.debtSymbol, h.debtAmount ?? 0)}` : ''}</small></td>
-                    <td className="r"><span>{usd(h.valueUsd)}</span><small>{h.kind === 'loop' ? 'equity' : num(h.amount, h.amount >= 100 ? 0 : 3)}</small></td>
-                    <td className="r">{(() => { const ser = s ? seriesFor(s, get, withRewards, h.kind === 'loop' && h.leverage && h.leverage > 1 ? h.leverage : undefined) : null; return <span className="rate-row">{ser && <RateTrend ser={ser} now={s!.rate} spike={isSpike(s!.rate, ser)} />}<span className={total != null && total >= 0 ? 'ok' : total != null ? 'bad' : ''}>{total != null ? pct(total) : '—'}</span></span> })()}{rewards > 0.05 ? <small className="hide-m">incl. {pct(rewards)} rewards</small> : null}<small>{usd(h.valueUsd * (total ?? 0) / 100)}/yr</small></td>
+                <tbody>{running.map(({ h, s }) => { const r = posOf(h, s); return (
+                  <tr key={h.key} aria-selected={r.on} onClick={r.tap} style={r.tap ? undefined : { cursor: 'default' }}>
+                    <td><div className="nm">{r.mark}<span><b>{h.label.split(' · ')[0]}</b> <span className="t50">· {h.venue}</span></span><KindPill kind={h.kind} /><SubAccountPill sub={h.subAccount} venue={h.venue} /><LegsPill others={h.others} />{h.paper && <span className="pill paper">paper</span>}</div>
+                      <small className="hide-m">{r.meta}</small></td>
+                    <td className="r"><span>{usd(h.valueUsd)}</span><small>{r.unit}</small></td>
+                    <td className="r"><span className="rate-row">{r.ser && <RateTrend ser={r.ser} now={s!.rate} spike={isSpike(s!.rate, r.ser)} />}<span className={r.cls}>{r.total != null ? pct(r.total) : '—'}</span></span>{r.rewards > 0.05 ? <small className="hide-m">incl. {pct(r.rewards)} rewards</small> : null}<small>{usd(h.valueUsd * (r.total ?? 0) / 100)}/yr</small></td>
                     <td className="r hide-m hide-t">{h.health != null ? <HealthPill h={h.health} /> : <span className="t40">—</span>}</td>
-                    <td className="r hide-m hide-t" onClick={(e) => e.stopPropagation()}>{s ? <span className="acts"><button className="btn sm" onClick={() => open('add')}>Add</button><button className="btn sm" onClick={() => open(h.kind === 'loop' ? 'manage' : 'reduce')}>{h.kind === 'loop' ? 'Manage' : 'Withdraw'}</button></span> : can ? <span className="acts"><button className="btn sm" title="Not in the menu: this position can be reduced or closed here, not added to" onClick={openOff}>{h.kind === 'loop' ? 'Manage' : 'Withdraw'}</button></span> : <span className="t40" style={{ fontSize: 12 }}>not in the menu</span>}</td>
-                    <td className="r t40" style={{ width: 20 }}>{s || can ? '›' : ''}</td>
+                    <td className="r hide-m hide-t" onClick={(e) => e.stopPropagation()}>{r.acts}</td>
+                    <td className="r t40" style={{ width: 20 }}>{r.tap ? '›' : ''}</td>
                   </tr>) })}</tbody>
-              </table></div></section>
+              </table></div>}</section>
           )}
           <div className="kind-bar">
             <div className="seg kind"><button aria-pressed={kind === 'simple'} onClick={() => go(group.id, { u, k: 'simple' })}>Deposits <span className="c">{nS}</span></button><button aria-pressed={kind === 'loop'} onClick={() => go(group.id, { u, k: 'loop' })}>Loops <span className="c">{nL}</span></button></div>

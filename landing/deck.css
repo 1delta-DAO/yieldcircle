@@ -7,6 +7,8 @@
 .land{height:100dvh;overflow-y:auto;scroll-snap-type:y mandatory;background:var(--bg)}
 .land-slide{position:relative;min-height:100dvh;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:48px var(--gutter);text-align:center;overflow:hidden}
 .deck-slide{justify-content:center;gap:20px}
+/* scaled up to the window (--deck-zoom, set in Deck.tsx); the min-height divides it back out so a slide is still one screen */
+.deck .deck-slide{zoom:var(--deck-zoom,1);min-height:calc(100dvh / var(--deck-zoom,1))}
 .deck-slide>*{position:relative}
 .deck-slide>.land-rings,.deck-slide>.land-glow{position:absolute}
 .deck-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:20px var(--gutter);color:var(--tx40);z-index:2}
@@ -108,6 +110,7 @@
 @media print{
   html,body,#root{height:auto;overflow:visible;background:var(--bg)}
   .land.deck{height:auto;overflow:visible;scroll-snap-type:none;background:var(--bg)}
+  .deck .deck-slide{zoom:1;min-height:0}
   .deck-slide{box-sizing:border-box;width:100vw;height:100vh;min-height:0;max-height:100vh;padding:4vh 5vw;gap:2vh;break-after:page;page-break-after:always;break-inside:avoid;overflow:hidden;background:var(--bg)}
   .deck-slide:last-child{break-after:auto;page-break-after:auto}
   .deck-top{padding:2.5vh 5vw}

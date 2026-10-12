@@ -112,8 +112,16 @@ export function Deck() {
       e.preventDefault()
       el.scrollBy({ top: (fwd ? 1 : -1) * el.clientHeight, behavior: 'smooth' })
     }
+    // The slides are drawn for 1280×720 (the PDF page); a bigger window scales them up to fill it
+    // instead of leaving a small slide in a sea of black. Never below 1: phones keep their own layouts.
+    const fit = () => el.style.setProperty('--deck-zoom', String(Math.max(1, Math.min(innerWidth / 1280, innerHeight / 720))))
+    fit()
     addEventListener('keydown', onKey)
-    return () => removeEventListener('keydown', onKey)
+    addEventListener('resize', fit)
+    return () => {
+      removeEventListener('keydown', onKey)
+      removeEventListener('resize', fit)
+    }
   }, [])
   const max = Math.max(...TIERS.map((t) => t.apr))
   return (

@@ -40,9 +40,9 @@ function Wallets({ signer, solSigner, viewAs, account }: { signer?: string; solS
   if (signer) rows.push({ vm: 'EVM', addr: signer, live: true })
   if (solSigner) rows.push({ vm: 'Solana', addr: solSigner, live: true })
   return (
-    <span className="wl">
+    <span className="wv">
       {rows.map((r) => (
-        <span key={r.vm} className="wl-row">
+        <span key={r.vm} className="wv-row">
           <span className={r.live ? 'dot' : 'dot off'} />
           <span className="lbl">{r.vm}</span>
           <span className="sp" />

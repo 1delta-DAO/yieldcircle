@@ -38,9 +38,12 @@
 .lnk:hover{text-decoration:underline}
 .amt.sm{min-height:40px}
 .amt.sm input{font-size:14px}
-.wl{display:flex;flex-direction:column;gap:6px;width:100%}
-.wl-row{display:flex;align-items:center;gap:10px}
-.wl-row .lbl{min-width:52px;text-align:left}
+/* ---- the connected wallets inside the profile sheet's button (ConnectButton `Wallets`): one row per VM, hairline between */
+.wv{display:flex;flex-direction:column;width:100%}
+.wv-row{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border-top:1px solid var(--line)}
+.wv-row:first-child{border-top:0}
+.wv-row .lbl{min-width:52px;text-align:left;color:var(--tx70)}
+.wv-row .addr{font-family:var(--mono)}
 /* ---- the wallet sheet's list (src/wallet/ConnectSheet.tsx): one row per wallet, its icon, the VMs it speaks */
 .wl{display:flex;flex-direction:column;gap:6px}
 .wl-row{display:flex;align-items:center;gap:12px;width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--b300);text-align:left;color:var(--tx);transition:border-color .12s,background .12s}

@@ -145,7 +145,7 @@ function metricOf(h: FindHit): React.ReactNode {
   }
 }
 
-const ACCOUNT_KIND: Record<string, string> = { safe: 'Safe', cex: 'exchange', router: 'router', deployer: 'deployer', protocol: 'protocol', curator: 'curator', dex: 'DEX', wrapper: 'wrapper', contract: 'contract' }
+const ACCOUNT_KIND: Record<string, string> = { safe: 'Safe', cex: 'exchange', router: 'router', deployer: 'deployer', protocol: 'protocol', curator: 'curator', dex: 'DEX', wrapper: 'wrapper', burn: 'burn address', contract: 'contract' }
 function subOf(h: FindHit): React.ReactNode {
   const chains = h.chainIds.slice(0, 4)
   // a wallet's and a desk's claim is the chip; the line under it says what the thing is

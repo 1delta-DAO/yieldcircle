@@ -12,7 +12,7 @@ export type UsdStatus = 'exact' | 'provisional' | 'pending' | 'no-asset' | 'no-i
  * `dex` = a liquidity venue (Balancer's Vault) wrapping / unwrapping lending receipts inside a swap;
  * `wrapper` = holds a lending position as the 1:1 backing of a token it issues (Aquabank's reserves).
  */
-export type AccountKind = 'vault' | 'protocol' | 'router' | 'dex' | 'wrapper' | 'eoa' | 'contract' | 'safe' | 'cex' | 'deployer' | 'curator' | 'adapter' | null
+export type AccountKind = 'vault' | 'protocol' | 'router' | 'dex' | 'wrapper' | 'eoa' | 'contract' | 'safe' | 'cex' | 'deployer' | 'curator' | 'adapter' | 'burn' | null
 
 export interface Named {
   lenderKey: string

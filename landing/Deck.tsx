@@ -32,6 +32,12 @@ const CAST = {
 }
 /** Hackathon first prizes, newest first; the count is the point, the names are the footnote. */
 const WINS = ['StableHacks 2026 (Tenity · Solana)', 'Unite DeFi 2025 (ETHGlobal · 1inch)', 'Superteam Earn (Jito)', 'ETHGlobal Lisbon (Aave)']
+/** Revenue per $10k user a year, purely as a share of yield (economics/fee-models.md §7): 10 % vault, 15 % loop, 20 % automated loop (rebalancing and protection, the premium on debt folded into the share). Gross rates: menu vault ~p70; liquid stable-on-stable loops p75 at 3× (17.4 %) and 5× (27.1 %, shown as 25 % to leave room for costs) from economics/detail.md. LST/ETH loops are not the example: weETH earns ~2.5 % intrinsic on Aave V3 mainnet against a ~2 % WETH borrow, half a point of carry per turn. No entry or exit fee. */
+const UE = [
+  { n: '$70', what: 'Curated vaults', where: 'Aave · Morpho · Euler · Kamino', apr: '7 %', take: '10 %', c: 'c-cyan' },
+  { n: '$255', what: 'e.g. standard loops, 3×', where: 'sUSDe / USDT · Aave · Morpho · Kamino', apr: '~17 %', take: '15 %', c: 'c-moss' },
+  { n: '$500', what: 'e.g. automated loops, >5×', where: 'sUSDe / USDT · fxSAVE / USDC · Morpho', apr: '~25 %', take: '20 %', c: 'c-gold' },
+]
 /** A fixed crowd: faces derived from (made-up, full-length) addresses, so the deck needs no fetch and prints the same every time. */
 const CROWD = [
   '0x9d4511bc588f5eaede7f847f6f9a0f4c643a71e7',
@@ -50,14 +56,6 @@ const CROWD = [
   '0xcf9df8f789430197d3006ea6a11b5d914fad47a2',
   '0xfa226ec375d7e5417af63638058f0029cc9fbc1c',
   '0x6554d9afedffadb62b0384a07c29ac28ba15fe35',
-]
-
-/** Gross APR tiers for a USD depositor (economics/detail.md). */
-const TIERS = [
-  { label: 'Lending pool', sub: 'Aave · Morpho', apr: 3.8, c: 'c-ink', take: '5 %' },
-  { label: 'Curated vault', sub: 'median of the menu', apr: 4.8, c: 'c-cyan', take: '10 %' },
-  { label: 'Top-quartile vault', sub: 'p75 of the menu', apr: 7.9, c: 'c-moss', take: '10 %' },
-  { label: 'Stable loop, 3×', sub: 'sUSDe / USDT', apr: 17.4, c: 'c-gold', take: '15 %' },
 ]
 
 function Slide({ n, kicker, children, className }: { n?: number; kicker?: string; children: React.ReactNode; className?: string }) {
@@ -123,7 +121,6 @@ export function Deck() {
       removeEventListener('resize', fit)
     }
   }, [])
-  const max = Math.max(...TIERS.map((t) => t.apr))
   return (
     <div className="lp land deck" ref={ref}>
       <button type="button" className="deck-pdf" onClick={() => window.print()} title="Print the deck, one slide a page. Choose 'Save as PDF' in the dialog.">
@@ -137,29 +134,29 @@ export function Deck() {
         <Rings />
         <Logo height={40} href="/deck" />
         <span className="lp-sticker lp-sticker-hero">Pre-seed · October 2026</span>
-        <h1 className="deck-title">Everything you hold, <span className="lp-mark">earning.</span></h1>
-        <p className="lp-lead center">The social yield app. See what real wallets make, proven on-chain, and copy them in one tap.</p>
+        <h1 className="deck-title">The <span className="lp-mark">social</span> yield app.</h1>
+        <p className="lp-lead center">The FOMO app for yield farmers. Wallets ranked on what they made. Follow them, copy them in one tap.</p>
         <Crowd />
       </Slide>
 
       {/* 2 - problem: the comic */}
       <Slide n={2} kicker="Problem">
         <span className="lp-sticker prob">What's broken</span>
-        <h2 className="lp-h2 center">Yield is <span className="lp-wob">noisy.</span> Nobody shows you the proof.</h2>
+        <h2 className="lp-h2 center">Yield is confusing, loud and <span className="lp-wob">unproven.</span></h2>
         <div className="lp-comic deck-comic">
-          <div className="lp-panel in" style={css({ '--tilt': '-1.5deg' })}>
-            <div className="lp-bubble shout"><b>500% APR!!</b> trust me bro <i className="lp-tag-s">sponsored</i></div>
-            <Character addr="kol" spec={CAST.kol} size={96} title="" />
-            <b>The loudest voices are paid.</b>
-            <span>KOLs promote whoever pays them.</span>
-          </div>
           <div className="lp-panel in" style={css({ '--tilt': '1deg' })}>
             <div className="lp-swarm" aria-hidden="true">
               {['pool #4,912', 'vault', 'loop 6×', 'PT-sUSDe', '"safe"', 'new chain', 'points', '12.4%', 'vault', 'pool #4,913'].map((t, i) => <i key={i} style={css({ '--i': i })}>{t}</i>)}
             </div>
             <Character addr="lost" spec={CAST.lost} size={96} title="" />
-            <b>33,000 markets, no signal.</b>
+            <b>Over 33k markets, no signal.</b>
             <span>Thousands of quoted rates. Nothing says which hold up.</span>
+          </div>
+          <div className="lp-panel in" style={css({ '--tilt': '-1.5deg' })}>
+            <div className="lp-bubble shout"><b>500% APR!!</b> trust me bro <i className="lp-tag-s">sponsored</i></div>
+            <Character addr="kol" spec={CAST.kol} size={96} title="" />
+            <b>The loudest voices are paid.</b>
+            <span>KOLs promote whoever pays them.</span>
           </div>
           <div className="lp-panel in" style={css({ '--tilt': '-0.8deg' })}>
             <div className="lp-poster"><s>APR 18.0%</s><em>realized <b>3.1%</b></em></div>
@@ -214,10 +211,9 @@ export function Deck() {
             <span className="lp-sticker sol">Live in closed beta</span>
             <h2 className="lp-h2">It already <span className="lp-mark">works.</span></h2>
             <div className="deck-feats">
-              <div className="c-cyan"><b>Board, feed, threads</b><span>Wallets ranked by proven net carry; illiquid or capped yield does not rank. Every move copyable.</span></div>
-              <div className="c-gold"><b>Full execution</b><span>Deposit, withdraw, loop, close, swap, bridge. 15 chains and Solana, one engine.</span></div>
-              <div className="c-moss"><b>Realized PnL</b><span>Value, money in and PnL since open, per position and per wallet.</span></div>
-              <div className="c-plum"><b>Every market, auto-indexed</b><span>A new Morpho or Euler market is picked up at creation, no listing. 33k markets, 16 chains.</span></div>
+              <div className="c-cyan"><b>Live leaderboard with realized PnLs</b></div>
+              <div className="c-gold"><b>Full transaction execution</b></div>
+              <div className="c-plum"><b>Every market, auto-indexed</b></div>
             </div>
           </div>
           <div className="deck-phone" style={css({ '--tilt': '2deg' })}>
@@ -235,46 +231,39 @@ export function Deck() {
             <div className="deck-big c-ink">14 %</div>
             <Character addr="sold" spec={CAST.sold} size={88} title="" />
             <b>Most money earns nothing.</b>
-            <span>Of $73b USDC, $10b earns in a lending market or vault. USDT: 2.6 % of $184b. ETH: 3.3 % of $306b.</span>
+            <span>Only 14 % of USDC earns anything.</span>
           </div>
           <div className="lp-panel in" style={css({ '--tilt': '1deg' })}>
             <div className="deck-big c-gold">1 in 2</div>
             <Character addr="lost" spec={CAST.lost} size={88} title="" />
             <b>Yield feels too risky to touch.</b>
-            <span>Nearly half of US retail holders have never earned yield; 20m do on exchanges, 0.5m in DeFi. Liquidity and security stop them; an easy exit beats a higher APY.</span>
+            <span>Half of retail has never earned yield.</span>
           </div>
           <div className="lp-panel in" style={css({ '--tilt': '-0.8deg' })}>
             <div className="deck-big c-moss">28.7 %</div>
             <Character addr="0x4a7c1e2f9b0d6c3a8e5f7b2d1c9a4e6f8b3d5a7c" size={88} title="" />
             <b>Seeing who farms changes minds.</b>
-            <span>A real wallet: $270k at 4× on Kamino, exact to the chain. Seeing a peer hold an asset raises take-up most when the peer is the expert; 40 % of eToro’s users copy.</span>
+            <span>People copy what experts hold.</span>
           </div>
         </div>
-        <p className="deck-foot">Index, 2026-10-10: market cap vs lending deposits + vault TVL; Solana position board. MoreMarkets Crypto Yield Retail Report 2025 (liquidity 68 %, security 45 %, no lock-up 47 % vs higher APY 34 %). Bursztyn, Ederer, Ferman, Yuchtman, Econometrica 2014. eToro copy usage.</p>
+        <p className="deck-foot">Sources: 1delta index 2026-10-10 · MoreMarkets 2025 · Bursztyn et al. 2014 · eToro</p>
       </Slide>
 
       {/* 6 - unit economics, the three numbers */}
       <Slide n={6} kicker="Unit economics">
         <span className="lp-sticker sol">Unit economics</span>
-        <h2 className="lp-h2 center">We keep <span className="lp-mark">5 to 15 ¢</span> of every yield dollar.</h2>
-        <p className="lp-lead center deck-sub">5 ¢ on a pool, 10 ¢ on a vault, 15 ¢ on a loop. A $10k vault at 7 % earns $700 a year; $70 is ours.</p>
-        <div className="deck-ue deck-ue-simple">
-          <div className="deck-tiers">
-            {TIERS.map((t, i) => (
-              <div className={'deck-tier ' + t.c} key={t.label} style={css({ '--tilt': `${i % 2 ? 0.6 : -0.6}deg` })}>
-                <div className="deck-tier-l"><b>{t.label}</b>{t.sub && <small>{t.sub}</small>}</div>
-                <div className="deck-tier-bar"><i style={{ width: `${(t.apr / max) * 100}%` }} /></div>
-                <b className="deck-tier-n">{t.apr.toFixed(1)}%</b>
-                <small className="deck-tier-take">{t.take} ours</small>
-              </div>
-            ))}
-          </div>
-          <div className="deck-nums">
-            <div className="lp-card c-cyan in" style={css({ '--tilt': '-1.5deg' })}><b>$87</b><span>a year from a $10k vault user</span></div>
-            <div className="lp-card c-moss in" style={css({ '--tilt': '1deg' })}><b>$152</b><span>vaults plus a light loop</span></div>
-            <div className="lp-card c-gold in" style={css({ '--tilt': '-0.8deg' })}><b>$361</b><span>a protected 3× loop</span></div>
-            <small>10,000 such users are $0.9m to $3.6m a year. Protection is a premium on debt, 0.5 % on correlated pairs to 2 % on volatile ones; auto-roll, auto-compound and re-lever bill 5–15 bps per trigger.</small>
-          </div>
+        <h2 className="lp-h2 center">We keep <span className="lp-mark">10 to 20 ¢</span> of every dollar earned, shared with creators.</h2>
+        <p className="lp-lead center deck-sub">10 ¢ on a vault, 15 ¢ on a loop, 20 ¢ when we run it for you.</p>
+        <p className="deck-per">Per $10k and year</p>
+        <div className="deck-ue">
+          {UE.map((u, i) => (
+            <div className={'lp-card in ' + u.c} key={u.n} style={css({ '--tilt': `${i % 2 ? 1 : -1.2}deg` })}>
+              <b>{u.n}</b>
+              <strong>{u.what}</strong>
+              <span>{u.where}</span>
+              <small><em>{u.apr}</em> gross · <em>{u.take}</em> ours</small>
+            </div>
+          ))}
         </div>
       </Slide>
 
@@ -289,9 +278,8 @@ export function Deck() {
             <h2 className="lp-h2">Achim <span className="lp-mark">Huebl.</span></h2>
             <i className="deck-founder-role">Founder · Co-founder &amp; CTO of 1delta · M.Sc. Mathematics &amp; Finance</i>
             <div className="deck-founder-pts">
-              <div className="c-cyan"><b>Three years of 1delta.</b><span>Lending aggregation and position data across 16 chains and 68 protocols: the API that routes every trade here and the index that proves every number.</span></div>
-              <div className="c-gold"><b>Author and inventor of the protocol.</b><span>Wrote the 1delta white paper and designed the protocol.</span></div>
-              <div className="c-moss"><b>Trader first, then builder.</b><span>Years of DeFi trading on the protocols underneath; before that quantitative trading, risk management, consulting and investment banking.</span></div>
+              <div className="c-cyan"><b>Three years of 1delta.</b><span>A lending aggregation API covering over 60 protocols, with four live integrations and more to come.</span></div>
+              <div className="c-gold"><b>TradFi before DeFi.</b><span>Quant trading, investment banking, risk management.</span></div>
             </div>
           </div>
         </div>
@@ -308,11 +296,12 @@ export function Deck() {
       <Slide n={8} kicker="The ask" className="deck-end">
         <div className="land-glow" aria-hidden="true" />
         <span className="lp-sticker sol">Where this goes</span>
-        <h2 className="lp-h2 center">Raising <span className="lp-mark">$250–500k.</span></h2>
+        <h2 className="lp-h2 center">Raising <span className="lp-mark">$500k.</span></h2>
         <div className="deck-road">
-          <div className="lp-card c-cyan in" style={css({ '--tilt': '-1.5deg' })}><i>Built</i><b>The whole stack, in beta</b><span>Board, feed, threads, PnL. Execution for every op incl. swaps and bridging, 15 chains + Solana.</span></div>
-          <div className="lp-card c-gold in" style={css({ '--tilt': '1deg' })}><i>Next</i><b>Creator economy</b><span>Margin-sharing for KOLs. Follows, alerts, auto-copy.</span></div>
-          <div className="lp-card c-moss in" style={css({ '--tilt': '-0.8deg' })}><i>Then</i><b>The default yield front-end</b><span>Every idle stablecoin one push from proven carry.</span></div>
+          <div className="lp-card c-cyan in" style={css({ '--tilt': '-1.5deg' })}><i>Built</i><b>The baseline stack</b><span>Feeds, PnL, execution, bridging.</span></div>
+          <div className="lp-card c-gold in" style={css({ '--tilt': '1deg' })}><i>Next</i><b>Yield Cup</b><span>A paper farming tournament with cash prizes.</span></div>
+          <div className="lp-card c-plum in" style={css({ '--tilt': '-1deg' })}><i>Then</i><b>Creator economy</b><span>Margin-sharing for KOLs, auto-copy.</span></div>
+          <div className="lp-card c-moss in" style={css({ '--tilt': '0.8deg' })}><i>After</i><b>The default yield app</b><span>Every idle asset one push from proven carry.</span></div>
         </div>
         <div className="deck-uses">
           <span className="lp-sticker">Marketing</span>

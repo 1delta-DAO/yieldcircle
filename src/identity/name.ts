@@ -80,10 +80,12 @@ export const AUTO_TITLE =
  */
 /**
  * label sources that NAME a plain wallet: the wallet's own ENS / Basename /
- * .sol (`sns`) / Seeker .skr (`skr`), our seed file, a third-party tag, and the
+ * .sol (`sns`) / Seeker .skr (`skr`), our seed file, a third-party tag, a
+ * curated Blockscout tag (`blockscout` — the probe keeps only ordinal ≥ 10 and
+ * never a contract identifier, pos-indexer docs/account-names.md), and the
  * Solana KOL lists (`kolscan`, `gmgn` — pos-indexer docs/sol-names.md)
  */
-const WALLET_NAME_SOURCES = new Set(['ens', 'basename', 'sns', 'skr', 'seed', 'tag', 'kolscan', 'gmgn'])
+const WALLET_NAME_SOURCES = new Set(['ens', 'basename', 'sns', 'skr', 'seed', 'tag', 'blockscout', 'kolscan', 'gmgn'])
 
 export function labelFor(
   addr: string,

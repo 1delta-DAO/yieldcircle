@@ -52,7 +52,7 @@ export function HiddenBar({ kind, rows, structural, busy }: { kind: 'simple' | '
         </button>
       ))}
       {kind === 'loop' && !st.wideNet && (
-        <button className="chip hb ask" title="The optimizer only answers with collateral it has tagged. Dropping the collateral tag finds untagged carries (sUSDp, syzUSD on HyperEVM) at one more request per chain."
+        <button className="chip hb ask" title="The optimizer only answers with collateral it has tagged. Dropping the collateral tag finds untagged carries (sUSDp, syzUSD on HyperEVM) at a few more requests."
           onClick={() => set({ wideNet: true })}>
           <span className="s">+</span>search wider
         </button>

@@ -28,8 +28,9 @@ const HOUR = 3600_000
  * they are here because a position on them is still a position — an empty
  * listing says that honestly, a missing chain does not.
  *
- * The cost is real and worth knowing: each entry is one earn query, one vault
- * registry and three optimizer archetypes per refresh, all cached ten minutes.
+ * The cost is real and worth knowing: each entry is one earn query and one
+ * vault registry per refresh, all cached ten minutes; the optimizer is asked
+ * for every chain at once, so a chain adds pages, not requests.
  */
 export const CHAINS: { id: string; label: string }[] = [
   { id: '1', label: 'Ethereum' },
@@ -88,8 +89,9 @@ export const chainLabel = (id: string) => CHAINS.find((c) => c.id === id)?.label
  * 2026-09-25 with every chain on, one load of Explore was 141 requests
  * (15 earn, 15 vault registries, 60 optimizer, 49 balance reads, positions,
  * the chain directory), so three reloads in a minute — a dev server's HMR does
- * that on its own — ran into `RATE_LIMIT_EXCEEDED`. Bundled it is 6 earn and
- * 24 optimizer requests instead of 15 and 60.
+ * that on its own — ran into `RATE_LIMIT_EXCEEDED`. Bundled it is 6 earn
+ * requests instead of 15. The optimizer no longer uses the buckets at all: it
+ * takes every chain in one query (`optimizerPages`).
  */
 const SOLO_CHAINS = new Set(['1', '8453', '42161', '56', '43114'])
 export function chainBuckets(chainIds: string[]): string[][] {
@@ -99,19 +101,39 @@ export function chainBuckets(chainIds: string[]): string[][] {
 }
 
 /**
- * The optimizer, paged. One chain keeps the old single page of 100 (sorted by
- * APR, the tail is not shown anyway); a bundle may page up to 300, so ten small
- * chains share a budget no smaller than one used to get — the stable archetype
- * answers 87 rows across them.
+ * The optimizer, every chain in ONE query, paged in parallel.
+ *
+ * The endpoint takes `chainIds` and answers a page of at most 100 (asking
+ * `count=1000` still answers 100, measured 2026-10-13) with `total`, so a
+ * request is the first page, then every remaining page at once. Measured that
+ * day across all 16 chains: the stable archetype is 740 rows (8 pages, ~2.2 s
+ * each, in parallel), LST/LRT 168, BTC 27, RWA 158 — 13 requests for the four
+ * archetypes against the 24 the per-bucket fan-out used, and MORE rows: a
+ * chain asked alone was cut at its first page (Ethereum has 219 stable pairs,
+ * Solana 263; both used to be read at 100).
+ *
+ * `MAX_PAGES` bounds the wide net, which is thousands of rows (`debtTags=
+ * stablecoin` alone is 2 647): sorted by APR, the tail is what nobody opens.
  */
+const MAX_PAGES = 10
 async function optimizerPages(q: OptimizerQuery): Promise<OptimizerResponse['items']> {
-  const pages = q.chainIds.length > 1 ? 3 : 1
-  const items: OptimizerResponse['items'] = []
-  for (let i = 0; i < pages; i++) {
-    const r = await fetchOptimizerPairs({ ...q, count: 100, start: items.length || undefined })
-    items.push(...r.items)
-    if (!r.hasMore || !r.items.length) break
+  const first = await fetchOptimizerPairs({ ...q, count: 100 })
+  const items = [...first.items]
+  if (!first.hasMore || !first.items.length) return items
+  const per = first.items.length
+  const total = Number(first.total)
+  // no usable `total`: walk the pages one by one on `hasMore`
+  if (!Number.isFinite(total) || total <= per) {
+    for (let i = 1; i < MAX_PAGES; i++) {
+      const r = await fetchOptimizerPairs({ ...q, count: 100, start: items.length })
+      items.push(...r.items)
+      if (!r.hasMore || !r.items.length) break
+    }
+    return items
   }
+  const pages = Math.min(MAX_PAGES, Math.ceil(total / per))
+  const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => fetchOptimizerPairs({ ...q, count: 100, start: (i + 1) * per })))
+  for (const r of rest) items.push(...r.items)
   return items
 }
 
@@ -128,20 +150,34 @@ async function optimizerPages(q: OptimizerQuery): Promise<OptimizerResponse['ite
  * Plume's RWA markets are borrowed in `pUSD`, which upstream still leaves
  * untagged (re-measured 2026-09-27: `tags: null, props: null`), so the tagged
  * request answers nothing there. The small-chain bundle therefore asks for
- * `rwa` collateral against ANY debt (`anyDebtInBundle`): 15 rows against 9,
+ * `rwa` collateral against ANY debt (`anyDebtOnSmallChains`): 15 rows against 9,
  * the extra ones nOPAL/pUSD, nALPHA/pUSD and a few gold price bets that
  * `cross-denom` rejects anyway. The big chains keep the tag — BNB answers 159
- * rows untagged against 69, and the price bets would fill its one page.
+ * rows untagged against 69, pages of price bets paid for nothing.
  */
-type Archetype = Pick<OptimizerQuery, 'collateralTags' | 'debtTags' | 'includeExpired'> & { anyDebtInBundle?: boolean }
+type Archetype = Pick<OptimizerQuery, 'collateralTags' | 'debtTags' | 'includeExpired'> & { anyDebtOnSmallChains?: boolean }
 const LOOP_ARCHETYPES: Archetype[] = [
   { collateralTags: ['lst', 'lrt'], debtTags: ['wnative'] },
   { collateralTags: ['stablecoin', 'savings', 'pendle'], debtTags: ['stablecoin'], includeExpired: false },
   { collateralTags: ['btc'], debtTags: ['btc'] },
-  { collateralTags: ['rwa'], debtTags: ['stablecoin'], anyDebtInBundle: true },
+  { collateralTags: ['rwa'], debtTags: ['stablecoin'], anyDebtOnSmallChains: true },
 ]
-const archetypeQuery = ({ anyDebtInBundle, ...a }: Archetype, ids: string[]) =>
-  anyDebtInBundle && !ids.some((c) => SOLO_CHAINS.has(c)) ? { ...a, debtTags: undefined } : a
+/**
+ * The optimizer requests for the selected chains: one per archetype over every
+ * chain at once, plus the untagged-debt variant over the small chains where an
+ * archetype asks for it (`anyDebtOnSmallChains`, see the RWA note above). Each
+ * carries the chains it covers so a chain can be called settled.
+ */
+function loopRequests(chainIds: string[], wideNet: boolean): { key: string; chainIds: string[]; q: Omit<OptimizerQuery, 'chainIds'> }[] {
+  const small = chainIds.filter((c) => !SOLO_CHAINS.has(c))
+  return [
+    ...LOOP_ARCHETYPES.flatMap(({ anyDebtOnSmallChains, ...a }, i) => [
+      { key: `${i}`, chainIds, q: a },
+      ...(anyDebtOnSmallChains && small.length ? [{ key: `${i}-any`, chainIds: small, q: { ...a, debtTags: undefined } }] : []),
+    ]),
+    ...(wideNet ? WIDE_DEBT_TAGS.map((t) => ({ key: `wide-${t}`, chainIds, q: { debtTags: [t] } })) : []),
+  ]
+}
 
 /**
  * The wide net (`Settings.wideNet`): the same archetypes with the COLLATERAL
@@ -159,8 +195,8 @@ const archetypeQuery = ({ anyDebtInBundle, ...a }: Archetype, ids: string[]) =>
  * The DEBT tag stays because it is what keeps the request a carry search:
  * everything that comes back with a debt in another money is structurally
  * rejected anyway (`cross-denom`), so dropping it too would only pay for rows
- * nobody can be shown. Cost is one request per chain per denomination
- * (190-600 kB each), which is why it is off by default.
+ * nobody can be shown. Cost is up to `MAX_PAGES` requests per denomination
+ * (~600 kB each), which is why it is off by default.
  */
 const WIDE_DEBT_TAGS = ['stablecoin', 'wnative', 'btc']
 
@@ -223,19 +259,13 @@ export function useCatalog(chainIds: string[]) {
       staleTime: 10 * 60_000,
     })),
   })
+  const loopReqs = loopRequests(chainIds, st.wideNet)
   const loops = useQueries({
-    queries: buckets.flatMap((ids) => [
-      ...LOOP_ARCHETYPES.map((a, i) => ({
-        queryKey: ['loops', ids.join(','), i],
-        queryFn: async () => sortOut((await optimizerPages({ chainIds: ids, ...archetypeQuery(a, ids), collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop'),
-        staleTime: 10 * 60_000,
-      })),
-      ...(st.wideNet ? WIDE_DEBT_TAGS.map((t) => ({
-        queryKey: ['loops-wide', ids.join(','), t],
-        queryFn: async () => sortOut((await optimizerPages({ chainIds: ids, debtTags: [t], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop'),
-        staleTime: 10 * 60_000,
-      })) : []),
-    ]),
+    queries: loopReqs.map((r) => ({
+      queryKey: ['loops', r.chainIds.join(','), r.key],
+      queryFn: async () => sortOut((await optimizerPages({ chainIds: r.chainIds, ...r.q, collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop'),
+      staleTime: 10 * 60_000,
+    })),
   })
   /**
    * The exposure assets (`EXPOSURE` in assets.ts — JLP), asked for by name on their home chain.
@@ -330,10 +360,10 @@ export function useCatalog(chainIds: string[]) {
   // only then is its list of token addresses final, and only then is its
   // balance read worth sending (see `useBalancesPerChain`). The registry is not
   // one of them — it names rows, it does not add any.
-  const perBucket = loops.length / (buckets.length || 1)
   const exposurePending = new Set(exposed.filter((_, i) => !exposure[2 * i]?.isFetched || !exposure[2 * i + 1]?.isFetched).map((e) => e.chainId))
   ptMints.forEach((m, i) => { if (!ptLoops[i]?.isFetched) exposurePending.add(m.chainId) })
-  const settled = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched && loops.slice(j * perBucket, (j + 1) * perBucket).every((q) => q.isFetched) ? ids : [])).filter((c) => !exposurePending.has(c)))
+  const loopsPending = new Set(loopReqs.flatMap((r, i) => (loops[i]?.isFetched ? [] : r.chainIds)))
+  const settled = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched ? ids : [])).filter((c) => !exposurePending.has(c) && !loopsPending.has(c)))
   return {
     ...derived, settled,
     isLoading: earn.some((q) => q.isLoading) || loops.some((q) => q.isLoading),

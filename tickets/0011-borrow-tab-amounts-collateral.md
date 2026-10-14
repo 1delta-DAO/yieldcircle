@@ -47,6 +47,16 @@ transaction). `#/borrow` gives such a deposit its own card, and list rows say "a
 `owedOf` / `collateralOf` count every leg, and Pay back keeps an account's other debt
 ("the GHO the account also owes stays"; no "take all collateral" while it is owed).
 
+**One borrow list, 2026-10-15.** The Borrow tab first held cards ("Against what you hold", then
+"What people borrow against"), which read as a second flow beside the category lists. It is now
+the same list a category's Borrow segment shows, across every shelf (`BorrowCats` + `BorrowList`).
+"Against what you hold" is the first pill of that row: a filter on the list in place (`hold=1|0`
+in the route, kept across shelves; unset, on when the wallet holds something lent against there).
+Rows the wallet can use carry "you hold 15,006 ETH", "already put up" or "your loan", and "you
+could take up to $19m" (`yoursOf`, `loansByOffer`). An "All" pill is the Borrow tab itself. The
+list shows 60 rows, then "Show more" (884 places across all shelves). On a phone the shelf pills
+drop their second line so they wrap two or three to a row.
+
 **Differences from the assessment.**
 
 - **The range route cannot read an account** (measured: two very different Aave wallets got the

@@ -2334,21 +2334,15 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 /* idle: earning leads, borrowing sits beside it */
 .idle-pill.borrow{background:var(--b200);border-color:var(--line)}
 .idle-pill.borrow:hover{background:var(--b300)}
-/* #/borrow: one card per asset, the most it could raise first */
 .bp-intro{font-size:13px;line-height:1.55;margin:6px 0 4px;max-width:720px}
-.bcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
-.bcard{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:0;text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--b200);color:inherit;min-height:104px}
-.bcard:hover{border-color:var(--tx50)}
-.bcard[aria-pressed="true"]{border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)}
-.bcard.mine{border-color:#1f4a35;background:linear-gradient(var(--ok-bg),var(--ok-bg)),var(--b200)}
-.bcard .bc-h{display:flex;align-items:center;gap:8px;min-width:0}
-.bcard .bc-h b{font-weight:600}
-.bcard .bc-h .t50{margin-left:auto;font-size:12px;white-space:nowrap}
-.bcard .bc-v{font-family:var(--mono);font-size:20px;line-height:1.2}
-.bcard .bc-v .t50{font-family:var(--sans);font-size:12px}
-.bcard .bc-s{font-size:12px;color:var(--tx50);line-height:1.4}
-@media (max-width:640px){.bcards{grid-template-columns:1fr}}
-.bcat.yours{grid-template-columns:minmax(0,1fr);border-style:dashed}
+/* "Against what you hold" and "All": text-only pills; the first is a filter on the list below, lit green when on */
+.bcat.yours,.bcat.plain{grid-template-columns:minmax(0,1fr)}
+.bcat.yours{border-style:dashed}
+.bcat.yours[aria-pressed="true"]{border-style:solid;border-color:var(--success);background:var(--ok-bg);box-shadow:inset 0 0 0 1px var(--success)}
+.bcat.yours[aria-pressed="true"] .bn{color:var(--success)}
+.bcat.plain[aria-pressed="true"]{border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)}
+/* a phone: the shelf pills drop their second line so several fit a row; the filter keeps its count */
+@media (max-width:640px){.bcats{gap:6px}.bcat{min-height:40px;padding:6px 10px}.bcat:not(.yours) small{display:none}.bcat .gic{grid-row:auto}}
 /* the ticket's "from where": one line, the other places folded under it */
 .bwhere{font-size:12.5px;padding-top:8px;padding-bottom:8px}
 .bw-row{display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-height:28px}
@@ -2362,7 +2356,6 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .bw-t small{font-size:11px;color:var(--tx50)}
 .bw-r{font-family:var(--mono);font-size:13px}
 .bw-r.ok{color:var(--success)}
-.bcard .bc-h .sym{margin-left:0;font-size:12px}
 
 /* ---------------------------------------------------------------- borrow: its own tab, any coin out, by amount (tickets/0011) */
 /* the slider and the exact sum side by side: drag for a zone, type for a number */

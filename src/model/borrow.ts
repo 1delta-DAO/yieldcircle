@@ -317,6 +317,50 @@ export function depositsAsLoans(o: BorrowOffer, holdings: Holding[]): Holding[] 
 }
 
 /**
+ * The wallet's running loans and its collateral already put up, by offer id: a loan under the offer
+ * with the same two legs (or one rebuilt from the position when the list has no such offer), a
+ * plain deposit under every offer on its market ({@link depositsAsLoans}).
+ */
+export function loansByOffer(offers: BorrowOffer[], holdings: Holding[]): Map<string, Holding[]> {
+  const m = new Map<string, Holding[]>()
+  const add = (id: string, h: Holding) => m.set(id, [...(m.get(id) ?? []), h])
+  const byLegs = new Map(offers.map((o) => [`${o.collateral.uid.toLowerCase()}|${o.debt.uid.toLowerCase()}`, o]))
+  const byColl = new Map<string, BorrowOffer[]>()
+  for (const o of offers) { const k = o.collateral.uid.toLowerCase(); byColl.set(k, [...(byColl.get(k) ?? []), o]) }
+  for (const h of holdings) {
+    if (h.kind === 'borrow' && h.collateralUid && h.debtUid) {
+      const o = byLegs.get(`${h.collateralUid.toLowerCase()}|${h.debtUid.toLowerCase()}`) ?? offerFromHolding(h)
+      if (o) add(o.id, h)
+    } else if (h.kind === 'simple' && h.marketUid && !h.paper) {
+      for (const o of byColl.get(h.marketUid.toLowerCase()) ?? []) for (const d of depositsAsLoans(o, [h])) add(o.id, d)
+    }
+  }
+  return m
+}
+
+/** What the wallet has for one offer: idle on its chain, already put up in its market, a loan on it — and how much it could take there, held to Safe. */
+export interface Yours { idleUsd: number; idleAmount: number; symbol: string; putUpUsd: number; loan: boolean; room: number }
+/**
+ * Every offer the wallet could borrow on with what it has (tickets/0011, "Against what you hold"):
+ * an idle balance of the asset on the offer's chain, collateral already in its market, or a loan
+ * running there. `room` is what the Safe zone would let it take with that much put up.
+ */
+export function yoursOf(offers: BorrowOffer[], idle: { asset: string; chainId: string; usd: number; amount: number; symbol: string }[], held: Map<string, Holding[]>): Map<string, Yours> {
+  const m = new Map<string, Yours>()
+  for (const o of offers) {
+    const here = idle.filter((i) => i.asset === o.asset && i.chainId === o.chainId && i.usd >= 1)
+    const hs = held.get(o.id) ?? []
+    const idleUsd = here.reduce((a, i) => a + i.usd, 0), putUpUsd = hs.filter(isPutUp).reduce((a, h) => a + h.valueUsd, 0)
+    const loan = hs.some((h) => !isPutUp(h))
+    if (!idleUsd && !putUpUsd && !loan) continue
+    const usd = idleUsd + putUpUsd
+    const room = o.maxLtv > 0 ? Math.min(maxBorrowUsd(o, usd), Math.max(0, usd * o.liqLtv * (1 - bordersFor(o).safe))) : 0
+    m.set(o.id, { idleUsd, idleAmount: here.reduce((a, i) => a + i.amount, 0), symbol: here[0]?.symbol ?? o.collateral.symbol, putUpUsd, loan, room })
+  }
+  return m
+}
+
+/**
  * The collateral, USD, to ADD so that `owedUsd + take` lands where the Safe chip would put it —
  * a quarter of the way into the Safe zone — and never past the venue's limit or the health floor.
  * What "by amount" fills the Put up box with when the reader names the sum they need.

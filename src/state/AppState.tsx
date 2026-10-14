@@ -20,7 +20,8 @@ import { readFeedLink } from './feedLink'
  *   #/STOCKS?u=TSLA&k=borrow  tokenized stocks, one row per real-world ticker (tickets/0009)
  *   #/borrow                 borrowing, holdings first (tickets/0010); `?u=<asset>&s=b:…` opens a ticket;
  *                            the Borrow tab (tickets/0011). `out=ETH|BTC|MORE` on any borrow list
- *                            takes out that family instead of dollars
+ *                            takes out that family instead of dollars; `hold=1|0` sets its
+ *                            "Against what you hold" pill
  *   #/w/0x…                  a wallet
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
  *   #/board                  the earners board (apr by default; ?t=day for $/day, &by=wallet)
@@ -69,6 +70,8 @@ export interface Route {
   talk?: boolean
   /** what a borrow list takes out when it is not dollars: `ETH`, `BTC` or `MORE` (tickets/0011) */
   out?: 'ETH' | 'BTC' | 'MORE'
+  /** a borrow list's "Against what you hold" pill, set by hand (`1` on, `0` off); unset, it is on when the wallet holds something the list lends against */
+  hold?: '1' | '0'
 }
 const GROUP_IDS = new Set(['USD', 'ETH', 'BTC', 'STOCKS', 'MORE'])
 
@@ -92,6 +95,7 @@ export function parseRoute(hash = location.hash): Route {
     pos: p.get('pos') ?? undefined,
     talk: p.get('talk') === '1',
     out: (['ETH', 'BTC', 'MORE'] as const).find((x) => x === p.get('out')),
+    hold: (['1', '0'] as const).find((x) => x === p.get('hold')),
   }
   const head = seg[0]
   if (head === 'earn' || head === 'explore') return { view: 'earn', ...base }

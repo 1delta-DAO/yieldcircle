@@ -8,24 +8,31 @@
  *
  * Above it, the categories (`BorrowCats`): every group that can be borrowed against, Stocks among
  * them as a category of its own (tickets/0009) — so Borrow reads as one place across the shelves
- * rather than a fourth tab on each.
+ * rather than a fourth tab on each. The first pill there is "Against what you hold": a filter on
+ * this same list, not a page of its own (`yoursOf`), on by default when the wallet holds something
+ * the list lends against. Its rows say what you have there and what it could take.
  */
 import React from 'react'
 import { GROUPS, nameOf, type GroupId } from '../model/assets'
-import { DEEP_USD, OUTS, bordersFor, headlineOffers, maxBorrowUsd, owedOf, type BorrowOffer, type Out } from '../model/borrow'
+import { DEEP_USD, OUTS, bordersFor, headlineOffers, maxBorrowUsd, owedOf, type BorrowOffer, type Out, type Yours } from '../model/borrow'
 import type { Holding, Idle } from '../model/positions'
 import { chainLabel } from '../sdk/queries'
 import { go } from '../state/AppState'
 import { useViewport } from './useViewport'
-import { GroupIcon, Sk, Toks, pct, usdShort } from './bits'
+import { GroupIcon, Sk, Toks, amt, pct, usdShort } from './bits'
 
 /** What a list row says about how far a market lends: `up to 73 %`, and its room in the zone's words. */
 const lendsWord = (o: BorrowOffer) => `up to ${Math.round(o.maxLtv * 100)}%`
 
-export function BorrowList({ offers, loading, groupId, u, selId, held, out, onOut, onPick }: {
-  offers: BorrowOffer[]; loading: boolean; groupId: GroupId; u: string; selId?: string
+/** Rows shown before "Show more": the Borrow tab's whole list runs to a thousand. */
+const PAGE = 60
+
+export function BorrowList({ offers, loading, groupId, u, selId, held, mine, out, onOut, onPick }: {
+  offers: BorrowOffer[]; loading: boolean; groupId: GroupId | 'all'; u: string; selId?: string
   /** the wallet's running loans on these pairs — and collateral already put up there — by offer id */
   held: Map<string, Holding[]>
+  /** "Against what you hold": what the wallet has per offer, and whether the list is filtered to it */
+  mine?: { on: boolean; yours: Map<string, Yours>; set: (on: boolean) => void }
   /** what comes out, and how to move it (the route's `out=`: a family not yet asked is fetched then) */
   out: Out; onOut: (o: Out) => void
   onPick: (o: BorrowOffer) => void
@@ -38,7 +45,9 @@ export function BorrowList({ offers, loading, groupId, u, selId, held, out, onOu
     return [...n].sort((a, b) => b[1].n - a[1].n)
   }, [offers])
   const [debt, setDebt] = React.useState<string>('all')
-  const list = offers.filter((o) => o.out === out && (debt === 'all' || o.debt.symbol === debt))
+  const list = offers.filter((o) => o.out === out && (debt === 'all' || o.debt.symbol === debt) && (!mine?.on || mine.yours.has(o.id)))
+  const [shown, setShown] = React.useState(PAGE)
+  const rows = list.slice(0, shown)
   const fam = OUTS.find((f) => f.id === out)!
   const word = out === 'USD' ? 'dollars' : fam.name.toLowerCase()
   return (
@@ -56,9 +65,11 @@ export function BorrowList({ offers, loading, groupId, u, selId, held, out, onOu
       {loading && !list.length ? (
         <div className="card"><table className="tbl strat-t"><tbody>{[0, 1, 2, 3].map((i) => <tr key={i}><td><Sk w={200} /></td><td className="r"><Sk w={60} /></td><td /></tr>)}</tbody></table></div>
       ) : !list.length ? (
-        <div className="empty">Nothing lends {debt !== 'all' ? debt : word} against {u === 'all' ? `this group` : nameOf(u)} on the chains you picked.</div>
+        <div className="empty">{mine?.on
+          ? <>Nothing you hold {u !== 'all' ? `as ${nameOf(u)} ` : ''}can be put up for {debt !== 'all' ? debt : word} here, on the chains you picked. <button type="button" className="lnk" onClick={() => mine.set(false)}>Show every place ›</button></>
+          : <>Nothing lends {debt !== 'all' ? debt : word} against {u === 'all' ? (groupId === 'all' ? 'anything' : 'this group') : nameOf(u)} on the chains you picked.</>}</div>
       ) : phone ? (
-        <div className="scards">{list.map((o) => { const hs = held.get(o.id); return (
+        <div className="scards">{rows.map((o) => { const hs = held.get(o.id), y = mine?.yours.get(o.id); return (
           <div key={o.id} className="scard" role="button" tabIndex={0} aria-selected={selId === o.id} onClick={() => onPick(o)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(o) } }}>
             <div className="sc-top"><Toks a={o.collateral.symbol} b={o.debt.symbol} logoA={o.collateral.logo} logoB={o.debt.logo} /><b>{o.collateral.symbol}</b></div>
             <span className="sc-via">take {o.debt.symbol} · {o.venue}</span>
@@ -66,29 +77,33 @@ export function BorrowList({ offers, loading, groupId, u, selId, held, out, onOu
             <span className="sc-meta">{lendsWord(o)} · {chainLabel(o.chainId)}</span>
             <span className={`sc-meta ${o.liquidityUsd < DEEP_USD ? 'warn' : ''}`}>{usdShort(o.liquidityUsd)} free</span>
             <span className="sc-meta"><RiskOf o={o} /></span>
-            {hs && <span className="sc-pills"><HeldPill hs={hs} /></span>}
+            {(hs || y) && <span className="sc-pills"><HeldPill hs={hs} y={y} /></span>}
+            {y && y.room >= 1 && <span className="sc-meta ok">you could take {usdShort(y.room)}</span>}
           </div>) })}</div>
       ) : (
         <div className="card"><table className="tbl strat-t">
           <colgroup><col /><col className="c-rate" /><col className="c-tail" /></colgroup>
           <thead><tr><th>Put up · take out</th><th className="r">Borrow APR</th><th /></tr></thead>
-          <tbody>{list.map((o) => { const hs = held.get(o.id); return (
+          <tbody>{rows.map((o) => { const hs = held.get(o.id), y = mine?.yours.get(o.id); return (
             <tr key={o.id} aria-selected={selId === o.id} onClick={() => onPick(o)}>
-              <td><div className="nm"><Toks a={o.collateral.symbol} b={o.debt.symbol} logoA={o.collateral.logo} logoB={o.debt.logo} /><span><b>{o.collateral.symbol}</b> <span className="t50">→ {o.debt.symbol} · {o.venue}</span></span>{hs && <HeldPill hs={hs} />}</div>
-                <small>{u === 'all' ? `${nameOf(o.asset)} · ` : ''}{chainLabel(o.chainId)} · <RiskOf o={o} /> · {lendsWord(o)} · <span className={o.liquidityUsd < DEEP_USD ? 'warn' : undefined}>{usdShort(o.liquidityUsd)} free to borrow</span>{o.utilization != null && o.utilization >= 0.95 ? <span className="warn"> · nearly all lent out</span> : ''}</small></td>
+              <td><div className="nm"><Toks a={o.collateral.symbol} b={o.debt.symbol} logoA={o.collateral.logo} logoB={o.debt.logo} /><span><b>{o.collateral.symbol}</b> <span className="t50">→ {o.debt.symbol} · {o.venue}</span></span>{(hs || y) && <HeldPill hs={hs} y={y} />}</div>
+                <small>{y && y.room >= 1 && <span className="ok">you could take up to {usdShort(y.room)} · </span>}{u === 'all' ? `${nameOf(o.asset)} · ` : ''}{chainLabel(o.chainId)} · <RiskOf o={o} /> · {lendsWord(o)} · <span className={o.liquidityUsd < DEEP_USD ? 'warn' : undefined}>{usdShort(o.liquidityUsd)} free to borrow</span>{o.utilization != null && o.utilization >= 0.95 ? <span className="warn"> · nearly all lent out</span> : ''}</small></td>
               <td className="r"><span className={o.borrowApr < 5 ? 'ok' : o.borrowApr > 15 ? 'bad' : ''}>{pct(o.borrowApr)}</span></td>
               <td className="r tail"><span className="t40">›</span></td>
             </tr>) })}</tbody>
         </table></div>
       )}
+      {list.length > shown && <button type="button" className="btn wide" style={{ marginTop: 10 }} onClick={() => setShown(shown + PAGE * 2)}>Show {Math.min(list.length - shown, PAGE * 2)} more of {list.length}</button>}
       <div className="note" style={{ marginTop: 12 }}><b>Borrowing</b> puts what you hold up as collateral and pays you {out === 'USD' ? 'dollars' : `${word} — owed in ${word}, so the line moves with both prices`}, without selling it. You pay the rate on what you take; if the price falls far enough, the lender sells part of it to repay. The ticket starts you in the Safe zone{groupId === 'STOCKS' ? ', which for a stock asks for more room than for a coin: it does not trade at night or at weekends' : ''}.</div>
     </>
   )
 }
 
-/** A running loan says so; collateral already put up there with nothing borrowed says that instead. */
-function HeldPill({ hs }: { hs: Holding[] }) {
-  return hs.some((h) => owedOf(h) > 0.005) ? <span className="pill run">your loan</span> : <span className="pill run">already put up</span>
+/** A running loan says so; collateral already put up there says that; else what the wallet holds on this chain. */
+function HeldPill({ hs, y }: { hs?: Holding[]; y?: Yours }) {
+  if (hs?.some((h) => owedOf(h) > 0.005)) return <span className="pill run">your loan</span>
+  if (hs?.length) return <span className="pill run">already put up</span>
+  return y && y.idleUsd > 0 ? <span className="pill run">you hold {amt(y.symbol, y.idleAmount, y.idleUsd)}</span> : null
 }
 
 function RiskOf({ o }: { o: BorrowOffer }) {
@@ -97,11 +112,18 @@ function RiskOf({ o }: { o: BorrowOffer }) {
 }
 
 /**
- * Borrow, across the shelves: one chip per group that can be borrowed against, with how far its
- * best market lends and its cheapest rate. Stocks is a category like the others — and the one
- * this list leads people to.
+ * Borrow, across the shelves: the pill row above every borrow list. "Against what you hold" first —
+ * a filter on the list below, on this page, never a page of its own — then All (the Borrow tab)
+ * and one pill per group that can be borrowed against, with how far its best market lends and its
+ * cheapest rate. A group pill keeps the filter and the take-out family as it moves.
  */
-export function BorrowCats({ offers, current }: { offers: BorrowOffer[]; current?: GroupId }) {
+export function BorrowCats({ offers, current, mine, keep }: {
+  offers: BorrowOffer[]; current: GroupId | 'all'
+  /** the filter: on or off, how many assets it would show and the most they could take; absent with no wallet */
+  mine?: { on: boolean; n: number; room: number; set: (on: boolean) => void }
+  /** what a move to another group carries along (`hold`, `out`) */
+  keep?: Record<string, string | undefined>
+}) {
   const by = React.useMemo(() => {
     const m = new Map<GroupId, { n: number; ltv: number; apr: number }>()
     for (const g of GROUPS) for (const o of headlineOffers(offers.filter((x) => x.group === g.id))) {
@@ -112,17 +134,27 @@ export function BorrowCats({ offers, current }: { offers: BorrowOffer[]; current
     return m
   }, [offers])
   const groups = GROUPS.filter((g) => by.has(g.id) || g.id === current)
-  if (groups.length < (current ? 2 : 1)) return null
   return (
     <nav className="bcats" aria-label="Borrow against">
-      {current && <a className="bcat yours" href="#/borrow"><span className="bn">Against what you hold</span><small>your assets, best place each ›</small></a>}
+      {mine && <button type="button" className="bcat yours" aria-pressed={mine.on} onClick={() => mine.set(!mine.on)}>
+        <span className="bn">Against what you hold</span>
+        <small>{mine.n ? `${mine.n} asset${mine.n === 1 ? '' : 's'}${mine.room >= 1 ? ` · up to ${usdShort(mine.room)}` : ''}` : 'nothing you hold here'}</small>
+      </button>}
+      <button type="button" className="bcat plain" aria-pressed={current === 'all'} onClick={() => go('borrow', keep ?? {})}><span className="bn">All</span><small>every shelf</small></button>
       {groups.map((g) => { const c = by.get(g.id); return (
-        <button key={g.id} type="button" className={`bcat${g.id === 'STOCKS' ? ' hot' : ''}`} aria-pressed={g.id === current} onClick={() => go(g.id, { k: 'borrow' })} style={{ '--gc': g.color } as React.CSSProperties}>
+        <button key={g.id} type="button" className={`bcat${g.id === 'STOCKS' ? ' hot' : ''}`} aria-pressed={g.id === current} onClick={() => go(g.id, { k: 'borrow', ...keep })} style={{ '--gc': g.color } as React.CSSProperties}>
           <GroupIcon id={g.id} color={g.color} size={18} /><span className="bn">{g.id === 'MORE' ? 'More' : g.name}</span>
           {c ? <small>up to {Math.round(c.ltv * 100)}% · from {pct(c.apr, c.apr < 1 ? 2 : 1)}</small> : <small>nothing to borrow</small>}
         </button>) })}
     </nav>
   )
+}
+
+/** The pill's numbers: distinct assets the list would show, and the most any one of them could take. */
+export function mineSummary(offers: BorrowOffer[], yours: Map<string, Yours>): { n: number; room: number } {
+  const assets = new Set<string>(); let room = 0
+  for (const o of offers) { const y = yours.get(o.id); if (!y) continue; assets.add(o.asset); room = Math.max(room, y.room) }
+  return { n: assets.size, room }
 }
 
 /**

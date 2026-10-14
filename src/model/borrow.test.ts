@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { OptimizerRowRaw } from '../sdk/types'
-import { CRYPTO_BORDERS, EQUITY_BORDERS, MIN_HEALTH, bestOfferFor, byOffer, collateralFor, debtAtDrop, defaultBorrow, depositsAsLoans, dropOf, headlineOffers, healthOf, liquidationPrice, maxBorrowUsd, monthlyCost, offerFromHolding, offerFromRow, offersFrom, owedOf, zoneAmounts, zoneOf } from './borrow'
+import { CRYPTO_BORDERS, EQUITY_BORDERS, MIN_HEALTH, loansByOffer, yoursOf, bestOfferFor, byOffer, collateralFor, debtAtDrop, defaultBorrow, depositsAsLoans, dropOf, headlineOffers, healthOf, liquidationPrice, maxBorrowUsd, monthlyCost, offerFromHolding, offerFromRow, offersFrom, owedOf, zoneAmounts, zoneOf } from './borrow'
 import type { Holding } from './positions'
 import { groupOf, stockOfToken } from './assets'
 import { keyOfToken } from './desk'
@@ -187,5 +187,27 @@ describe('by amount (tickets/0011)', () => {
     const offers = [mk('usd', 'USD'), mk('eth', 'ETH')]
     expect(bestOfferFor('TSLA', offers as never)?.id).toBe('usd')
     expect(bestOfferFor('TSLA', offers as never, [], 'ETH')?.id).toBe('eth')
+  })
+})
+
+describe('against what you hold (tickets/0011)', () => {
+  const weth = { address: '0x4200000000000000000000000000000000000006', symbol: 'WETH' }
+  const offer = offerFromRow(row({ coll: weth, price: 4000 }))!
+  const other = { ...offer, id: 'b:other|x', chainId: '1', collateral: { ...offer.collateral, uid: 'AAVE_V3:1:0xc02a' } }
+  const deposit = { key: 'p:0:m', chainId: '8453', group: 'ETH', asset: 'ETH', kind: 'simple', label: '', venue: 'Aave', valueUsd: 8000, amount: 2, symbol: 'WETH', decimals: 18, assetAddress: weth.address, marketUid: offer.collateral.uid } as Holding
+  it('files a deposit under every offer on its market, and nowhere else', () => {
+    const m = loansByOffer([offer, other], [deposit])
+    expect(m.get(offer.id)?.[0].putUp).toBe(true)
+    expect(m.has(other.id)).toBe(false)
+  })
+  it('says what the wallet has per offer: idle on that chain, or already put up', () => {
+    const idle = [{ asset: 'ETH', chainId: '1', usd: 4000, amount: 1, symbol: 'ETH' }, { asset: 'ETH', chainId: '8453', usd: 0.5, amount: 0.0001, symbol: 'ETH' }]
+    const y = yoursOf([offer, other], idle, loansByOffer([offer, other], [deposit]))
+    // Base: dust idle is not counted, the $8k deposit is
+    expect(y.get(offer.id)).toMatchObject({ idleUsd: 0, putUpUsd: 8000, loan: false })
+    expect(y.get(offer.id)!.room).toBeGreaterThan(0)
+    // Ethereum: the idle ether
+    expect(y.get(other.id)).toMatchObject({ idleUsd: 4000, idleAmount: 1, symbol: 'ETH', putUpUsd: 0 })
+    expect(yoursOf([offer], [], new Map()).size).toBe(0)
   })
 })

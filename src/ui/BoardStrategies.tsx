@@ -17,7 +17,7 @@ import { earnersQuery, useProtocols, useStrategyProofs } from '../index/queries'
 import { useCounts, useProfiles, useStrategyThreads } from '../social/queries'
 import { go, marketHref, walletHref } from '../state/AppState'
 import { chainLabel } from '../sdk/queries'
-import { isNewStrategy } from '../model/boardGroups'
+import { groupByStrategy, isNewStrategy } from '../model/boardGroups'
 import { bookKeyOf, parseLoopKey, protocolKeyOf, threadOfBookKey } from '../model/uid'
 import type { Strategy } from '../model/strategies'
 import { useMenu } from './useMenu'
@@ -63,6 +63,35 @@ function useMenuByKey() {
   }, [menu.all, menu.hidden, menu.overflow])
 }
 
+/** The protocols' own names and marks — the same facet the feed's protocol filter reads. */
+function useVenueOf() {
+  const facets = useProtocols('7d').data
+  return React.useMemo(() => {
+    const m = new Map((facets?.protocols ?? []).map((f) => [f.protocol, f]))
+    return (lenderKey: string) => m.get(protocolKeyOf(lenderKey)) ?? null
+  }, [facets])
+}
+
+/** A strategy's thread: on its ticket when the menu has it, else on its market's page. */
+const talkTo = (st: Strategy | null, uid: string | undefined) => (e: React.MouseEvent) => {
+  e.preventDefault()
+  if (st) go(st.group, { u: st.asset, s: st.id, k: st.kind, talk: '1' })
+  else if (uid) location.hash = marketHref(uid)
+}
+
+/** Copy the strategy as `who` runs it — or, off the menu, open their page, whose Copy carries the warning. */
+function CopyOrOpen({ st, r }: { st: Strategy | null; r: idx.EarnerRow }) {
+  return st
+    ? <button type="button" className="btn sm pri copyb" title={`Open ${st.kind === 'loop' ? 'this loop' : 'this deposit'} as a ticket${r.leverage && r.leverage > 1.05 ? ` — the best runs it at ${r.leverage.toFixed(1)}×, you choose your own` : ''}`}
+        onClick={() => go(st.group, { u: st.asset, s: st.id, k: st.kind, copy: r.account })}>Copy</button>
+    : <a className="btn sm copyb off" href={walletHref(r.account)} title="Not in the menu: copy it from the best holder’s page, with its warning">Open</a>
+}
+
+/** What the row's second line says: protocol · market (when it tells more) · chain · leverage. */
+function Where({ r, t, venue, lev }: { r: idx.EarnerRow; t: ReturnType<typeof strategyTitle>; venue: idx.ProtocolFacet | null; lev: string | null }) {
+  return <>{venue?.name && <>{venue.name} · </>}{tellsMore(t.market) && <>{t.market} · </>}{chainLabel(r.chainId)}{lev && <> · {lev}</>}</>
+}
+
 const levRange = (g: idx.StrategyGroup) => {
   const { leverageMin: a, leverageMax: b } = g
   if (a == null || b == null || b <= 1.05) return null
@@ -95,12 +124,7 @@ export function StrategyRows({ rows, sort, partial, filter, profile }: {
     [rows, loops],
   )
   const counts = useCounts(subjects)
-  // the protocols' own names and marks — the same facet the feed's protocol filter reads
-  const facets = useProtocols('7d').data
-  const venueOf = React.useMemo(() => {
-    const m = new Map((facets?.protocols ?? []).map((f) => [f.protocol, f]))
-    return (lenderKey: string) => m.get(protocolKeyOf(lenderKey)) ?? null
-  }, [facets])
+  const venueOf = useVenueOf()
   const keyList = partial ? rows.map((r) => r.strategy.key).filter((k) => !k.startsWith('pos:')).join(' ') : ''
   const keys = React.useMemo(() => (keyList ? keyList.split(' ') : []), [keyList])
   const proofs = useStrategyProofs(keys).data
@@ -145,29 +169,24 @@ function StrategyRow({ r, i, sort, profile, proof, st, comments, venue, open, on
   const perDay = sort === 'perDay' ? g.perDayUsd : r.perDayUsd
   const others = g.faces.filter((a) => a !== r.account).slice(0, 2)
   const holdersHref = `#/board?s=${encodeURIComponent(g.key)}`
-  const talk = (e: React.MouseEvent) => {
-    e.preventDefault()
-    if (st) go(st.group, { u: st.asset, s: st.id, k: st.kind, talk: '1' })
-    else if (t.uid) location.hash = marketHref(t.uid)
-  }
   // one block per strategy — the row, its "more" line and its opened holders share one rule underneath
   return (
     <div className={`srow-g${open ? ' open' : ''}`}>
       <div className="row wrow board srow">
         <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
-        <a className="strat-n" href={holdersHref} title="who runs this strategy, ranked">
+        <a className="strat-n" href={holdersHref}>
           <span className="strat-logo"><ProtocolLogo urls={protocolIconUrls(protocolKeyOf(r.lenderKey), venue?.logoUri)} name={venue?.name ?? r.lenderKey} /></span>
           <span className="wn">
             <b>{t.name}{t.word && <span className="t50"> {t.word}</span>}{isNewStrategy(g) && <span className="pill new" title="its first holder on the board opened it less than a week ago">new</span>}</b>
             <small>
-              {venue?.name && <>{venue.name} · </>}{tellsMore(t.market) && <>{t.market} · </>}{chainLabel(r.chainId)}{lev && <> · {lev}</>}
+              <Where r={r} t={t} venue={venue} lev={lev} />
               {' · '}<span title={lifted ? 'Wallets holding at least $1k in exactly this strategy, read off the chain — smaller holders are not counted, so there are at least this many.' : 'the wallets the board ranks in this strategy with these filters'}>
                 {wallets}{lifted ? '+' : ''} wallet{wallets === 1 ? '' : 's'}
               </span> · {usdShort(equity)}
             </small>
           </span>
         </a>
-        <a className="strat-best hide-m" href={walletHref(r.account)} title="the best position in this strategy — open the wallet">
+        <a className="strat-best hide-m" href={walletHref(r.account)}>
           <Who account={r.account} profile={profile(r.account)} idx={r} size={22} plain
             sub={<>best{r.leverage != null && r.leverage > 1.05 ? ` · ${r.leverage.toFixed(1)}×` : ''} · {usdShort(r.equityUsd)}</>} />
           {others.length > 0 && <span className="strat-faces">{others.map((a) => <Face key={a} account={a} profile={profile(a)} size={18} />)}</span>}
@@ -182,11 +201,8 @@ function StrategyRow({ r, i, sort, profile, proof, st, comments, venue, open, on
           <Money usd={perDay} /><small>{sort === 'perDay' ? 'a day, all' : 'a day'}</small>
         </span>
         <MobileV sort={sort} apr={apr} exact={r.exact} perDay={perDay} />
-        <Comments n={comments} onClick={talk} />
-        {st
-          ? <button type="button" className="btn sm pri copyb" title={`Open ${st.kind === 'loop' ? 'this loop' : 'this deposit'} as a ticket${r.leverage && r.leverage > 1.05 ? ` — the best runs it at ${r.leverage.toFixed(1)}×, you choose your own` : ''}`}
-              onClick={() => go(st.group, { u: st.asset, s: st.id, k: st.kind, copy: r.account })}>Copy</button>
-          : <a className="btn sm copyb off" href={walletHref(r.account)} title="Not in the menu: copy it from the best holder’s page, with its warning">Open</a>}
+        <Comments n={comments} onClick={talkTo(st, t.uid)} />
+        <CopyOrOpen st={st} r={r} />
       </div>
       {g.positions > 1 && (
         <button type="button" className="strat-more linklike" aria-expanded={open} onClick={onToggle}>
@@ -212,6 +228,43 @@ function Holders({ strategyKey, filter, href }: { strategyKey: string; filter: H
       {q.isError && <div className="empty">The index is not answering for this strategy right now.</div>}
       {rows.map((r, i) => <PositionRow key={r.key} r={r} sort={filter.sort} profile={profile} rank={<span className="rank">{i + 1}</span>} />)}
       {rows.length >= 10 && <a className="strat-more" href={href}>everyone who runs it ›</a>}
+    </div>
+  )
+}
+
+/**
+ * The head of `#/board?s=<key>`: WHICH strategy the list below runs, said
+ * once — its rows then only need to say who. Folded from the holders the page
+ * already has (the index's `strategyKey=` answer, all one key), with the
+ * strategy book's holder count where it knows more.
+ */
+export function StrategyBanner({ rows, strategyKey, sort }: { rows: idx.EarnerRow[]; strategyKey: string; sort: Sort }) {
+  const g = React.useMemo(() => groupByStrategy(rows.map((r) => ({ ...r, strategyKey })), sort)[0] ?? null, [rows, strategyKey, sort])
+  const copyOf = useMenuByKey()
+  const venueOf = useVenueOf()
+  const loops = useStrategyThreads()
+  const thread = threadOfBookKey(strategyKey, loops)
+  const counts = useCounts(thread ? [thread] : [])
+  const proof = useStrategyProofs(React.useMemo(() => (strategyKey.startsWith('pos:') ? [] : [strategyKey]), [strategyKey])).data?.get(strategyKey) ?? null
+  if (!g) return null
+  const t = strategyTitle(g, strategyKey)
+  const venue = venueOf(g.lenderKey)
+  const st = copyOf(strategyKey)
+  const lifted = !!proof && proof.wallets > g.strategy.wallets
+  const wallets = lifted ? proof!.wallets : g.strategy.wallets
+  const equity = lifted ? Math.max(proof!.equityUsd, g.strategy.equityUsd) : g.strategy.equityUsd
+  return (
+    <div className="sbanner">
+      <span className="strat-logo"><ProtocolLogo urls={protocolIconUrls(protocolKeyOf(g.lenderKey), venue?.logoUri)} name={venue?.name ?? g.lenderKey} /></span>
+      <div className="sb-t">
+        <small className="t50">Strategy · <a className="pri" href={`#/board${sort === 'perDay' ? '?t=day' : ''}`}>every strategy</a></small>
+        <b>{t.name}{t.word && <span className="t50"> {t.word}</span>}{isNewStrategy(g.strategy) && <span className="pill new">new</span>}</b>
+        <span className="t50"><Where r={g} t={t} venue={venue} lev={levRange(g.strategy)} /> · {wallets}{lifted ? '+' : ''} wallet{wallets === 1 ? '' : 's'} · {usdShort(equity)}</span>
+      </div>
+      <div className="sb-v hide-m"><b className="ok">{pct(g.apr24hPct ?? g.netAprPct)}</b><small>best{g.strategy.positions > 1 && g.strategy.aprPct != null ? ` · avg ${pct(g.strategy.aprPct)}` : ''}</small></div>
+      <div className="sb-v hide-m"><b><Money usd={g.strategy.perDayUsd} /></b><small>a day, all below</small></div>
+      <Comments n={thread ? counts.count(thread.kind, thread.key) : 0} onClick={talkTo(st, t.uid)} />
+      <CopyOrOpen st={st} r={g} />
     </div>
   )
 }

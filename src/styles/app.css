@@ -2230,8 +2230,11 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .route-pop{padding:6px;margin:0;max-height:min(360px,60vh);overflow:auto}
 /* the board by strategy (docs/board-strategies.md): the strategy is the row, its best holder the face.
    A grid, not the flat rows' flex: every column sits at one x, row under row, whatever a name or a flag takes */
-.srow-g{border-bottom:1px solid var(--line-soft)}
+.srow-g{border-bottom:1px solid var(--line-soft);transition:background .12s ease}
 .srow-g .row.board.srow{border-bottom:0}
+/* the row and its "more" line light up as one block — the row alone used to stop halfway through the line */
+.srow-g .row.board.srow:hover{background:none}
+.srow-g:has(> .srow:hover, > .strat-more:hover){background:var(--b300)}
 .row.wrow.board.srow{display:grid;grid-template-columns:22px minmax(0,1fr) 210px 120px 88px 64px 28px 64px;gap:12px}
 .srow .strat-n{display:flex;align-items:center;gap:10px;min-width:0;color:inherit;text-decoration:none}
 .srow .strat-n:hover .wn b{color:var(--primary)}
@@ -2253,7 +2256,7 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .srow .copyb{justify-self:stretch;justify-content:center;padding-left:0;padding-right:0}
 .pill.new{margin-left:6px;color:var(--success);border-color:currentColor}
 /* the "more" line starts under the strategy's name: row padding 16 + rank 22 + gap 12 + logo 28 + gap 10 */
-.strat-more{display:block;margin:-8px 0 0;padding:0 16px 10px 88px;font-size:12px;color:var(--tx50);background:none;border:0;cursor:pointer;text-align:left;text-decoration:none}
+.strat-more{display:block;margin:-6px 0 0;padding:0 16px 10px 88px;font-size:12px;color:var(--tx50);background:none;border:0;cursor:pointer;text-align:left;text-decoration:none}
 .strat-more:hover{color:var(--primary)}
 .strat-holders{margin:0 0 8px 50px;border-left:2px solid var(--line-soft)}
 .strat-holders .row.board{min-height:48px;border-bottom:0}
@@ -2261,3 +2264,16 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .stcard-held{cursor:pointer}
 .stcard-held:hover{color:var(--primary);text-decoration:underline}
 @media (max-width:640px){.row.wrow.board.srow{grid-template-columns:22px minmax(0,1fr) auto auto 28px;gap:8px}.srow .strat-logo{width:22px;height:22px}.srow .strat-n{gap:8px}.srow .strat-n .wn small{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}.srow .copyb{display:none}.strat-more{padding-left:72px}.strat-holders{margin-left:12px}}
+/* `#/board?s=<key>`: which strategy the list below runs, said once */
+.sbanner{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto 28px auto;gap:16px;align-items:center;padding:16px 18px;margin:0 0 16px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--b200)}
+.sbanner .strat-logo{width:40px;height:40px;display:grid;place-items:center;border-radius:50%;background:var(--b300)}
+.sbanner .strat-logo img,.sbanner .strat-logo .plogo{width:24px;height:24px}
+.sb-t{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sb-t > small{font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.sb-t > small a{text-transform:none;letter-spacing:0}
+.sb-t > b{font-size:20px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-t > span{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-v{text-align:right;font-family:var(--mono);line-height:1.2}
+.sb-v b{display:block;font-size:20px;font-weight:600}
+.sb-v small{display:block;font-size:11px;color:var(--tx50);font-family:var(--sans)}
+@media (max-width:640px){.sbanner{grid-template-columns:auto minmax(0,1fr) 28px auto;gap:10px;padding:12px 14px}.sbanner .strat-logo{width:32px;height:32px}.sb-t > b{font-size:17px}.sb-t > span{white-space:normal}}

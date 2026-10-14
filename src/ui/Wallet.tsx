@@ -26,7 +26,7 @@ import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
 import { isEvmAddr, isEvmChain, normAddr } from '../model/address'
-import { AddrExplorers, CopyButton, ProtocolLogo, Sk, TermNote, Tip, Tok, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
+import { AddrExplorers, CopyButton, ProtocolLogo, Sk, TermNote, Tip, Tok, TxLink, pct, protocolIconUrls, usd, usdBig, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
 import { Said } from './Talk'
@@ -244,7 +244,7 @@ export function Wallet({ addr }: { addr: string }) {
       </div>
       </> : <>
       <div className="wstats hero">
-        <Stat k="Net value" v={hidden ? '—' : usd(nav)} s={hidden ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={syncing || (!hidden && pos.isLoading)} />
+        <Stat k="Net value" v={hidden ? '—' : <span title={usd(nav)}>{usdBig(nav)}</span>} s={hidden ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={syncing || (!hidden && pos.isLoading)} />
         <Stat k="Net APR" v={hidden ? '—' : carry.netAprPct == null ? '—' : <span className={carry.netAprPct >= 0 ? 'ok' : 'warn'}>{carry.exact ? '' : '≈ '}{pct(carry.netAprPct)}</span>}
           s={hidden ? 'on the live path' : <AccountAprNote c={carry} />} loading={syncing || (!hidden && pos.isLoading)} />
       </div>

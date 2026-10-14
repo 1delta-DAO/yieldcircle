@@ -15,6 +15,16 @@ export const usd = (x: number | null | undefined) => {
   const a = Math.abs(x), body = a > 0 && a < 1 ? `$${a.toFixed(2)}` : a < 10 ? `$${oneDecimal(a)}` : '$' + Math.round(a).toLocaleString('en-US')
   return x < 0 && body !== '$0' && body !== '$0.00' ? `−${body}` : body.replace('$0.00', '$0')
 }
+/**
+ * A headline dollar figure: exact to the dollar under $10m, in millions from
+ * there ($1,099.5m) — ten digits of a billion-dollar wallet do not fit a phone,
+ * and the last six say nothing. Show `usd(x)` beside it where the exact one matters.
+ */
+export const usdBig = (x: number | null | undefined) => {
+  if (x == null || !Number.isFinite(x) || Math.abs(x) < 1e7) return usd(x)
+  const body = '$' + (Math.abs(x) / 1e6).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'm'
+  return x < 0 ? `−${body}` : body
+}
 export const usdShort = (x: number | null | undefined) => {
   if (x == null || !Number.isFinite(x)) return '—'
   const a = Math.abs(x)

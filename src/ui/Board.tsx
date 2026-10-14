@@ -28,7 +28,7 @@ import { Sk, pct, usdShort } from './bits'
 import { costWord } from './PaperMoves'
 import { usePaper } from '../state/Paper'
 import { ChainChip } from './ChainPicker'
-import { StrategyRows, strategyTitle } from './BoardStrategies'
+import { StrategyBanner, StrategyRows } from './BoardStrategies'
 
 type Sort = 'perDay' | 'apr'
 /** `strategy` is the default (docs/board-strategies.md); `position` the flat list, one row per position */
@@ -330,7 +330,8 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
         </div>
       </div>
 
-      <div className="denoms" role="group" aria-label="What the position is held in">
+      {/* a strategy's own page says WHICH strategy once, up top — its money is its own, so the chips go */}
+      {strategyKey ? positions.length > 0 && <StrategyBanner rows={positions} strategyKey={strategyKey} sort={sort} /> : <div className="denoms" role="group" aria-label="What the position is held in">
         <span className="denoms-lbl t50">Held in</span>
         {CHIPS.map((c) => (
           <button key={c.word} className="dchip" aria-pressed={!stocks && exposure === c.id} title={c.title} onClick={() => nav({ x: c.id ?? null })}>{c.word}</button>
@@ -339,7 +340,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
           <button className="dchip" aria-pressed={stocks} onClick={() => nav({ x: STOCKS })}
             title="tokenized stocks, ETFs and pre-IPO shares — whatever is borrowed against them">Stocks</button>
         )}
-      </div>
+      </div>}
 
       <div className="note">
         {stocks ? (by === 'wallet'
@@ -368,7 +369,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
         ) : (
           <>
             {strategyKey
-              ? <>Who runs <b>{positions[0] ? strategyTitle(positions[0], strategyKey).name : 'this strategy'}</b>{positions[0]?.legs.length ? ` ${strategyTitle(positions[0], strategyKey).word}` : ''}{positions[0] && <> on {chainLabel(positions[0].chainId)}</>}, ranked — <a className="pri" href="#/board">every strategy</a>.{data?.partial && <span className="t50"> From the index’s top 200 positions: it does not cut by strategy yet.</span>} </>
+              ? <>Everyone who runs this strategy, ranked.{data?.partial && <span className="t50"> From the index’s top 200 positions: it does not cut by strategy yet.</span>} </>
               : <>Every position, one row each — <a className="pri" href={`#/board${sort === 'perDay' ? '?t=day' : ''}`}>fold them by strategy</a>. </>}
             What positions <b>earn now</b>: the net carry on equity at today’s rates, beside the whole wallet’s net APR.
             {showAll
@@ -388,7 +389,8 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
         <span className="t70" style={{ fontSize: 13, flex: 1, minWidth: 200 }}>This board ranks real money. Paper accounts are ranked on their own board.</span>
         <button className="btn paper sm" onClick={() => go('board', { by: 'paper' })}>See the paper board</button>
       </div>}
-      <Reigning scope={scope} />
+      {/* a strategy's own page says WHICH strategy once, up top; the crowns are the whole board's */}
+      {!strategyKey && <Reigning scope={scope} />}
       {flags && flags.status !== 'ok' && (
         <div className="note warn">Community exploit flags are {flags.status} on this index right now — the exploited exclusion may be out of date.</div>
       )}

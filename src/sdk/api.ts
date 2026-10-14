@@ -9,6 +9,13 @@ import { isSvmChain } from '../model/address'
 import type { RateHistoryResponse } from '../model/rateHistory'
 import type { AnyTx, ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmResponse, LendingActionData, LendingBook, LendingRange, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
 
+/**
+ * The catalogue listings (earn + optimizer) answer in 0.5–4 s; the home page waits for every one
+ * of them before it ranks a card, so one that never answers must fail instead (`timeoutMs`).
+ * With the app's single retry a wedged request costs ~50 s, then the chain settles without it.
+ */
+const LISTING_TIMEOUT_MS = 25_000
+
 // ---------------------------------------------------------------- deposits (supply side)
 // `terms: 'digest'` — NOT 'none'. The digest is where the row's own prose lives:
 // `termSheet.supply.headline` (one line, templated from this row's live numbers)
@@ -42,11 +49,11 @@ export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRisk
   const count = p.count ?? 500
   const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, assetGroup: p.assetGroup, shareGroup: p.shareGroup, passthrough: p.passthrough ? 'include' : undefined }
   const served = (r: EarnResponse) => r.items.length + (r.excluded?.unrealizable ?? 0)
-  const first = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params })
+  const first = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params, timeoutMs: LISTING_TIMEOUT_MS })
   const items = [...first.items]
   let at = served(first)
   for (let page = 1, last = first; page < (p.maxPages ?? 4) && served(last) >= count && at < first.total; page++) {
-    last = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params: { ...params, start: at } })
+    last = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params: { ...params, start: at }, timeoutMs: LISTING_TIMEOUT_MS })
     if (!last.items.length) break
     items.push(...last.items)
     at += served(last)
@@ -132,7 +139,7 @@ export function fetchOptimizerPairs(q: OptimizerQuery): Promise<OptimizerRespons
     maxConfigRiskScore: q.maxConfigRiskScore, maxTokenRiskScore: q.maxTokenRiskScore, minBorrowLiquidityUsd: q.minBorrowLiquidityUsd,
     includeExpired: q.includeExpired, includeIlliquid: q.includeIlliquid || undefined, collateralAssetClasses: csv(q.collateralAssetClasses), sortBy: q.sortBy ?? 'aprTotal', sortDir: q.sortDir ?? 'DESC', start: q.start, count: q.count ?? 100,
   }
-  return apiFetchLoose<OptimizerResponse>('/v1/data/lending/pairs/optimize', { params })
+  return apiFetchLoose<OptimizerResponse>('/v1/data/lending/pairs/optimize', { params, timeoutMs: LISTING_TIMEOUT_MS })
 }
 
 // ---------------------------------------------------------------- wallet
@@ -258,14 +265,16 @@ export function lendingAction(action: 'deposit' | 'borrow' | 'repay' | 'withdraw
 }
 /**
  * How far the caller's OWN account can go: a deposit → the most it can then borrow
- * (`maxBorrow`), or a repay → the most collateral that can then leave (`maxWithdraw`). Read on chain
+ * (`maxBorrow`; a deposit of `'0'` is the headroom of what is already in), a borrow → the least
+ * collateral it still needs (`minDeposit`, tickets/0011), or a repay → the most collateral that can
+ * then leave (`maxWithdraw`). Read on chain
  * for `account` (its existing position and e-mode included), so only asked with a real wallet.
  * Amounts in are raw; out are human decimals + USD. `collateralModeId` goes back as `modeId`.
  * **`marketUidOut` = COLLATERAL, `marketUidIn` = DEBT**, as on the loop ranges.
  */
-export async function lendingRange(kind: 'deposit-borrow' | 'withdraw-repay', p: { collateralMarketUid: string; debtMarketUid: string; account: string; depositRaw?: string; repayRaw?: string; modeId?: string; accountId?: string }): Promise<LendingRange> {
+export async function lendingRange(kind: 'deposit-borrow' | 'withdraw-repay', p: { collateralMarketUid: string; debtMarketUid: string; account: string; depositRaw?: string; borrowRaw?: string; repayRaw?: string; modeId?: string; accountId?: string }): Promise<LendingRange> {
   const r = await apiFetch<LendingRange | LendingRange[]>(`/v1/data/lending/range/${kind}`, {
-    params: { marketUidOut: p.collateralMarketUid, marketUidIn: p.debtMarketUid, account: p.account, depositAmount: p.depositRaw, repayAmount: p.repayRaw, modeId: p.modeId, accountId: p.accountId },
+    params: { marketUidOut: p.collateralMarketUid, marketUidIn: p.debtMarketUid, account: p.account, depositAmount: p.depositRaw, borrowAmount: p.borrowRaw, repayAmount: p.repayRaw, modeId: p.modeId, accountId: p.accountId },
   })
   return (Array.isArray(r) ? r[0] : r) ?? {}
 }

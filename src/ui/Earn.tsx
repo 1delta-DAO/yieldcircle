@@ -13,9 +13,11 @@ import { steadyRate, type HistoryGet } from '../model/rateHistory'
 import { Avg30 } from './Spark'
 import { useBorrowOffers } from '../sdk/queries'
 import { useApp } from '../state/AppState'
-import { headlineOffers, type BorrowOffer } from '../model/borrow'
+import type { BorrowOffer } from '../model/borrow'
 import { borrowRoom } from './BorrowList'
-import type { Idle } from '../model/positions'
+import { canonUid } from '../model/uid'
+import { softHide } from '../model/visibility'
+import { useSettings } from '../state/Settings'
 
 /**
  * Earn: a digest, not an index. Four group tiles (your money there, the best rate, how many
@@ -27,9 +29,10 @@ import type { Idle } from '../model/positions'
  * of scrolling on a phone. The bands went with the big table; a group page's chips are the desk
  * index now, and a digest row carries its group as a small tag instead.
  *
- * Borrowing (tickets/0008–0009) has no tab of its own: a held asset's row says how much could be
- * taken out against it, the Stocks tile is the stock shelf (its loans first), and one short band
- * at the foot says where each shelf lends from.
+ * Earn is "deposit, and earn on it"; borrowing has its own tab since tickets/0011, so nothing
+ * here quotes a borrow rate. Two things still point across: a held asset's row says how much could
+ * be taken out against it ("or borrow up to"), and the Stocks tile is the shelf's LEND side — the
+ * dollars lent to the people who put stocks up, which is earning.
  */
 export function Earn() {
   const b = useBook()
@@ -56,14 +59,14 @@ export function Earn() {
     <>
       <div className="feed-h earn-h">
         <h1>Earn</h1>
-        <span className="sub t50 hide-m">what you can hold, and what it can earn</span>
+        <span className="sub t50 hide-m">deposit, and earn on it</span>
         <span className="sp" />
         <ChainChip />
       </div>
       {b.errors.length > 0 && !b.anyData && <div className="err">The listing could not be loaded from <b>{new URL(BACKEND_BASE_URL).host}</b>: {b.errors[0].message}{/portal\.1delta\.io/.test(BACKEND_BASE_URL) && <><br /><span className="t70">This build is on the public, per-IP rate-limited endpoint. Unset <code>VITE_BACKEND_BASE_URL</code> to use the credited default, then rebuild.</span></>}</div>}
       <nav className="tiles" aria-label="Asset groups" style={{ marginTop: 16 }}>
         {GROUPS.map((g) => g.id === 'STOCKS'
-          ? <StockTile key={g.id} g={g} offers={bo.offers.filter((o) => o.group === 'STOCKS')} books={b.books.filter((x) => x.group === g.id)} loading={bo.isLoading} />
+          ? <StockTile key={g.id} g={g} offers={bo.offers.filter((o) => o.group === 'STOCKS')} earn={b.earnAll} books={b.books.filter((x) => x.group === g.id)} loading={bo.isLoading || b.isLoading} />
           : <GroupTile key={g.id} g={g} strategies={b.all.filter((s) => s.group === g.id)} books={b.books.filter((x) => x.group === g.id)} loading={b.isLoading} rank={rank} get={get} />)}
       </nav>
       {b.books.length > 0 && (
@@ -81,7 +84,6 @@ export function Earn() {
           {top.map((s) => <TopRow key={s.asset} s={s} n={countBy.get(s.asset) ?? 0} get={get} />)}
         </tbody></table></div>
       </section>
-      <BorrowBand offers={bo.offers} idle={b.idlePerChain} />
       <section className="sec"><div className="note"><b>Live.</b> Rates and sizes come from the 1delta API (plain deposits from the earn listing, loops from the pair optimizer), filtered to base assets, low-to-medium risk and real size. Each group’s page lists every desk and strategy, and says how many rows the floors are holding back; Filters in your profile menu (top left) move them. A loop is opened in one flash-funded transaction.</div></section>
     </>
   )
@@ -121,52 +123,29 @@ function BookRow({ x, best, get, room }: { x: AssetBook; best: Strategy | undefi
 }
 
 /**
- * The Stocks tile: a shelf of loans, so it says what a loan says — how far its markets lend and
- * from what rate — and how many tickers it holds, where the other tiles say what they pay.
+ * The Stocks tile, in Earn: the shelf's lend side — dollars lent into the markets where people
+ * borrow against tokenized stocks (Kamino xStocks' USDC, Aave's stock hub). Their stocks back the
+ * loan; the rate is what they pay. The loans themselves are on the Borrow tab.
  */
-function StockTile({ g, offers, books, loading }: { g: Group; offers: BorrowOffer[]; books: AssetBook[]; loading: boolean }) {
-  const deep = headlineOffers(offers)
-  const ltv = deep.reduce((m, o) => Math.max(m, o.maxLtv), 0), apr = deep.reduce((m, o) => Math.min(m, o.borrowApr), Infinity)
-  const tickers = new Set(offers.map((o) => o.asset)).size
+function StockTile({ g, offers, earn, books, loading }: { g: Group; offers: BorrowOffer[]; earn: Strategy[]; books: AssetBook[]; loading: boolean }) {
+  const { st } = useSettings()
+  const rows = React.useMemo(() => {
+    const debts = new Set(offers.filter((o) => o.out === 'USD').map((o) => canonUid(o.debt.uid)).filter((k): k is string => !!k))
+    const seen = new Set<string>()
+    return earn.filter((s) => s.kind === 'simple' && !!s.marketUid && debts.has(canonUid(s.marketUid) ?? '') && softHide(s, st) == null && !seen.has(s.id) && !!seen.add(s.id))
+  }, [offers, earn, st])
+  const best = rows.reduce<Strategy | null>((m, s) => (!m || s.rate > m.rate ? s : m), null)
   const total = books.reduce((a, x) => a + x.totalUsd, 0)
-  const busy = loading && !offers.length
+  const busy = loading && !rows.length
   return (
-    <a className="tile stocks" href="#/STOCKS?k=borrow" style={{ '--gc': g.color } as React.CSSProperties}>
+    <a className="tile stocks" href="#/STOCKS?k=simple" style={{ '--gc': g.color } as React.CSSProperties}>
       <div className="h"><GroupIcon id={g.id} color={g.color} size={22} /><span className="n">{g.name}</span><span className="pill new">new</span></div>
       <div className={`v${total ? '' : ' t40'}`}>{busy ? <Sk w={64} h={15} /> : total ? usd(total) : '—'}</div>
       <div className="ft">
-        <span>{deep.length ? <><span className="t50">borrow </span><b>{Math.round(ltv * 100)}%</b><span className="t50"> · from </span><b className="ok">{pct(apr, apr < 1 ? 2 : 1)}</b></> : busy ? <Sk w={70} /> : <span className="t40">—</span>}</span>
-        <small>{busy ? '…' : `${tickers} ticker${tickers === 1 ? '' : 's'} ›`}</small>
+        <span>{best ? <><span className="t50">lend up to </span><b className="ok">{pct(best.rate)}</b></> : busy ? <Sk w={70} /> : <span className="t40">—</span>}</span>
+        <small>{busy ? '…' : `${rows.length} market${rows.length === 1 ? '' : 's'} to lend to ›`}</small>
       </div>
     </a>
-  )
-}
-
-/**
- * Where each shelf lends from: one line per group a market lends dollars against — from what rate
- * (a borrow leads with its cheapest: lower is better), how far, and (for what the reader holds) how much it could raise. Stocks has its own line.
- */
-function BorrowBand({ offers, idle }: { offers: BorrowOffer[]; idle: Idle[] }) {
-  const rows = GROUPS.map((g) => {
-    const deep = headlineOffers(offers.filter((o) => o.group === g.id))
-    if (!deep.length) return null
-    const room = [...new Set(idle.filter((i) => deep.some((o) => o.asset === i.asset)).map((i) => i.asset))].reduce((a, asset) => a + borrowRoom(asset, idle, deep), 0)
-    return { g, n: new Set(deep.map((o) => o.asset)).size, ltv: Math.max(...deep.map((o) => o.maxLtv)), apr: Math.min(...deep.map((o) => o.borrowApr)), room }
-  }).filter((r): r is NonNullable<typeof r> => !!r)
-  if (!rows.length) return null
-  return (
-    <section className="sec">
-      <div className="sec-h"><h2>Borrow without selling</h2><span className="sub">dollars out against what you hold</span><span className="sp" /><a className="pri" href="#/borrow" style={{ fontSize: 13 }}>Against what you hold ›</a></div>
-      <div className="card"><table className="tbl slim"><tbody>
-        {rows.map(({ g, n, ltv, apr, room }) => (
-          <tr key={g.id} onClick={() => go(g.id, { k: 'borrow' })}>
-            <td><div className="nm"><GroupIcon id={g.id} color={g.color} size={22} />{g.id === 'MORE' ? 'More' : g.name}{g.id === 'STOCKS' && <span className="pill new">new</span>}</div></td>
-            <td className="r upto"><span className="t50">from</span> <span>{pct(apr, apr < 1 ? 2 : 1)}</span><small>up to {Math.round(ltv * 100)}% of value · {n} asset{n === 1 ? '' : 's'}{room >= 1 ? ` · you could take ${usdShort(room)}` : ''}</small></td>
-            <td className="r t40" style={{ width: 20 }}>›</td>
-          </tr>
-        ))}
-      </tbody></table></div>
-    </section>
   )
 }
 

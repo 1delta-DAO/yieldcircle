@@ -163,6 +163,13 @@ export interface ApiOptions {
   method?: 'GET' | 'POST'
   signal?: AbortSignal
   /**
+   * Give up after this long (a `TimeoutError`, thrown as an {@link ApiError}). For the listings a
+   * page waits on in full: a request the backend never answers otherwise holds that page in
+   * skeletons for good (2026-10-14: worker-api's single-flight wedged one `pairs/optimize` key and
+   * the home page never left its placeholders). Off when unset.
+   */
+  timeoutMs?: number
+  /**
    * The browser's HTTP cache mode. User routes answer `max-age=15`, so a re-read seconds after
    * a transaction would be served the answer from before it: `'no-store'` there.
    */
@@ -186,6 +193,13 @@ function rateGate(signal?: AbortSignal): Promise<void> {
     const t = setTimeout(resolve, wait)
     signal?.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')) }, { once: true })
   })
+}
+/** The caller's signal, plus a deadline when one is asked for (and the browser can combine them). */
+function withDeadline(signal: AbortSignal | undefined, timeoutMs: number | undefined): AbortSignal | undefined {
+  if (!timeoutMs || typeof AbortSignal.timeout !== 'function') return signal
+  const deadline = AbortSignal.timeout(timeoutMs)
+  if (!signal) return deadline
+  return typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, deadline]) : signal
 }
 /** `retryAfter` from the envelope, else the `Retry-After` header, else 30 s. Reads a clone so the body stays readable. */
 async function retryAfterSeconds(res: Response): Promise<number> {
@@ -211,8 +225,9 @@ export async function apiFetchEnvelope<T, A = ApiActions>(
   path: string,
   options: ApiOptions = {}
 ): Promise<ApiEnvelope<T, A>> {
-  const { params, body, method, signal, cache } = options
+  const { params, body, method, cache, timeoutMs } = options
   const url = apiUrl(path, params)
+  const signal = withDeadline(options.signal, timeoutMs)
 
   let res: Response
   const send = () => fetch(url, {

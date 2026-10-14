@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { OptimizerRowRaw } from '../sdk/types'
-import { CRYPTO_BORDERS, EQUITY_BORDERS, MIN_HEALTH, bestOfferFor, byOffer, debtAtDrop, defaultBorrow, dropOf, healthOf, liquidationPrice, maxBorrowUsd, monthlyCost, offerFromRow, offersFrom, zoneAmounts, zoneOf } from './borrow'
+import { CRYPTO_BORDERS, EQUITY_BORDERS, MIN_HEALTH, bestOfferFor, byOffer, collateralFor, debtAtDrop, defaultBorrow, depositsAsLoans, dropOf, headlineOffers, healthOf, liquidationPrice, maxBorrowUsd, monthlyCost, offerFromHolding, offerFromRow, offersFrom, owedOf, zoneAmounts, zoneOf } from './borrow'
+import type { Holding } from './positions'
 import { groupOf, stockOfToken } from './assets'
 import { keyOfToken } from './desk'
 
@@ -40,9 +41,31 @@ describe('offerFromRow', () => {
     expect(o.maxLtv).toBeCloseTo(0.1807, 3)
     expect(o.liqLtv).toBeCloseTo(0.4 / 1.66, 4)
   })
-  it('refuses a debt that is not a dollar', () => {
+  it('reads a dollar loan as `out: USD`', () => {
+    expect(offerFromRow(row({ coll: TSLA }))!.out).toBe('USD')
+  })
+  it('lends ether against a stock (tickets/0011)', () => {
     const r = row({ coll: TSLA })
     r.underlyingInfoShort = { asset: { chainId: '8453', address: '0x4200000000000000000000000000000000000006', symbol: 'WETH', decimals: 18 } as never }
+    const o = offerFromRow(r)!
+    expect(o.out).toBe('ETH')
+    expect(o.debt.decimals).toBe(18)
+    expect(o.pegged).toBe(false)
+    // a headline quotes dollar loans only: an ether rate is a different number
+    expect(headlineOffers([{ ...o, liquidityUsd: 1e7, collateralUsd: 1e7, borrowApr: 2 }])).toEqual([])
+  })
+  it('leaves a same-money pair to the loops (WETH against WETH, cbBTC against WBTC)', () => {
+    const weth = { address: '0x4200000000000000000000000000000000000006', symbol: 'WETH' }
+    const r = row({ coll: weth })
+    r.underlyingInfoShort = { asset: { chainId: '8453', ...weth, decimals: 18 } as never }
+    expect(offerFromRow(r)).toBeNull()
+    const b = row({ coll: { address: '0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf', symbol: 'cbBTC', decimals: 8 } })
+    b.underlyingInfoShort = { asset: { chainId: '8453', address: '0x0555e30da8f98308edb960aa94c0db47230d2b9c', symbol: 'WBTC', decimals: 8 } as never }
+    expect(offerFromRow(b)).toBeNull()
+  })
+  it('refuses a debt in nothing it can name', () => {
+    const r = row({ coll: TSLA })
+    r.underlyingInfoShort = { asset: { chainId: '8453', address: '0x00000000000000000000000000000000000000ab', symbol: 'ZZZ', decimals: 18 } as never }
     expect(offerFromRow(r)).toBeNull()
   })
   it('flags a venue that needs a term, and offersFrom leaves it out', () => {
@@ -102,10 +125,67 @@ describe('the zones', () => {
     expect([empty, deep].sort(byOffer as never)).toEqual([deep, empty])
   })
   it('opens the ticket where the wallet holds the asset, else on the best offer', () => {
-    const mk = (id: string, chainId: string, borrowApr: number) => ({ id, chainId, asset: 'ETH', borrowApr, liquidityUsd: 5e6, collateralUsd: 5e6, risk: 2 as const, maxLtv: 0.8 })
+    const mk = (id: string, chainId: string, borrowApr: number) => ({ id, chainId, asset: 'ETH', out: 'USD', borrowApr, liquidityUsd: 5e6, collateralUsd: 5e6, risk: 2 as const, maxLtv: 0.8 })
     const offers = [mk('base', '8453', 4), mk('eth', '1', 2), mk('none', '1', 1)].map((o, i) => (i === 2 ? { ...o, maxLtv: 0 } : o))
     expect(bestOfferFor('ETH', offers as never)?.id).toBe('eth')
     expect(bestOfferFor('ETH', offers as never, [{ asset: 'ETH', chainId: '8453', usd: 900 }])?.id).toBe('base')
     expect(bestOfferFor('BTC', offers as never)).toBeUndefined()
+  })
+})
+
+describe('collateral already in (tickets/0011)', () => {
+  const offer = offerFromRow(row({ coll: { address: '0x4200000000000000000000000000000000000006', symbol: 'WETH' }, price: 4000 }))!
+  const deposit = {
+    key: 'p:0:m', chainId: '8453', group: 'ETH', asset: 'ETH', kind: 'simple', label: 'WETH · Lend on Aave', venue: 'Aave', valueUsd: 20_000,
+    amount: 5, symbol: 'WETH', decimals: 18, assetAddress: '0x4200000000000000000000000000000000000006', marketUid: offer.collateral.uid.toUpperCase(), lender: 'AAVE_V4_X',
+  } as Holding
+  it('reads a deposit in the offer’s own collateral market as a loan of $0', () => {
+    const [h] = depositsAsLoans(offer, [deposit])
+    expect(h).toBeTruthy()
+    expect(h.kind).toBe('borrow')
+    expect(h.putUp).toBe(true)
+    expect(h.collateralUid).toBe(deposit.marketUid)
+    expect(h.debtUid).toBe(offer.debt.uid)
+    expect(h.debtDecimals).toBe(6)
+    expect(h.collateralUsd).toBe(20_000)
+    expect(owedOf(h)).toBe(0)
+  })
+  it('leaves out a deposit elsewhere, a vault share and a paper deposit', () => {
+    expect(depositsAsLoans(offer, [{ ...deposit, marketUid: 'AAVE_V4_X:8453:0xother' }])).toEqual([])
+    expect(depositsAsLoans(offer, [{ ...deposit, marketUid: undefined }])).toEqual([])
+    expect(depositsAsLoans(offer, [{ ...deposit, paper: true }])).toEqual([])
+  })
+  it('counts every collateral leg in what an account owes', () => {
+    // $10k ETH + $5k wstETH up, $9k equity: $6k owed — not the $1k the ETH leg alone said
+    const h = { collateralUsd: 10_000, valueUsd: 9000, others: [{ side: 'collateral' as const, symbol: 'wstETH', amount: 1.2, usd: 5000 }] }
+    expect(owedOf(h)).toBe(6000)
+    expect(owedOf({ collateralUsd: 10_000, valueUsd: 12_000 })).toBe(0)
+  })
+  it('keeps the debt’s own decimals when an offer is rebuilt from a loan', () => {
+    const o = offerFromHolding({ chainId: '56', asset: 'ETH', group: 'ETH', venue: 'Venus', symbol: 'ETH', decimals: 18, amount: 1, collateralUid: 'V:56:0xc', debtUid: 'V:56:0xd', collateralAddress: '0xc', debtAddress: '0x55d398326f99059ff775485246999027b3197955', debtSymbol: 'USDT', debtDecimals: 18, debtAmount: 1000, collateralUsd: 4000, valueUsd: 3000 })!
+    expect(o.debt.decimals).toBe(18)
+  })
+})
+
+describe('by amount (tickets/0011)', () => {
+  const o = { maxLtv: 0.8, liqLtv: 0.83 }
+  it('puts up enough that the loan starts in Safe, at the Safe chip’s depth', () => {
+    const coll = collateralFor(o, CRYPTO_BORDERS, 500)
+    expect(zoneOf(dropOf(coll, 500, o.liqLtv), CRYPTO_BORDERS)).toBe('safe')
+    // the Safe chip sits a quarter of the way into the zone: the same depth from this side
+    expect(dropOf(coll, 500, o.liqLtv)).toBeCloseTo(0.4 + 0.6 * 0.25, 6)
+    expect(maxBorrowUsd({ ...o, liquidityUsd: 1e9 }, coll)).toBeGreaterThanOrEqual(500)
+  })
+  it('adds only what is missing on top of what is already in, and nothing when it is enough', () => {
+    const all = collateralFor(o, CRYPTO_BORDERS, 2000, 0, 1000)
+    expect(collateralFor(o, CRYPTO_BORDERS, 2000, 3000, 1000)).toBeCloseTo(all - 3000, 6)
+    expect(collateralFor(o, CRYPTO_BORDERS, 100, 100_000)).toBe(0)
+    expect(collateralFor(o, CRYPTO_BORDERS, 0)).toBe(0)
+  })
+  it('opens the ticket on the family asked for', () => {
+    const mk = (id: string, out: string) => ({ id, chainId: '1', asset: 'TSLA', out, borrowApr: 2, liquidityUsd: 5e6, collateralUsd: 5e6, risk: 2 as const, maxLtv: 0.7 })
+    const offers = [mk('usd', 'USD'), mk('eth', 'ETH')]
+    expect(bestOfferFor('TSLA', offers as never)?.id).toBe('usd')
+    expect(bestOfferFor('TSLA', offers as never, [], 'ETH')?.id).toBe('eth')
   })
 })

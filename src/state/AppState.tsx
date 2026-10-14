@@ -18,7 +18,9 @@ import { readFeedLink } from './feedLink'
  *   #/ETH?k=borrow&s=b:<coll>|<debt>   the loans against it, and a borrow ticket (tickets/0008);
  *                            `&h=<holding>&m=reduce` opens a running loan on Pay back
  *   #/STOCKS?u=TSLA&k=borrow  tokenized stocks, one row per real-world ticker (tickets/0009)
- *   #/borrow                 borrowing, holdings first (tickets/0010); `?u=<asset>&s=b:…` opens a ticket
+ *   #/borrow                 borrowing, holdings first (tickets/0010); `?u=<asset>&s=b:…` opens a ticket;
+ *                            the Borrow tab (tickets/0011). `out=ETH|BTC|MORE` on any borrow list
+ *                            takes out that family instead of dollars
  *   #/w/0x…                  a wallet
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
  *   #/board                  the earners board (apr by default; ?t=day for $/day, &by=wallet)
@@ -65,6 +67,8 @@ export interface Route {
   pos?: string
   /** `talk=1`: the ticket opens on its thread (a row's 💬, a Talk card) — tickets/0005 */
   talk?: boolean
+  /** what a borrow list takes out when it is not dollars: `ETH`, `BTC` or `MORE` (tickets/0011) */
+  out?: 'ETH' | 'BTC' | 'MORE'
 }
 const GROUP_IDS = new Set(['USD', 'ETH', 'BTC', 'STOCKS', 'MORE'])
 
@@ -87,6 +91,7 @@ export function parseRoute(hash = location.hash): Route {
     oa: p.get('oa') ?? undefined,
     pos: p.get('pos') ?? undefined,
     talk: p.get('talk') === '1',
+    out: (['ETH', 'BTC', 'MORE'] as const).find((x) => x === p.get('out')),
   }
   const head = seg[0]
   if (head === 'earn' || head === 'explore') return { view: 'earn', ...base }
@@ -113,7 +118,9 @@ export function parseRoute(hash = location.hash): Route {
 
 export function go(path: string, params: Record<string, string | undefined | null> = {}) {
   const q = new URLSearchParams()
-  for (const [k, v] of Object.entries(params)) if (v != null && v !== '' && v !== 'all' && !(k === 'k' && v === 'simple')) q.set(k, v)
+  // `k=simple` is the default and left out — except on the Stocks shelf, whose default is its loans
+  // (without it, "Lend to them" there bounced straight back to Borrow)
+  for (const [k, v] of Object.entries(params)) if (v != null && v !== '' && v !== 'all' && !(k === 'k' && v === 'simple' && path !== 'STOCKS')) q.set(k, v)
   const s = q.toString()
   location.hash = '#/' + path + (s ? '?' + s : '')
 }

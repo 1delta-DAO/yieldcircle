@@ -1,5 +1,9 @@
 /**
- * Borrowing (tickets/0008): put something up, take dollars out, pay them back, take it back.
+ * Borrowing (tickets/0008): put something up, take something out, pay it back, take it back.
+ *
+ * What comes out is dollars by default, and since tickets/0011 any coin a market lends: ether,
+ * bitcoin, another chain's native coin (`Out`). A pair whose two legs are the same money (wstETH
+ * against WETH, LBTC against WBTC) is a loop, not a loan, and stays in the loop catalogue.
  *
  * Built off the same `/pairs/optimize` rows the loops are, but never through `classifyPair`: that
  * one refuses every pair whose two legs are different money (`cross-denom`), which is right for a
@@ -13,12 +17,26 @@
  * row fills as it is read.
  */
 import type { OptimizerRowRaw } from '../sdk/types'
+import type { Holding } from './positions'
 import { baseOfSymbol, groupOf, noteStock, stockInfo, type GroupId } from './assets'
 import { assetClassOf, type AssetClass } from './assetClass'
 import { keyOfToken, moneyOf } from './desk'
 import { riskOf, venueLabel, type Risk } from './strategies'
 
 export interface BorrowLeg { uid: string; symbol: string; address: string; decimals: number; logo?: string; price?: number; group?: string }
+/**
+ * What a loan pays out, as a family the "Take out" picker groups by: dollars (any issuer's), ether
+ * (ETH and its staked forms), bitcoin, or another chain's native coin (SOL, BNB, AVAX…) — `MORE`,
+ * as the asset groups name it.
+ */
+export type Out = 'USD' | 'ETH' | 'BTC' | 'MORE'
+export const OUTS: { id: Out; name: string; any: string }[] = [
+  { id: 'USD', name: 'Dollars', any: 'Any dollar' },
+  { id: 'ETH', name: 'Ether', any: 'Any ether' },
+  { id: 'BTC', name: 'Bitcoin', any: 'Any bitcoin' },
+  { id: 'MORE', name: 'Other coins', any: 'Any other coin' },
+]
+export const isOut = (x: string | null | undefined): x is Out => x === 'USD' || x === 'ETH' || x === 'BTC' || x === 'MORE'
 export interface BorrowOffer {
   /** `b:<collateral market uid>|<debt market uid>` — the index's `loop:` strategy key has the same two legs */
   id: string
@@ -30,6 +48,8 @@ export interface BorrowOffer {
   group: GroupId
   collateral: BorrowLeg
   debt: BorrowLeg
+  /** what comes out: dollars, ether, bitcoin or another coin (tickets/0011) */
+  out: Out
   /** the most a borrow may be, as a share of the collateral's value (the borrow factor already in) */
   maxLtv: number
   /** where the lender liquidates, the same way */
@@ -66,15 +86,27 @@ const FIXED = new Set(['lista', 'loopscale', 'midnight', 'term', 'termmax', 'tel
 /** The Liquity family: a loan is a trove with an interest rate the borrower sets (Ticket.tsx `LIQUITY_FAMILY`). */
 const TROVES = /^(LIQUITY|FELIX|NERITE|QUILL|EBISU|SONETA|ENOSYS_LOANS)/
 
-/** One pairs row → an offer, or null when it is no dollar loan this app can describe. */
+/** The family a debt token pays out in: its money (dollars, ether, bitcoin), else a native coin of the `MORE` group; null for anything else. */
+export function outOf(t: { chainId: string; address: string; symbol?: string; desk?: unknown; props?: unknown }): Out | null {
+  const m = moneyOf(t as Parameters<typeof moneyOf>[0])
+  if (m === 'USD' || m === 'ETH' || m === 'BTC') return m
+  const b = baseOfSymbol(t.symbol)
+  return b && groupOf(b) === 'MORE' ? 'MORE' : null
+}
+
+/** One pairs row → an offer, or null when it is no loan this app can describe. */
 export function offerFromRow(r: OptimizerRowRaw): BorrowOffer | null {
   const L = r.underlyingInfoLong.asset, S = r.underlyingInfoShort.asset
-  // a dollar out: the debt leg must be a dollar (any issuer's)
-  const debtMoney = moneyOf({ ...S, chainId: r.chainId, desk: r.debtDesk })
-  if (debtMoney !== 'USD') return null
+  // what comes out: a dollar (any issuer's), or a coin a market lends (tickets/0011)
+  const out = outOf({ ...S, chainId: r.chainId, desk: r.debtDesk })
+  if (!out) return null
   const ticker = noteStock({ ...L, chainId: r.chainId })
   const asset = ticker ?? keyOfToken({ ...L, chainId: r.chainId, desk: r.collateralDesk }) ?? baseOfSymbol(L.props?.lst?.asset)
   if (!asset) return null
+  const collMoney = moneyOf({ ...L, chainId: r.chainId, desk: r.collateralDesk })
+  // the same money on both legs is a loop (wstETH against WETH, LBTC against WBTC, JitoSOL against
+  // SOL), and the loop catalogue's. Dollars against dollars stay: that is a `pegged` loan
+  if (out !== 'USD' && (collMoney === out || (out === 'MORE' && [asset, baseOfSymbol(L.props?.lst?.asset)].includes(baseOfSymbol(S.symbol))))) return null
   const bf = num(r.borrowFactorShort) || 1
   const maxLtv = num(r.ltv) || num(r.borrowCollateralFactorLong) / bf
   const liqLtv = (num(r.collateralFactorLong) || num(r.ltv)) / bf
@@ -95,12 +127,13 @@ export function offerFromRow(r: OptimizerRowRaw): BorrowOffer | null {
     asset, group: groupOf(asset),
     collateral: { uid: r.marketLongUid, symbol: L.symbol, address: L.address, decimals: L.decimals ?? 18, logo: L.logoURI || undefined, price: r.underlyingInfoLong.prices?.priceUsd ?? undefined, group: L.assetGroup },
     debt: { uid: r.marketShortUid, symbol: S.symbol, address: S.address, decimals: S.decimals ?? 18, logo: S.logoURI || undefined, price: r.underlyingInfoShort.prices?.priceUsd ?? undefined, group: S.assetGroup },
+    out,
     maxLtv, liqLtv, borrowApr: num(r.borrowAprShort), liquidityUsd: num(r.borrowLiquidityUsdShort), collateralUsd: num(r.totalDepositsUsdLong),
     ...(util > 0 ? { utilization: util } : {}),
     risk, riskLabel, riskScore: worst || 5, rated: worst > 0,
     assetClass: cls === 'stock' || cls === 'etf' || cls === 'pre-ipo' ? cls : null,
     ...(ticker ? { ticker: stockInfo(ticker)?.ticker ?? ticker, issuer: L.props?.rwa?.issuer } : {}),
-    pegged: moneyOf({ ...L, chainId: r.chainId, desk: r.collateralDesk }) === 'USD',
+    pegged: out === 'USD' && collMoney === 'USD',
     ...(r.eModeConfigId != null && r.eModeConfigId !== '' && String(r.eModeConfigId) !== '0' ? { modeId: String(r.eModeConfigId) } : {}),
     ...(needsInput ? { needsInput } : {}),
   }
@@ -135,8 +168,9 @@ export const USED_USD = 100_000
  * not what "from" should promise. Falls back to every deep offer where none is used yet.
  */
 export function headlineOffers(offers: BorrowOffer[]): BorrowOffer[] {
-  // (a market that charges nothing is one nobody borrows from yet: not the rate to promise)
-  const deep = offers.filter((o) => o.liquidityUsd >= DEEP_USD && o.borrowApr >= 0.05)
+  // (a market that charges nothing is one nobody borrows from yet: not the rate to promise; and a
+  // headline quotes dollar loans — an ether loan's rate is a different number, tickets/0011)
+  const deep = offers.filter((o) => o.out === 'USD' && o.liquidityUsd >= DEEP_USD && o.borrowApr >= 0.05)
   const used = deep.filter((o) => o.collateralUsd >= USED_USD)
   return used.length ? used : deep
 }
@@ -211,15 +245,17 @@ export const defaultBorrow = (z: Record<Zone, number | null>) => z.safe ?? z.wat
  * threshold is read back off the health the positions route reports; the venue's borrow limit is
  * unknown, so the ticket is told to borrow no more on it (`maxLtv` 0).
  */
-export function offerFromHolding(h: { chainId: string; asset: string; group: GroupId; venue: string; lender?: string; symbol: string; decimals: number; logo?: string; amount: number; collateralUid?: string; debtUid?: string; collateralAddress?: string; debtAddress?: string; debtSymbol?: string; debtAmount?: number; collateralUsd?: number; valueUsd: number; health?: number | null; apr?: number }): BorrowOffer | null {
+export function offerFromHolding(h: Pick<Holding, 'chainId' | 'asset' | 'group' | 'venue' | 'lender' | 'symbol' | 'decimals' | 'logo' | 'amount' | 'collateralUid' | 'debtUid' | 'collateralAddress' | 'debtAddress' | 'debtSymbol' | 'debtDecimals' | 'debtAmount' | 'collateralUsd' | 'valueUsd' | 'health' | 'apr' | 'others'>): BorrowOffer | null {
   if (!h.collateralUid || !h.debtUid || !h.collateralAddress || !h.debtAddress) return null
-  const collUsd = h.collateralUsd ?? 0, debtUsd = Math.max(0, collUsd - h.valueUsd)
+  const collUsd = h.collateralUsd ?? 0, debtUsd = owedOf(h)
   const liqLtv = h.health && collUsd > 0 && debtUsd > 0 ? (h.health * debtUsd) / collUsd : 0.75
   const st = stockInfo(h.asset)
   return {
     id: `b:${h.collateralUid}|${h.debtUid}`, chainId: h.chainId, lender: h.lender ?? '', venue: h.venue, asset: h.asset, group: h.group,
     collateral: { uid: h.collateralUid, symbol: h.symbol, address: h.collateralAddress, decimals: h.decimals, logo: h.logo, price: h.amount > 0 && collUsd > 0 ? collUsd / h.amount : undefined },
-    debt: { uid: h.debtUid, symbol: h.debtSymbol ?? 'USD', address: h.debtAddress, decimals: 6, price: h.debtAmount && debtUsd ? debtUsd / h.debtAmount : 1 },
+    // the debt's own decimals: 6 was a guess that is wrong for BNB's USDT and every coin (18)
+    debt: { uid: h.debtUid, symbol: h.debtSymbol ?? 'USD', address: h.debtAddress, decimals: h.debtDecimals ?? 6, price: h.debtAmount && debtUsd ? debtUsd / h.debtAmount : 1 },
+    out: outOf({ chainId: h.chainId, address: h.debtAddress, symbol: h.debtSymbol }) ?? 'USD',
     maxLtv: 0, liqLtv, borrowApr: 0, liquidityUsd: 0, collateralUsd: 0, risk: 2, riskLabel: 'Unrated', riskScore: 5, rated: false,
     assetClass: st?.cls ?? null, ...(st ? { ticker: st.ticker } : {}), pegged: false,
   }
@@ -248,7 +284,47 @@ export function usMarket(now = new Date()): { open: boolean; next: string } {
  * a market on a chain where the wallet already holds the asset first — the ticket opens there, and
  * the other places are one tap away in it. Only offers that lend something (`maxLtv` > 0).
  */
-export function bestOfferFor(asset: string, offers: BorrowOffer[], held: { asset: string; chainId: string; usd: number }[] = []): BorrowOffer | undefined {
+export function bestOfferFor(asset: string, offers: BorrowOffer[], held: { asset: string; chainId: string; usd: number }[] = [], out: Out = 'USD'): BorrowOffer | undefined {
   const here = (o: BorrowOffer) => held.some((i) => i.asset === asset && i.chainId === o.chainId && i.usd >= 1)
-  return offers.filter((o) => o.asset === asset && o.maxLtv > 0).sort((a, b) => Number(here(b)) - Number(here(a)) || byOffer(a, b))[0]
+  return offers.filter((o) => o.asset === asset && o.maxLtv > 0 && o.out === out).sort((a, b) => Number(here(b)) - Number(here(a)) || byOffer(a, b))[0]
+}
+
+// ----------------------------------------------------------------- what is already in (tickets/0011)
+/** Every collateral leg of a held account, USD: the loop's own leg plus the others it carries. */
+export const collateralOf = (h: Pick<Holding, 'collateralUsd' | 'others'>) => (h.collateralUsd ?? 0) + (h.others ?? []).reduce((a, x) => a + (x.side === 'collateral' ? x.usd : 0), 0)
+/**
+ * What a held account owes, USD: all it has put up less its equity. Reading it off the loop's own
+ * leg alone understated it — or went negative — for an account with a second collateral.
+ */
+export const owedOf = (h: Pick<Holding, 'collateralUsd' | 'others' | 'valueUsd'>) => Math.max(0, collateralOf(h) - h.valueUsd)
+/** Is this one of {@link depositsAsLoans}' rows: collateral already in, nothing owed yet? */
+export const isPutUp = (h: Pick<Holding, 'putUp'>) => !!h.putUp
+
+/**
+ * Collateral the wallet has already put up and borrows nothing against: a lending deposit in this
+ * offer's own collateral market (5 ETH supplied on Aave), read as a loan of $0 so the ticket can
+ * borrow against it with nothing new typed. Matched on the market, which also fixes the lender and
+ * the chain; an isolated venue's sub-account comes along in `accountId`. Paper deposits are left
+ * out: a paper loan opens from the paper bank.
+ */
+export function depositsAsLoans(o: BorrowOffer, holdings: Holding[]): Holding[] {
+  const m = o.collateral.uid.toLowerCase()
+  return holdings.filter((h) => h.kind === 'simple' && !h.paper && h.marketUid?.toLowerCase() === m && h.valueUsd >= 0.5).map((h) => ({
+    ...h, kind: 'borrow' as const, putUp: true as const,
+    label: `${h.symbol} put up`, collateralUid: h.marketUid, debtUid: o.debt.uid, debtSymbol: o.debt.symbol, debtDecimals: o.debt.decimals, debtAmount: 0,
+    collateralAddress: h.assetAddress, debtAddress: o.debt.address, collateralUsd: h.valueUsd, health: null,
+  }))
+}
+
+/**
+ * The collateral, USD, to ADD so that `owedUsd + take` lands where the Safe chip would put it —
+ * a quarter of the way into the Safe zone — and never past the venue's limit or the health floor.
+ * What "by amount" fills the Put up box with when the reader names the sum they need.
+ */
+export function collateralFor(o: Pick<BorrowOffer, 'maxLtv' | 'liqLtv'>, b: Borders, take: number, heldUsd = 0, owedUsd = 0): number {
+  const debt = owedUsd + Math.max(0, take)
+  if (!(debt > 0) || !(o.liqLtv > 0)) return 0
+  const drop = b.safe + (1 - b.safe) * 0.25
+  const need = Math.max(debt / (o.liqLtv * (1 - drop)), o.maxLtv > 0 ? debt / o.maxLtv : 0, (debt * MIN_HEALTH) / o.liqLtv)
+  return Math.max(0, need - heldUsd)
 }

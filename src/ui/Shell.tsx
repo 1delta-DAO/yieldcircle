@@ -8,13 +8,19 @@
  *   top-right   your standing (rank or followers) and your balance → your
  *               positions; Connect in its place before there is a wallet
  *   the tabs    Home (where to start) · Feed (what people are doing)
- *               · Earn (the catalogue) · Board
+ *               · Earn (deposit, and earn on it) · Borrow (put up what you hold
+ *               and take liquidity out) · Board
  *
  * It used to be one bar holding eight destinations and six controls, which a
  * phone could not show: at 360px only "Home" was visible and the rest
  * scrolled off unannounced. The fix was fewer destinations, not a cleverer
  * menu — the feed moved onto the home, the asset groups and the asset book
  * moved into Earn and the search, and the controls moved into the sheets.
+ *
+ * Borrow became the fifth tab on purpose (tickets/0011): filed under Earn it
+ * was three taps deep and under the wrong word. Five fit a 360px bar at 72px
+ * each; nothing else gets a tab after this. A category page's Borrow segment
+ * (`#/ETH?k=borrow`, the Stocks shelf's loans) lights Borrow, not Earn.
  *
  * The tabs sit in the top bar from 768px up and in a bar along the bottom
  * below that, where a thumb reaches them.
@@ -26,7 +32,7 @@ import React from 'react'
 import { normAddr } from '../model/address'
 import { Logo } from '@yieldcircle/design'
 import { ConnectButton } from '../wallet/ConnectButton'
-import { useApp, useRoute, type View } from '../state/AppState'
+import { useApp, useRoute, type Route, type View } from '../state/AppState'
 import { Character } from '../identity/character'
 import { useProfile } from '../social/queries'
 import { useUnseen } from './Alerts'
@@ -43,13 +49,20 @@ import { Sk, usd, usdShort } from './bits'
 import { gated, onAccessCode, openGate, useOnList, WAITLIST_HREF } from '../wallet/gate'
 
 const ic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
-const TABS: { id: string; label: string; href: string; on: View[]; icon: React.ReactNode }[] = [
-  { id: 'home', label: 'Home', href: '#/', on: ['home'], icon: <svg {...ic}><path d="M3.5 9 10 3.8 16.5 9v7a1 1 0 0 1-1 1h-3.3v-4.6H7.8V17H4.5a1 1 0 0 1-1-1z" /></svg> },
-  { id: 'feed', label: 'Feed', href: '#/feed', on: ['feed'], icon: <svg {...ic}><path d="M2.5 10h3.2l2-5 3.4 10 2.1-5h4.3" /></svg> },
-  { id: 'earn', label: 'Earn', href: '#/earn', on: ['earn', 'group', 'token'], icon: <svg {...ic}><ellipse cx="10" cy="5.8" rx="5.8" ry="2.4" /><path d="M4.2 5.8v4.1c0 1.3 2.6 2.4 5.8 2.4s5.8-1.1 5.8-2.4V5.8M4.2 9.9V14c0 1.3 2.6 2.4 5.8 2.4s5.8-1.1 5.8-2.4V9.9" /></svg> },
-  { id: 'board', label: 'Board', href: '#/board', on: ['board'], icon: <svg {...ic}><path d="M6.5 3.5h7v4.2a3.5 3.5 0 0 1-7 0zM6.5 5H3.8v.9a2.8 2.8 0 0 0 2.9 2.8M13.5 5h2.7v.9a2.8 2.8 0 0 1-2.9 2.8M10 11.2v2.6M7 16.5h6M8.2 13.8h3.6" /></svg> },
+/**
+ * Is this a borrow page: the Borrow tab itself, or a category page on its Borrow segment — asked
+ * for (`k=borrow`), or the Stocks shelf, which opens on its loans unless a deposit row is picked.
+ */
+export const onBorrow = (r: Route) => r.view === 'borrow' || (r.view === 'group' && (r.k === 'borrow' || (r.group === 'STOCKS' && r.k == null && !(r.s && !r.s.startsWith('b:')))))
+const TABS: { id: string; label: string; href: string; on: (r: Route) => boolean; icon: React.ReactNode }[] = [
+  { id: 'home', label: 'Home', href: '#/', on: (r) => r.view === 'home', icon: <svg {...ic}><path d="M3.5 9 10 3.8 16.5 9v7a1 1 0 0 1-1 1h-3.3v-4.6H7.8V17H4.5a1 1 0 0 1-1-1z" /></svg> },
+  { id: 'feed', label: 'Feed', href: '#/feed', on: (r) => r.view === 'feed', icon: <svg {...ic}><path d="M2.5 10h3.2l2-5 3.4 10 2.1-5h4.3" /></svg> },
+  { id: 'earn', label: 'Earn', href: '#/earn', on: (r) => (r.view === 'earn' || r.view === 'group' || r.view === 'token') && !onBorrow(r), icon: <svg {...ic}><ellipse cx="10" cy="5.8" rx="5.8" ry="2.4" /><path d="M4.2 5.8v4.1c0 1.3 2.6 2.4 5.8 2.4s5.8-1.1 5.8-2.4V5.8M4.2 9.9V14c0 1.3 2.6 2.4 5.8 2.4s5.8-1.1 5.8-2.4V9.9" /></svg> },
+  // a vault with liquidity coming out of it: what you hold stays in, cash comes out
+  { id: 'borrow', label: 'Borrow', href: '#/borrow', on: onBorrow, icon: <svg {...ic}><rect x="2.8" y="4.5" width="10.4" height="11" rx="2" /><circle cx="8" cy="10" r="2" /><path d="M10.6 10h7M15 7.4l2.6 2.6-2.6 2.6" /></svg> },
+  { id: 'board', label: 'Board', href: '#/board', on: (r) => r.view === 'board', icon: <svg {...ic}><path d="M6.5 3.5h7v4.2a3.5 3.5 0 0 1-7 0zM6.5 5H3.8v.9a2.8 2.8 0 0 0 2.9 2.8M13.5 5h2.7v.9a2.8 2.8 0 0 1-2.9 2.8M10 11.2v2.6M7 16.5h6M8.2 13.8h3.6" /></svg> },
 ]
-const ROOTS: View[] = ['home', 'feed', 'earn', 'board']
+const ROOTS: View[] = ['home', 'feed', 'earn', 'borrow', 'board']
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const r = useRoute()
@@ -57,7 +70,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const tabs = (cls: string) => (
     <nav className={cls} aria-label="Main">
       {TABS.map((t) => (
-        <a key={t.id} href={t.href} aria-current={t.on.includes(r.view) ? 'page' : undefined}>{t.icon}<span>{t.label}</span></a>
+        <a key={t.id} href={t.href} aria-current={t.on(r) ? 'page' : undefined}>{t.icon}<span>{t.label}</span></a>
       ))}
     </nav>
   )

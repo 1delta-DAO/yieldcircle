@@ -47,6 +47,8 @@ export interface Holding {
   collateralUid?: string
   debtUid?: string
   debtSymbol?: string
+  /** the debt token's decimals — what a repay's raw amount is cut to (18 for BNB's USDT and every coin) */
+  debtDecimals?: number
   debtAmount?: number
   /** a loop's two tokens — what a close / reduce pays back into the wallet */
   collateralAddress?: string
@@ -76,6 +78,13 @@ export interface Holding {
   others?: { side: 'collateral' | 'debt'; symbol: string; amount: number; usd: number }[]
   /** the held token's address — what a withdraw pays out unless it is asked for the native coin */
   assetAddress?: string
+  /**
+   * A lending deposit's market (tickets/0011): where the token already sits as collateral, so a
+   * borrow ticket on that market can lend against it with nothing new put up. Vault shares have none.
+   */
+  marketUid?: string
+  /** a deposit read by the borrow ticket as collateral with nothing owed yet (`depositsAsLoans`) — never a row of the positions list */
+  putUp?: true
   /** a Pendle PT's maturity (unix s), from its symbol — the positions route carries no expiry */
   maturity?: number
   /** a paper position (tickets/0006): play money, kept by the paper ledger, never on chain */
@@ -137,8 +146,10 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         // asset levered in a money it allows (a JLP loop borrowed in dollars), which IS the strategy
         const ex = exposureOf(asset), debtDenom = money ? money.toLowerCase() : debtBase ? denomOf(debtBase) : undefined
         const cross = ex && debtDenom && ex.debt.includes(debtDenom) ? false : money ? !same : !debtBase || !sameMoney(debtBase, asset)
-        // dollars out against something else: a loan (tickets/0008). Any other cross-money pair stays a price bet
-        const loan = cross && money === 'USD'
+        // dollars — or ether, bitcoin, a native coin — out against something else: a loan
+        // (tickets/0008, 0011), with Pay back and Borrow more. Only a debt in no money the app knows
+        // (a governance token, a PT) against something else stays a price bet
+        const loan = cross && (money === 'USD' || money === 'ETH' || money === 'BTC' || (!!debtBase && groupOf(debtBase) === 'MORE' && debtBase !== asset))
         const directional = cross && !loan
         const lev = a.suppliedUsd > 0 && a.netUsd > 0 ? a.suppliedUsd / a.netUsd : p.leverage
         const others = [...supply.slice(1).map((l) => ({ side: 'collateral' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.deposits) || 0, usd: l.depositsUsd })),
@@ -146,14 +157,14 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         const loans = a.legs.filter((l) => l.loanId && l.marketUid === d.marketUid && l.debtUsd > 0.005)
           .map((l) => ({ id: l.loanId!, debt: parseFloat(l.debt) || 0, debtUsd: l.debtUsd })).sort((x, y) => y.debtUsd - x.debtUsd)
         out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: loan ? 'borrow' : 'loop', label: loan ? `${coll.asset.symbol} → ${d.asset.symbol} loan` : `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
-          amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, collateralAddress: normAddr(coll.asset.address), debtAddress: normAddr(d.asset.address), debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
+          amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtDecimals: d.asset.decimals, collateralAddress: normAddr(coll.asset.address), debtAddress: normAddr(d.asset.address), debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
       } else {
         for (const l of supply) {
           const asset = keyOfToken({ ...l.asset, chainId: p.chainId }); if (!asset) continue
           // the label is the FAMILY, `venue` the market inside it: the two are printed together
           // (the asset page) and one under the other (the explorer), so neither may repeat the other
           out.push({ key: `${p.positionUid}:${a.accountId}:${l.marketUid}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${l.asset.symbol} · Lend on ${protocol}`, venue: venueOf(l.asset.symbol), valueUsd: l.depositsUsd, apr: p.depositApr, earnUid: l.earnUid, logo: l.asset.logoURI,
-            amount: parseFloat(l.deposits) || 0, amountRaw: rawOf(l.deposits, l.asset.decimals), symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, assetAddress: normAddr(l.asset.address), accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender })
+            amount: parseFloat(l.deposits) || 0, amountRaw: rawOf(l.deposits, l.asset.decimals), symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, assetAddress: normAddr(l.asset.address), marketUid: l.marketUid, accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender })
         }
       }
     }

@@ -7,7 +7,7 @@ import { parseUid } from '../model/uid'
 import { EXPOSURE_ASSETS } from '../model/assets'
 import { useSettings, type Settings } from '../state/Settings'
 import type { EarnPositionsResponse, LendingBook, OptimizerResponse, TokenBalance } from './types'
-import { byOffer, offersFrom, type BorrowOffer } from '../model/borrow'
+import { byOffer, offersFrom, type BorrowOffer, type Out } from '../model/borrow'
 import { indexBalances, syncHints, type SyncHintLeg } from '../index/api'
 import type { IndexBalanceItem } from '../index/types'
 import { useLiveChains } from './liveBalances'
@@ -254,6 +254,12 @@ const CRYPTO_BORROW: { key: string; q: Omit<OptimizerQuery, 'chainIds'> }[] = [
   { key: 'btc', q: { collateralTags: ['btc'], debtTags: ['stablecoin'] } },
   { key: 'lst', q: { collateralTags: ['lst', 'lrt'], debtTags: ['stablecoin'] } },
 ].map((x) => ({ ...x, q: { ...x.q, sortBy: 'totalDepositsUsdLong', sortDir: 'DESC', minBorrowLiquidityUsd: 1000 } as Omit<OptimizerQuery, 'chainIds'> }))
+/**
+ * What a non-dollar take-out asks the pairs route for (tickets/0011): the debt tags of each family.
+ * `eth` / `btc` are the canonical coins only, so the staked forms are asked by name; `wnative` is
+ * every chain's wrapped gas coin (WBNB, WAVAX, SOL…), WETH among them — the duplicate folds by id.
+ */
+const OUT_DEBT_TAGS: Record<Exclude<Out, 'USD'>, string[]> = { ETH: ['eth', 'lst', 'lrt'], BTC: ['btc'], MORE: ['wnative'] }
 const stockOffersQuery = (chainIds: string[]) => ({
   queryKey: ['borrow-offers', 'stocks', chainIds.join(',')],
   queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...STOCK_BORROW }, 5)),
@@ -263,17 +269,31 @@ const stockOffersQuery = (chainIds: string[]) => ({
 /**
  * Every dollar loan on the selected chains. `crypto: false` asks only the stocks (which the
  * catalogue holds anyway): a page that shows stock offers alone need not pay for the rest.
+ *
+ * `out` (tickets/0011) adds the loans that pay out in another family — ether, bitcoin, a native
+ * coin — asked only once a "Take out" picker names it: the same four collateral families against
+ * that family's debt tags, two pages each (these markets are thinner than the dollar ones). The
+ * dollar offers are always there: every headline, room and pick is a dollar figure.
  */
-export function useBorrowOffers(chainIds: string[], o: { crypto?: boolean } = {}) {
+export function useBorrowOffers(chainIds: string[], o: { crypto?: boolean; out?: Out } = {}) {
   const crypto = o.crypto ?? true
+  const out = o.out && o.out !== 'USD' ? o.out : null
   const stocks = useQuery(stockOffersQuery(chainIds))
   const rest = useQueries({
-    queries: CRYPTO_BORROW.map((r) => ({
-      queryKey: ['borrow-offers', r.key, chainIds.join(',')],
-      queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...r.q }, 3)),
-      staleTime: 10 * 60_000,
-      enabled: crypto && chainIds.length > 0,
-    })),
+    queries: [
+      ...CRYPTO_BORROW.map((r) => ({
+        queryKey: ['borrow-offers', r.key, chainIds.join(',')],
+        queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...r.q }, 3)),
+        staleTime: 10 * 60_000,
+        enabled: crypto && chainIds.length > 0,
+      })),
+      ...[...CRYPTO_BORROW, { key: 'stocks', q: STOCK_BORROW }].map((r) => ({
+        queryKey: ['borrow-offers', r.key, `out:${out ?? '-'}`, chainIds.join(',')],
+        queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...r.q, debtTags: OUT_DEBT_TAGS[out!] }, 2)),
+        staleTime: 10 * 60_000,
+        enabled: !!out && chainIds.length > 0 && (crypto || r.key === 'stocks'),
+      })),
+    ],
   })
   const stamp = [stocks.dataUpdatedAt, ...rest.map((q) => q.dataUpdatedAt)].join('|')
   const offers = useMemo(() => {
@@ -283,7 +303,8 @@ export function useBorrowOffers(chainIds: string[], o: { crypto?: boolean } = {}
   }, [stamp]) // eslint-disable-line react-hooks/exhaustive-deps
   return {
     offers,
-    isLoading: stocks.isLoading || (crypto && rest.some((q) => q.isLoading)),
+    // (a disabled query is never `isLoading` in v5: the families nobody asked for do not hold the list)
+    isLoading: stocks.isLoading || rest.some((q) => q.isLoading),
     error: [stocks, ...rest].find((q) => q.error)?.error ?? null,
   }
 }

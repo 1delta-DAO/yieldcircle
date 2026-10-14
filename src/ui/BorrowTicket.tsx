@@ -44,6 +44,8 @@ import { Info, KindPill, RiskDot, SubAccountPill, Tok, Toks, num, pct, usd, usdS
 import { stepsFrom, useTicketLadder } from './useLadder'
 import { borrowPlan, paperPos, repayPlan } from './paperPlans'
 
+/** a balance as an amount to send: rounded DOWN, never a hair over what is held */
+const floor6 = (x: number) => Math.floor(x * 1e6) / 1e6
 const useDebounced = <T,>(v: T, ms = 400): T => { const [d, setD] = React.useState(v); React.useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t) }, [v, ms]); return d }
 const ZONE_ORDER: Zone[] = ['safe', 'watch', 'spicy']
 /** The thing whose price moves: a stock's ticker, a coin's row, else the token. */
@@ -54,7 +56,12 @@ const whatOf = (o: BorrowOffer) => o.ticker ?? (o.asset.includes(':') ? o.collat
  * start on. `alternatives`: the other offers for the same collateral on the same chain — the
  * "cheaper elsewhere" nudge. `offMenu`: why the offer list does not carry this one.
  */
-export function BorrowTicket({ o, holdings, idle, pick, mode: mode0, alternatives, offMenu, onClose }: { o: BorrowOffer; holdings: Holding[]; idle: Idle[]; pick?: string; mode?: Mode; alternatives?: BorrowOffer[]; offMenu?: string; onClose: () => void }) {
+/**
+ * `choices`: every place that lends against this asset, best first (tickets/0010): the ticket opens on
+ * one — the app's pick — and `onPick` moves it to another. The reader chooses an asset and an
+ * amount; which lender is a detail they may open, not a list they must read first.
+ */
+export function BorrowTicket({ o, holdings, idle, pick, mode: mode0, alternatives, choices, onPick, offMenu, onClose }: { o: BorrowOffer; holdings: Holding[]; idle: Idle[]; pick?: string; mode?: Mode; alternatives?: BorrowOffer[]; choices?: BorrowOffer[]; onPick?: (o: BorrowOffer) => void; offMenu?: string; onClose: () => void }) {
   const [hk, setHk] = React.useState(pick)
   const holding = holdings.find((h) => h.key === hk) ?? holdings[0] ?? null
   const into = holding && !holding.subAccount?.unsupported ? holding : null
@@ -90,6 +97,7 @@ export function BorrowTicket({ o, holdings, idle, pick, mode: mode0, alternative
           {holdings.length < 2 && <SubAccountPill sub={holding.subAccount} venue={holding.venue} />}
         </div></div>
       )}
+      {!holding && choices && onPick && <WhereLine o={o} choices={choices} idle={idle} onPick={onPick} />}
       {offMenu && <div className="tsec offmenu" role="note"><b>Not in the list.</b> {offMenu}</div>}
       {holding && pane === 'repay'
         ? <RepayPane key={holding.key} o={o} h={holding} idle={idle} />
@@ -97,6 +105,33 @@ export function BorrowTicket({ o, holdings, idle, pick, mode: mode0, alternative
       <BorrowSocial o={o} thread={thread} />
     </div>
     </TicketCtx.Provider>
+  )
+}
+
+/**
+ * Where the loan is taken, said in one line — `Kamino · Solana · 0.76 % · 3 other places ▾` — with
+ * the other places folded under it. Each says what differs: the rate, how far it lends, the chain,
+ * and whether the wallet holds the asset there.
+ */
+function WhereLine({ o, choices, idle, onPick }: { o: BorrowOffer; choices: BorrowOffer[]; idle: Idle[]; onPick: (o: BorrowOffer) => void }) {
+  const [open, setOpen] = React.useState(false)
+  const others = choices.filter((x) => x.id !== o.id)
+  const holds = (x: BorrowOffer) => idle.some((i) => i.asset === x.asset && i.chainId === x.chainId && i.usd >= 1)
+  return (
+    <div className="tsec bwhere">
+      <div className="bw-row">
+        <span className="t50">From</span> <b>{o.venue}</b><span className="t50"> · {chainLabel(o.chainId)} · </span><b>{pct(o.borrowApr)}</b><span className="t50"> · lends {Math.round(o.maxLtv * 100)}%</span>
+        <span className="sp" />
+        {others.length > 0 && <button type="button" className="bw-more" aria-expanded={open} onClick={() => setOpen(!open)}>{others.length} other place{others.length === 1 ? '' : 's'} <span aria-hidden>{open ? '▴' : '▾'}</span></button>}
+      </div>
+      {open && <div className="bw-list" role="listbox" aria-label="Other places to borrow">{others.slice(0, 12).map((x) => (
+        <button key={x.id} type="button" role="option" aria-selected={false} className="bw-opt" onClick={() => { setOpen(false); onPick(x) }}>
+          <Toks a={x.collateral.symbol} b={x.debt.symbol} logoA={x.collateral.logo} logoB={x.debt.logo} />
+          <span className="bw-t"><span><b>{x.venue}</b> <span className="t50">· {chainLabel(x.chainId)} · {x.collateral.symbol} → {x.debt.symbol}</span></span>
+            <small>lends {Math.round(x.maxLtv * 100)}% · {usdShort(x.liquidityUsd)} free{holds(x) ? ' · you hold it here' : ''}</small></span>
+          <span className={`bw-r ${x.borrowApr < o.borrowApr ? 'ok' : ''}`}>{pct(x.borrowApr)}</span>
+        </button>))}{others.length > 12 && <div className="foot" style={{ padding: '6px 4px 0' }}>{others.length - 12} more on the asset’s Borrow list.</div>}</div>}
+    </div>
   )
 }
 
@@ -121,7 +156,7 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
   const heldUnits = h?.amount ?? 0
   const heldUsd = h ? h.collateralUsd ?? heldUnits * price : 0
   const owedUsd = h ? Math.max(0, heldUsd - h.valueUsd) : 0
-  const [put, setPut] = useSticky<number>(`b:${o.id}:put`, () => (h ? 0 : bal ? +bal.amount.toFixed(6) : price > 0 ? +(1000 / price).toPrecision(2) : 1))
+  const [put, setPut] = useSticky<number>(`b:${o.id}:put`, () => (h ? 0 : bal ? floor6(bal.amount) : price > 0 ? +(1000 / price).toPrecision(2) : 1))
   const putUsd = put * price
   const collUsd = heldUsd + putUsd
   const borders = bordersFor(o)
@@ -201,7 +236,7 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
           <div className="seg" style={{ marginBottom: 10 }}>{opts.map((x) => <button key={x.role} aria-pressed={chosen.role === x.role} onClick={() => setRole(x.role)}><Tok sym={x.symbol} logo={x.role === 'token' ? o.collateral.logo : undefined} size={16} /> {x.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? num(balOf(x.address)?.amount ?? 0, 3) : ''}</span></button>)}</div>
         </>}
         <span className="lbl">{h ? 'Add collateral' : 'Put up'} <span className="t50">· {chosen.symbol}</span></span>
-        <AmountBox unit={chosen.symbol} value={put} onChange={setPut} onMax={bal ? () => setPut(+bal.amount.toFixed(6)) : undefined} />
+        <AmountBox unit={chosen.symbol} value={put} onChange={setPut} onMax={bal ? () => setPut(floor6(bal.amount)) : undefined} />
         <div className="amt-sub"><span>{price > 0 ? `≈ ${usd(putUsd)}` : 'no price for it right now'}{h ? <> · {num(heldUnits, 4)} {h.symbol} in already</> : null}</span><span>{account ? <>In your wallet: {bal ? `${num(bal.amount, 4)} ${bal.symbol}` : `0 ${chosen.symbol}`}{short && <span className="warn"> · not enough</span>}</> : 'connect to see your balance'}</span></div>
         <GetLine account={account} short={short} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
         {getOpen && <GetAsset targets={opts.map((x) => ({ chainId: o.chainId, address: x.address, symbol: x.symbol, decimals: x.decimals, price, logo: x.role === 'token' ? o.collateral.logo : undefined, have: balOf(x.address)?.amount ?? 0 }))} want={put} sources={idle} onTarget={(t) => setRole(opts.find((x) => x.address === t.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}
@@ -324,7 +359,7 @@ function RepayPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] })
         <div className="amt-sub"><span>≈ {usd(r * debtPrice)}</span><span>{account ? <>Wallet: {num(debtBal?.amount ?? 0, 2)} {o.debt.symbol}{shortDebt && <span className="warn"> · short</span>}</> : ''}</span></div>
         {repayAll && <div className="foot" style={{ marginTop: 4 }}>Paying back all of it: the amount is sized on chain when it lands, interest to that block included, so nothing is left behind. Keep a little more {o.debt.symbol} than shown.</div>}
         <span className="lbl" style={{ marginTop: 14 }}>Take out <span className="t50">· {o.collateral.symbol} (of {num(held, 4)} put up)</span></span>
-        <AmountBox unit={o.collateral.symbol} value={out} onChange={setOut} onMax={() => setOut(repayAll ? held : +maxOut.toFixed(6))} />
+        <AmountBox unit={o.collateral.symbol} value={out} onChange={setOut} onMax={() => setOut(repayAll ? held : floor6(maxOut))} />
         <div className="amt-sub"><span>≈ {usd(w * price)}</span><span>{debtAfter > 0 ? `at most ${num(maxOut, 4)} while ${usd(debtAfter)} is owed` : 'all of it, once repaid'}</span></div>
         {canNative && <div className="seg" style={{ marginTop: 8 }}>{[false, true].map((n) => <button key={String(n)} aria-pressed={native === n} onClick={() => setAsNative(n)}><Tok sym={n ? coin : o.collateral.symbol} logo={n ? undefined : o.collateral.logo} size={16} /> as {n ? coin : o.collateral.symbol}</button>)}</div>}
       </div>

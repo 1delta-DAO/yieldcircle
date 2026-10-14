@@ -13,6 +13,7 @@ import { Join } from './ui/Join'
 import { gated } from './wallet/gate'
 import { usePaperSession } from './wallet/paper'
 import { Start } from './ui/Start'
+import { BorrowPage } from './ui/BorrowPage'
 import { useRoute } from './state/AppState'
 import { GROUPS } from './model/assets'
 
@@ -35,6 +36,7 @@ export default function App() {
         : r.view === 'alerts' ? <Alerts />
         : group ? <AssetPage key={group.id} group={group} route={r} />
         : r.view === 'earn' ? <Earn />
+        : r.view === 'borrow' ? <BorrowPage route={r} />
         : r.view === 'feed' ? <Home tab={r.t} />
         : <Start />}
     </Shell>

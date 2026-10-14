@@ -193,7 +193,8 @@ export function parseSpec(v: string | null | undefined): Spec | null {
 }
 /** Longest picture URL accepted; anything longer is not a link someone pasted. */
 export const MAX_PICTURE_URL = 512
-const IPFS_GATEWAY = 'https://ipfs.io/ipfs/'
+// ipfs.io's public gateway was sunset 2026-09-21; Filebase still serves arbitrary CIDs
+const IPFS_GATEWAY = 'https://ipfs.filebase.io/ipfs/'
 /**
  * A picture URL someone may point `avatarUrl` at → the URL to load, or null.
  * Only `https:` (no mixed content, no `data:` blobs in a signed message) and

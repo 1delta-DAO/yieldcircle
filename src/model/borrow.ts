@@ -242,3 +242,13 @@ export function usMarket(now = new Date()): { open: boolean; next: string } {
   const next = ahead === 0 ? 'today' : ahead === 1 ? 'tomorrow' : 'on Monday'
   return { open, next: `${next} at 9:30 New York time` }
 }
+
+/**
+ * Where to borrow against `asset` for THIS wallet (tickets/0010): the list's order (`byOffer`), but
+ * a market on a chain where the wallet already holds the asset first — the ticket opens there, and
+ * the other places are one tap away in it. Only offers that lend something (`maxLtv` > 0).
+ */
+export function bestOfferFor(asset: string, offers: BorrowOffer[], held: { asset: string; chainId: string; usd: number }[] = []): BorrowOffer | undefined {
+  const here = (o: BorrowOffer) => held.some((i) => i.asset === asset && i.chainId === o.chainId && i.usd >= 1)
+  return offers.filter((o) => o.asset === asset && o.maxLtv > 0).sort((a, b) => Number(here(b)) - Number(here(a)) || byOffer(a, b))[0]
+}

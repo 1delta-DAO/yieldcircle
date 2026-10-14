@@ -23,7 +23,7 @@ import { useSticky } from '../state/sticky'
 import { NATURES, isSavings, type Nature } from '../model/nature'
 import { AssetLink } from './TokenPage'
 import { useBorrowOffers } from '../sdk/queries'
-import { offerFromHolding, type BorrowOffer } from '../model/borrow'
+import { bestOfferFor, offerFromHolding, type BorrowOffer } from '../model/borrow'
 import { canonUid } from '../model/uid'
 import { stockInfo } from '../model/assets'
 import { BorrowTicket } from './BorrowTicket'
@@ -178,10 +178,20 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
             <AssetChips group={group} route={route} assets={assets} u={u} all={inGroup} offers={stocks ? groupOffers : undefined} />
           </div>
           {idle.length > 0 && (
-            <div className="idle-strip">{idle.map((x) => { const bestAny = bestFor(x.asset), best = bestSimpleFor(x.asset) ?? bestAny; return (
-              <button key={x.asset} className="idle-row" disabled={!best && !(borrowRoom(x.asset, b.idlePerChain, groupOffers) >= 1)} onClick={() => best ? go(group.id, { u: x.asset, s: best.id, k: best.kind }) : go(group.id, { u: x.asset, k: 'borrow' })}>
-                <Tok sym={x.asset} /><span className="t"><b>{amt(x.asset, x.idle!.amount, x.idle!.usd)}</b> {group.id === 'USD' ? `${nameOf(x.asset)} ` : x.asset !== x.idle!.symbol ? `${nameOf(x.asset)} ` : ''}idle{bestAny ? <> <span className="t50">· <span className="hide-m">could earn </span>up to</span> <b className="ok">{pct(bestAny.rate)}</b></> : ''}</span>{borrowRoom(x.asset, b.idlePerChain, groupOffers) >= 1 && <span className="t50 hide-m"> · or borrow up to <b>{usdShort(borrowRoom(x.asset, b.idlePerChain, groupOffers))}</b></span>}<span className="sp" />{best ? <span className="cta">Put to work ›</span> : borrowRoom(x.asset, b.idlePerChain, groupOffers) >= 1 ? <span className="cta" role="link" onClick={(e) => { e.stopPropagation(); go(group.id, { u: x.asset, k: 'borrow' }) }}>Borrow against it ›</span> : null}
-              </button>) })}</div>
+            /* a pill per idle balance, not a bar: the nudge sits beside the page, it does not lead it */
+            <div className="idle-strip"><span className="idle-lbl">Idle</span>{idle.map((x) => {
+              const bestAny = bestFor(x.asset), best = bestSimpleFor(x.asset) ?? bestAny, room = borrowRoom(x.asset, b.idlePerChain, groupOffers)
+              const name = group.id === 'USD' || x.asset !== x.idle!.symbol ? nameOf(x.asset) : ''
+              const how = best ? `could earn up to ${pct(bestAny?.rate ?? best.rate)}` : room >= 1 ? `could borrow up to ${usdShort(room)} against it` : 'nothing to put it in here'
+              return (<React.Fragment key={x.asset}>
+              <button className="idle-pill" disabled={!best && !(room >= 1)} title={`${amt(x.asset, x.idle!.amount, x.idle!.usd)} ${name ? name + ' ' : ''}idle · ${how}`} onClick={() => best ? go(group.id, { u: x.asset, s: best.id, k: best.kind }) : go(group.id, { u: x.asset, k: 'borrow' })}>
+                <Tok sym={x.asset} logo={markOf(x.asset, inGroup)} size={18} /><b>{amt(x.asset, x.idle!.amount, x.idle!.usd)}</b>{name && <span className="t70">{name}</span>}
+                {bestAny ? <span className="up">→ <b className="ok">{pct(bestAny.rate)}</b></span> : room >= 1 ? <span className="up">→ borrow <b>{usdShort(room)}</b></span> : null}
+                {(best || room >= 1) && <span className="cta">›</span>}
+              </button>
+              {/* earning leads; borrowing against the same balance is the other thing it can do (tickets/0010) */}
+              {best && room >= 1 && <button className="idle-pill borrow" title={`Take up to ${usdShort(room)} out against it, without selling`} onClick={() => go('borrow', { u: x.asset, s: bestOfferFor(x.asset, groupOffers, b.idlePerChain)?.id })}>or borrow <b>{usdShort(room)}</b><span className="cta">›</span></button>}
+              </React.Fragment>) })}</div>
           )}
           {b.account && running.length > 0 && (
             <section className="sec" style={{ marginTop: 14 }}><div className="sec-h"><h2>Your positions</h2><span className="sub">{usd(running.reduce((a, r) => a + r.h.valueUsd, 0))} at work in {group.name.toLowerCase()}{u !== 'all' ? ` · ${nameOf(u)}` : ''}.</span></div>
@@ -300,6 +310,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
           {offMenu && !offSel && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
           {borrowSel && <BorrowTicket key={borrowSel.id + (route.m ?? '') + (route.h ?? '')} o={borrowSel} holdings={heldLoans.get(borrowSel.id) ?? (loanHolding ? [loanHolding] : [])} idle={b.idlePerChain} pick={route.h} mode={route.m}
             alternatives={bo.offers.filter((o) => o.chainId === borrowSel.chainId && o.asset === borrowSel.asset && o.debt.symbol === borrowSel.debt.symbol)}
+            choices={bo.offers.filter((o) => o.asset === borrowSel.asset && o.maxLtv > 0)} onPick={(o) => openLoan(o)}
             offMenu={borrowOff ? (loanHolding ? 'This loan sits in a market the list does not show (one the ticket cannot open yet, or outside the chains you picked). It can be paid back here; borrowing more is for the venue itself.' : 'This market is not in the list right now.') : undefined} onClose={close} />}
         </aside>
       </div>
@@ -442,7 +453,7 @@ export { KindPill }
  * at 76px, but until the page scrolls that far it sits lower (under the crumb), and a ticket sized
  * for the stuck position ran its sticky button off the bottom of the window.
  */
-function useAsideTop(on: boolean) {
+export function useAsideTop(on: boolean) {
   const ref = React.useRef<HTMLElement>(null)
   React.useEffect(() => {
     const el = ref.current

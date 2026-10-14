@@ -139,11 +139,19 @@ export function Info({ children, label = 'What is this?' }: { children: React.Re
   )
 }
 
+/**
+ * IPFS gateways that no longer serve (ipfs.io was sunset 2026-09-21; the others redirect to it
+ * or are gone): a logo there can only fail, with a console error, so it is skipped up front.
+ * token-lists mirrors these into asset-icons `ipfs/`; this catches what the API still hands out.
+ */
+const DEAD_LOGO = /^(ipfs:|https?:\/\/([^/]*\.)?(ipfs\.io|dweb\.link|cloudflare-ipfs\.com|cf-ipfs\.com|nftstorage\.link|w3s\.link|4everland\.io)\/)/i
+const liveLogo = (u: string | null | undefined): u is string => !!u && !DEAD_LOGO.test(u)
+
 /** Token mark: the icon when we have one, else a coloured disc with the first letters. */
 export function Tok({ sym, logo, size = 22 }: { sym: string; logo?: string; size?: number }) {
   // a strategy passes its own picture (the vault, the LST, the venue token); a bare symbol gets the base-asset mark
-  // from the token list — and so does a passed picture that fails to load (the index's ipfs.io gateway answers 429)
-  const urls = React.useMemo(() => [...new Set([logo, assetLogo(sym)].filter((u): u is string => !!u))], [logo, sym])
+  // from the token list — and so does a passed picture that fails to load
+  const urls = React.useMemo(() => [...new Set([logo, assetLogo(sym)].filter(liveLogo))], [logo, sym])
   const [i, setI] = React.useState(0)
   React.useEffect(() => setI(0), [urls.join()])
   if (i < urls.length) return <img className="tok" src={urls[i]} alt="" width={size} height={size} style={{ width: size, height: size }} onError={() => setI((n) => n + 1)} title={sym} />
@@ -188,7 +196,7 @@ export function venueIconUrls(key: string, brand?: string): string[] {
 }
 /** A PROTOCOL's mark (a filter chip, not a row): the generic family icon first, the index's instance logo only after it. */
 export function protocolIconUrls(key: string, logoUri?: string | null): string[] {
-  return [...new Set([...venueIconUrls(key), ...(logoUri ? [logoUri] : [])])]
+  return [...new Set([...venueIconUrls(key), ...(liveLogo(logoUri) ? [logoUri] : [])])]
 }
 /**
  * A curator's mark: the index's logo first, then the icon set under the desk's slug. The Solana
@@ -196,7 +204,7 @@ export function protocolIconUrls(key: string, logoUri?: string | null): string[]
  */
 export function curatorIconUrls(id: string, logoUri?: string | null): string[] {
   const slug = id.replace(/^desk:/, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
-  return [...new Set([logoUri, slug && iconUrl(slug), slug && iconUrl(slug + '_lend')].filter((u): u is string => !!u))]
+  return [...new Set([logoUri, slug && iconUrl(slug), slug && iconUrl(slug + '_lend')].filter(liveLogo))]
 }
 /** The first of `urls` that loads; the name's first letter when none does. */
 export function ProtocolLogo({ urls, name }: { urls: string[]; name: string }) {

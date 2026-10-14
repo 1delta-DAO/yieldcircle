@@ -18,6 +18,7 @@ import { readFeedLink } from './feedLink'
  *   #/ETH?k=borrow&s=b:<coll>|<debt>   the loans against it, and a borrow ticket (tickets/0008);
  *                            `&h=<holding>&m=reduce` opens a running loan on Pay back
  *   #/STOCKS?u=TSLA&k=borrow  tokenized stocks, one row per real-world ticker (tickets/0009)
+ *   #/borrow                 borrowing, holdings first (tickets/0010); `?u=<asset>&s=b:…` opens a ticket
  *   #/w/0x…                  a wallet
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
  *   #/board                  the earners board (apr by default; ?t=day for $/day, &by=wallet)
@@ -31,7 +32,7 @@ import { readFeedLink } from './feedLink'
  * and `#/explore` is `#/earn`.
  */
 export type Mode = 'add' | 'reduce' | 'close' | 'manage'
-export type View = 'home' | 'feed' | 'earn' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'join'
+export type View = 'home' | 'feed' | 'earn' | 'borrow' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'join'
 export interface Route {
   view: View
   group?: string
@@ -89,6 +90,7 @@ export function parseRoute(hash = location.hash): Route {
   }
   const head = seg[0]
   if (head === 'earn' || head === 'explore') return { view: 'earn', ...base }
+  if (head === 'borrow') return { view: 'borrow', ...base }
   // the beginner dashboard (src/ui/Start.tsx) is the home; `#/start` was its old address
   if (head === 'start') return { view: 'home', ...base }
   // the feed; a bare `#/` with a tab or a filter is a feed link from when the feed was the home

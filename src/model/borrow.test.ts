@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { OptimizerRowRaw } from '../sdk/types'
-import { CRYPTO_BORDERS, EQUITY_BORDERS, MIN_HEALTH, byOffer, debtAtDrop, defaultBorrow, dropOf, healthOf, liquidationPrice, maxBorrowUsd, monthlyCost, offerFromRow, offersFrom, zoneAmounts, zoneOf } from './borrow'
+import { CRYPTO_BORDERS, EQUITY_BORDERS, MIN_HEALTH, bestOfferFor, byOffer, debtAtDrop, defaultBorrow, dropOf, healthOf, liquidationPrice, maxBorrowUsd, monthlyCost, offerFromRow, offersFrom, zoneAmounts, zoneOf } from './borrow'
 import { groupOf, stockOfToken } from './assets'
 import { keyOfToken } from './desk'
 
@@ -100,5 +100,12 @@ describe('the zones', () => {
     // an empty vault at 0 % does not lead a market people use
     const empty = { ...cheap, borrowApr: 0, collateralUsd: 2000 }
     expect([empty, deep].sort(byOffer as never)).toEqual([deep, empty])
+  })
+  it('opens the ticket where the wallet holds the asset, else on the best offer', () => {
+    const mk = (id: string, chainId: string, borrowApr: number) => ({ id, chainId, asset: 'ETH', borrowApr, liquidityUsd: 5e6, collateralUsd: 5e6, risk: 2 as const, maxLtv: 0.8 })
+    const offers = [mk('base', '8453', 4), mk('eth', '1', 2), mk('none', '1', 1)].map((o, i) => (i === 2 ? { ...o, maxLtv: 0 } : o))
+    expect(bestOfferFor('ETH', offers as never)?.id).toBe('eth')
+    expect(bestOfferFor('ETH', offers as never, [{ asset: 'ETH', chainId: '8453', usd: 900 }])?.id).toBe('base')
+    expect(bestOfferFor('BTC', offers as never)).toBeUndefined()
   })
 })

@@ -143,8 +143,8 @@ function StockTile({ g, offers, books, loading }: { g: Group; offers: BorrowOffe
 }
 
 /**
- * Where each shelf lends from: one line per group a market lends dollars against — how far, from
- * what rate, and (for what the reader holds) how much it could raise. Stocks has its own line.
+ * Where each shelf lends from: one line per group a market lends dollars against — from what rate
+ * (a borrow leads with its cheapest: lower is better), how far, and (for what the reader holds) how much it could raise. Stocks has its own line.
  */
 function BorrowBand({ offers, idle }: { offers: BorrowOffer[]; idle: Idle[] }) {
   const rows = GROUPS.map((g) => {
@@ -156,12 +156,12 @@ function BorrowBand({ offers, idle }: { offers: BorrowOffer[]; idle: Idle[] }) {
   if (!rows.length) return null
   return (
     <section className="sec">
-      <div className="sec-h"><h2>Borrow without selling</h2><span className="sub">dollars out against what you hold</span></div>
+      <div className="sec-h"><h2>Borrow without selling</h2><span className="sub">dollars out against what you hold</span><span className="sp" /><a className="pri" href="#/borrow" style={{ fontSize: 13 }}>Against what you hold ›</a></div>
       <div className="card"><table className="tbl slim"><tbody>
         {rows.map(({ g, n, ltv, apr, room }) => (
           <tr key={g.id} onClick={() => go(g.id, { k: 'borrow' })}>
             <td><div className="nm"><GroupIcon id={g.id} color={g.color} size={22} />{g.id === 'MORE' ? 'More' : g.name}{g.id === 'STOCKS' && <span className="pill new">new</span>}</div></td>
-            <td className="r upto"><span className="t50">up to</span> <span>{Math.round(ltv * 100)}%</span><small>from {pct(apr, apr < 1 ? 2 : 1)} · {n} asset{n === 1 ? '' : 's'}{room >= 1 ? ` · you could take ${usdShort(room)}` : ''}</small></td>
+            <td className="r upto"><span className="t50">from</span> <span>{pct(apr, apr < 1 ? 2 : 1)}</span><small>up to {Math.round(ltv * 100)}% of value · {n} asset{n === 1 ? '' : 's'}{room >= 1 ? ` · you could take ${usdShort(room)}` : ''}</small></td>
             <td className="r t40" style={{ width: 20 }}>›</td>
           </tr>
         ))}

@@ -85,13 +85,14 @@
 .nested{font-size:11px;white-space:nowrap}
 .card.scroll{overflow-x:auto}
 /* asset page: idle strip + kind toggle */
-.idle-strip{display:flex;flex-direction:column;gap:6px;margin-top:14px}
-.idle-row{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--b200);text-align:left;font-size:13px;color:var(--tx70);width:100%}
-.idle-row:hover{border-color:var(--line2)}
-.idle-row:disabled{cursor:default}
-.idle-row .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.idle-row .t b{font-family:var(--mono);font-weight:500;color:var(--tx)}
-.idle-row .cta{color:var(--primary);font-size:12.5px;white-space:nowrap}
+.idle-strip{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:14px}
+.idle-strip .idle-lbl{font-size:12px;font-weight:600;color:var(--warning);margin-right:2px}
+.idle-pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px 0 6px;border:1px solid transparent;border-radius:999px;background:var(--warn-bg);font-size:12.5px;color:var(--tx70);white-space:nowrap}
+.idle-pill:hover:not(:disabled){background:rgba(226,163,58,.2)}
+.idle-pill:disabled{cursor:default;opacity:.7}
+.idle-pill b{font-weight:600;color:var(--tx);font-variant-numeric:tabular-nums}
+.idle-pill .up{color:var(--tx50)}
+.idle-pill .cta{color:var(--primary);font-weight:600;margin-left:1px}
 .kind-bar{display:flex;align-items:center;gap:14px;margin:26px 0 12px;flex-wrap:wrap}
 .seg.kind button{min-height:34px;padding:0 14px;font-size:13px}
 .seg.kind button .c{font-family:var(--mono);font-size:11px;color:var(--tx40);margin-left:4px}
@@ -1822,13 +1823,13 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .drawer.left{border-top-right-radius:var(--r-xl);border-bottom-right-radius:var(--r-xl)}
 .crumb{border-radius:999px;font-weight:500}
 /* surfaces: rounder, and lifted by tone rather than by a hairline */
-.card,.tile,.stcard,.strat,.wcard,.wstat,.scard,.waitnudge,.idle-row,.fcard,.hotcard,.mystats a,.ps-links,.ps-fold,.err,.ps-sec .chainmenu,.ps-sec .setmenu{border-radius:var(--r-lg)}
+.card,.tile,.stcard,.strat,.wcard,.wstat,.scard,.waitnudge,.fcard,.hotcard,.mystats a,.ps-links,.ps-fold,.err,.ps-sec .chainmenu,.ps-sec .setmenu{border-radius:var(--r-lg)}
 .note{border-radius:var(--r-lg);border-style:solid;border-color:transparent;background:var(--b200);padding:12px 16px;font-size:13px;color:var(--tx70)}
 .note b{color:var(--tx)}
 .card .ch{background:none}
 .tbl tbody tr:hover td,.row:hover,.xrow:hover,.gsum-h:hover,.tape-row:hover,.tape-item:hover,.said-row:hover{background:var(--b300)}
 /* numbers: the sans, heavier — a figure is read, not typed */
-.tbl td.r,.row .v,.xv,.gsum-v,.pos-v,.tile .v,.tile .ft b,.wstat .v,.stcard-rate b,.scard .sc-rate,.mystats b,.tr-v,.apill .m,.apill .ok,.row .lev,.blend,.idle-row .t b,.fc-n .big{font-family:var(--sans);font-weight:600;font-variant-numeric:tabular-nums}
+.tbl td.r,.row .v,.xv,.gsum-v,.pos-v,.tile .v,.tile .ft b,.wstat .v,.stcard-rate b,.scard .sc-rate,.mystats b,.tr-v,.apill .m,.apill .ok,.row .lev,.blend,.fc-n .big{font-family:var(--sans);font-weight:600;font-variant-numeric:tabular-nums}
 .tbl td small,.tbl.strat-t td > small,.tbl td.upto small,.row .v small,.xv small,.xh .m,.gh .sub,.tile .ft small,.wstat .s,.scard .sc-meta,.chip .c,.gtag,.pill,.tile .cnt,.nested,.seg.kind button .c,.feed-h .seg button .c,.rank,.tape-legs,.chip.more{font-family:var(--sans)}
 .tbl th,.tbl.strat-t th{font-family:var(--sans);font-size:11.5px;letter-spacing:0;text-transform:none;font-weight:600;color:var(--tx40)}
 .tbl.strat-t th{padding-bottom:4px}
@@ -1877,9 +1878,6 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .scard{border-color:transparent;padding:14px;gap:4px}
 .scard .sc-rate{font-size:24px;letter-spacing:-.02em;font-weight:700}
 .scard .sc-meta{font-size:12px}
-.idle-row{border-color:transparent;background:var(--warn-bg);color:var(--tx);min-height:48px;border-radius:999px}
-.idle-row:hover{background:rgba(226,163,58,.2)}
-.idle-row .cta{font-weight:600}
 /* the wallet page's stats and book */
 .wstat{border-color:transparent;padding:14px 16px;gap:4px}
 .wstat .k{text-transform:none;letter-spacing:0;font-size:12px}
@@ -2328,3 +2326,41 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 /* three zones stay three across on a phone: a stack of three rows pushed the sentence under the fold */
 @media (max-width:400px){.tiers.zones{grid-template-columns:repeat(3,minmax(0,1fr))}.tiers.zones .tier{flex-direction:column;align-items:flex-start;gap:2px;min-height:64px;padding:8px}.tiers.zones .tier .tr{margin-left:0;font-size:15px}}
 @media (max-width:1000px){.tile.stocks{order:1}}
+
+/* ---------------------------------------------------------------- borrowing, holdings first (tickets/0010) */
+/* the money sheet's two verbs: earn on it, or borrow against it */
+.pos-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 4px}
+.pos-acts .btn{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;min-height:48px;padding:6px 12px;text-align:left;font-weight:600}
+.pos-acts .btn small{font-size:11px;font-weight:400;color:var(--tx50)}
+/* idle: earning leads, borrowing sits beside it */
+.idle-pill.borrow{background:var(--b200);border-color:var(--line)}
+.idle-pill.borrow:hover{background:var(--b300)}
+/* #/borrow: one card per asset, the most it could raise first */
+.bp-intro{font-size:13px;line-height:1.55;margin:6px 0 4px;max-width:720px}
+.bcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.bcard{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:0;text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--b200);color:inherit;min-height:104px}
+.bcard:hover{border-color:var(--tx50)}
+.bcard[aria-pressed="true"]{border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary)}
+.bcard.mine{border-color:#1f4a35;background:linear-gradient(var(--ok-bg),var(--ok-bg)),var(--b200)}
+.bcard .bc-h{display:flex;align-items:center;gap:8px;min-width:0}
+.bcard .bc-h b{font-weight:600}
+.bcard .bc-h .t50{margin-left:auto;font-size:12px;white-space:nowrap}
+.bcard .bc-v{font-family:var(--mono);font-size:20px;line-height:1.2}
+.bcard .bc-v .t50{font-family:var(--sans);font-size:12px}
+.bcard .bc-s{font-size:12px;color:var(--tx50);line-height:1.4}
+@media (max-width:640px){.bcards{grid-template-columns:1fr}}
+.bcat.yours{grid-template-columns:minmax(0,1fr);border-style:dashed}
+/* the ticket's "from where": one line, the other places folded under it */
+.bwhere{font-size:12.5px;padding-top:8px;padding-bottom:8px}
+.bw-row{display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-height:28px}
+.bw-row .sp{flex:1}
+.bw-more{color:var(--primary);font-size:12.5px;min-height:28px;padding:0 2px}
+.bw-list{display:flex;flex-direction:column;margin-top:6px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;max-height:320px;overflow-y:auto}
+.bw-opt{display:flex;align-items:center;gap:10px;padding:8px 10px;text-align:left;border-bottom:1px solid var(--line-soft);min-height:48px}
+.bw-opt:last-child{border-bottom:0}
+.bw-opt:hover{background:var(--b300)}
+.bw-t{flex:1;min-width:0;display:flex;flex-direction:column;font-size:12.5px}
+.bw-t small{font-size:11px;color:var(--tx50)}
+.bw-r{font-family:var(--mono);font-size:13px}
+.bw-r.ok{color:var(--success)}
+.bcard .bc-h .sym{margin-left:0;font-size:12px}

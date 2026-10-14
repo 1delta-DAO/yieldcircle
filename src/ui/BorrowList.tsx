@@ -84,7 +84,7 @@ function RiskOf({ o }: { o: BorrowOffer }) {
  * best market lends and its cheapest rate. Stocks is a category like the others — and the one
  * this list leads people to.
  */
-export function BorrowCats({ offers, current }: { offers: BorrowOffer[]; current: GroupId }) {
+export function BorrowCats({ offers, current }: { offers: BorrowOffer[]; current?: GroupId }) {
   const by = React.useMemo(() => {
     const m = new Map<GroupId, { n: number; ltv: number; apr: number }>()
     for (const g of GROUPS) for (const o of headlineOffers(offers.filter((x) => x.group === g.id))) {
@@ -95,9 +95,10 @@ export function BorrowCats({ offers, current }: { offers: BorrowOffer[]; current
     return m
   }, [offers])
   const groups = GROUPS.filter((g) => by.has(g.id) || g.id === current)
-  if (groups.length < 2) return null
+  if (groups.length < (current ? 2 : 1)) return null
   return (
     <nav className="bcats" aria-label="Borrow against">
+      {current && <a className="bcat yours" href="#/borrow"><span className="bn">Against what you hold</span><small>your assets, best place each ›</small></a>}
       {groups.map((g) => { const c = by.get(g.id); return (
         <button key={g.id} type="button" className={`bcat${g.id === 'STOCKS' ? ' hot' : ''}`} aria-pressed={g.id === current} onClick={() => go(g.id, { k: 'borrow' })} style={{ '--gc': g.color } as React.CSSProperties}>
           <GroupIcon id={g.id} color={g.color} size={18} /><span className="bn">{g.id === 'MORE' ? 'More' : g.name}</span>

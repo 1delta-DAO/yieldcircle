@@ -13,10 +13,12 @@ import React from 'react'
 import { GROUPS, nameOf, whatIs, type GroupId } from '../model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
-import { GroupIcon, HealthPill, KindPill, LegsPill, MaturityNote, Sk, Tok, amt, pct, usd } from './bits'
+import { GroupIcon, HealthPill, KindPill, LegsPill, MaturityNote, Sk, Tok, amt, pct, usd, usdShort } from './bits'
 import type { AssetBook, Holding } from '../model/positions'
-import { chainLabel } from '../sdk/queries'
+import { chainLabel, useBorrowOffers } from '../sdk/queries'
 import { PaperPanel } from './PaperPanel'
+import { useApp } from '../state/AppState'
+import { borrowRoom } from './BorrowList'
 
 type Book = ReturnType<typeof useBook>
 
@@ -32,6 +34,11 @@ export function totalsOf(b: Book) {
 export function Positions({ b }: { b: Book }) {
   const byGroup = (g: GroupId) => b.books.filter((x) => x.group === g)
   const { tot, idle, work, yearly } = totalsOf(b)
+  // what each idle balance could raise as a loan (tickets/0010): asked only while the sheet is open
+  const { chainIds } = useApp()
+  const { offers } = useBorrowOffers(chainIds)
+  const rooms = React.useMemo(() => new Map(b.books.map((x) => [x.asset, x.idle ? borrowRoom(x.asset, b.idlePerChain, offers) : 0])), [b.books, b.idlePerChain, offers])
+  const room = [...rooms.values()].reduce((a, r) => a + r, 0)
   return (
     <>
       <PaperPanel />
@@ -47,11 +54,16 @@ export function Positions({ b }: { b: Book }) {
           </>
         )}
       </div>
+      {/* the two things money can do here, one tap each: earn on it, or borrow against it */}
+      <div className="pos-acts">
+        <a className="btn" href="#/earn">Put to work{idle >= 1 ? <small>{usdShort(idle)} idle</small> : null}</a>
+        <a className="btn" href="#/borrow">Borrow cash{room >= 1 ? <small>up to {usdShort(room)}</small> : <small>without selling</small>}</a>
+      </div>
       {b.positionsError && <div className="err">Positions could not be read: {b.positionsError.message}</div>}
       {!b.positionsLoading && !b.books.length && !b.positionsError && (
         <div className="note">Nothing on the selected chains: no idle balance in a base asset, no deposit, no loop. <a className="pri" href="#/earn">Find something to earn ›</a></div>
       )}
-      <div className="gcards">{GROUPS.filter((g) => byGroup(g.id).length).map((g) => <GroupCard key={g.id} gid={g.id} books={byGroup(g.id)} directional={b.holdings.filter((h) => h.directional && h.group === g.id)} />)}</div>
+      <div className="gcards">{GROUPS.filter((g) => byGroup(g.id).length).map((g) => <GroupCard key={g.id} gid={g.id} books={byGroup(g.id)} directional={b.holdings.filter((h) => h.directional && h.group === g.id)} rooms={rooms} />)}</div>
     </>
   )
 }
@@ -88,7 +100,7 @@ function SplitBar({ work, idle, sm }: { work: number; idle: number; sm?: boolean
  * breakdown — every venue, health, "put to work" — still exists, but behind
  * a tap on the row, because five nested tree rows per asset was unreadable.
  */
-function GroupCard({ gid, books, directional }: { gid: GroupId; books: AssetBook[]; directional: Holding[] }) {
+function GroupCard({ gid, books, directional, rooms }: { gid: GroupId; books: AssetBook[]; directional: Holding[]; rooms: Map<string, number> }) {
   const g = GROUPS.find((x) => x.id === gid)!
   const [open, setOpen] = React.useState(false)
   const total = books.reduce((a, b) => a + b.totalUsd, 0), idle = books.reduce((a, b) => a + b.idleUsd, 0), work = books.reduce((a, b) => a + b.atWorkUsd, 0), yearly = books.reduce((a, b) => a + b.yearlyUsd, 0)
@@ -113,7 +125,7 @@ function GroupCard({ gid, books, directional }: { gid: GroupId; books: AssetBook
       <div className={`gsum-x${open ? ' open' : ''}`} inert={!open}>
         <div className="gsum-xi">
           <div className="gsum-xw">
-            {books.map((b) => <AssetDetail key={b.asset} b={b} />)}
+            {books.map((b) => <AssetDetail key={b.asset} b={b} room={rooms.get(b.asset) ?? 0} />)}
             {directional.length > 0 && <div className="empty" style={{ borderTop: '1px solid var(--line-soft)' }}>{directional.length} directional loop{directional.length > 1 ? 's' : ''} ({directional.map((h) => h.label.replace(' loop', '')).join(', ')}) with {usd(dirUsd)} equity not shown: the debt is in another denomination, so it is a price bet rather than a carry.</div>}
           </div>
         </div>
@@ -140,7 +152,7 @@ function AssetPill({ b }: { b: AssetBook }) {
  * flat two-line row per place its money sits. Nothing here repeats the pill —
  * the caption carries the token amount, the rows carry the where and the what.
  */
-function AssetDetail({ b }: { b: AssetBook }) {
+function AssetDetail({ b, room }: { b: AssetBook; room: number }) {
   const g = GROUPS.find((x) => x.id === b.group)!
   return (
     <div className="xasset">
@@ -153,6 +165,15 @@ function AssetDetail({ b }: { b: AssetBook }) {
             <small>{b.idle.chainId ? `${chainLabel(b.idle.chainId)} · ` : ''}earning nothing yet</small></span>
           <span className="sp" />
           <span className="xv"><b>{amt(b.asset, b.idle.amount, b.idle.usd)}</b><small className="pri">Put to work ›</small></span>
+        </button>
+      )}
+      {b.idle && room >= 1 && (
+        <button type="button" className="xrow idle" onClick={() => go('borrow', { u: b.asset })}>
+          <span className="tok xdash" aria-hidden>—</span>
+          <span className="xt"><span className="n">Or borrow against it</span>
+            <small>dollars out, without selling</small></span>
+          <span className="sp" />
+          <span className="xv"><b>up to {usdShort(room)}</b><small className="pri">Borrow ›</small></span>
         </button>
       )}
       {b.holdings.map((h) => (

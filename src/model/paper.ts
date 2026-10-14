@@ -11,7 +11,7 @@
  *     `STARTER` — on Solana only (tickets/0007): every position elsewhere starts
  *     with a bridge, as a real user's would;
  *   - POSITIONS, each a snapshot of the strategy it was opened from plus units of
- *     the held token (and of the debt, for a loop) as of `asOf`, accruing at
+ *     the held token (and of the debt, for a loop or a loan) as of `asOf`, accruing at
  *     `rate` (APR %, simple — the app's rates are APR and add, docs/apis.md);
  *   - bridges IN FLIGHT, debited at send and landed when their quoted time is up.
  *
@@ -115,8 +115,8 @@ export const CHAIN_NAME: Record<string, string> = {
   '9745': 'Plasma', '137': 'Polygon', '5042': 'Arc', '4663': 'Robinhood', '4217': 'Tempo', '988': 'Stable', '98866': 'Plume', solana: 'Solana',
 }
 /** What an action is, for its network fee: a loop or a leverage step is a flash loan plus a swap; a transfer is one call. */
-export type FeeKind = 'swap' | 'bridge' | 'deposit' | 'withdraw' | 'loop' | 'lever' | 'reduce'
-const FEE_WEIGHT: Record<FeeKind, number> = { swap: 1, bridge: 1, deposit: 1.2, withdraw: 1, loop: 4, lever: 3.5, reduce: 3.5 }
+export type FeeKind = 'swap' | 'bridge' | 'deposit' | 'withdraw' | 'loop' | 'lever' | 'reduce' | 'borrow' | 'repay'
+const FEE_WEIGHT: Record<FeeKind, number> = { swap: 1, bridge: 1, deposit: 1.2, withdraw: 1, loop: 4, lever: 3.5, reduce: 3.5, borrow: 1.8, repay: 1.5 }
 /**
  * One plain transaction's fee per chain, USD — typical for October 2026 (Ethereum at a few gwei,
  * the L2s at fractions of a cent, Solana with a priority fee). A loop pays four of them. Round on
@@ -167,8 +167,10 @@ export interface PaperSnap {
   /** the held token (a deposit's underlying, a loop's collateral) and its price at the open */
   held: PaperLeg
   debt?: PaperLeg
-  /** loop: the liquidation threshold */
+  /** loop / loan: the liquidation threshold */
   liqLtv?: number
+  /** loan: the most it may borrow against the collateral (a share of its value) */
+  maxLtv?: number
   /** 'peg': a saving, priced at the open scaled by its money's price; 'live': every leg marked to market */
   mode: 'peg' | 'live'
   /** a 'peg' deposit's money (the chain's ether for an ETH deposit); absent = the open price holds. A loop's money is its debt. */
@@ -180,7 +182,8 @@ export interface PaperSnap {
 export interface PaperPosition {
   id: string
   chainId: string
-  kind: 'simple' | 'loop'
+  /** `borrow`: a dollar loan against the held token (tickets/0008) — the borrowed dollars are in the bank, the position is collateral less debt */
+  kind: 'simple' | 'loop' | 'borrow'
   strategyId: string
   snap: PaperSnap
   /** held units and debt units as of `asOf` (ms) */
@@ -244,6 +247,14 @@ export type PaperOp =
    * `inflight` until then, as a bridge does.
    */
   | { t: 'withdraw'; id: string; units: number; all?: boolean; receive: { token: string; units: number }; arrivesAt?: number; queue?: string }
+  /**
+   * A loan (tickets/0008): `collateral` leaves the bank into the position (units of the held token;
+   * 0 when only borrowing more on `into`), and `debtUnits` of the debt token land in the bank.
+   * Refused past the snap's `maxLtv`, and past liquidation.
+   */
+  | { t: 'borrow'; id: string; into?: string; chainId: string; strategyId: string; snap: PaperSnap; collateral: { token: string; units: number }; debtUnits: number; rate: PaperRate }
+  /** A loan down: the bank pays `debtUnits` back (`repayAll`: the whole debt) and `withdraw` units of collateral come back (`withdrawAll`: all of it). */
+  | { t: 'repay'; id: string; debtUnits: number; repayAll?: boolean; withdraw: number; withdrawAll?: boolean }
   /** a loop up: borrow `addDebt` more and hold `addUnits` more */
   | { t: 'lever'; id: string; addUnits: number; addDebt: number; costUsd: number }
   /** a loop down: sell `units` of collateral, repay `debtUnits`, and what is left comes back as `receive`; `all` closes it */
@@ -322,7 +333,7 @@ export function legPrices(p: PaperPosition, price?: PriceFn): { pHeld: number; p
   const d = p.snap.debt
   const pDebt = d ? priceOr(price, p.chainId, d.address, d.priceUsd) ?? 0 : 0
   if (p.snap.mode === 'peg') {
-    const ref = p.kind === 'loop' ? d : p.snap.money
+    const ref = p.kind !== 'simple' ? d : p.snap.money
     const scale = ref && ref.priceUsd > 0 ? (priceOr(price, p.chainId, ref.address, ref.priceUsd) ?? ref.priceUsd) / ref.priceUsd : 1
     return { pHeld: p.snap.held.priceUsd * scale, pDebt }
   }
@@ -333,7 +344,7 @@ export function valueOf(p: PaperPosition, at: number, price?: PriceFn): PaperVal
   const { units, debtUnits } = accrued(p, at)
   const { pHeld, pDebt } = legPrices(p, price)
   const heldUsd = units * pHeld, debtUsd = debtUnits * pDebt, equityUsd = heldUsd - debtUsd
-  const health = p.kind === 'loop' && debtUsd > 0 && p.snap.liqLtv ? (heldUsd * p.snap.liqLtv) / debtUsd : null
+  const health = p.kind !== 'simple' && debtUsd > 0 && p.snap.liqLtv ? (heldUsd * p.snap.liqLtv) / debtUsd : null
   const leverage = p.kind === 'loop' && equityUsd > 0 ? heldUsd / equityUsd : null
   const aprNet = equityUsd > 0 ? (heldUsd * p.rate.supply - debtUsd * p.rate.borrow) / equityUsd : 0
   return { units, debtUnits, heldUsd, debtUsd, equityUsd, leverage, health, pnlUsd: equityUsd - p.basisUsd, aprNet }
@@ -407,14 +418,14 @@ const ownPrice = (p: PaperPosition, token: string, pHeld: number, pDebt: number)
   return undefined
 }
 const findPos = (l: PaperLedger, id: string) => { const p = l.positions.find((x) => x.id === id); if (!p) throw new PaperError(`no paper position ${id}`); return p }
-function checkSnap(s: PaperSnap, kind: 'simple' | 'loop') {
+function checkSnap(s: PaperSnap, kind: 'simple' | 'loop' | 'borrow') {
   if (!s || typeof s !== 'object') throw new PaperError('snap missing')
   str(s.asset, 'snap.asset'); str(s.group, 'snap.group', 40); str(s.label, 'snap.label'); str(s.venue, 'snap.venue')
   if (!s.held) throw new PaperError('snap.held missing')
   str(s.held.symbol, 'snap.held.symbol', 80); str(s.held.address, 'snap.held.address', 80); nonNeg(s.held.priceUsd, 'snap.held.priceUsd'); nonNeg(s.held.decimals, 'snap.held.decimals')
   if (s.mode !== 'peg' && s.mode !== 'live') throw new PaperError('snap.mode must be peg|live')
-  if (kind === 'loop') {
-    if (!s.debt) throw new PaperError('a loop needs snap.debt')
+  if (kind !== 'simple') {
+    if (!s.debt) throw new PaperError(`a ${kind === 'loop' ? 'loop' : 'loan'} needs snap.debt`)
     str(s.debt.symbol, 'snap.debt.symbol', 80); str(s.debt.address, 'snap.debt.address', 80); pos(s.debt.priceUsd, 'snap.debt.priceUsd')
     pos(s.liqLtv, 'snap.liqLtv')
     if (s.liqLtv! >= 1.5) throw new PaperError('snap.liqLtv out of range')
@@ -553,6 +564,64 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
           id: str(op.id, 'id', 64), chainId: c, kind: op.kind, strategyId: str(op.strategyId, 'strategyId', 300), snap,
           units, debtUnits, asOf: ctx.now, rate: clampRate(op.rate), basisUsd: basis, entryCostUsd: nonNeg(op.entryCostUsd ?? 0, 'entryCostUsd'), openedAt: ctx.now,
         })
+      }
+      break
+    }
+    case 'borrow': {
+      const c = str(op.chainId, 'chainId', 20)
+      checkSnap(op.snap, 'borrow')
+      const collU = nonNeg(op.collateral?.units, 'collateral.units'), debtU = nonNeg(op.debtUnits, 'debtUnits')
+      if (!(collU > 0) && !(debtU > 0)) throw new PaperError('nothing to put up and nothing to borrow')
+      if (!fin(op.rate?.supply) || !fin(op.rate?.borrow)) throw new PaperError('rate missing')
+      // a loan is marked to market on both legs: no feed for either, no loan
+      const heldP = P(c, op.snap.held.address), debtP = P(c, op.snap.debt!.address)
+      if (heldP == null || debtP == null) throw new PaperError('loan: no price for one side right now, so it cannot be valued — try another market or later')
+      // what goes in may be the gas coin for its wrapper (ETH into a WETH market): worth what the position holds
+      if (collU > 0) bound(collU * heldP, usdOf(c, op.collateral.token, collU), 'collateral')
+      const p0 = op.into ? findPos(l, op.into) : undefined
+      if (p0 && (p0.kind !== 'borrow' || p0.chainId !== c || p0.strategyId !== op.strategyId)) throw new PaperError('can only add to the same loan')
+      const units = (p0?.units ?? 0) + collU, debtUnits = (p0?.debtUnits ?? 0) + debtU
+      const liqLtv = p0?.snap.liqLtv ?? op.snap.liqLtv!, maxLtv = p0?.snap.maxLtv ?? op.snap.maxLtv
+      const collUsd = units * heldP, debtUsd = debtUnits * debtP
+      if (maxLtv && debtUsd > collUsd * maxLtv * (1 + TOLERANCE) + 0.01) throw new PaperError(`this borrows more than the ${Math.round(maxLtv * 100)}% of the collateral the market lends against — borrow less or put up more`)
+      if (debtUsd > 0 && (collUsd * liqLtv) / debtUsd < 1) throw new PaperError('this loan would be liquidated the moment it opens — borrow less')
+      fee(c, 'borrow')
+      if (collU > 0) debit(l, c, op.collateral.token, collU)
+      credit(l, c, op.snap.debt!.address, debtU)
+      // the position is collateral less debt: what was put in, net of what came out
+      const basis = collU * heldP - debtU * debtP
+      if (p0) {
+        p0.units = units; p0.debtUnits = debtUnits; p0.basisUsd += basis
+        p0.rate = clampRate({ ...op.rate, supply: op.rate.supply })
+      } else {
+        if (l.positions.some((x) => x.id === op.id)) throw new PaperError('a position with that id exists')
+        const stamp = (leg: PaperLeg) => ({ ...leg, priceUsd: P(c, leg.address, leg.priceUsd) ?? leg.priceUsd })
+        const snap: PaperSnap = { ...op.snap, held: stamp(op.snap.held), debt: stamp(op.snap.debt!), mode: 'live' }
+        delete snap.money
+        l.positions.push({ id: str(op.id, 'id', 64), chainId: c, kind: 'borrow', strategyId: str(op.strategyId, 'strategyId', 300), snap, units, debtUnits, asOf: ctx.now, rate: clampRate(op.rate), basisUsd: basis, entryCostUsd: 0, openedAt: ctx.now })
+      }
+      break
+    }
+    case 'repay': {
+      const p = findPos(l, str(op.id, 'id', 64))
+      if (p.kind !== 'borrow') throw new PaperError('only a loan is paid back')
+      const repay = op.repayAll ? p.debtUnits : Math.min(p.debtUnits, nonNeg(op.debtUnits, 'debtUnits'))
+      const out = op.withdrawAll ? p.units : Math.min(p.units, nonNeg(op.withdraw, 'withdraw'))
+      if (!(repay > 0) && !(out > 0)) throw new PaperError('nothing to pay back and nothing to take out')
+      const { pHeld, pDebt } = legPrices(p, ctx.price)
+      fee(p.chainId, 'repay')
+      if (repay > 0) debit(l, p.chainId, p.snap.debt!.address, repay)
+      p.debtUnits -= repay; p.units -= out
+      if (p.debtUnits <= DUST) p.debtUnits = 0
+      if (p.units <= DUST) p.units = 0
+      if (p.debtUnits > 0 && !(p.units > 0)) throw new PaperError('the collateral comes back only once the loan is repaid')
+      if (p.debtUnits > 0 && p.snap.liqLtv && (p.units * pHeld * p.snap.liqLtv) / (p.debtUnits * pDebt) < 1) throw new PaperError('this leaves the loan past liquidation — pay back more first')
+      credit(l, p.chainId, p.snap.held.address, out)
+      p.basisUsd += repay * pDebt - out * pHeld
+      if (!(p.units > 0) && !(p.debtUnits > 0)) {
+        // closed: whatever the basis still says is what the loan cost (its interest) or earned
+        l.realizedUsd -= p.basisUsd
+        l.positions = l.positions.filter((x) => x !== p)
       }
       break
     }

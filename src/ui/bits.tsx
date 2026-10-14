@@ -240,8 +240,9 @@ export function SubAccountPill({ sub, venue }: { sub?: { label: string; count: n
   const why = sub.unsupported ? ` YieldCircle cannot build for this account yet: manage it on ${v}.` : ''
   return <span className={`pill sub${sub.unsupported ? ' legs' : ''}`} title={`${sub.count > 1 ? `You run ${sub.count} separate accounts on ${v}. Each is its own position with its own health: collateral in one does not back debt in another, and adding, withdrawing or closing acts on this one only.` : `A separate account on ${v}.`}${why}`}>{sub.label}{sub.unsupported ? ` · manage on ${v}` : ''}</span>
 }
-export function KindPill({ kind, source }: { kind: 'simple' | 'loop'; source?: string }) {
+export function KindPill({ kind, source }: { kind: 'simple' | 'loop' | 'borrow'; source?: string }) {
   if (kind === 'loop') return <span className="pill loop">Loop</span>
+  if (kind === 'borrow') return <span className="pill loan">Loan</span>
   if (source === 'fixed') return <span className="pill pt">Fixed</span>
   return <span className="pill dep">Deposit</span>
 }
@@ -306,7 +307,7 @@ export function AddrExplorers({ addr, chainIds, seen }: { addr: string; chainIds
 export function Sk({ w = 80, h = 12 }: { w?: number | string; h?: number }) { return <span className="sk" style={{ width: w, height: h }} aria-hidden /> }
 /** A group's mark: a quiet outlined glyph ($ Ξ ₿ +) in the group's colour, deliberately unlike any token logo so a
  *  group never reads as one of its assets (the old USDC logo made "US Dollar" look like the USDC row). */
-const GROUP_GLYPH: Record<string, string> = { USD: '$', ETH: 'Ξ', BTC: '₿', MORE: '+' }
+const GROUP_GLYPH: Record<string, string> = { USD: '$', ETH: 'Ξ', BTC: '₿', STOCKS: '↗', MORE: '+' }
 export function GroupIcon({ id, color, size = 20 }: { id: string; color: string; size?: number }) {
   return <i className="ic gic" style={{ width: size, height: size, fontSize: size * 0.56, color, borderColor: `${color}66`, background: `linear-gradient(${color}1a, ${color}1a), #0b0b0b` }} aria-hidden>{GROUP_GLYPH[id] ?? id[0]}</i>
 }

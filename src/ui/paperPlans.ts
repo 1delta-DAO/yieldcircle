@@ -7,6 +7,7 @@ import { nativeSymbol, type Holding } from '../model/positions'
 import { normAddr } from '../model/address'
 import { legPrices, nativeOf, valueOf, type PaperLedger, type PaperOp, type PaperPosition, type PaperRate, type PaperSnap, type PriceFn } from '../model/paper'
 import type { LoopStrategy, SimpleStrategy } from '../model/strategies'
+import type { BorrowOffer } from '../model/borrow'
 import { paperId } from '../state/Paper'
 import type { PaperBuilt } from './useLadder'
 
@@ -120,6 +121,45 @@ export function reducePlan(o: { ledger: PaperLedger | null; h: Holding; closing:
     return {
       op: { t: 'reduce', id: p.id, units: v.units, debtUnits: v.debtUnits, all: true, receive, costUsd: o.costUsd },
       names: [{ chainId: p.chainId, address: d.address, symbol: d.symbol, decimals: d.decimals, logo: d.logo }, { chainId: p.chainId, address: p.snap.held.address, symbol: p.snap.held.symbol, decimals: p.snap.held.decimals, logo: p.snap.held.logo }],
+    }
+  }
+}
+
+/** A loan's snapshot: both legs marked to market, the market's two limits kept to refuse past them. */
+export function borrowSnap(o: BorrowOffer): PaperSnap {
+  return {
+    asset: o.asset, group: o.group, label: `${o.collateral.symbol} → ${o.debt.symbol} loan`, venue: o.venue, logo: o.collateral.logo,
+    marketUid: o.collateral.uid, debtUid: o.debt.uid, lender: o.lender,
+    held: leg(o.collateral.symbol, o.collateral.decimals, o.collateral.address, o.collateral.price ?? 0, o.collateral.logo),
+    debt: leg(o.debt.symbol, o.debt.decimals, o.debt.address, o.debt.price ?? 1, o.debt.logo),
+    liqLtv: o.liqLtv, maxLtv: o.maxLtv, mode: 'live', nature: o.assetClass ?? 'savings',
+  }
+}
+/**
+ * A loan, or more of one (tickets/0008): `collUnits` of the collateral out of the bank (paid as
+ * `payToken`, the gas coin into its wrapper's market included), `debtUnits` of the debt into it.
+ * Not against a stock yet: the price this app has for tokenized stocks is not to be trusted
+ * (tickets/0009 risk 3), and a paper loan is marked to it.
+ */
+export function borrowPlan(o: { offer: BorrowOffer; into?: Holding | null; payToken: string; collUnits: number; debtUnits: number; borrowApr: number }): () => Promise<PaperBuilt> {
+  return async () => {
+    if (o.offer.assetClass) throw new Error(`Paper loans against ${o.offer.ticker ?? 'stocks'} open once the app has a price for tokenized stocks it can trust. Borrow against crypto on paper meanwhile.`)
+    if (!(o.collUnits > 0) && !(o.debtUnits > 0)) throw new Error('Put something up or borrow something.')
+    const into = o.into?.paper ? o.into.key.slice('paper:'.length) : undefined
+    return {
+      op: { t: 'borrow', id: paperId(), ...(into ? { into } : {}), chainId: o.offer.chainId, strategyId: o.offer.id, snap: borrowSnap(o.offer), collateral: { token: o.payToken, units: o.collUnits }, debtUnits: o.debtUnits, rate: { supply: 0, borrow: o.borrowApr } },
+      names: [{ chainId: o.offer.chainId, address: o.offer.debt.address, symbol: o.offer.debt.symbol, decimals: o.offer.debt.decimals, logo: o.offer.debt.logo }],
+    }
+  }
+}
+/** A loan down: pay `repayUnits` back (or all of it) and take `withdrawUnits` of the collateral out (or all of it). */
+export function repayPlan(o: { ledger: PaperLedger | null; h: Holding; repayUnits: number; repayAll: boolean; withdrawUnits: number; withdrawAll: boolean }): () => Promise<PaperBuilt> {
+  return async () => {
+    const p = posOf(o.ledger, o.h)
+    const d = p.snap.debt!
+    return {
+      op: { t: 'repay', id: p.id, debtUnits: o.repayUnits, ...(o.repayAll ? { repayAll: true } : {}), withdraw: o.withdrawUnits, ...(o.withdrawAll ? { withdrawAll: true } : {}) },
+      names: [{ chainId: p.chainId, address: p.snap.held.address, symbol: p.snap.held.symbol, decimals: p.snap.held.decimals, logo: p.snap.held.logo }, { chainId: p.chainId, address: d.address, symbol: d.symbol, decimals: d.decimals, logo: d.logo }],
     }
   }
 }

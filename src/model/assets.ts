@@ -1,21 +1,61 @@
 /**
  * The three layers of the simple app:
- *   group    USD · ETH · BTC · More            (collateral exposure)
+ *   group    USD · ETH · BTC · Stocks · More   (collateral exposure)
  *   asset    BNB, AVAX, … (what you own — a WHITELIST, so wrappers never appear as assets);
  *            in the US Dollar, Ether and Bitcoin groups a DESK instead — Circle, Ethena, Maple,
  *            Lido, ether.fi, BitGo, Lombard … — whose credit the money sits behind, not which
  *            ticker it wears (see DESK below)
  *   strategy everything on top of an asset (a plain deposit or a loop)
  */
-export type GroupId = 'USD' | 'ETH' | 'BTC' | 'MORE'
+import { assetClassOf, underlyingTickerOf, type AssetClass, type RwaProps } from './assetClass'
+import { normAddr } from './address'
+
+export type GroupId = 'USD' | 'ETH' | 'BTC' | 'STOCKS' | 'MORE'
 export interface Group { id: GroupId; name: string; desc: string; color: string; unit: string }
 export const GROUPS: Group[] = [
   { id: 'USD', name: 'US Dollar', desc: 'Dollars, by whose credit they are', color: '#3fbf7f', unit: '$' },
   { id: 'ETH', name: 'Ether', desc: 'ETH and staked ETH', color: '#8fa6ff', unit: 'ETH' },
   { id: 'BTC', name: 'Bitcoin', desc: 'BTC wrappers', color: '#f0a830', unit: 'BTC' },
+  // tokenized equities and ETFs, one row per REAL-WORLD ticker (TSLAx, TSLAon and Coinbase's TSLA are
+  // all `TSLA`). Mostly a borrow shelf: the money is in what they are lent against (tickets/0009)
+  { id: 'STOCKS', name: 'Stocks', desc: 'Tokenized stocks and ETFs · take dollars out without selling', color: '#f472b6', unit: '' },
   { id: 'MORE', name: 'More', desc: 'BNB, AVAX, SOL, JLP, euro, gold, other', color: '#c084fc', unit: '' },
 ]
 export const group = (id: GroupId) => GROUPS.find((g) => g.id === id)!
+
+/**
+ * The STOCKS group's rows: one per real-world ticker, learned from the tokens the API classes as
+ * equity (`props.rwa`, read by `assetClassOf` / `underlyingTickerOf` — never by a symbol: Dinari's
+ * Tesla is the bare `TSLA`, and an Ethereum memecoin is called TSLA too). The borrow offers and the
+ * catalogue note every stock token they meet (`noteStock`); from then on its address resolves to the
+ * ticker (`stockOfToken`, read first by `keyOfToken`), so a wallet's TSLAx, a TSLAx position and a
+ * TSLAx offer all land on the `TSLA` row.
+ */
+export interface StockToken { chainId: string; address: string; symbol: string; issuer?: string; logo?: string }
+export interface StockInfo { key: string; ticker: string; cls: AssetClass; tokens: StockToken[]; logo?: string }
+const STOCK_ROWS = new Map<string, StockInfo>()
+const STOCK_AT = new Map<string, string>()
+const stockAt = (chainId: string, address: string) => `${chainId}:${normAddr(address)}`
+/** Note a token that may be a stock: its row key (the ticker) when it is one, else undefined. */
+export function noteStock(t: { chainId: string; address: string; symbol: string; logoURI?: string; props?: { rwa?: RwaProps & { issuer?: string | null } | null } | null }): string | undefined {
+  const rwa = t.props?.rwa
+  const ticker = underlyingTickerOf(rwa)
+  const cls = assetClassOf(rwa)
+  if (!ticker || !cls) return undefined
+  // a ticker that is also a coin or a desk here (none today) keeps the word "stock", never the coin's row
+  const key = BASE[ticker] || DESK_BY_SYM.has(ticker) ? `${ticker} stock` : ticker
+  const at = stockAt(t.chainId, t.address)
+  STOCK_AT.set(at, key)
+  const row = STOCK_ROWS.get(key) ?? { key, ticker, cls, tokens: [] }
+  if (!row.tokens.some((x) => stockAt(x.chainId, x.address) === at)) row.tokens.push({ chainId: t.chainId, address: normAddr(t.address), symbol: t.symbol, issuer: rwa?.issuer ?? undefined, logo: t.logoURI || undefined })
+  row.logo ??= t.logoURI || undefined
+  STOCK_ROWS.set(key, row)
+  return key
+}
+/** The ticker row of a token already noted as a stock. */
+export const stockOfToken = (chainId: string | undefined, address: string | undefined): string | undefined => (chainId && address ? STOCK_AT.get(stockAt(chainId, address)) : undefined)
+export const stockInfo = (key: string | undefined): StockInfo | undefined => (key ? STOCK_ROWS.get(key) : undefined)
+export const isStock = (key: string | undefined): boolean => !!key && STOCK_ROWS.has(key)
 
 /** Base assets we present, keyed by upper-cased symbol → { canonical symbol, group, what, colour }. */
 const BASE: Record<string, { sym: string; group: GroupId; what: string; color: string; desk?: string }> = {
@@ -284,7 +324,7 @@ export function baseOfCollateral(a: { symbol: string; name?: string; assetGroup?
   // - anything else (a governance token, an LP) is a foreign money, never the debt.
   return a.symbol
 }
-export const groupOf = (base: string): GroupId => baseInfo(base)?.group ?? deskByKey(base)?.group ?? 'MORE'
+export const groupOf = (base: string): GroupId => baseInfo(base)?.group ?? deskByKey(base)?.group ?? (STOCK_ROWS.has(base) ? 'STOCKS' : 'MORE')
 
 /**
  * The money a base asset is actually denominated in — which is NOT its display
@@ -332,7 +372,13 @@ export const exposureOf = (base: string | undefined) => (base ? EXPOSURE[base.to
 export const EXPOSURE_ASSETS = Object.entries(EXPOSURE).map(([sym, e]) => ({ sym, ...e.home }))
 /** Both legs are the same money — the test a carry has to pass. */
 export const sameMoney = (a: string, b: string): boolean => denomOf(a) === denomOf(b)
-export const whatIs = (base: string): string => deskByKey(base)?.what ?? baseInfo(base)?.what ?? base
+export const whatIs = (base: string): string => deskByKey(base)?.what ?? baseInfo(base)?.what ?? stockWhat(base) ?? base
+/** `Tokenized stock · TSLAx (Backed), TSLAon (Ondo)`: which tokens stand for the ticker here. */
+function stockWhat(key: string): string | undefined {
+  const r = STOCK_ROWS.get(key); if (!r) return undefined
+  const toks = [...new Map(r.tokens.map((t) => [t.symbol, t])).values()].slice(0, 4)
+  return `Tokenized ${r.cls === 'etf' ? 'ETF' : r.cls === 'pre-ipo' ? 'pre-IPO share' : 'stock'} · ${toks.map((t) => (t.issuer ? `${t.symbol} (${t.issuer})` : t.symbol)).join(', ')}`
+}
 export function colorOf(sym: string): string {
   const d = deskByKey(sym); if (d?.color) return d.color
   const b = baseInfo(sym); if (b) return b.color
@@ -351,6 +397,6 @@ export const short = (sym: string) => sym.replace(/^PT-/, '').slice(0, 3).toUppe
  * so it is never used for an asset mark.
  */
 import LOGOS from '../data/logos.json'
-export const assetLogo = (sym: string | undefined): string | undefined => (sym ? (LOGOS as Record<string, string>)[sym.toUpperCase()] : undefined)
+export const assetLogo = (sym: string | undefined): string | undefined => (sym ? (LOGOS as Record<string, string>)[sym.toUpperCase()] ?? STOCK_ROWS.get(sym)?.logo : undefined)
 /** Unit a group's amounts are typed in: dollars for USD, the asset itself elsewhere (the group's coin for a desk known only by id, `SWELL:ETH`). */
 export const unitOf = (base: string) => (groupOf(base) === 'USD' ? '$' : base.includes(':') ? groupOf(base) : base)

@@ -21,7 +21,7 @@ export function useBook() {
   const cat = useCatalog(chainIds)
   const all: Strategy[] = [...cat.simple, ...cat.loops]
   // one balance read per selected chain, for every address the catalogue knows there, sent once that chain has settled
-  const bals = useBalancesPerChain(accounts, chainIds.map((c) => ({ chainId: c, addresses: cat.addresses[c] ?? [], ready: cat.settled.has(c) })))
+  const bals = useBalancesPerChain(accounts, chainIds.map((c) => ({ chainId: c, addresses: cat.addresses[c] ?? [], extra: cat.extraAddresses[c], ready: cat.settled.has(c) })))
   const idle: Idle[] = onPaper ? paper.idle(chainIds) : bals.flatMap((b, i) => (b.data ? idleFrom(b.data.items, chainIds[i]) : []))
   // the group view sums the same base asset across tokens and chains (native ETH + WETH, all chains)
   const idleMerged: Idle[] = []

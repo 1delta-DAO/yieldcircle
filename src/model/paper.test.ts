@@ -246,3 +246,51 @@ describe('network fees, destination gas, friction (tickets/0007)', () => {
     expect(frictionOf(l).gasUsd).toBeCloseTo(networkFeeUsd('42161', 'loop') + networkFeeUsd('42161', 'reduce'), 9)
   })
 })
+
+describe('loans (tickets/0008)', () => {
+  const loanSnap: PaperSnap = {
+    asset: 'ETH', group: 'ETH', label: 'WETH → USDC loan', venue: 'Aave', marketUid: 'AAVE_V3:42161:weth', debtUid: 'AAVE_V3:42161:usdc',
+    held: { symbol: 'WETH', decimals: 18, address: WETH_ARB, priceUsd: 2500 }, debt: { symbol: 'USDC', decimals: 6, address: USDC_ARB, priceUsd: 1 },
+    liqLtv: 0.83, maxLtv: 0.8, mode: 'live',
+  }
+  // 1 ETH (paid as the gas coin into the WETH market), $1,000 out
+  const borrow = (debtUnits = 1000, units = 1, into?: string): PaperOp => ({ t: 'borrow', id: 'b1', ...(into ? { into } : {}), chainId: '42161', strategyId: 'b:weth|usdc', snap: loanSnap, collateral: { token: ZERO_EVM, units }, debtUnits, rate: { supply: 2, borrow: 5 } })
+  it('puts the collateral up, lands the dollars in the bank, and creates no value', () => {
+    const l0 = genesis()
+    const l = apply(l0, borrow(), ctx())
+    expect(l.bank['42161'][ZERO_EVM]).toBeCloseTo(1 - networkFeeUsd('42161', 'borrow') / 2500, 9)
+    expect(l.bank['42161'][USDC_ARB]).toBe(11_000)
+    const p = l.positions[0]
+    expect(p.kind).toBe('borrow')
+    const v = valueOf(p, T0, feed())
+    expect(v.equityUsd).toBeCloseTo(1500)
+    expect(v.pnlUsd).toBeCloseTo(0)
+    expect(v.health).toBeCloseTo(2500 * 0.83 / 1000)
+    // the book: what came out sits in the bank, the loan is collateral less debt — nothing earned yet
+    expect(bookOf(l, T0, feed()).pnlUsd).toBeCloseTo(-networkFeeUsd('42161', 'borrow'), 6)
+  })
+  it('refuses past the market’s limit and past liquidation', () => {
+    expect(() => apply(genesis(), borrow(2100), ctx())).toThrow(/80%/)
+    expect(() => apply(genesis(), { ...borrow(2100), snap: { ...loanSnap, maxLtv: undefined } } as PaperOp, ctx())).toThrow(/liquidated/)
+  })
+  it('borrows more on the same loan, then pays it all back and takes the ETH out, booking the interest', () => {
+    let l = apply(genesis(), borrow(), ctx())
+    l = apply(l, borrow(200, 0, 'b1'), ctx())
+    expect(l.positions[0].debtUnits).toBe(1200)
+    // a year on: 5 % on $1,200, the ETH still at $2,500
+    const later = apply(l, { t: 'repay', id: 'b1', debtUnits: 0, repayAll: true, withdraw: 0, withdrawAll: true }, ctx(365))
+    expect(later.positions).toEqual([])
+    expect(later.bank['42161'][USDC_ARB]).toBeCloseTo(11_200 - 1260, 6)
+    expect(later.bank['42161'][WETH_ARB]).toBeCloseTo(1 * (1 + 0.02), 9)
+    // lost the interest, earned the 2 % supply on the ETH
+    expect(later.realizedUsd).toBeCloseTo(-60 + 50 - networkFeeUsd('42161', 'borrow') * 2 - networkFeeUsd('42161', 'repay'), 4)
+  })
+  it('keeps the collateral in until the loan is repaid, and never leaves it past liquidation', () => {
+    const l = apply(genesis(), borrow(1500), ctx())
+    expect(() => apply(l, { t: 'repay', id: 'b1', debtUnits: 0, withdraw: 0, withdrawAll: true }, ctx())).toThrow(/once the loan is repaid/)
+    expect(() => apply(l, { t: 'repay', id: 'b1', debtUnits: 0, withdraw: 0.4 }, ctx())).toThrow(/past liquidation/)
+    const part = apply(l, { t: 'repay', id: 'b1', debtUnits: 500, withdraw: 0.2 }, ctx())
+    expect(part.positions[0].debtUnits).toBeCloseTo(1000)
+    expect(valueOf(part.positions[0], T0, feed()).pnlUsd).toBeCloseTo(0)
+  })
+})

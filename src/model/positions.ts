@@ -17,7 +17,12 @@ export interface Holding {
   group: GroupId
   /** the row: a base asset, or a dollar's credit desk — a loop's COLLATERAL desk, never its debt's (`Strategy.asset`) */
   asset: string
-  kind: 'simple' | 'loop'
+  /**
+   * `loop`: collateral and debt in one money (a carry). `borrow`: a dollar loan against something
+   * that moves on its own (ETH, TSLAx) — the same two legs, but a different thing to manage: pay it
+   * back, add collateral, borrow more; never lever, reduce or close by swapping (tickets/0008).
+   */
+  kind: 'simple' | 'loop' | 'borrow'
   label: string
   venue: string
   valueUsd: number
@@ -26,7 +31,11 @@ export interface Holding {
   leverage?: number
   earnUid?: string
   logo?: string
-  /** a loop whose debt is in another group (ETH / USDC): a directional bet, not a simple-mode strategy */
+  /**
+   * debt in another money than the collateral, against a debt that is no dollar (ETH borrowed
+   * against BTC): a directional bet the app has no ticket for. A dollar debt against anything is a
+   * `borrow` instead, and is never directional.
+   */
   directional?: boolean
   /** what is held, in token units, and the token: vault assets, a lending deposit, or a loop's collateral */
   amount: number
@@ -127,13 +136,16 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         // same test as the catalogue's: same money, not the same display tab — or an exposure
         // asset levered in a money it allows (a JLP loop borrowed in dollars), which IS the strategy
         const ex = exposureOf(asset), debtDenom = money ? money.toLowerCase() : debtBase ? denomOf(debtBase) : undefined
-        const directional = ex && debtDenom && ex.debt.includes(debtDenom) ? false : money ? !same : !debtBase || !sameMoney(debtBase, asset)
+        const cross = ex && debtDenom && ex.debt.includes(debtDenom) ? false : money ? !same : !debtBase || !sameMoney(debtBase, asset)
+        // dollars out against something else: a loan (tickets/0008). Any other cross-money pair stays a price bet
+        const loan = cross && money === 'USD'
+        const directional = cross && !loan
         const lev = a.suppliedUsd > 0 && a.netUsd > 0 ? a.suppliedUsd / a.netUsd : p.leverage
         const others = [...supply.slice(1).map((l) => ({ side: 'collateral' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.deposits) || 0, usd: l.depositsUsd })),
           ...debt.slice(1).map((l) => ({ side: 'debt' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.debt) || 0, usd: l.debtUsd }))]
         const loans = a.legs.filter((l) => l.loanId && l.marketUid === d.marketUid && l.debtUsd > 0.005)
           .map((l) => ({ id: l.loanId!, debt: parseFloat(l.debt) || 0, debtUsd: l.debtUsd })).sort((x, y) => y.debtUsd - x.debtUsd)
-        out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'loop', label: `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
+        out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: loan ? 'borrow' : 'loop', label: loan ? `${coll.asset.symbol} → ${d.asset.symbol} loan` : `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
           amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, collateralAddress: normAddr(coll.asset.address), debtAddress: normAddr(d.asset.address), debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
       } else {
         for (const l of supply) {

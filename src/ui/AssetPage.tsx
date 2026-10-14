@@ -13,7 +13,7 @@ import type { ThreadRef } from '../model/uid'
 import { useCounts, useThreadOf } from '../social/queries'
 import { Comments } from './social-bits'
 import { HiddenBar } from './Hidden'
-import { HIDES, hideDetail, letIn } from '../model/visibility'
+import { HIDES, hideDetail, letIn, softHide } from '../model/visibility'
 import { offMenuWhy, useOffMenu, useRateHistory, type OffMenuRef } from '../sdk/queries'
 import { useSettings } from '../state/Settings'
 import { isSpike, seriesFor, steadyRate } from '../model/rateHistory'
@@ -22,28 +22,59 @@ import { useViewport } from './useViewport'
 import { useSticky } from '../state/sticky'
 import { NATURES, isSavings, type Nature } from '../model/nature'
 import { AssetLink } from './TokenPage'
+import { useBorrowOffers } from '../sdk/queries'
+import { offerFromHolding, type BorrowOffer } from '../model/borrow'
+import { canonUid } from '../model/uid'
+import { stockInfo } from '../model/assets'
+import { BorrowTicket } from './BorrowTicket'
+import { BorrowCats, BorrowList, borrowRoom } from './BorrowList'
 
 /** One list, one number per row. The list decides which; the ticket decides how much and how levered. */
 export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const b = useBook()
-  const { allChains, chainLabelFor } = useApp()
-  const inGroup = b.all.filter((s) => s.group === group.id)
-  const assets = [...new Set([...inGroup.map((s) => s.asset), ...b.books.filter((x) => x.group === group.id).map((x) => x.asset)])]
+  const { allChains, chainLabelFor, chainIds } = useApp()
+  const stocks = group.id === 'STOCKS'
+  const { st } = useSettings()
+  // the loans against this group's assets (tickets/0008); the Stocks shelf asks only for its own
+  const bo = useBorrowOffers(chainIds, { crypto: !stocks })
+  const groupOffers = React.useMemo(() => bo.offers.filter((o) => o.group === group.id), [bo.offers, group.id])
+  // the Stocks shelf's deposits are the OTHER side of its loans: dollars lent to the people who put
+  // stocks up (Kamino xStocks' USDC, Robinhood's USDG) — a dollar row, filed by the tickers it lends against
+  const lendTickers = React.useMemo(() => {
+    const m = new Map<string, Set<string>>()
+    if (stocks) for (const o of groupOffers) { const k = canonUid(o.debt.uid); if (k) (m.get(k) ?? m.set(k, new Set()).get(k)!).add(o.asset) }
+    return m
+  }, [stocks, groupOffers])
+  const lendsTo = (s: Strategy) => (s.kind === 'simple' && s.marketUid ? lendTickers.get(canonUid(s.marketUid) ?? '') : undefined)
+  // (the menu caps each dollar desk at its 30 best rates: a stock market's dollar side is usually past that cap, so the cut rows count too)
+  const inGroup = stocks ? b.earnAll.filter((s, i, a) => !!lendsTo(s) && softHide(s, st) == null && a.findIndex((x) => x.id === s.id) === i) : b.all.filter((s) => s.group === group.id)
+  const assets = [...new Set([...(stocks ? groupOffers.map((o) => o.asset) : inGroup.map((s) => s.asset)), ...b.books.filter((x) => x.group === group.id).map((x) => x.asset)])]
   const u = assets.includes(route.u) ? route.u : 'all'
   // a floor hides a row from the list, never from the wallet that is in it: the held-back rows are whole strategies
   // a row the menu's per-asset cap dropped still opens: a profile's Copy can name one
   const sel = route.s ? b.all.find((s) => s.id === route.s) ?? b.hidden.find((s) => s.id === route.s) ?? b.overflow.find((s) => s.id === route.s) ?? null : null
   // a position with no row at all is still the wallet's: managed from what the positions route says about it
-  const offMenu = !sel && route.h ? b.holdings.find((h) => h.key === route.h) ?? null : null
+  // (a running LOAN is no off-menu row: it opens the borrow ticket below, on Pay back)
+  const offMenu = !sel && route.h ? b.holdings.find((h) => h.key === route.h && h.kind !== 'borrow') ?? null : null
   // ...and the menu's row for it may exist upstream all the same, outside what the catalogue asked
   // for: asked for on its own, it opens the whole ticket (Add as well as Manage), flagged as off-menu.
   // A copy of someone's off-menu position arrives the same way, by `s=` + `oa=`
-  const { st } = useSettings()
   const offRef: OffMenuRef | null = sel ? null : route.s && route.oa ? { id: route.s, by: route.oa } : offMenu ? refOfHolding(offMenu) : null
   const off = useOffMenu(offRef)
   const offSel = off.data?.s ?? null
-  const kind: 'simple' | 'loop' = sel ? sel.kind : offSel ? offSel.kind : offMenu ? offMenu.kind : route.k ?? 'simple'
-  const scoped = inGroup.filter((s) => u === 'all' || s.asset === u)
+  const kind: 'simple' | 'loop' | 'borrow' = sel ? sel.kind : offSel ? offSel.kind : offMenu ? offMenu.kind : route.k ?? (stocks ? 'borrow' : 'simple')
+  const inScope = (s: Strategy) => u === 'all' || (stocks ? !!lendsTo(s)?.has(u) : s.asset === u)
+  const scoped = inGroup.filter(inScope)
+  // ---- the loans: the offers in scope, the wallet's running loans, and the one the ticket is on
+  const offersHere = groupOffers.filter((o) => u === 'all' || o.asset === u)
+  const sameLegs = (o: BorrowOffer, h: Holding) => !!h.collateralUid && !!h.debtUid && h.collateralUid.toLowerCase() === o.collateral.uid.toLowerCase() && h.debtUid.toLowerCase() === o.debt.uid.toLowerCase()
+  const loans = b.holdings.filter((h) => h.kind === 'borrow' && h.group === group.id && (u === 'all' || h.asset === u))
+  const offerOf = (h: Holding): BorrowOffer | null => bo.offers.find((o) => sameLegs(o, h)) ?? offerFromHolding(h)
+  const heldLoans = React.useMemo(() => { const m = new Map<string, Holding[]>(); for (const h of loans) { const o = offerOf(h); if (o) m.set(o.id, [...(m.get(o.id) ?? []), h]) } return m }, [loans.map((h) => h.key).join(','), bo.offers]) // eslint-disable-line react-hooks/exhaustive-deps
+  const loanHolding = route.h ? b.holdings.find((h) => h.key === route.h && h.kind === 'borrow') ?? null : null
+  const borrowSel: BorrowOffer | null = route.s?.startsWith('b:') ? bo.offers.find((o) => o.id === route.s) ?? (loanHolding ? offerOf(loanHolding) : null) : loanHolding ? offerOf(loanHolding) : null
+  const borrowOff = !!borrowSel && !bo.offers.some((o) => o.id === borrowSel.id)
+  const openLoan = (o: BorrowOffer, h?: Holding, m?: 'add' | 'reduce') => go(group.id, { u, k: 'borrow', s: o.id, h: h?.key, m })
   // savings or market exposure: offered only where the scope has both — a page of lending rows
   // gets no switch with nothing behind it
   const [nat, setNat] = useSticky<NatureFilter>(`nature:${group.id}`, 'all')
@@ -52,7 +83,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const natOn: NatureFilter = nExposed && nSavings ? nat : 'all'
   const natOk = (s: Strategy) => natOn === 'all' || (natOn === 'savings') === isSavings(s.nature)
   const all = scoped.filter(natOk)
-  const picks = React.useMemo(() => markPicks(inGroup), [inGroup.length])
+  // (no pick on the Stocks shelf's lend side: "best dollar market" is not what it ranks)
+  const picks = React.useMemo(() => (stocks ? new Set<string>() : markPicks(inGroup)), [inGroup.length, stocks])
   // the 30-day line on every row, in ONE request: a rate on a list is a claim
   // about the future, and the line says whether it is what this has paid or a
   // spike. Asked for every row of this kind (and the held positions'), once the
@@ -94,9 +126,10 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   useRateHistory(React.useMemo(() => running.flatMap((r) => (r.s ? [r.s] : [])), [running.map((r) => r.s?.id).join(',')]), !b.isFetching)
   // what an off-menu row can still do: a loop can always be unwound; a deposit needs the earn uid to withdraw through
   const canManage = (h: Holding) => h.kind === 'loop' ? !!h.collateralUid && !!h.debtUid : !!h.earnUid
-  const ticketOpen = !!sel || !!offSel || !!offMenu
+  const ticketOpen = !!sel || !!offSel || !!offMenu || !!borrowSel
   /** one held position's cells, shared by the desktop row and the phone card */
   const posOf = (h: Holding, s: Strategy | null) => {
+    if (h.kind === 'borrow') return loanOf(h)
     const open = (m: 'add' | 'reduce' | 'manage') => s && go(group.id, { u, s: s.id, k: s.kind, m, h: h.key })
     const can = !s && canManage(h)
     const openOff = () => go(group.id, { u, h: h.key, k: h.kind, m: h.kind === 'loop' ? 'manage' : 'reduce' })
@@ -117,6 +150,22 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
         : <span className="t40" style={{ fontSize: 12 }}>not in the menu</span>,
     }
   }
+  /** a running loan's cells: what it owes, its health, Borrow more · Pay back */
+  const loanOf = (h: Holding) => {
+    const o = offerOf(h)
+    const owed = Math.max(0, (h.collateralUsd ?? 0) - h.valueUsd)
+    return {
+      on: borrowSel?.id === o?.id && loanHolding?.key === h.key,
+      tap: o ? () => openLoan(o, h, 'reduce') : undefined,
+      mark: <Toks a={h.symbol} b={h.debtSymbol} logoA={h.logo} />,
+      meta: `${chainLabel(h.chainId)} · owes ${usd(owed)}`,
+      unit: 'net',
+      total: h.apr, rewards: 0,
+      cls: h.apr != null && h.apr >= 0 ? 'ok' : h.apr != null ? 'bad' : '',
+      ser: null,
+      acts: o ? <span className="acts"><button className="btn sm" onClick={() => openLoan(o, h, 'add')}>Borrow</button><button className="btn sm" onClick={() => openLoan(o, h, 'reduce')}>Pay back</button></span> : <span className="t40" style={{ fontSize: 12 }}>manage at {h.venue}</span>,
+    }
+  }
   const close = () => go(group.id, { u, k: kind })
   const aside = useAsideTop(ticketOpen)
   return (
@@ -126,12 +175,12 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
         <div className="main">
           <div className="hdr">
             <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} logo={markOf(u, inGroup)} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {nameOf(u)}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div>{u !== 'all' && <TokenLinks rows={inGroup.filter((s) => s.asset === u)} />}</div></div>
-            <AssetChips group={group} route={route} assets={assets} u={u} all={inGroup} />
+            <AssetChips group={group} route={route} assets={assets} u={u} all={inGroup} offers={stocks ? groupOffers : undefined} />
           </div>
           {idle.length > 0 && (
             <div className="idle-strip">{idle.map((x) => { const bestAny = bestFor(x.asset), best = bestSimpleFor(x.asset) ?? bestAny; return (
-              <button key={x.asset} className="idle-row" disabled={!best} onClick={() => best && go(group.id, { u: x.asset, s: best.id, k: best.kind })}>
-                <Tok sym={x.asset} /><span className="t"><b>{amt(x.asset, x.idle!.amount, x.idle!.usd)}</b> {group.id === 'USD' ? `${nameOf(x.asset)} ` : x.asset !== x.idle!.symbol ? `${nameOf(x.asset)} ` : ''}idle{bestAny ? <> <span className="t50">· <span className="hide-m">could earn </span>up to</span> <b className="ok">{pct(bestAny.rate)}</b></> : ''}</span><span className="sp" />{best && <span className="cta">Put to work ›</span>}
+              <button key={x.asset} className="idle-row" disabled={!best && !(borrowRoom(x.asset, b.idlePerChain, groupOffers) >= 1)} onClick={() => best ? go(group.id, { u: x.asset, s: best.id, k: best.kind }) : go(group.id, { u: x.asset, k: 'borrow' })}>
+                <Tok sym={x.asset} /><span className="t"><b>{amt(x.asset, x.idle!.amount, x.idle!.usd)}</b> {group.id === 'USD' ? `${nameOf(x.asset)} ` : x.asset !== x.idle!.symbol ? `${nameOf(x.asset)} ` : ''}idle{bestAny ? <> <span className="t50">· <span className="hide-m">could earn </span>up to</span> <b className="ok">{pct(bestAny.rate)}</b></> : ''}</span>{borrowRoom(x.asset, b.idlePerChain, groupOffers) >= 1 && <span className="t50 hide-m"> · or borrow up to <b>{usdShort(borrowRoom(x.asset, b.idlePerChain, groupOffers))}</b></span>}<span className="sp" />{best ? <span className="cta">Put to work ›</span> : borrowRoom(x.asset, b.idlePerChain, groupOffers) >= 1 ? <span className="cta" role="link" onClick={(e) => { e.stopPropagation(); go(group.id, { u: x.asset, k: 'borrow' }) }}>Borrow against it ›</span> : null}
               </button>) })}</div>
           )}
           {b.account && running.length > 0 && (
@@ -168,14 +217,24 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
               </table></div>}</section>
           )}
           <div className="kind-bar">
-            <div className="seg kind"><button aria-pressed={kind === 'simple'} onClick={() => go(group.id, { u, k: 'simple' })}>Deposits <span className="c">{nS}</span></button><button aria-pressed={kind === 'loop'} onClick={() => go(group.id, { u, k: 'loop' })}>Loops <span className="c">{nL}</span></button></div>
-            {nExposed > 0 && nSavings > 0 && <div className="seg kind" role="group" aria-label="Savings or market exposure">
+            <div className="seg kind">
+              {/* the Stocks shelf leads with its loans; its deposits are the dollars lent to them */}
+              {stocks && <button aria-pressed={kind === 'borrow'} onClick={() => go(group.id, { u, k: 'borrow' })}>Borrow <span className="c">{offersHere.length}</span></button>}
+              <button aria-pressed={kind === 'simple'} onClick={() => go(group.id, { u, k: 'simple' })}>{stocks ? 'Lend to them' : 'Deposits'} <span className="c">{nS}</span></button>
+              {(!stocks || nL > 0) && <button aria-pressed={kind === 'loop'} onClick={() => go(group.id, { u, k: 'loop' })}>Loops <span className="c">{nL}</span></button>}
+              {!stocks && (offersHere.length > 0 || loans.length > 0) && <button aria-pressed={kind === 'borrow'} onClick={() => go(group.id, { u, k: 'borrow' })}>Borrow <span className="c">{offersHere.length}</span></button>}
+            </div>
+            {kind !== 'borrow' && nExposed > 0 && nSavings > 0 && <div className="seg kind" role="group" aria-label="Savings or market exposure">
               <button aria-pressed={natOn === 'all'} onClick={() => setNat('all')}>All</button>
               <button aria-pressed={natOn === 'savings'} title={NATURES.savings.why} onClick={() => setNat('savings')}>Savings <span className="c">{nSavings}</span></button>
               <button aria-pressed={natOn === 'exposure'} title="Perp LPs and managed funds: they earn by taking a market’s side, and the value can fall" onClick={() => setNat('exposure')}>Market exposure <span className="c">{nExposed}</span></button>
             </div>}
-            <span className="hint">{kind === 'simple' ? (list.length && !list.some((s) => isSavings(s.nature)) ? 'Hold one token. No debt, nothing to liquidate — but its price moves with a market.' : 'Hold one token that grows. No debt, nothing to liquidate.') : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
+            <span className="hint">{kind === 'borrow' ? `Take dollars out against ${u === 'all' ? (stocks ? 'tokenized stocks' : 'what you hold') : nameOf(u)} without selling it. You pay the rate; if the price falls past the line, the lender sells part of it.` : stocks && kind === 'simple' ? 'Lend dollars into the markets where people borrow against stocks. Their stocks back your loan; the rate is what they pay.' : kind === 'simple' ? (list.length && !list.some((s) => isSavings(s.nature)) ? 'Hold one token. No debt, nothing to liquidate — but its price moves with a market.' : 'Hold one token that grows. No debt, nothing to liquidate.') : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
           </div>
+          {kind === 'borrow' ? (<>
+            <BorrowCats offers={bo.offers} current={group.id} />
+            <BorrowList offers={offersHere} loading={bo.isLoading} groupId={group.id} u={u} selId={borrowSel?.id} held={heldLoans} onPick={(o) => openLoan(o)} />
+          </>) : (<>
           {phone && (list.length || b.isLoading) ? (
             /* a phone gets cards, two abreast: a table row at 357px had to fit
                name, venue, chain, risk, exit terms, size and a rate on one line
@@ -233,11 +292,15 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
             ) : <div className="empty">No {kind === 'simple' ? 'plain deposit' : 'loop'} for this filter{b.errors.length ? ` (${b.errors[0].message})` : ''}{heldBack.length ? ` — ${heldBack.length} held back by the floors below` : ''}.</div>}
           </div>}
           <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />
+          </>)}
         </div>
         <aside ref={aside} className={ticketOpen ? '' : 'closed'} id="aside">
           {sel && <Ticket key={sel.id + (route.m ?? '') + (route.h ?? '')} s={sel} idle={b.idlePerChain} holdings={heldAll(sel)} pick={route.h} mode={route.m} copy={route.copy} talk={route.talk} socialInList={!phone} onClose={close} />}
           {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '') + (route.h ?? '')} s={offSel} idle={b.idlePerChain} holdings={offMenu ? [offMenu] : heldAll(offSel)} pick={route.h} mode={route.m} copy={route.copy} talk={route.talk} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
           {offMenu && !offSel && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
+          {borrowSel && <BorrowTicket key={borrowSel.id + (route.m ?? '') + (route.h ?? '')} o={borrowSel} holdings={heldLoans.get(borrowSel.id) ?? (loanHolding ? [loanHolding] : [])} idle={b.idlePerChain} pick={route.h} mode={route.m}
+            alternatives={bo.offers.filter((o) => o.chainId === borrowSel.chainId && o.asset === borrowSel.asset && o.debt.symbol === borrowSel.debt.symbol)}
+            offMenu={borrowOff ? (loanHolding ? 'This loan sits in a market the list does not show (one the ticket cannot open yet, or outside the chains you picked). It can be paid back here; borrowing more is for the venue itself.' : 'This market is not in the list right now.') : undefined} onClose={close} />}
         </aside>
       </div>
       {ticketOpen && <div className="scrim" onClick={close} />}
@@ -260,12 +323,13 @@ function refOfHolding(h: Holding): OffMenuRef | null {
  * existed. It wraps now, ranked by how much each asset actually has to offer,
  * and the tail folds behind a count that says how many are folded.
  */
-function AssetChips({ group, route, assets, u, all, max = 6 }: { group: Group; route: Route; assets: string[]; u: string; all: Strategy[]; max?: number }) {
+function AssetChips({ group, route, assets, u, all, max = 6, offers }: { group: Group; route: Route; assets: string[]; u: string; all: Strategy[]; max?: number; /** the Stocks shelf counts its loans, and ranks its tickers by what is put up against them */ offers?: BorrowOffer[] }) {
   const [open, setOpen] = React.useState(false)
-  const countOf = React.useCallback((a: string) => all.filter((s) => s.asset === a).length, [all])
+  const countOf = React.useCallback((a: string) => (offers ? offers.filter((o) => o.asset === a).length : all.filter((s) => s.asset === a).length), [all, offers])
+  const sizeOf = React.useCallback((a: string) => (offers ? offers.filter((o) => o.asset === a).reduce((t, o) => t + o.collateralUsd, 0) : countOf(a)), [offers, countOf])
   const ranked = React.useMemo(
-    () => [...assets].sort((x, y) => countOf(y) - countOf(x) || x.localeCompare(y)),
-    [assets, countOf],
+    () => [...assets].sort((x, y) => sizeOf(y) - sizeOf(x) || countOf(y) - countOf(x) || x.localeCompare(y)),
+    [assets, countOf, sizeOf],
   )
   const head = open ? ranked : ranked.slice(0, max)
   // the asset you are filtered by never hides behind the +N
@@ -274,7 +338,7 @@ function AssetChips({ group, route, assets, u, all, max = 6 }: { group: Group; r
   return (
     <div className="chips" role="group" aria-label="Assets">
       <button className="chip" aria-pressed={u === 'all'} onClick={() => go(group.id, { s: route.s, k: route.k })}>
-        All <span className="c">{all.length}</span>
+        All <span className="c">{offers ? offers.length : all.length}</span>
       </button>
       {shown.map((a) => (
         <button key={a} className="chip" aria-pressed={u === a} onClick={() => go(group.id, { u: a, s: route.s, k: route.k })}>

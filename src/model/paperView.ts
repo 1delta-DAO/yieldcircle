@@ -51,6 +51,11 @@ export function paperHoldings(l: PaperLedger, at: number, price: PriceFn): Holdi
     }
     if (p.kind === 'simple') return { ...base, kind: 'simple', apr: shownApr(p), earnUid: s.earnUid, assetAddress: s.held.address }
     const net = v.equityUsd > 0 ? (v.heldUsd * shownApr(p) - v.debtUsd * p.rate.borrow) / v.equityUsd : undefined
+    if (p.kind === 'borrow') return {
+      ...base, kind: 'borrow', apr: net, health: v.health, earnUid: s.marketUid,
+      collateralUid: s.marketUid, debtUid: s.debtUid, debtSymbol: s.debt?.symbol, debtAmount: v.debtUnits,
+      collateralAddress: s.held.address, debtAddress: s.debt?.address, lender: s.lender, collateralUsd: v.heldUsd,
+    }
     return {
       ...base, kind: 'loop', apr: net, health: v.health, leverage: v.leverage ?? undefined, earnUid: s.marketUid, directional: false,
       collateralUid: s.marketUid, debtUid: s.debtUid, debtSymbol: s.debt?.symbol, debtAmount: v.debtUnits,

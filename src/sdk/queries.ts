@@ -7,6 +7,7 @@ import { parseUid } from '../model/uid'
 import { EXPOSURE_ASSETS } from '../model/assets'
 import { useSettings, type Settings } from '../state/Settings'
 import type { EarnPositionsResponse, LendingBook, OptimizerResponse, TokenBalance } from './types'
+import { byOffer, offersFrom, type BorrowOffer } from '../model/borrow'
 import { indexBalances, syncHints, type SyncHintLeg } from '../index/api'
 import type { IndexBalanceItem } from '../index/types'
 import { useLiveChains } from './liveBalances'
@@ -116,7 +117,8 @@ export function chainBuckets(chainIds: string[]): string[][] {
  * stablecoin` alone is 2 647): sorted by APR, the tail is what nobody opens.
  */
 const MAX_PAGES = 10
-async function optimizerPages(q: OptimizerQuery): Promise<OptimizerResponse['items']> {
+async function optimizerPages(q: OptimizerQuery, maxPages = MAX_PAGES): Promise<OptimizerResponse['items']> {
+  const MAX_PAGES = maxPages
   const first = await fetchOptimizerPairs({ ...q, count: 100 })
   const items = [...first.items]
   if (!first.hasMore || !first.items.length) return items
@@ -233,6 +235,59 @@ function mergeStructural(parts: { structural: Sorted<Strategy>['structural']; ki
   return [...out.values()]
 }
 
+/**
+ * Dollar loans against what people hold (tickets/0008), as offers (`model/borrow.ts`): one
+ * request per collateral family over every chain at once, each paged like the loops.
+ *
+ * Asked by the biggest collateral market first (`totalDepositsUsdLong`), not by the loop's net
+ * yield, which says nothing about a loan; at least $1k free to borrow (a stock market is asked
+ * with no floor — Robinhood's are small and are said to be). Measured 2026-10-14 over all
+ * chains: stocks 261 pairs, wrapped native 166, BTC 316, LST/LRT 548. The crypto families are
+ * capped at three pages each: the tail is markets nobody has put anything into.
+ *
+ * The STOCK request is also the catalogue's (`useCatalog`): every stock token it names is noted
+ * as a stock (`noteStock`) and its address joins the balance read, so a wallet's TSLAx shows up.
+ */
+const STOCK_BORROW: Omit<OptimizerQuery, 'chainIds'> = { collateralAssetClasses: ['stocks'], debtTags: ['stablecoin'], sortBy: 'totalDepositsUsdLong', sortDir: 'DESC', minBorrowLiquidityUsd: 0, maxConfigRiskScore: 5 }
+const CRYPTO_BORROW: { key: string; q: Omit<OptimizerQuery, 'chainIds'> }[] = [
+  { key: 'native', q: { collateralTags: ['wnative'], debtTags: ['stablecoin'] } },
+  { key: 'btc', q: { collateralTags: ['btc'], debtTags: ['stablecoin'] } },
+  { key: 'lst', q: { collateralTags: ['lst', 'lrt'], debtTags: ['stablecoin'] } },
+].map((x) => ({ ...x, q: { ...x.q, sortBy: 'totalDepositsUsdLong', sortDir: 'DESC', minBorrowLiquidityUsd: 1000 } as Omit<OptimizerQuery, 'chainIds'> }))
+const stockOffersQuery = (chainIds: string[]) => ({
+  queryKey: ['borrow-offers', 'stocks', chainIds.join(',')],
+  queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...STOCK_BORROW }, 5)),
+  staleTime: 10 * 60_000,
+  enabled: chainIds.length > 0,
+})
+/**
+ * Every dollar loan on the selected chains. `crypto: false` asks only the stocks (which the
+ * catalogue holds anyway): a page that shows stock offers alone need not pay for the rest.
+ */
+export function useBorrowOffers(chainIds: string[], o: { crypto?: boolean } = {}) {
+  const crypto = o.crypto ?? true
+  const stocks = useQuery(stockOffersQuery(chainIds))
+  const rest = useQueries({
+    queries: CRYPTO_BORROW.map((r) => ({
+      queryKey: ['borrow-offers', r.key, chainIds.join(',')],
+      queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...r.q }, 3)),
+      staleTime: 10 * 60_000,
+      enabled: crypto && chainIds.length > 0,
+    })),
+  })
+  const stamp = [stocks.dataUpdatedAt, ...rest.map((q) => q.dataUpdatedAt)].join('|')
+  const offers = useMemo(() => {
+    const by = new Map<string, BorrowOffer>()
+    for (const o of [...(stocks.data ?? []), ...rest.flatMap((q) => q.data ?? [])]) if (!by.has(o.id)) by.set(o.id, o)
+    return [...by.values()].sort(byOffer)
+  }, [stamp]) // eslint-disable-line react-hooks/exhaustive-deps
+  return {
+    offers,
+    isLoading: stocks.isLoading || (crypto && rest.some((q) => q.isLoading)),
+    error: [stocks, ...rest].find((q) => q.error)?.error ?? null,
+  }
+}
+
 /** A row that a floor is holding back, carrying the code that says which one. */
 export type HiddenRow = Strategy & { hide: HideCode }
 
@@ -311,9 +366,12 @@ export function useCatalog(chainIds: string[]) {
     })),
   })
   const extra = [...exposure, ...ptLoops]
+  // the stock loans (tickets/0009): the request that teaches the app which tokens are stocks
+  // (`noteStock`, run as the offers are read) — so it lands before anything is classified by it
+  const stocks = useQuery(stockOffersQuery(chainIds))
   // one stamp for "any answer changed": this hook runs in the header, the
   // feed and Hot at once, and every catalogue query landing re-renders all three
-  const stamp = [chainIds.join(','), ...[...earn, ...loops, ...extra].map((q) => q.dataUpdatedAt)].join('|')
+  const stamp = [chainIds.join(','), stocks.dataUpdatedAt, ...[...earn, ...loops, ...extra].map((q) => q.dataUpdatedAt)].join('|')
   const earnSorted = useMemo(() => {
     return earn.map((q) => (q.data ? sortOut(q.data.map((m) => classifyEarn(m)), 'simple') : undefined))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -326,6 +384,10 @@ export function useCatalog(chainIds: string[]) {
     // so moving a floor never changes what the balance read asks for
     const addresses: Record<string, string[]> = {}
     for (const r of [...earnRows, ...loopRows]) (addresses[r.chainId] ??= []).push(...(r.kind === 'simple' ? [r.assetAddress] : [r.collateralAddress, r.debtAddress]))
+    // stock tokens a market lends against: held in a wallet, they are what a loan is taken against.
+    // Kept apart: an EVM read is capped at 60 assets, and they only fill what the catalogue leaves
+    const extraAddresses: Record<string, string[]> = {}
+    for (const o of stocks.data ?? []) (extraAddresses[o.chainId] ??= []).push(o.collateral.address)
     const { show: simpleShow, hide: simpleHide } = split(earnRows, st)
     const { show: loopShow, hide: loopHide } = split(loopRows, st)
     const simple = capPerAsset(dedupe(simpleShow))
@@ -353,7 +415,13 @@ export function useCatalog(chainIds: string[]) {
       ...capPerAsset(dedupe(loopHide.filter((r) => !shown.has(rowKey(r)))), 25),
     ]
     const structural = mergeStructural([...earnSorted, ...loops.map((q) => q.data), ...extra.map((q) => q.data)].flatMap((d) => (d ? [{ structural: d.structural, kind: d.kind }] : [])))
-    return { simple, loops: loopRowsOut, hidden, overflow, structural, addresses }
+    /**
+     * Every deposit row the listing answered, before `dedupe` keeps one per venue and asset: the
+     * Stocks shelf's lend side is a particular market (Kamino's xStocks USDC), and on a venue with
+     * twenty USDC markets the one-per-venue row is rarely it. Never rendered as the menu.
+     */
+    const earnAll = earnRows
+    return { simple, loops: loopRowsOut, hidden, overflow, structural, addresses, extraAddresses, earnAll }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [earnSorted, stamp, st])
   // A chain is SETTLED once every request covering it has answered (or failed):
@@ -363,7 +431,8 @@ export function useCatalog(chainIds: string[]) {
   const exposurePending = new Set(exposed.filter((_, i) => !exposure[2 * i]?.isFetched || !exposure[2 * i + 1]?.isFetched).map((e) => e.chainId))
   ptMints.forEach((m, i) => { if (!ptLoops[i]?.isFetched) exposurePending.add(m.chainId) })
   const loopsPending = new Set(loopReqs.flatMap((r, i) => (loops[i]?.isFetched ? [] : r.chainIds)))
-  const settled = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched ? ids : [])).filter((c) => !exposurePending.has(c) && !loopsPending.has(c)))
+  // a chain is not settled before the stock request answers: its balance read would miss the stock tokens
+  const settled = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched ? ids : [])).filter((c) => !exposurePending.has(c) && !loopsPending.has(c) && (stocks.isFetched || !stocks.isFetching)))
   return {
     ...derived, settled,
     isLoading: earn.some((q) => q.isLoading) || loops.some((q) => q.isLoading),
@@ -461,8 +530,11 @@ function split<T extends Strategy>(rows: T[], st: Settings): { show: T[]; hide: 
  * the Solana route answers the native row unasked), then the catalogue's,
  * sorted so the key is stable. Base58 keeps its case.
  */
-const balanceAssets = (addresses: string[], chainId?: string) => {
-  const all = [...new Set([...(isSvmChain(chainId) ? [] : ['0x0000000000000000000000000000000000000000']), ...addresses.filter(Boolean).map((a) => normAddr(a))])].sort()
+const balanceAssets = (addresses: string[], chainId?: string, extra: string[] = []) => {
+  const base = [...new Set([...(isSvmChain(chainId) ? [] : ['0x0000000000000000000000000000000000000000']), ...addresses.filter(Boolean).map((a) => normAddr(a))])].sort()
+  // `extra` (stock tokens, tickets/0009) only takes the room the catalogue leaves under the cap
+  const more = [...new Set(extra.filter(Boolean).map((a) => normAddr(a)))].filter((a) => !base.includes(a)).sort()
+  const all = isSvmChain(chainId) ? [...base, ...more].sort() : [...base, ...more.slice(0, Math.max(0, 60 - base.length))].sort()
   // the 60 cap is an EVM bound (`eth_call` cannot enumerate; the route caps `assets`). On Solana the
   // list is only a FILTER over the owner's own token accounts, and a sorted base58 cut dropped every
   // mint past the 60th — wSOL and every lower-case mint (mSOL, …) on a 94-mint catalogue.
@@ -511,14 +583,14 @@ function fromIndex(i: IndexBalanceItem): TokenBalance | null {
  * Still one live read per chain, sent once that chain's catalogue has SETTLED (its list is final);
  * `placeholderData` keeps the last answer on screen while a key changes.
  */
-export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: string; addresses: string[]; ready: boolean }[]) {
+export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: string; addresses: string[]; extra?: string[]; ready: boolean }[]) {
   const live = useLiveChains()
   const account = accounts.evm
   // a chain whose VM the account cannot hold on reads nothing: an EVM wallet
   // has no Solana balances and the routes reject the address shape
   const settled = chains.filter((c) => c.ready && accountFits(accountOn(accounts, c.chainId), c.chainId))
   // the index's balance POST is the EVM index's; Solana reads live only
-  const asked = Object.fromEntries(settled.filter((c) => isEvmChain(c.chainId)).map((c) => [c.chainId, balanceAssets(c.addresses, c.chainId)]))
+  const asked = Object.fromEntries(settled.filter((c) => isEvmChain(c.chainId)).map((c) => [c.chainId, balanceAssets(c.addresses, c.chainId, c.extra)]))
   const idx = useQuery({
     enabled: !!account && Object.keys(asked).length > 0,
     queryKey: ['balances-index', account, JSON.stringify(asked)],
@@ -528,7 +600,7 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
     retry: 1,
     placeholderData: keepPreviousData,
   })
-  const plans = chains.map(({ chainId, addresses, ready: catReady }) => {
+  const plans = chains.map(({ chainId, addresses, extra, ready: catReady }) => {
     const acct = accountOn(accounts, chainId)
     const fits = accountFits(acct, chainId)
     // Solana's route lists the owner's own token accounts, so it needs no asset list — and asked
@@ -537,7 +609,7 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
     // seconds. `idleFrom` keeps only whitelisted mints, as the catalogue filter did.
     const svm = isSvmChain(chainId)
     const ready = svm || catReady
-    const all = fits ? (svm ? [SVM_ALL] : balanceAssets(addresses, chainId)) : []
+    const all = fits ? (svm ? [SVM_ALL] : balanceAssets(addresses, chainId, extra)) : []
     const c = idx.data?.chains.find((x) => x.chainId === chainId)
     const fromIdx = !!c && c.state === 'complete' && !live.has(chainId) && !idx.isError
     const indexItems: TokenBalance[] = []

@@ -77,6 +77,8 @@ that sometimes answer un-enveloped or with `ok` instead of `success`
 | `fetchChains` | `GET /v1/data/chains` | `chainsQuery`, `ChainMark` | names + logos |
 | `fetchTokenBalances` | `GET /v1/data/token/balances` | `useBalances`, `useBalancesPerChain` (live fallback), `txTrace`, `GetAsset` | single chain only; route answers `max-age=15` → pass `fresh` after a tx |
 | `fetchEarnPositions` | `GET /v1/data/earn/positions` | `useEarnPositions`, `txTrace` | **the only source for the connected user's positions**; `lenders` / `vaults` narrow a post-tx re-read; always read past the browser cache (`max-age=15`) |
+| `fetchOptimizerPairs` (borrow) | `GET /v1/data/lending/pairs/optimize` | `useBorrowOffers` → dollar loans (tickets/0008), read by `model/borrow.ts` (`offersFrom`), never `classifyPair` | one request per collateral family over every chain: `collateralAssetClasses=stocks` (also the catalogue's — it notes every stock token, `noteStock`, and adds their addresses to the balance read), `collateralTags=wnative` / `btc` / `lst,lrt`, all `debtTags=stablecoin`, `sortBy=totalDepositsUsdLong` (a loop's `aprTotal` says nothing about a loan); stocks 5 pages, crypto 3 each. `maxLtv` = `ltv` (borrow factor in), liquidation = `collateralFactorLong / borrowFactorShort`; rows on a fixed term, a smart leg, bands, DBR, a Liquity trove or an institutional market are left out (`needsInput`) |
+| `lendingRange` | `GET /v1/data/lending/range/deposit-borrow` · `/withdraw-repay` | the borrow ticket's "most you can take" for a real wallet | **`marketUidOut` = COLLATERAL, `marketUidIn` = DEBT**; GET needs `account` (read on chain, its existing position and e-mode included) — never asked for paper; raw in, human + USD out, a one-element array; `collateralModeId` goes back as `modeId` |
 | `fetchLoopPayAssets` | `GET /v1/actions/loop/leverage/pay-assets` | `useLoopPayAssets` | |
 | `bridgeStatus` | `GET /v1/data/bridge/status` | `txTrace` | |
 
@@ -88,6 +90,9 @@ that sometimes answer un-enveloped or with `ok` instead of `success`
 | `earnWithdraw` | `/v1/actions/earn/withdraw` | `receiveAsset = ZERO` unwraps to native; always pass `amount` (`isAll` not honoured everywhere, refused on a booked row); `slippage` on a booked row |
 | `loopOpen` | `/v1/actions/loop/leverage` | **`marketUidIn` = DEBT, `marketUidOut` = COLLATERAL** on open; `termId` for Lista broker debt; `duration` + `durationType` (0 days · 1 weeks · 2 months) **required** on a Loopscale pair (`LoopStrategy.tenors`) — the feed carries no per-tenor rate, so `useTenorQuotes` quotes each tenor and reads `data.offer` (`apy` / `lqt` in CBPS); a size bigger than the tenor's deepest lender answers 400 `INSUFFICIENT_DEPTH` (one loan = one lender) with a readable message and `error.details` (amounts in tokens, `fit.margin` / `fit.leverage` that fit) — `loopDepthShort` passes them through, `ApiError.details` carries them |
 | `loopClose` | `/v1/actions/loop/close` | **`marketUidIn` = COLLATERAL, `marketUidOut` = DEBT** on close; `loanId` for Lista broker debt |
+| `lendingDepositAndBorrow` | `/v1/actions/lending/deposit-and-borrow` | **`marketUid` = COLLATERAL, `debtMarketUid` = DEBT**; `collateralAmount` + `borrowAmount` raw, **neither may be 0** (`ACTION_FAILED: No amount is provided`, measured 2026-10-14) — a one-sided action goes through `lendingAction`; `payAsset` = `nativeAsset` wraps the gas coin into its wrapper's market; `modeId` from the range; `simulate=true` → `data.simulation.pre/post.healthFactor`. **The simulation starts from ZERO when the route cannot read the account** (an Aave loan at health 20.7 simulated as 2.03 for a $244 top-up): with a loan running, trust `post` only when `pre` matches it |
+| `lendingWithdrawAndRepay` | `/v1/actions/lending/withdraw-and-repay` | **`marketUid` = DEBT, `collateralMarketUid` = COLLATERAL** — the flip of deposit-and-borrow; a full exit sends `repayMax` (and `withdrawMax` with it), never an amount read off the screen, or interest dust is left; `receiveAsset` = `nativeAsset` unwraps |
+| `lendingAction` | `/v1/actions/lending/{deposit,borrow,repay,withdraw}` | one leg: `marketUid` (the collateral market for deposit / withdraw, the debt market for borrow / repay), `amount` raw, `isAll`, `payAsset` / `receiveAsset`, `accountId` |
 | `spotSwapQuote` | `/v1/actions/swap/spot` | one tx per route in `actions.alternatives`, matched by index to `data.quotes` |
 | `xchainSwapQuote` | `/v1/actions/swap/x-chain` | approvals per bridge (`permissions[].spender`); `destinationGas` (a decimal of the destination gas coin, `auto` on Solana) only when the receiver lacks gas there (`model/destGas.ts`) — each route then carries `destinationGas`, and a `gas-leg` one a second `transaction` sent after the bridge; a Solana origin quoted without `account` for paper (the builders read the sender on chain) |
 
@@ -201,6 +206,13 @@ Rules:
   `useCloseQuote`, the spot and cross-chain swap quotes (a paper swap or bridge takes the quote's
   output and, for a bridge, its ETA). A paper leverage step asks `/v1/actions/loop/leverage` for
   its entry cost only.
+- **Loans on paper** (tickets/0008): ops `borrow` (collateral out of the bank into a `kind: 'borrow'`
+  position, the borrowed dollars into the bank; refused past the snap's `maxLtv` and past
+  liquidation) and `repay` (the bank pays back, collateral comes home; the collateral only once
+  the debt is gone). A loan's basis is collateral less debt, so opening one is no gain or loss.
+  Not against a stock: the app's stock prices are not to be trusted yet (tickets/0009 risk 3).
+  The server needs the matching `opTokens` / re-rate / liquidity cases (pos-indexer
+  `social/src/paper.ts`) — a social deploy before the client sends either op.
 - **`model/paper.ts` is the one ledger**, applied by the app and by the server alike; pos-indexer's
   `packages/social/src/paperModel.ts` is a verbatim copy (`pnpm paper-check`, `--write` to copy).
   Change it here, copy it, redeploy social.

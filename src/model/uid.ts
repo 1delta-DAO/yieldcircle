@@ -60,7 +60,16 @@ function uidOfEarnLike(s: Extract<Strategy, { kind: 'simple' }>): string | null 
 }
 
 /** the uid as `createMarketUid` spells it — the social service refuses any other spelling in a loop key */
-const canonUid = (uid: string) => { const p = parseUid(uid); return p ? createMarketUid(p.chainId, p.lender, p.ref) : null }
+export const canonUid = (uid: string) => { const p = parseUid(uid); return p ? createMarketUid(p.chainId, p.lender, p.ref) : null }
+/**
+ * A dollar loan's key in the strategy book (tickets/0008): the same `loop:<collateral>|<debt>` a
+ * loop on those two markets has — the index files collateral against debt, whatever was done with
+ * the borrowed money, so "N wallets borrow against TSLAx here" is that key's holder count.
+ */
+export function pairKey(collateralUid: string, debtUid: string): string | null {
+  const a = canonUid(collateralUid), b = canonUid(debtUid)
+  return a && b ? `loop:${a}|${b}` : null
+}
 
 /**
  * A loop's OWN thread key (tickets/0005, pos-indexer `social/strategyKey.ts`):

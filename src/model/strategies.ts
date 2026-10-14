@@ -266,7 +266,7 @@ const num = (v: string | number | null | undefined): number => { if (v == null |
  * label, is read, because the earn listing mixes in colour words that disagree
  * with it (`2 yellow`, `4 red`). An unrated row wears the medium dot, never low.
  */
-const riskOf = (score: number | undefined, _label?: string): { risk: Risk; riskLabel: string } => {
+export const riskOf = (score: number | undefined, _label?: string): { risk: Risk; riskLabel: string } => {
   if (!score) return { risk: 2, riskLabel: 'Unrated' }
   const risk: Risk = score <= 2 ? 1 : score <= 4 ? 2 : 3
   return { risk, riskLabel: risk === 1 ? 'Low' : risk === 2 ? 'Medium' : 'High' }

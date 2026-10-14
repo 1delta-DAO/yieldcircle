@@ -43,6 +43,7 @@ const FLAG_WORDS: Record<string, string> = {
   'flow-priced-nearby': 'a move had no price in its own hour and is valued at the nearest price within two weeks',
   'price-despiked': 'a price point that broke from both its neighbours (another source’s odd hour) was replaced by theirs',
   'price-mixed': 'the price record alternated with a second source at another level; those hours were dropped and the token’s own track kept',
+  'flow-repriced': 'a move’s stored value came off the dropped source’s hour; it is valued at the token’s own track instead',
 }
 const KIND_CLASS: Record<string, string> = {
   deposit: 'k-in', transfer_in: 'k-in', repay: 'k-in',

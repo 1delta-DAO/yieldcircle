@@ -2,7 +2,7 @@ import React from 'react'
 import { GROUPS, assetLogo, nameOf, type Group, type GroupId } from '../model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
-import { GroupIcon, Sk, Tok, amt, pct, usd } from './bits'
+import { GroupIcon, Sk, Tok, amt, pct, usd, usdShort } from './bits'
 import type { AssetBook } from '../model/positions'
 import type { Strategy } from '../model/strategies'
 import { isSavings } from '../model/nature'
@@ -11,6 +11,11 @@ import { ChainChip } from './ChainPicker'
 import { useRateHistory } from '../sdk/queries'
 import { steadyRate, type HistoryGet } from '../model/rateHistory'
 import { Avg30 } from './Spark'
+import { useBorrowOffers } from '../sdk/queries'
+import { useApp } from '../state/AppState'
+import { headlineOffers, type BorrowOffer } from '../model/borrow'
+import { borrowRoom } from './BorrowList'
+import type { Idle } from '../model/positions'
 
 /**
  * Earn: a digest, not an index. Four group tiles (your money there, the best rate, how many
@@ -21,9 +26,15 @@ import { Avg30 } from './Spark'
  * ("Issued dollars", "Yield desks") — which after the regrouping ran to ~70 rows and four screens
  * of scrolling on a phone. The bands went with the big table; a group page's chips are the desk
  * index now, and a digest row carries its group as a small tag instead.
+ *
+ * Borrowing (tickets/0008–0009) has no tab of its own: a held asset's row says how much could be
+ * taken out against it, the Stocks tile is the stock shelf (its loans first), and one short band
+ * at the foot says where each shelf lends from.
  */
 export function Earn() {
   const b = useBook()
+  const { chainIds } = useApp()
+  const bo = useBorrowOffers(chainIds)
   // the whole menu's 30-day history (shared cache: the group pages and the
   // ticket read the same answers), once the catalogue has settled
   const get = useRateHistory(b.all, !b.isFetching)
@@ -51,13 +62,15 @@ export function Earn() {
       </div>
       {b.errors.length > 0 && !b.anyData && <div className="err">The listing could not be loaded from <b>{new URL(BACKEND_BASE_URL).host}</b>: {b.errors[0].message}{/portal\.1delta\.io/.test(BACKEND_BASE_URL) && <><br /><span className="t70">This build is on the public, per-IP rate-limited endpoint. Unset <code>VITE_BACKEND_BASE_URL</code> to use the credited default, then rebuild.</span></>}</div>}
       <nav className="tiles" aria-label="Asset groups" style={{ marginTop: 16 }}>
-        {GROUPS.map((g) => <GroupTile key={g.id} g={g} strategies={b.all.filter((s) => s.group === g.id)} books={b.books.filter((x) => x.group === g.id)} loading={b.isLoading} rank={rank} get={get} />)}
+        {GROUPS.map((g) => g.id === 'STOCKS'
+          ? <StockTile key={g.id} g={g} offers={bo.offers.filter((o) => o.group === 'STOCKS')} books={b.books.filter((x) => x.group === g.id)} loading={bo.isLoading} />
+          : <GroupTile key={g.id} g={g} strategies={b.all.filter((s) => s.group === g.id)} books={b.books.filter((x) => x.group === g.id)} loading={b.isLoading} rank={rank} get={get} />)}
       </nav>
       {b.books.length > 0 && (
         <section className="sec">
           <div className="sec-h"><h2>Your money</h2><span className="sub">what each asset could earn</span></div>
           <div className="card"><table className="tbl slim"><tbody>
-            {b.books.map((x) => <BookRow key={x.asset} x={x} best={bestBy.get(x.asset)} get={get} />)}
+            {b.books.map((x) => <BookRow key={x.asset} x={x} best={bestBy.get(x.asset)} get={get} room={borrowRoom(x.asset, b.idlePerChain, bo.offers)} />)}
           </tbody></table></div>
         </section>
       )}
@@ -68,6 +81,7 @@ export function Earn() {
           {top.map((s) => <TopRow key={s.asset} s={s} n={countBy.get(s.asset) ?? 0} get={get} />)}
         </tbody></table></div>
       </section>
+      <BorrowBand offers={bo.offers} idle={b.idlePerChain} />
       <section className="sec"><div className="note"><b>Live.</b> Rates and sizes come from the 1delta API (plain deposits from the earn listing, loops from the pair optimizer), filtered to base assets, low-to-medium risk and real size. Each group’s page lists every desk and strategy, and says how many rows the floors are holding back; Filters in your profile menu (top left) move them. A loop is opened in one flash-funded transaction.</div></section>
     </>
   )
@@ -94,15 +108,65 @@ function GroupTile({ g, strategies, books, loading, rank, get }: { g: Group; str
 const savingsFirst = (a: Strategy, b: Strategy, rank: (s: Strategy) => number) =>
   Number(isSavings(a.nature)) - Number(isSavings(b.nature)) || rank(a) - rank(b)
 
-/** An asset the reader holds: the balance as it stands, and the best rate waiting for it. */
-function BookRow({ x, best, get }: { x: AssetBook; best: Strategy | undefined; get: HistoryGet }) {
+/** An asset the reader holds: the balance as it stands, the best rate waiting for it — and, where a market lends against it, how much it could raise. */
+function BookRow({ x, best, get, room }: { x: AssetBook; best: Strategy | undefined; get: HistoryGet; room: number }) {
   return (
-    <tr onClick={() => go(x.group, { u: x.asset, k: best?.kind })}>
+    <tr onClick={() => go(x.group, { u: x.asset, k: best?.kind ?? (room >= 1 ? 'borrow' : undefined) })}>
       <td><div className="nm"><Tok sym={x.asset} logo={assetLogo(x.asset) ?? best?.tokenLogo} />{nameOf(x.asset)}<GroupTag gid={x.group} className="hide-m" /></div></td>
       <td className="r">{amt(x.asset, (x.idle?.amount ?? 0) + (x.idle?.price ? x.atWorkUsd / x.idle.price : 0), x.totalUsd)}{x.atWorkUsd ? <small className="ok">{pct(x.blended)} on {Math.round(x.atWorkUsd / x.totalUsd * 100)}%</small> : <small className="t40">idle</small>}</td>
-      <td className="r upto">{best ? <><span className="t50">up to</span> <span className={best.rate >= 3 ? 'ok' : ''}>{pct(best.rate)}</span><small>{best.kind === 'loop' ? `${best.rec}× loop` : 'deposit'}<Avg30 s={best} get={get} prefix=" · 30d " /></small></> : <span className="t40">—</span>}</td>
+      <td className="r upto">{best ? <><span className="t50">up to</span> <span className={best.rate >= 3 ? 'ok' : ''}>{pct(best.rate)}</span><small>{best.kind === 'loop' ? `${best.rec}× loop` : 'deposit'}<Avg30 s={best} get={get} prefix=" · 30d " />{room >= 1 && <span className="hide-m"> · or borrow up to {usdShort(room)}</span>}</small></> : room >= 1 ? <><span className="t50">borrow up to</span> <span>{usdShort(room)}</span><small>without selling</small></> : <span className="t40">—</span>}</td>
       <td className="r t40" style={{ width: 20 }}>›</td>
     </tr>
+  )
+}
+
+/**
+ * The Stocks tile: a shelf of loans, so it says what a loan says — how far its markets lend and
+ * from what rate — and how many tickers it holds, where the other tiles say what they pay.
+ */
+function StockTile({ g, offers, books, loading }: { g: Group; offers: BorrowOffer[]; books: AssetBook[]; loading: boolean }) {
+  const deep = headlineOffers(offers)
+  const ltv = deep.reduce((m, o) => Math.max(m, o.maxLtv), 0), apr = deep.reduce((m, o) => Math.min(m, o.borrowApr), Infinity)
+  const tickers = new Set(offers.map((o) => o.asset)).size
+  const total = books.reduce((a, x) => a + x.totalUsd, 0)
+  const busy = loading && !offers.length
+  return (
+    <a className="tile stocks" href="#/STOCKS?k=borrow" style={{ '--gc': g.color } as React.CSSProperties}>
+      <div className="h"><GroupIcon id={g.id} color={g.color} size={22} /><span className="n">{g.name}</span><span className="pill new">new</span></div>
+      <div className={`v${total ? '' : ' t40'}`}>{busy ? <Sk w={64} h={15} /> : total ? usd(total) : '—'}</div>
+      <div className="ft">
+        <span>{deep.length ? <><span className="t50">borrow </span><b>{Math.round(ltv * 100)}%</b><span className="t50"> · from </span><b className="ok">{pct(apr, apr < 1 ? 2 : 1)}</b></> : busy ? <Sk w={70} /> : <span className="t40">—</span>}</span>
+        <small>{busy ? '…' : `${tickers} ticker${tickers === 1 ? '' : 's'} ›`}</small>
+      </div>
+    </a>
+  )
+}
+
+/**
+ * Where each shelf lends from: one line per group a market lends dollars against — how far, from
+ * what rate, and (for what the reader holds) how much it could raise. Stocks has its own line.
+ */
+function BorrowBand({ offers, idle }: { offers: BorrowOffer[]; idle: Idle[] }) {
+  const rows = GROUPS.map((g) => {
+    const deep = headlineOffers(offers.filter((o) => o.group === g.id))
+    if (!deep.length) return null
+    const room = [...new Set(idle.filter((i) => deep.some((o) => o.asset === i.asset)).map((i) => i.asset))].reduce((a, asset) => a + borrowRoom(asset, idle, deep), 0)
+    return { g, n: new Set(deep.map((o) => o.asset)).size, ltv: Math.max(...deep.map((o) => o.maxLtv)), apr: Math.min(...deep.map((o) => o.borrowApr)), room }
+  }).filter((r): r is NonNullable<typeof r> => !!r)
+  if (!rows.length) return null
+  return (
+    <section className="sec">
+      <div className="sec-h"><h2>Borrow without selling</h2><span className="sub">dollars out against what you hold</span></div>
+      <div className="card"><table className="tbl slim"><tbody>
+        {rows.map(({ g, n, ltv, apr, room }) => (
+          <tr key={g.id} onClick={() => go(g.id, { k: 'borrow' })}>
+            <td><div className="nm"><GroupIcon id={g.id} color={g.color} size={22} />{g.id === 'MORE' ? 'More' : g.name}{g.id === 'STOCKS' && <span className="pill new">new</span>}</div></td>
+            <td className="r upto"><span className="t50">up to</span> <span>{Math.round(ltv * 100)}%</span><small>from {pct(apr, apr < 1 ? 2 : 1)} · {n} asset{n === 1 ? '' : 's'}{room >= 1 ? ` · you could take ${usdShort(room)}` : ''}</small></td>
+            <td className="r t40" style={{ width: 20 }}>›</td>
+          </tr>
+        ))}
+      </tbody></table></div>
+    </section>
   )
 }
 
@@ -120,5 +184,5 @@ function TopRow({ s, n, get }: { s: Strategy; n: number; get: HistoryGet }) {
 /** Which group a row belongs to, said quietly — the row itself is the desk. */
 function GroupTag({ gid, className }: { gid: GroupId; className?: string }) {
   const g = GROUPS.find((x) => x.id === gid)!
-  return <span className={`gtag${className ? ` ${className}` : ''}`}><i style={{ background: g.color }} />{gid === 'MORE' ? 'More' : gid}</span>
+  return <span className={`gtag${className ? ` ${className}` : ''}`}><i style={{ background: g.color }} />{gid === 'MORE' ? 'More' : gid === 'STOCKS' ? 'Stocks' : gid}</span>
 }

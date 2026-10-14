@@ -7,7 +7,7 @@ import { ApiError, apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } f
 import { isNativeAddress } from '../model/positions'
 import { isSvmChain } from '../model/address'
 import type { RateHistoryResponse } from '../model/rateHistory'
-import type { AnyTx, ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmResponse, LendingBook, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
+import type { AnyTx, ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmResponse, LendingActionData, LendingBook, LendingRange, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
 
 // ---------------------------------------------------------------- deposits (supply side)
 // `terms: 'digest'` — NOT 'none'. The digest is where the row's own prose lives:
@@ -117,6 +117,11 @@ export interface OptimizerQuery {
    * one muted as `thin borrow`, rather than one that silently is not there.
    */
   includeIlliquid?: boolean
+  /** `stocks` (stock + ETF + pre-IPO), or any class of `model/assetClass.ts` — the collateral's class, read off `props.rwa` upstream */
+  collateralAssetClasses?: string[]
+  /** default `aprTotal` (a loop's net yield); a borrow list asks for the biggest collateral markets first */
+  sortBy?: 'aprTotal' | 'totalDepositsUsdLong' | 'borrowAprShort' | 'borrowLiquidityShort'
+  sortDir?: 'ASC' | 'DESC'
   count?: number
   start?: number
 }
@@ -125,7 +130,7 @@ export function fetchOptimizerPairs(q: OptimizerQuery): Promise<OptimizerRespons
   const params: ApiParams = {
     ...(q.chainIds.length === 1 ? { chainId: q.chainIds[0] } : { chainIds: q.chainIds.join(',') }), collateralTags: csv(q.collateralTags), collaterals: csv(q.collaterals), debtTags: csv(q.debtTags), collateralAmountUsd: q.collateralAmountUsd,
     maxConfigRiskScore: q.maxConfigRiskScore, maxTokenRiskScore: q.maxTokenRiskScore, minBorrowLiquidityUsd: q.minBorrowLiquidityUsd,
-    includeExpired: q.includeExpired, includeIlliquid: q.includeIlliquid || undefined, sortBy: 'aprTotal', sortDir: 'DESC', start: q.start, count: q.count ?? 100,
+    includeExpired: q.includeExpired, includeIlliquid: q.includeIlliquid || undefined, collateralAssetClasses: csv(q.collateralAssetClasses), sortBy: q.sortBy ?? 'aprTotal', sortDir: q.sortDir ?? 'DESC', start: q.start, count: q.count ?? 100,
   }
   return apiFetchLoose<OptimizerResponse>('/v1/data/lending/pairs/optimize', { params })
 }
@@ -222,6 +227,49 @@ export function loopOpen(p: LoopOpenParams) {
     },
   })
 }
+// ---------------------------------------------------------------- borrowing (tickets/0008)
+/**
+ * Put collateral up and borrow against it, one request (no swap, no loop). The API routes it per
+ * lender (one atomic call, a composer bundle, or a sequence) and, with `simulate`, answers the
+ * account's health before and after. **`marketUid` = COLLATERAL, `debtMarketUid` = DEBT** here —
+ * the withdraw-and-repay route below names them the other way round. Neither leg is ever sent as 0:
+ * a borrow with nothing to put up, or collateral with nothing to borrow, goes through {@link lendingAction}.
+ */
+export function lendingDepositAndBorrow(p: { collateralMarketUid: string; debtMarketUid: string; operator: string; collateralRaw: string; borrowRaw: string; payAsset?: string; receiveAsset?: string; accountId?: string; modeId?: string; simulate?: boolean }) {
+  return apiFetchEnvelope<LendingActionData, LoopActions>('/v1/actions/lending/deposit-and-borrow', {
+    params: { marketUid: p.collateralMarketUid, debtMarketUid: p.debtMarketUid, operator: p.operator, collateralAmount: p.collateralRaw, borrowAmount: p.borrowRaw, payAsset: p.payAsset, receiveAsset: p.receiveAsset, accountId: p.accountId, modeId: p.modeId, simulate: p.simulate ? 'true' : undefined },
+  })
+}
+/**
+ * Pay a loan back and take collateral out, one request. **`marketUid` = DEBT, `collateralMarketUid`
+ * = COLLATERAL** (the flip of deposit-and-borrow). `repayMax` / `withdrawMax` size the full exit on
+ * chain — an amount read off the screen leaves interest dust behind, so a full exit always sends them.
+ */
+export function lendingWithdrawAndRepay(p: { collateralMarketUid: string; debtMarketUid: string; operator: string; repayRaw?: string; withdrawRaw?: string; repayMax?: boolean; withdrawMax?: boolean; payAsset?: string; receiveAsset?: string; accountId?: string; simulate?: boolean }) {
+  return apiFetchEnvelope<LendingActionData, LoopActions>('/v1/actions/lending/withdraw-and-repay', {
+    params: { marketUid: p.debtMarketUid, collateralMarketUid: p.collateralMarketUid, operator: p.operator, repayAmount: p.repayMax ? undefined : p.repayRaw, withdrawAmount: p.withdrawMax ? undefined : p.withdrawRaw, repayMax: p.repayMax ? 'true' : undefined, withdrawMax: p.withdrawMax ? 'true' : undefined, payAsset: p.payAsset, receiveAsset: p.receiveAsset, accountId: p.accountId, simulate: p.simulate ? 'true' : undefined },
+  })
+}
+/** One leg on its own: add collateral, borrow more, repay, take collateral back. `isAll` = the whole debt (repay) or deposit (withdraw). */
+export function lendingAction(action: 'deposit' | 'borrow' | 'repay' | 'withdraw', p: { marketUid: string; operator: string; amountRaw: string; isAll?: boolean; payAsset?: string; receiveAsset?: string; accountId?: string; simulate?: boolean }) {
+  return apiFetchEnvelope<LendingActionData, LoopActions>(`/v1/actions/lending/${action}`, {
+    params: { marketUid: p.marketUid, operator: p.operator, amount: p.amountRaw, isAll: p.isAll ? 'true' : undefined, payAsset: p.payAsset, receiveAsset: p.receiveAsset, accountId: p.accountId, simulate: p.simulate ? 'true' : undefined },
+  })
+}
+/**
+ * How far the caller's OWN account can go: a deposit → the most it can then borrow
+ * (`maxBorrow`), or a repay → the most collateral that can then leave (`maxWithdraw`). Read on chain
+ * for `account` (its existing position and e-mode included), so only asked with a real wallet.
+ * Amounts in are raw; out are human decimals + USD. `collateralModeId` goes back as `modeId`.
+ * **`marketUidOut` = COLLATERAL, `marketUidIn` = DEBT**, as on the loop ranges.
+ */
+export async function lendingRange(kind: 'deposit-borrow' | 'withdraw-repay', p: { collateralMarketUid: string; debtMarketUid: string; account: string; depositRaw?: string; repayRaw?: string; modeId?: string; accountId?: string }): Promise<LendingRange> {
+  const r = await apiFetch<LendingRange | LendingRange[]>(`/v1/data/lending/range/${kind}`, {
+    params: { marketUidOut: p.collateralMarketUid, marketUidIn: p.debtMarketUid, account: p.account, depositAmount: p.depositRaw, repayAmount: p.repayRaw, modeId: p.modeId, accountId: p.accountId },
+  })
+  return (Array.isArray(r) ? r[0] : r) ?? {}
+}
+
 /** A Loopscale open too big for one lender, as worker-api restates it: amounts in debt tokens, and the margin / leverage that fit this request. */
 export interface LoopDepthShort {
   message: string

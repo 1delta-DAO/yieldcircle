@@ -19,7 +19,8 @@
  */
 import DESKS from '../data/desks.json'
 import { normAddr } from './address'
-import { baseInfo, baseOfSymbol, deskById, deskOfBase, groupOf, learnDesk, learnUnattributed, type DeskGroup } from './assets'
+import { baseInfo, baseOfSymbol, deskById, deskOfBase, groupOf, learnDesk, learnUnattributed, stockOfToken, type DeskGroup } from './assets'
+import { assetClassOf } from './assetClass'
 
 export interface IssuerLike { id: string; name?: string | null; kind?: string | null; hops?: number }
 export interface DeskToken {
@@ -34,7 +35,7 @@ export interface DeskToken {
   issuerExposures?: IssuerLike[] | null
   /** the money, upper-case (`USD`, `ETH`), when the API says it */
   denomination?: string | null
-  props?: { issuer?: IssuerLike | null; issuerExposures?: IssuerLike[] | null; stablecoin?: { base?: string }; savings?: { base?: string; underlying?: string }; lst?: { asset?: string }; denomination?: string; rwa?: { denomination?: string }; pendle?: unknown; spectra?: unknown; exponent?: unknown; receipt?: unknown }
+  props?: { issuer?: IssuerLike | null; issuerExposures?: IssuerLike[] | null; stablecoin?: { base?: string }; savings?: { base?: string; underlying?: string }; lst?: { asset?: string }; denomination?: string; rwa?: { denomination?: string; type?: string | null; subType?: string | null }; pendle?: unknown; spectra?: unknown; exponent?: unknown; receipt?: unknown }
 }
 
 const TABLE: Record<DeskGroup, Record<string, string>> = { USD: DESKS.tokens as Record<string, string>, ETH: DESKS.eth as Record<string, string>, BTC: DESKS.btc as Record<string, string> }
@@ -74,8 +75,11 @@ export function creditDesk(t: DeskToken, money: DeskGroup = 'USD'): IssuerLike |
  * the API, the table and what the catalogue already said, then the token's own props.
  */
 export function moneyOf(t: DeskToken): DeskGroup | undefined {
+  // a tokenized stock is priced in dollars and is no dollar: its issuer and a `denomination: USD`
+  // would otherwise file TSLAx under a dollar desk, and a TSLAx/USDC pair would read as a carry
+  if (stockOfToken(t.chainId, t.address) || isEquity(t.props?.rwa)) return undefined
   const b = baseOfSymbol(t.symbol)
-  if (b && baseInfo(b)) { const g = groupOf(b); return g === 'MORE' ? undefined : g }
+  if (b && baseInfo(b)) { const g = groupOf(b); return g === 'MORE' || g === 'STOCKS' ? undefined : g }
   const den = t.denomination?.toUpperCase()
   if (den && den !== 'USD') return MONIES.has(den) ? (den as DeskGroup) : undefined
   const k = at(t)
@@ -135,7 +139,8 @@ export function deskKey(t: DeskToken, money: DeskGroup): string {
 export const usdKey = (t: DeskToken): string => deskKey(t, 'USD')
 
 /** A token's row key in any group: its desk in USD / ETH / BTC, else its whitelisted base. */
-export const keyOfToken = (t: DeskToken): string | undefined => { const m = moneyOf(t); return m ? deskKey(t, m) : baseOfSymbol(t.symbol) }
+export const keyOfToken = (t: DeskToken): string | undefined => { const st = stockOfToken(t.chainId, t.address); if (st) return st; const m = moneyOf(t); return m ? deskKey(t, m) : baseOfSymbol(t.symbol) }
+const isEquity = (rwa: { type?: string | null; subType?: string | null } | undefined) => { const c = assetClassOf(rwa); return c === 'stock' || c === 'etf' || c === 'pre-ipo' }
 
 /** Remember the row the catalogue gave a token, for the responses that carry only its address. */
 export function noteToken(chainId: string, address: string | undefined, key: string): void {

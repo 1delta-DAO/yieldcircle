@@ -14,7 +14,10 @@ import { readFeedLink } from './feedLink'
  *   #/                       the home: the beginner dashboard (src/ui/Start.tsx)
  *   #/feed                   pulse · hot · the feed  (?t=following|everyone|menu, filters: see feedLink.ts)
  *   #/earn                   the catalogue, by asset
- *   #/USD?u=USDC&s=<id>&k=loop   asset page + ticket
+ *   #/USD?u=USDC&s=<id>&k=loop   asset page + ticket (USD · ETH · BTC · STOCKS · MORE)
+ *   #/ETH?k=borrow&s=b:<coll>|<debt>   the loans against it, and a borrow ticket (tickets/0008);
+ *                            `&h=<holding>&m=reduce` opens a running loan on Pay back
+ *   #/STOCKS?u=TSLA&k=borrow  tokenized stocks, one row per real-world ticker (tickets/0009)
  *   #/w/0x…                  a wallet
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
  *   #/board                  the earners board (apr by default; ?t=day for $/day, &by=wallet)
@@ -34,7 +37,8 @@ export interface Route {
   group?: string
   u: string
   s?: string
-  k: 'simple' | 'loop' | undefined
+  /** which list an asset page shows: deposits, loops, or loans against the asset (`borrow`, tickets/0008) — and so which ticket `s=` opens */
+  k: 'simple' | 'loop' | 'borrow' | undefined
   m?: Mode
   /** a running position the catalogue has no row for — its `Holding.key`, managed from the position alone */
   h?: string
@@ -61,7 +65,7 @@ export interface Route {
   /** `talk=1`: the ticket opens on its thread (a row's 💬, a Talk card) — tickets/0005 */
   talk?: boolean
 }
-const GROUP_IDS = new Set(['USD', 'ETH', 'BTC', 'MORE'])
+const GROUP_IDS = new Set(['USD', 'ETH', 'BTC', 'STOCKS', 'MORE'])
 
 export function parseRoute(hash = location.hash): Route {
   const h = hash.replace(/^#\/?/, '')
@@ -73,7 +77,7 @@ export function parseRoute(hash = location.hash): Route {
     u: p.get('u') ?? 'all',
     s: p.get('s') ?? undefined,
     h: p.get('h') ?? undefined,
-    k: p.get('k') === 'loop' ? ('loop' as const) : p.get('k') === 'simple' ? ('simple' as const) : undefined,
+    k: p.get('k') === 'loop' ? ('loop' as const) : p.get('k') === 'simple' ? ('simple' as const) : p.get('k') === 'borrow' ? ('borrow' as const) : undefined,
     m: m === 'reduce' || m === 'close' || m === 'manage' ? (m as Mode) : m === 'add' ? ('add' as Mode) : undefined,
     t: p.get('t') ?? undefined,
     by: p.get('by') ?? undefined,

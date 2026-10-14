@@ -90,6 +90,7 @@ function opTokens(op: PaperOp, l: PaperLedger | null): Record<string, string[]> 
     case 'open': add(op.chainId, op.pay.token); add(op.chainId, op.snap.held.address); add(op.chainId, op.snap.debt?.address); add(op.chainId, op.snap.money?.address); break
     case 'withdraw': add(posChain(op.id), op.receive.token); break
     case 'reduce': for (const r of op.receive) add(posChain(op.id), r.token); break
+    case 'borrow': add(op.chainId, op.collateral.token); add(op.chainId, op.snap.held.address); add(op.chainId, op.snap.debt?.address); break
   }
   return w
 }

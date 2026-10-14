@@ -40,7 +40,7 @@ import { AssetLink } from './TokenPage'
  * (`threadOf`), and the wallet being copied when the ticket was opened from a
  * feed card.
  */
-const TicketCtx = React.createContext<{ uid: string | null; thread?: ThreadRef | null; copy?: string }>({ uid: null })
+export const TicketCtx = React.createContext<{ uid: string | null; thread?: ThreadRef | null; copy?: string }>({ uid: null })
 
 /** The ticket: what you do in plain words, amount (+ leverage), the numbers, what can go wrong, one button. */
 /**
@@ -183,7 +183,7 @@ const SOURCE_WORDS: Record<string, string> = {
  * An idle row against a pay option. The option spells the gas coin as the API takes it ({@link nativeAsset}),
  * a balance row may use another alias (`0xEeee…`, `native`) — so the coin read 0 in the chips.
  */
-const sameToken = (held: string, want: string) => held === want || (isNativeAddress(held) && isNativeAddress(want))
+export const sameToken = (held: string, want: string) => held === want || (isNativeAddress(held) && isNativeAddress(want))
 type PayRole = 'native' | 'token'
 interface PayOption { role: PayRole; address: string; symbol: string; decimals: number }
 function payOptions(s: SimpleStrategy): PayOption[] {
@@ -904,7 +904,7 @@ function getForms<T extends { role: string; address: string; symbol: string }>(o
   const wrapped = opts.find((o) => o.role !== 'native' && wrapsNative(chainId, o.address))
   return coin && wrapped && (chosen === coin || chosen === wrapped) ? [coin, wrapped] : [chosen]
 }
-function GetLine({ account, short, symbol, open, onOpen }: { account?: string; short: boolean; symbol: string; open: boolean; onOpen: () => void }) {
+export function GetLine({ account, short, symbol, open, onOpen }: { account?: string; short: boolean; symbol: string; open: boolean; onOpen: () => void }) {
   if (!account || open) return null
   return (
     <button className={`getline ${short ? 'short' : ''}`} onClick={onOpen}>
@@ -914,14 +914,14 @@ function GetLine({ account, short, symbol, open, onOpen }: { account?: string; s
     </button>
   )
 }
-function AmountBox({ unit, value, onChange, onMax }: { unit: string; value: number; onChange: (v: number) => void; onMax?: () => void }) {
+export function AmountBox({ unit, value, onChange, onMax }: { unit: string; value: number; onChange: (v: number) => void; onMax?: () => void }) {
   return (
     <div className="amt">{unit === '$' && <span className="u">$</span>}<DecimalInput value={value} onChange={onChange} ariaLabel="Amount" />{unit !== '$' && <span className="u">{unit}</span>}{onMax && <button className="max" onClick={onMax}>Max</button>}</div>
   )
 }
 
 /** The sticky bottom of the ticket: one button, then the ladder once built. */
-function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId, fee }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string; /** what the action pays in network fees on paper (tickets/0007 B) */ fee: FeeKind }) {
+export function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId, fee }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string; /** what the action pays in network fees on paper (tickets/0007 B) */ fee: FeeKind }) {
   const { setViewAs } = useApp()
   const { thread } = React.useContext(TicketCtx)
   const viewing = !!account && !isConnected

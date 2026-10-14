@@ -97,7 +97,7 @@ export interface EarnPositionsResponse { ok: boolean; account: string; items: Ea
 // ---------------------------------------------------------------- optimizer (loops)
 export interface AssetRef {
   chainId: string; address: string; symbol: string; name?: string; decimals?: number; logoURI?: string; assetGroup?: string; intrinsicYield?: number
-  props?: { lst?: { type?: string; asset?: string; provider?: string }; pendle?: { expiry: number; tokenType?: string; underlyingAsset?: string }; spectra?: { expiry?: number; maturity?: number }; exponent?: { maturity?: number; platform?: string; ptAddress?: string }; rwa?: { type?: string; issuer?: string; denomination?: string }; savings?: { base?: string; underlying?: string }; stablecoin?: { base?: string }; issuer?: IssuerRef | null; issuerExposures?: IssuerRef[] | null; risk?: { score?: number; source?: string; category?: string }; wnative?: boolean; [k: string]: unknown }
+  props?: { lst?: { type?: string; asset?: string; provider?: string }; pendle?: { expiry: number; tokenType?: string; underlyingAsset?: string }; spectra?: { expiry?: number; maturity?: number }; exponent?: { maturity?: number; platform?: string; ptAddress?: string }; rwa?: { type?: string; subType?: string; underlying?: string; issuer?: string; denomination?: string }; savings?: { base?: string; underlying?: string }; stablecoin?: { base?: string }; issuer?: IssuerRef | null; issuerExposures?: IssuerRef[] | null; risk?: { score?: number; source?: string; category?: string }; wnative?: boolean; [k: string]: unknown }
 }
 export interface UnderlyingInfo { asset: AssetRef; prices?: { priceUsd?: number } }
 export interface OptimizerRowRaw {
@@ -125,6 +125,18 @@ export interface OptimizerRowRaw {
   underlyingInfoLong: UnderlyingInfo; underlyingInfoShort: UnderlyingInfo
   /** the credit desk of each leg, resolved by the API (docs/stablecoin-exposure.md); absent on an API without it */
   collateralDesk?: DeskRef | null; debtDesk?: DeskRef | null
+  /**
+   * The collateral's asset class and the real-world ticker it tracks (`stock`, `TSLA`), stamped by
+   * the API from token-lists `props.rwa` (`collateralAssetClasses=` filters on it); absent on an API
+   * without them, where `model/assetClass.ts` reads the same props.
+   */
+  collateralAssetClass?: string | null; collateralUnderlyingTicker?: string | null
+  /** the factors behind `ltv`: the collateral's borrow (`borrowCollateralFactorLong`) and liquidation (`collateralFactorLong`) factors, and the debt's borrow factor (Kamino 1.66) */
+  borrowCollateralFactorLong?: string | number; borrowFactorShort?: string | number
+  /** the config mode (Aave e-mode) the factors are for — `modeId` on the action and range routes */
+  eModeConfigId?: string | number | null
+  utilizationShort?: string | number; totalDepositsUsdShort?: string | number; totalDebtUsdShort?: string | number
+  borrowRestrictedShort?: boolean | null
   risk: { maxTokenScore?: number; breakdown: { category: string; score: number | null; label?: string }[] }
 }
 export interface OptimizerResponse { start: number; count: number; total: number; hasMore: boolean; nextStart?: number; items: OptimizerRowRaw[] }
@@ -169,6 +181,18 @@ export interface LoopQuoteData {
 export interface LoopCloseData extends Omit<LoopQuoteData, 'economics'> { economics?: { exitCostUsd?: { total?: number } } | null }
 export interface LoopPayAsset { address: string; symbol: string; decimals?: number; logoURI?: string; role: 'collateral' | 'debt' | 'native'; wrapsTo?: string; wrapsRole?: 'collateral' | 'debt' }
 export interface LoopPayAssetsData { payAssets: LoopPayAsset[]; strict: boolean; notes: string[] }
+
+/**
+ * A lending account as the action routes simulate it (`simulate=true`): before and after the
+ * action. `healthFactor` is null with no debt; `balanceData` is in USD.
+ */
+export interface LendingSimState { healthFactor: number | null; borrowCapacity?: number; balanceData?: { deposits?: number; debt?: number; collateral?: number; nav?: number } }
+/** `/v1/actions/lending/*`: the build's route and, asked with `simulate=true`, the account before and after it. */
+export interface LendingActionData { route?: 'native' | 'composer' | 'sequential' | 'auction' | string; atomic?: boolean; simulation?: { pre?: LendingSimState; post?: LendingSimState } | null; simulationError?: string }
+/** One side of a range answer: a human decimal amount and its USD; `healthFactor` at that max. */
+export interface RangeSide { amount: string; amountUSD: number; healthFactor?: number; liquidityBounded?: boolean }
+/** `/v1/data/lending/range/deposit-borrow` and `/withdraw-repay`: the most the other leg can be, for the caller's own account. */
+export interface LendingRange { collateralModeId?: string; borrowCollateralFactor?: number; borrowFactor?: number; collateralPriceUSD?: number; debtPriceUSD?: number; maxBorrow?: RangeSide; minDeposit?: RangeSide; maxWithdraw?: RangeSide; minRepay?: RangeSide }
 
 /**
  * `/v1/data/lending/book`. `pricing: 'marginal'` (Midnight, Term): each level is a lot at its own

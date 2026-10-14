@@ -156,7 +156,7 @@ function AssetDetail({ b }: { b: AssetBook }) {
         </button>
       )}
       {b.holdings.map((h) => (
-        <button key={h.key} type="button" className="xrow" onClick={() => go(h.group, { u: h.asset, k: h.kind })}>
+        <button key={h.key} type="button" className="xrow" onClick={() => go(h.group, { u: h.asset, k: h.kind, ...(h.kind === 'borrow' ? { h: h.key, m: 'reduce' } : {}) })}>
           <Tok sym={h.label.split(' ')[0]} logo={h.logo} size={20} />
           <span className="xt"><span className="n"><span>{h.label}</span><KindPill kind={h.kind} /><LegsPill others={h.others} />{h.paper && <span className="pill paper">paper</span>}</span>
             <small>{h.venue} · {chainLabel(h.chainId)}{h.maturity ? <MaturityNote t={h.maturity} /> : ''}{h.health != null ? <> · <HealthPill h={h.health} /></> : ''}{h.paper && h.health != null && h.health < 1 ? <> · <span className="liq-warn">would have been liquidated</span></> : ''}</small></span>

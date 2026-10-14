@@ -57,6 +57,19 @@ function describe(id: number, at: string, op: PaperOp, prices: Record<string, nu
       const owed = c && p?.snap.debt ? val(c, p.snap.debt.address, op.addDebt) : undefined
       return { ...base, chains: c ? [c] : [], verb: 'levered up', cls: 'k-borrow', what: p?.snap.label ?? 'a loop', sub: c ? chainLabel(c) : undefined, usd: owed, uid: p?.snap.marketUid, flow: { borrowedUsd: owed ?? 0 } }
     }
+    case 'borrow': {
+      const c = op.chainId
+      const owed = op.snap.debt ? val(c, op.snap.debt.address, op.debtUnits) : undefined
+      const put = op.collateral.units > 0 ? val(c, op.collateral.token, op.collateral.units) : undefined
+      return { ...base, chains: [c], verb: op.into ? (op.collateral.units > 0 && !op.debtUnits ? 'added collateral to' : 'borrowed more on') : 'borrowed against', cls: 'k-borrow', what: op.snap.label, sub: `${op.debtUnits ? `${num(op.debtUnits, 2)} ${op.snap.debt?.symbol ?? ''} out · ` : ''}${op.snap.venue} · ${chainLabel(c)}`, usd: owed ?? put, uid: op.snap.marketUid, flow: { depositedUsd: put ?? 0, borrowedUsd: owed ?? 0 } }
+    }
+    case 'repay': {
+      const p = pos.get(op.id)
+      const c = p?.chainId ?? ''
+      const repaid = c && p?.snap.debt ? val(c, p.snap.debt.address, op.debtUnits) ?? 0 : 0
+      const got = c && op.withdraw > 0 ? val(c, p!.snap.held.address, op.withdraw) ?? 0 : 0
+      return { ...base, chains: c ? [c] : [], verb: op.repayAll && op.withdrawAll ? 'closed a loan' : op.debtUnits > 0 || op.repayAll ? 'paid back' : 'took collateral out of', cls: 'k-repay', what: p?.snap.label ?? 'a loan', sub: c ? chainLabel(c) : undefined, usd: repaid || got, uid: p?.snap.marketUid, flow: { repaidUsd: repaid, withdrawnUsd: got } }
+    }
     case 'reduce': {
       const p = pos.get(op.id)
       const c = p?.chainId ?? ''
@@ -111,7 +124,7 @@ export function usePaperHistory(account: string | undefined, inScope: (chainId: 
     // every position the history or the book names, so a withdrawal says what it came out of
     const pos = new Map<string, PosRef>()
     for (const p of ledger?.positions ?? []) pos.set(p.id, { chainId: p.chainId, snap: p.snap })
-    for (const o of [...ops].reverse()) if (o.op.t === 'open') {
+    for (const o of [...ops].reverse()) if (o.op.t === 'open' || o.op.t === 'borrow') {
       if (!o.op.into) pos.set(o.op.id, { chainId: o.op.chainId, snap: o.op.snap })
       // every leg a position ever had names its token, closed positions included
       for (const leg of [o.op.snap.held, o.op.snap.debt, o.op.snap.money]) if (leg?.symbol) meta[metaKey(o.op.chainId, leg.address)] ??= { symbol: leg.symbol, decimals: leg.decimals }

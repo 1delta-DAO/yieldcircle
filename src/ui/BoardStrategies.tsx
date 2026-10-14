@@ -150,9 +150,10 @@ function StrategyRow({ r, i, sort, profile, proof, st, comments, venue, open, on
     if (st) go(st.group, { u: st.asset, s: st.id, k: st.kind, talk: '1' })
     else if (t.uid) location.hash = marketHref(t.uid)
   }
+  // one block per strategy — the row, its "more" line and its opened holders share one rule underneath
   return (
-    <>
-      <div className={`row wrow board srow${open ? ' open' : ''}`}>
+    <div className={`srow-g${open ? ' open' : ''}`}>
+      <div className="row wrow board srow">
         <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
         <a className="strat-n" href={holdersHref} title="who runs this strategy, ranked">
           <span className="strat-logo"><ProtocolLogo urls={protocolIconUrls(protocolKeyOf(r.lenderKey), venue?.logoUri)} name={venue?.name ?? r.lenderKey} /></span>
@@ -171,8 +172,8 @@ function StrategyRow({ r, i, sort, profile, proof, st, comments, venue, open, on
             sub={<>best{r.leverage != null && r.leverage > 1.05 ? ` · ${r.leverage.toFixed(1)}×` : ''} · {usdShort(r.equityUsd)}</>} />
           {others.length > 0 && <span className="strat-faces">{others.map((a) => <Face key={a} account={a} profile={profile(a)} size={18} />)}</span>}
         </a>
-        <span className="sp" />
-        <Flags risk={r.risk} detail={r.riskDetail} />
+        {/* a cell even when empty: the grid's columns line up row under row */}
+        <span className="srow-flags"><Flags risk={r.risk} detail={r.riskDetail} /></span>
         <span className="v ok apr hide-m" title={sort === 'apr' ? 'the best position’s 24 h APR — what the board ranks strategies on' : 'the best position’s 24 h APR'}>
           {r.exact ? '' : '≈ '}{pct(apr)}
           <small>{g.positions > 1 && g.aprPct != null ? `avg ${pct(g.aprPct)}` : 'one position'}</small>
@@ -193,7 +194,7 @@ function StrategyRow({ r, i, sort, profile, proof, st, comments, venue, open, on
         </button>
       )}
       {open && <Holders strategyKey={g.key} filter={filter} href={holdersHref} />}
-    </>
+    </div>
   )
 }
 

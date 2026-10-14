@@ -204,10 +204,13 @@ function StrategyRow({ r, i, sort, profile, proof, st, comments, venue, open, on
         <Comments n={comments} onClick={talkTo(st, t.uid)} />
         <CopyOrOpen st={st} r={r} />
       </div>
-      {g.positions > 1 && (
+      {g.positions > 1 ? (
         <button type="button" className="strat-more linklike" aria-expanded={open} onClick={onToggle}>
           {open ? '▾ hide them' : `▸ ${g.positions - 1} more position${g.positions === 2 ? '' : 's'} on the board run this`}
         </button>
+      ) : wallets > 1 && (
+        // alone on the board, but the book counts more holders — smaller or flagged stakes the APR board does not rank
+        <a className="strat-more" href={holdersHref}>▸ all {wallets}{lifted ? '+' : ''} wallets that hold it</a>
       )}
       {open && <Holders strategyKey={g.key} filter={filter} href={holdersHref} />}
     </div>
@@ -238,7 +241,7 @@ function Holders({ strategyKey, filter, href }: { strategyKey: string; filter: H
  * already has (the index's `strategyKey=` answer, all one key), with the
  * strategy book's holder count where it knows more.
  */
-export function StrategyBanner({ rows, strategyKey, sort }: { rows: idx.EarnerRow[]; strategyKey: string; sort: Sort }) {
+export function StrategyBanner({ rows, strategyKey, sort, partial, onPerDay }: { rows: idx.EarnerRow[]; strategyKey: string; sort: Sort; partial: boolean; onPerDay: () => void }) {
   const g = React.useMemo(() => groupByStrategy(rows.map((r) => ({ ...r, strategyKey })), sort)[0] ?? null, [rows, strategyKey, sort])
   const copyOf = useMenuByKey()
   const venueOf = useVenueOf()
@@ -265,6 +268,11 @@ export function StrategyBanner({ rows, strategyKey, sort }: { rows: idx.EarnerRo
       <div className="sb-v hide-m"><b><Money usd={g.strategy.perDayUsd} /></b><small>a day, all below</small></div>
       <Comments n={thread ? counts.count(thread.kind, thread.key) : 0} onClick={talkTo(st, t.uid)} />
       <CopyOrOpen st={st} r={g} />
+      {/* the book counts holders the APR list leaves out: under $10k, or no exact rate. $/day lists every size */}
+      {lifted && wallets > g.strategy.wallets && (partial
+        // an index that cannot cut by strategy: the list is whoever of them made its top 200 — every size waits for that index
+        ? <small className="sb-gap t50">{wallets}+ wallets hold it; the {g.strategy.wallets} below are the ones in the index’s top 200 positions — the rest show once it lists by strategy.</small>
+        : sort === 'apr' && <small className="sb-gap t50">{wallets}+ wallets hold it; this list ranks the {g.strategy.wallets} the APR board does — positions over $10k with an exact rate. <button type="button" className="linklike" onClick={onPerDay}>Every size, by $/day ›</button></small>)}
     </div>
   )
 }

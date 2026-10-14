@@ -310,11 +310,14 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
       t: (p.t ?? sort) === 'perDay' ? 'day' : undefined,
       by: (p.by ?? by) === 'strategy' ? undefined : (p.by ?? by),
       x: p.x === null ? undefined : (p.x ?? (stocks ? STOCKS : exposure)),
+      // a sort switch stays on the strategy's page; a unit or a chip leaves it for the board
+      s: p.by || p.x !== undefined ? undefined : strategyKey,
     })
   const inWord = stocks ? 'tokenized-stock' : exposure ? EXPOSURE_WORD[exposure] : null
 
   return (
     <>
+      {strategyKey && <a className="crumb" href={`#/board${sort === 'perDay' ? '?t=day' : ''}`}>‹ Board</a>}
       <div className="feed-h">
         <h1>Board</h1>
         <span className="sp" />
@@ -331,7 +334,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
       </div>
 
       {/* a strategy's own page says WHICH strategy once, up top — its money is its own, so the chips go */}
-      {strategyKey ? positions.length > 0 && <StrategyBanner rows={positions} strategyKey={strategyKey} sort={sort} /> : <div className="denoms" role="group" aria-label="What the position is held in">
+      {strategyKey ? positions.length > 0 && <StrategyBanner rows={positions} strategyKey={strategyKey} sort={sort} partial={partial} onPerDay={() => go('board', { s: strategyKey, t: 'day' })} /> : <div className="denoms" role="group" aria-label="What the position is held in">
         <span className="denoms-lbl t50">Held in</span>
         {CHIPS.map((c) => (
           <button key={c.word} className="dchip" aria-pressed={!stocks && exposure === c.id} title={c.title} onClick={() => nav({ x: c.id ?? null })}>{c.word}</button>
@@ -403,7 +406,10 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
           ? 'This deploy of the index cannot cut the board by what positions are held in yet — All still works.'
           : 'This deploy of the index has no earners board yet — it appears the moment the position-carry job runs.'}</div>}
         {!loading && !q.isError && !accounts.length && (
-          <div className="empty">{!allChains && chainIds.every((id) => isSvmChain(id))
+          <div className="empty">{strategyKey
+            ? <>{partial ? `None of this strategy’s holders are in the index’s top 200 positions by ${sort === 'apr' ? 'APR' : '$/day'}. ` : 'Nobody runs this strategy with these filters. '}
+                {sort === 'perDay' ? <button type="button" className="linklike" onClick={() => nav({ t: 'apr' })}>Rank them by APR ›</button> : <a className="pri" href="#/board">Every strategy ›</a>}</>
+            : !allChains && chainIds.every((id) => isSvmChain(id))
             ? 'Nothing on Solana to rank with these filters.'
             : inWord ? `No ${inWord} positions to rank with these filters.` : 'Nothing to rank with these filters.'}</div>
         )}

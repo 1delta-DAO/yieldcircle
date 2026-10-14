@@ -2269,6 +2269,7 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .sbanner .strat-logo{width:40px;height:40px;display:grid;place-items:center;border-radius:50%;background:var(--b300)}
 .sbanner .strat-logo img,.sbanner .strat-logo .plogo{width:24px;height:24px}
 .sb-t{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sb-gap{grid-column:2/-1;font-size:12px;margin-top:-6px}
 .sb-t > small{font-size:11px;letter-spacing:.04em;text-transform:uppercase}
 .sb-t > small a{text-transform:none;letter-spacing:0}
 .sb-t > b{font-size:20px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

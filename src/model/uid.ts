@@ -114,6 +114,17 @@ export function threadOf(s: Strategy, loops: boolean): ThreadRef | null {
   return u ? { kind: 'market', key: u } : null
 }
 
+/**
+ * `threadOf` for a strategy BOOK key (the board's strategy rows, which have
+ * a key and no catalogue row): a loop's own thread once the service takes
+ * `strategy`, else its collateral market's; a deposit its market's.
+ */
+export function threadOfBookKey(key: string, loops: boolean): ThreadRef | null {
+  const lp = parseLoopKey(key)
+  if (lp) return loops && lp.long !== lp.short ? { kind: 'strategy', key } : { kind: 'market', key: lp.long }
+  return key.startsWith('dep:') ? { kind: 'market', key: key.slice(4) } : null
+}
+
 /** Both legs of a loop, for a market page that wants the whole position. */
 export const uidsOf = (s: Strategy): string[] =>
   s.kind === 'loop' ? [s.marketLongUid, s.marketShortUid] : [uidOf(s)].filter((x): x is string => !!x)

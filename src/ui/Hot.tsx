@@ -30,6 +30,7 @@ import { useMenu } from './useMenu'
 import { Comments } from './social-bits'
 import { ProtocolChips, useProtocolFilter } from './ProtocolFilter'
 import { IssuerChips, useIssuerFilter } from './IssuerFilter'
+import { AssetClassChips, ClassChip, ClassStaleNote, useAssetClassFilter } from './AssetClassFilter'
 import { CuratorChips, useCuratorFilter } from './CuratorFilter'
 import { RateMark } from './Rate'
 import { ChainCorner } from './ChainMark'
@@ -58,8 +59,10 @@ export function Hot({ limit = 8, showAll, strip, rail }: { limit?: number; showA
   const menu = useMenu()
   const pf = useProtocolFilter(win, 'hot')
   const inf = useIssuerFilter(win, 'hot')
+  const acf = useAssetClassFilter(win, 'hot')
   const cf = useCuratorFilter('hot')
-  const q = useHot(win, allChains ? undefined : chainIds.join(','), showAll ? 40 : 24, pf.param, inf.param, inf.matchParam, cf.param)
+  const q = useHot(win, allChains ? undefined : chainIds.join(','), showAll ? 40 : 24, pf.param, inf.param, inf.matchParam, cf.param, undefined,
+    { assetClasses: acf.param, assetClassMatch: acf.matchParam })
   const rows = q.data?.markets ?? []
 
   // a market nobody here can open is a log line, not an option — the menu
@@ -109,6 +112,8 @@ export function Hot({ limit = 8, showAll, strip, rail }: { limit?: number; showA
       </div>
       {!strip && <ProtocolChips f={pf} max={rail ? 4 : 7} />}
       {!strip && <IssuerChips f={inf} max={rail ? 4 : 6} />}
+      {!strip && <AssetClassChips f={acf} max={rail ? 3 : 6} />}
+      {!strip && acf.param && <ClassStaleNote on={q.data?.classStale} />}
       {showAll && <CuratorChips f={cf} max={6} />}
       </div>
       {q.isLoading && !rows.length && (
@@ -167,7 +172,7 @@ function HotCard({ m, s, peak, comments, rating }: {
             ? (s.kind === 'loop' ? s.venue : s.via)
             : m.lenderName
               ? `${m.lenderName} · not in the menu`
-              : 'not in the menu'}</small>
+              : 'not in the menu'}{' '}<ClassChip x={m} /></small>
         </div>
         {s && <span className="hc-rate">{pct(s.rate)}<Avg30 s={s} get={get} className="hc-avg" /></span>}
         <ChainCorner chainId={chainId} />

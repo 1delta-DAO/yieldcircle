@@ -38,6 +38,7 @@ import { usePaperSession } from '../wallet/paper'
 import { PaperWalletBook } from './PaperPanel'
 import { PaperMovesList, scopedBook, usePaperHistory, usePaperLedgerFor } from './PaperMoves'
 import { TokLink } from './TokenPage'
+import { ClassChip } from './AssetClassFilter'
 
 /**
  * Your own page after a sync: synced, still reading (the 20 s wait ran out), or a gap two reads
@@ -287,7 +288,7 @@ export function Wallet({ addr }: { addr: string }) {
               <div key={`${t.chainId}:${t.txHash}`} className="tape-item">
                 <a className="tape-row" href={l?.marketUid ? marketHref(l.marketUid) : undefined}>
                   <span className={`verb ${d.cls}`}>{d.verb}</span>
-                  <span className="tr-m">{l?.marketName ?? l?.symbol ?? '—'} <span className="t50">{l?.lenderName ?? l?.lenderKey}</span></span>
+                  <span className="tr-m">{l?.marketName ?? l?.symbol ?? '—'} <span className="t50">{l?.lenderName ?? l?.lenderKey}</span> <ClassChip x={l} /></span>
                   <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} fromIndex={l?.amountFromIndex} amount={l?.amount} symbol={l?.symbol} short /></span>
                   <span className="tr-t"><Ago ts={t.blockTs} /></span>
                 </a>
@@ -516,7 +517,7 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
           return <PosCard key={g.key} lead={r} onOpen={open} action={<>{c && <CopyCell c={c} who={who} />}<PnlButton who={who} posKey={g.key} /></>}
             name={<a className="mkt" href={marketHref(r.marketUid)} onClick={(e) => e.stopPropagation()}>{r.marketName ?? r.symbol}</a>}
             venue={<Lender r={r} />}
-            pills={r.side === 'borrow' ? <span className="pill k-borrow">debt</span> : null}
+            pills={<>{r.side === 'borrow' && <span className="pill k-borrow">debt</span>}<ClassChip x={r} /></>}
             meta={<><LegNote r={r} maturity={st?.kind === 'simple' ? st.maturity : undefined} />{navShare(g.equityUsd, navUsd)}</>}
             value={r.valueStatus === 'impaired' ? <Impaired x={r} /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}
             valueSub={r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}
@@ -590,7 +591,7 @@ function Leg({ r }: { r: IndexPosition }) {
   return (
     <a className="leg" href={marketHref(r.marketUid)}>
       <span className={`side ${side}`}>{side === 'debt' ? 'Owes' : side === 'collateral' ? 'Holds' : 'Lends'}</span>
-      <span className="n"><b>{r.marketName ?? r.symbol}</b><small><LegNote r={r} chain={false} /></small></span>
+      <span className="n"><b>{r.marketName ?? r.symbol} <ClassChip x={r} /></b><small><LegNote r={r} chain={false} /></small></span>
       <span className="v"><b>{r.valueStatus === 'impaired' ? <Impaired x={r} short /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}</b>{r.amount ? <small>{tokens(r.amount)} {r.symbol ?? ''}</small> : null}</span>
       <span className="r"><LegRate r={r} /></span>
     </a>

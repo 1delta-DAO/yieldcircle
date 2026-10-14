@@ -6,6 +6,8 @@
  * read from the log.
  */
 
+import type { AssetClass } from '../model/assetClass'
+
 export type UsdStatus = 'exact' | 'provisional' | 'pending' | 'no-asset' | 'no-index' | 'no-price'
 /**
  * `vault` = the address IS a share token; `protocol` = a roster emitter moving its own shares;
@@ -34,6 +36,16 @@ export interface IssuerExposure extends IssuerRef { hops: number }
 export interface Desked {
   issuer?: IssuerRef | null
   issuerExposures?: IssuerExposure[] | null
+  /**
+   * What KIND of real-world asset the token is (pos-indexer
+   * docs/asset-classes.md): `stock`, `etf`, `pre-ipo`, `fund`, `credit`,
+   * `commodity`. Null = not a tokenized real-world asset; ABSENT = an index
+   * that predates the field — the difference `api.ts` reads to refuse an
+   * unfiltered list under a class filter.
+   */
+  assetClass?: AssetClass | null
+  /** the real-world ticker a tokenized equity / ETF tracks (`TSLA`), upper-cased; null otherwise */
+  underlyingTicker?: string | null
 }
 
 /**

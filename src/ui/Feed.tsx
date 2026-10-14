@@ -38,6 +38,7 @@ import { useSocialWrite } from "../social/sign";
 import { useMenu } from "./useMenu";
 import { ProtocolChips, protocolName, useProtocolFilter } from "./ProtocolFilter";
 import { DeskMark, IssuerChips, useIssuerFilter } from "./IssuerFilter";
+import { AssetClassChips, ClassChip, ClassStaleNote, useAssetClassFilter } from "./AssetClassFilter";
 import { CuratorChips, CuratorMark, useCuratorFilter } from "./CuratorFilter";
 import { RateMark } from "./Rate";
 import { parseUid, protocolKeyOf, uidOf } from "../model/uid";
@@ -143,12 +144,19 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   const [seed] = React.useState(readFeedLink);
   const pf = useProtocolFilter("7d", "feed", seed?.protocols);
   const inf = useIssuerFilter("7d", "feed", seed ?? undefined);
+  const acf = useAssetClassFilter(
+    "7d",
+    "feed",
+    seed ? { classes: seed.assetClasses ?? [], match: seed.assetClassMatch ?? "any" } : undefined,
+  );
   const cf = useCuratorFilter("feed", seed ? { value: seed.curator } : undefined);
   const filters: FeedFilters = {
     chains,
     protocols: pf.picked,
     issuers: inf.picked,
     match: inf.match,
+    assetClasses: acf.picked,
+    assetClassMatch: acf.match,
     curator: cf.picked,
   };
   const hashFor = (t: Tab) => feedHash(t, filters);
@@ -168,13 +176,13 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
    * takes over; a bare `#/feed` (the Feed tab) keeps this view and gets its filters
    * written back into the address.
    */
-  const live = React.useRef({ filters, pf, inf, cf });
+  const live = React.useRef({ filters, pf, inf, acf, cf });
   React.useEffect(() => {
-    live.current = { filters, pf, inf, cf };
+    live.current = { filters, pf, inf, acf, cf };
   });
   React.useEffect(() => {
     const h = () => {
-      const { filters: cur, pf, inf, cf } = live.current;
+      const { filters: cur, pf, inf, acf, cf } = live.current;
       const link = readFeedLink();
       if (!link) {
         if (parseRoute().view !== "feed") return;
@@ -188,6 +196,8 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
       pf.setPicked(link.protocols);
       inf.setPicked(link.issuers);
       inf.setMatch(link.match);
+      acf.setPicked(link.assetClasses ?? []);
+      acf.setMatch(link.assetClassMatch ?? "any");
       cf.setPicked(link.curator);
     };
     addEventListener("hashchange", h);
@@ -196,10 +206,15 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
   const [limit, setLimit] = React.useState(40);
   React.useEffect(
     () => setLimit(40),
-    [tab, chainsParam, pf.param, inf.param, inf.matchParam, cf.param],
+    [tab, chainsParam, pf.param, inf.param, inf.matchParam, acf.param, acf.matchParam, cf.param],
   );
 
-  const desks = { issuers: inf.param, issuerMatch: inf.matchParam };
+  const desks = {
+    issuers: inf.param,
+    issuerMatch: inf.matchParam,
+    assetClasses: acf.param,
+    assetClassMatch: acf.matchParam,
+  };
   /**
    * "In the menu" is the index's own filter now (`inMarkets`, the catalogue's
    * uids in a POST body): the newest forty moves in markets this app can open,
@@ -245,7 +260,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
    * live one when the catalogue settles, and a market that fell out of the
    * menu in between would otherwise pull its row from under the cursor.
    */
-  const scope = [tab, chainsParam, pf.param, inf.param, inf.matchParam, cf.param].join("|");
+  const scope = [tab, chainsParam, pf.param, inf.param, inf.matchParam, acf.param, acf.matchParam, cf.param].join("|");
   const kept = useStableRows(all, scope, tab === "menu" && !feed.isPlaceholderData);
   const got = tab === "menu" ? kept : all;
   const [showDust, setShowDust] = useShowDust();
@@ -406,6 +421,8 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
       <ProtocolChips f={pf} />
       {/* whose credit and which desk are facts about a ledger row; a comment has neither */}
       {tab !== "talk" && <IssuerChips f={inf} />}
+      {tab !== "talk" && <AssetClassChips f={acf} />}
+      {tab !== "talk" && acf.param && <ClassStaleNote on={feed.data?.classStale} />}
       {tab !== "talk" && <CuratorChips f={cf} />}
       {tab !== "talk" && cf.param && (
         <div className="note sm">
@@ -499,7 +516,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
                   ? `None of ${pf.picked.length === 1 ? `${pickedName}'s` : "these protocols'"} markets are on your menu at its current floors${heldBack.length ? " —" : "."}`
                   : hidden > 0
                   ? `None of the last ${hidden} moves the index has are in a market this app can open.`
-                  : `No move in a market this app can open${pf.picked.length || inf.param || cf.param ? " for this filter" : ""} in the index's last 30 days.`}{" "}
+                  : `No move in a market this app can open${pf.picked.length || inf.param || acf.param || cf.param ? " for this filter" : ""} in the index's last 30 days.`}{" "}
                 {heldBack?.map(([code, n]) => (
                   <React.Fragment key={code}>
                     <button
@@ -817,6 +834,7 @@ export function Flows({ tx }: { tx: TxBundle }) {
               {l.marketName ?? l.symbol ?? "a market"}
               <span className="t50"> · {l.lenderName ?? l.lenderKey}</span>
             </span>
+            <ClassChip x={l} />
             <span className="sp" />
             <LegRate l={l} className="flr ok" />
             <span className="flu">
@@ -908,6 +926,7 @@ function Card({
           {/* the issuer, the vault's next hop and the extra wallets are glyphs with the
               details on hover: spelled out, they squeezed the market's name down to "A…" */}
           <span className="fc-xs">
+            <ClassChip x={leg} />
             {leg && <DeskMark x={leg} />}
             <Nested into={into} subject={s} />
             <RateMark c={rating} />

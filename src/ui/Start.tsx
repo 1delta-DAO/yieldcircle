@@ -17,7 +17,7 @@
  * It is the first of the four tabs, the Home one; the feed is the second.
  */
 import React from 'react'
-import { useApp, walletHref } from '../state/AppState'
+import { go, useApp, walletHref } from '../state/AppState'
 import { ConnectButton } from '../wallet/ConnectButton'
 import { useBook } from './useBook'
 import { PaperOffer } from './PaperPanel'
@@ -227,7 +227,8 @@ function StartCard({ p, get, profile }: { p: Pick_; get: HistoryGet; profile: Pr
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); location.hash = walletHref(best.account) } }}>
           <Who account={best.account} profile={profile(best.account)} size={22} plain
             sub={<>{pct(best.aprPct)} on {usdShort(best.equityUsd)}</>} />
-          <small className="t50" title="Wallets holding at least $1k in exactly this strategy, and their equity in it — read off the chain, not claimed. Smaller holders are not counted, so there are at least this many.">
+          <small className="t50 stcard-held" title="Wallets holding at least $1k in exactly this strategy, and their equity in it — read off the chain, not claimed. Smaller holders are not counted, so there are at least this many. Open the board's list of who runs it."
+            onClick={(e) => { const k = bookKeyOf(s); if (!k) return; e.preventDefault(); e.stopPropagation(); go('board', { s: k }) }}>
             held by {p.proof.wallets}+ wallet{p.proof.wallets === 1 ? '' : 's'} · {usdShort(p.proof.totalUsd)}
           </small>
         </div>

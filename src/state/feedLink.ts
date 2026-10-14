@@ -1,5 +1,6 @@
 import { CHAINS } from '../sdk/queries'
 import type { IssuerMatch } from '../index/api'
+import { ASSET_CLASS_MATCHES, parseAssetClassParam, type AssetClassMatch } from '../model/assetClass'
 
 /**
  * The feed's filters as a link, so a view can be sent to someone:
@@ -12,6 +13,8 @@ import type { IssuerMatch } from '../index/api'
  *   c    chains, by lowercase label (`43114` is read too)
  *   p    protocol keys, as the index names them
  *   i    issuer desks          im  issuer match (direct | exposure; `any` is left out)
+ *   ac   asset classes or the alias `stocks` (pos-indexer docs/asset-classes.md)
+ *        acm  class match (direct | exposure; `any` is left out)
  *   cur  one curator id
  *
  * A link that carries ANY of these carries all of them: what it leaves out is
@@ -27,10 +30,13 @@ export interface FeedFilters {
   protocols: string[]
   issuers: string[]
   match: IssuerMatch
+  /** classes / the `stocks` alias, as `assetClasses=` takes them; absent = none (a caller building a link may leave it out) */
+  assetClasses?: string[]
+  assetClassMatch?: AssetClassMatch
   curator: string | undefined
 }
 
-const KEYS = ['c', 'p', 'i', 'im', 'cur']
+const KEYS = ['c', 'p', 'i', 'im', 'ac', 'acm', 'cur']
 const MATCHES: IssuerMatch[] = ['any', 'direct', 'exposure']
 
 const slugOf = (id: string) => CHAINS.find((c) => c.id === id)?.label.toLowerCase().replace(/\s+/g, '-') ?? id
@@ -48,12 +54,17 @@ export function readFeedLink(hash = location.hash): FeedFilters | null {
   if (!KEYS.some((k) => p.has(k))) return null
   const chains = [...new Set(list(p.get('c')).map(chainOf).filter((c): c is string => !!c))]
   const im = p.get('im') as IssuerMatch | null
+  const acm = p.get('acm') as AssetClassMatch | null
+  // a word neither index accepts would be a 400: dropped here, never sent
+  const ac = list(p.get('ac')).map((x) => x.toLowerCase()).filter((x) => Array.isArray(parseAssetClassParam(x)))
   return {
     // every chain named is every chain — the same normalisation `setChains` does
     chains: chains.length === CHAINS.length ? [] : chains,
     protocols: [...new Set(list(p.get('p')))],
     issuers: [...new Set(list(p.get('i')))],
     match: im && MATCHES.includes(im) ? im : 'any',
+    assetClasses: [...new Set(ac)],
+    assetClassMatch: acm && ASSET_CLASS_MATCHES.includes(acm) ? acm : 'any',
     curator: p.get('cur') || undefined,
   }
 }
@@ -67,6 +78,10 @@ export function feedHash(tab: string, f: FeedFilters): string {
   if (f.issuers.length) {
     q.set('i', [...f.issuers].sort().join(','))
     if (f.match !== 'any') q.set('im', f.match)
+  }
+  if (f.assetClasses?.length) {
+    q.set('ac', [...f.assetClasses].sort().join(','))
+    if (f.assetClassMatch && f.assetClassMatch !== 'any') q.set('acm', f.assetClassMatch)
   }
   if (f.curator) q.set('cur', f.curator)
   // commas are safe in a hash and a link that reads `avalanche,ethereum` is one a person can edit

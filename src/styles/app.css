@@ -2227,3 +2227,25 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .route-set{flex:none;width:44px;display:grid;place-items:center;border-radius:12px;border:1px solid transparent;background:var(--b300);color:var(--tx70)}
 .route-set:hover,.route-set[aria-expanded="true"]{background:var(--b400);color:var(--tx)}
 .route-pop{padding:6px;margin:0;max-height:min(360px,60vh);overflow:auto}
+/* the board by strategy (docs/board-strategies.md): the strategy is the row, its best holder the face */
+.row.board.srow{gap:12px}
+.srow .strat-n{display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:0;color:inherit;text-decoration:none}
+.srow .strat-n:hover .wn b{color:var(--primary)}
+.srow .strat-n .wn{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.srow .strat-n .wn b{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow .strat-n .wn small{font-size:11px;color:var(--tx50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow .strat-logo{flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:var(--b300)}
+.srow .strat-best{display:flex;align-items:center;gap:6px;flex:none;width:200px;min-width:0;color:inherit;text-decoration:none}
+.srow .strat-best .who{flex:0 1 auto}
+.srow .strat-best:hover .wn b{color:var(--primary)}
+.srow .strat-faces{display:inline-flex;flex:none}
+.srow .strat-faces > *{margin-left:-6px;border-radius:50%;box-shadow:0 0 0 2px var(--b200)}
+.srow .copyb{flex:none}
+.pill.new{margin-left:6px;color:var(--success);border-color:currentColor}
+.strat-more{display:block;margin:-4px 0 4px 46px;padding:2px 0;font-size:12px;color:var(--tx50);background:none;border:0;cursor:pointer;text-align:left;text-decoration:none}
+.strat-more:hover{color:var(--primary)}
+.strat-holders{margin:0 0 8px 34px;border-left:2px solid var(--line-soft);padding-left:8px}
+.strat-holders .row.board{min-height:48px}
+.stcard-held{cursor:pointer}
+.stcard-held:hover{color:var(--primary);text-decoration:underline}
+@media (max-width:640px){.row.board.srow{gap:8px}.srow .strat-logo{width:22px;height:22px}.srow .strat-n .wn small{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}.srow .copyb{display:none}.strat-more{margin-left:34px}.strat-holders{margin-left:12px}}

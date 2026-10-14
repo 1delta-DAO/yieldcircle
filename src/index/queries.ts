@@ -166,10 +166,11 @@ export function useHot(
   issuerMatch?: api.IssuerMatch,
   curator?: string,
   assetGroups?: string,
+  classes: api.AssetClassQuery = {},
 ) {
   return useQuery({
-    queryKey: ['hot', window, chainIds ?? 'all', protocols ?? 'all', issuers ?? 'all', issuerMatch ?? 'any', curator ?? 'all', assetGroups ?? 'all', limit],
-    queryFn: () => api.hot({ window, chainIds, protocols, issuers, issuerMatch, curator, assetGroups, limit }),
+    queryKey: ['hot', window, chainIds ?? 'all', protocols ?? 'all', issuers ?? 'all', issuerMatch ?? 'any', curator ?? 'all', assetGroups ?? 'all', classes.assetClasses ?? 'all', classes.assetClassMatch ?? 'any', classes.underlyingTickers ?? 'all', limit],
+    queryFn: () => api.hot({ window, chainIds, protocols, issuers, issuerMatch, curator, assetGroups, ...classes, limit }),
     staleTime: 2 * MIN,
     refetchInterval: 2 * MIN,
     placeholderData: (prev) => prev,
@@ -212,6 +213,23 @@ export function useIssuers(window: '1h' | '6h' | '24h' | '7d', chainIds?: string
     queryKey: key,
     queryFn: async () => keepLast(key, await api.issuers({ window, chainIds, limit: 40 })),
     staleTime: 5 * MIN,
+    placeholderData: (prev: R | undefined) => prev ?? readLast<R>(key),
+  })
+}
+
+/**
+ * Which asset classes a filter should offer (`/asset-classes`, both indexes).
+ * `supported: false` = neither index has the route yet: the filter hides. A
+ * 404 is that answer, not a hiccup, so it is not retried.
+ */
+export function useAssetClasses(window: '1h' | '6h' | '24h' | '7d', chainIds?: string) {
+  const key = ['asset-classes', window, chainIds ?? 'all'] as const
+  type R = Awaited<ReturnType<typeof api.assetClasses>>
+  return useQuery({
+    queryKey: key,
+    queryFn: async () => keepLast(key, await api.assetClasses({ window, chainIds, limit: 20 })),
+    staleTime: 5 * MIN,
+    retry: false,
     placeholderData: (prev: R | undefined) => prev ?? readLast<R>(key),
   })
 }
@@ -326,7 +344,8 @@ export function useStress(markets: string[]) {
  * second spelling of the same question would always be a cold query.
  */
 export interface EarnersKey {
-  by: 'position' | 'wallet'
+  /** `strategy`: one row per strategy (docs/board-strategies.md) */
+  by: 'position' | 'wallet' | 'strategy'
   sort: 'perDay' | 'apr'
   /** 'all' lifts the default preset that hides flagged positions */
   preset?: 'all'
@@ -334,14 +353,21 @@ export interface EarnersKey {
   chainIds?: string
   /** the money of the supply side (pos-indexer tickets/0072); absent = every position */
   exposure?: api.ExposureChip
+  /** an asset-class cut (`stocks`): the supply side's class, pos-indexer docs/asset-classes.md */
+  assetClasses?: string
+  /** by position: only the holders of this strategy key (`api.strategyHolders`) — from its chain's index alone */
+  strategyKey?: string
   limit?: number
 }
 export function earnersQuery(k: EarnersKey) {
-  const p: api.EarnersQuery = { sort: k.sort, preset: k.preset, people: k.people, chainIds: k.chainIds, exposure: k.exposure, limit: k.limit ?? 50 }
+  const p: api.EarnersQuery = { sort: k.sort, preset: k.preset, people: k.people, chainIds: k.chainIds, exposure: k.exposure, assetClasses: k.assetClasses, limit: k.limit ?? 50 }
   return {
-    queryKey: ['earners', k.by, k.sort, k.preset ?? 'default', k.people, k.chainIds ?? 'all', k.exposure ?? 'all', k.limit ?? 50] as const,
-    queryFn: (): Promise<api.EarnersResponse | api.WalletEarnersResponse> =>
-      k.by === 'wallet' ? api.walletEarners(p) : api.earners(p),
+    queryKey: ['earners', k.by, k.sort, k.preset ?? 'default', k.people, k.chainIds ?? 'all', k.exposure ?? 'all', k.assetClasses ?? 'all', k.strategyKey ?? 'all', k.limit ?? 50] as const,
+    queryFn: (): Promise<api.EarnersResponse | api.WalletEarnersResponse | api.StrategyBoardResponse> =>
+      k.by === 'wallet' ? api.walletEarners(p)
+        : k.by === 'strategy' ? api.strategyBoard(p)
+        : k.strategyKey ? api.strategyHolders(k.strategyKey, p)
+        : api.earners(p),
     staleTime: MIN,
     retry: false,
   }

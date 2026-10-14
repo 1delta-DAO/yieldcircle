@@ -33,10 +33,50 @@ import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
 import { isSolGroup } from '../model/assetGroup'
 import { bestOf } from '../search/rank'
 import { mergeAssetBook, mergeAssetDetail, mergeAssetHistory, mergeAssetHolders } from './assetMerge'
+import type { AssetClass, AssetClassMatch } from '../model/assetClass'
+import { groupByStrategy, groupKeyOf, groupRank } from '../model/boardGroups'
 import type { AccountIdentity, AccountKind, AssetBookRow, IndexBalances, AssetDetail, AssetHistory, AssetHolders, FlowsResponse, Following, Holder, ImpairedCount, LedgerEvent, MarketRow, PositionsResponse, TrendingMarket, TxBundle, VaultRow } from './types'
 
 /** `any` consults all three facts, `direct` only the token's own contract, `exposure` only the credit behind it. */
 export type IssuerMatch = 'any' | 'direct' | 'exposure'
+
+/**
+ * The asset-class filter (pos-indexer docs/asset-classes.md; the words are
+ * `model/assetClass.ts`, a verbatim copy). The same three params on every
+ * route that takes them, on both indexes:
+ *
+ *   assetClasses       classes or aliases, comma-joined (`stocks` = stock + etf + pre-ipo)
+ *   assetClassMatch    `direct` = the row's own asset is of the class, `exposure` =
+ *                      its market lends against collateral of the class, `any` = both
+ *   underlyingTickers  real-world tickers (`TSLA,NVDA`): every tokenized TSLA at once
+ *
+ * An index that predates them IGNORES them and answers its whole list, so a
+ * half that cannot honour the filter is dropped here and the answer says
+ * `classStale` — never an unfiltered list under a filter's label.
+ */
+export type AssetClassQuery = {
+  assetClasses?: string
+  assetClassMatch?: AssetClassMatch
+  underlyingTickers?: string
+}
+/**
+ * Per index: does it answer `/asset-classes` (and so honour `assetClasses=`)?
+ * Learned from the facet; absent = not asked yet.
+ */
+const classSupport = new Map<string, boolean>()
+/**
+ * Can this half be shown under a class filter? Not when its index is known not
+ * to have the facet, and not when its rows carry no `assetClass` FIELD at all
+ * (a null is an answer — "not classified" — an absent key is an older index).
+ * `rows` = the asset-bearing rows to probe; `undefined` = no row shape to
+ * probe (Hot's market rows), the facet alone decides.
+ */
+function honoursClasses(base: string, q: AssetClassQuery, rows?: object[]): boolean {
+  if (!q.assetClasses && !q.underlyingTickers) return true
+  if (classSupport.get(base) === false) return false
+  return !rows || !rows.length || rows.some((r) => 'assetClass' in r)
+}
+const legsOf = (txs: TxBundle[] | undefined): object[] => (Array.isArray(txs) ? txs.flatMap((t) => t.legs ?? []) : [])
 
 export type Params = Record<string, string | number | boolean | undefined | null>
 function qs(p: Params): string {
@@ -112,25 +152,41 @@ export interface RecentQuery extends Params {
   curator?: string
   /** asset groups, comma-joined (pos-indexer tickets/0026) — an unknown group answers an EMPTY page */
   assetGroups?: string
+  /** see `AssetClassQuery` */
+  assetClasses?: string
+  assetClassMatch?: AssetClassMatch
+  underlyingTickers?: string
 }
 /** The feed, from both indexes when the scope spans both VMs, merged by time. */
-export async function recentTxs(q: RecentQuery, signal?: AbortSignal): Promise<{ txs: TxBundle[]; following: Following | null }> {
+export async function recentTxs(q: RecentQuery, signal?: AbortSignal): Promise<{ txs: TxBundle[]; following: Following | null; classStale?: boolean }> {
   const { evm, sol } = feedScope(q.chainIds, q.curator)
+  let classStale = false
+  // a half that ignored a class filter answers its whole tape: dropped, and said
+  const guard = (base: string) => (j: { txs: TxBundle[]; following: Following | null }) => {
+    if (honoursClasses(base, q, legsOf(j.txs))) return j
+    classStale = true
+    return { ...j, txs: [] }
+  }
   const ask = (base: string, chainIds: string | undefined) =>
-    get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, chainIds, group: 'tx' }, signal, base)
+    get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, chainIds, group: 'tx' }, signal, base).then(guard(base))
   const [e, s] = await Promise.all([
     // the EVM index's errors still throw (no silent regression); the Solana
     // one degrading — down, or still on its old shapes — costs its rows only
     evm !== null ? ask(INDEX_BASE_URL, evm) : Promise.resolve(null),
     sol ? ask(SOL_INDEX_BASE_URL, undefined).then(safeTxs).catch(() => EMPTY_TXS) : Promise.resolve(null),
   ])
-  if (!s) return e ?? EMPTY_TXS
-  if (!e) return { txs: s.txs.slice(0, limitOf(q)), following: s.following }
-  return { txs: byTime(e.txs, s.txs, limitOf(q)), following: sumFollowing(e.following, s.following) }
+  const stale = classStale ? { classStale } : {}
+  if (!s) return { ...(e ?? EMPTY_TXS), ...stale }
+  if (!e) return { txs: s.txs.slice(0, limitOf(q)), following: s.following, ...stale }
+  return { txs: byTime(e.txs, s.txs, limitOf(q)), following: sumFollowing(e.following, s.following), ...stale }
 }
 const limitOf = (q: { limit?: number }) => (q.limit == null ? undefined : Number(q.limit))
-/** What the menu feed answers: `outside` counts the moves a client-side filter dropped (the fallback only). */
-export type MenuFeed = { txs: TxBundle[]; following: Following | null; outside?: number }
+/**
+ * What the menu feed answers: `outside` counts the moves a client-side filter
+ * dropped (the fallback only); `classStale` says an index ignored a class
+ * filter and its rows were dropped rather than shown as filtered.
+ */
+export type MenuFeed = { txs: TxBundle[]; following: Following | null; outside?: number; classStale?: boolean }
 /** set once an index answers the POST 404/405: it predates it, so the session stops asking — PER index (plan §C) */
 const postUnsupported = new Map<string, boolean>()
 /** the fallback's window: the newest 200 hold ~26 menu moves, where 40 held 2 (measured 2026-09-29) */
@@ -153,6 +209,10 @@ const FALLBACK_SCAN = 200
 export async function recentTxsIn(q: RecentQuery, uids: string[], signal?: AbortSignal): Promise<MenuFeed> {
   const { evm, sol } = feedScope(q.chainIds, q.curator)
   const one = async (base: string, chainIds: string | undefined, set: string[]): Promise<MenuFeed> => {
+    const r = await oneRaw(base, chainIds, set)
+    return honoursClasses(base, q, legsOf(r.txs)) ? r : { ...r, txs: [], outside: undefined, classStale: true }
+  }
+  const oneRaw = async (base: string, chainIds: string | undefined, set: string[]): Promise<MenuFeed> => {
     if (!set.length) return EMPTY_TXS
     if (!postUnsupported.get(base)) {
       const r = await fetch(base + '/events/recent' + qs({ ...q, chainIds, group: 'tx' }), {
@@ -178,7 +238,8 @@ export async function recentTxsIn(q: RecentQuery, uids: string[], signal?: Abort
   if (!s) return e ?? EMPTY_TXS
   if (!e) return s
   const outside = e.outside != null || s.outside != null ? (e.outside ?? 0) + (s.outside ?? 0) : undefined
-  return { txs: byTime(e.txs, s.txs, limitOf(q)), following: sumFollowing(e.following, s.following), outside }
+  const classStale = e.classStale || s.classStale ? { classStale: true } : {}
+  return { txs: byTime(e.txs, s.txs, limitOf(q)), following: sumFollowing(e.following, s.following), outside, ...classStale }
 }
 export async function recentEvents(q: RecentQuery, signal?: AbortSignal): Promise<{ events: LedgerEvent[]; following: Following | null }> {
   const { evm, sol } = feedScope(q.chainIds, q.curator)
@@ -205,7 +266,7 @@ export const accountFlows = async (account: string, p: { chainId?: string; days?
   return Array.isArray(j.flows) ? j : { account, days: p.days ?? 30, flows: [], totals: { depositedUsd: 0, withdrawnUsd: 0, borrowedUsd: 0, repaidUsd: 0, netSupplyUsd: 0, netBorrowUsd: 0, nEvents: 0, unpriced: 0 } }
 }
 /** Another wallet's positions. NEVER called for the connected user — that is the live allocator path. */
-export const accountPositions = async (account: string, p: { chainId?: string } = {}) => {
+export const accountPositions = async (account: string, p: { chainId?: string } & AssetClassQuery = {}) => {
   const j = await get<PositionsResponse>(`/positions/${account}`, p, undefined, indexForAddr(account))
   return Array.isArray(j.positions) ? j : { account, identity: null, positions: [], totals: { depositsUsd: 0, debtUsd: 0, navUsd: 0 }, asOf: null }
 }
@@ -357,7 +418,7 @@ export const marketTxs = async (uid: string, limit = 50, f: MarketTapeQuery = {}
   const j = await get<{ marketUid: string; txs: TxBundle[] }>(`/markets/${encodeURIComponent(uid)}/events`, { ...f, limit, group: 'tx' }, signal, indexForUid(uid))
   return Array.isArray(j.txs) ? j : { marketUid: uid, txs: [] }
 }
-export const marketHolders = async (uid: string, p: { side?: string; limit?: number } = {}) => {
+export const marketHolders = async (uid: string, p: { side?: string; limit?: number } & AssetClassQuery = {}) => {
   const j = await get<{ marketUid: string; holders: Holder[] }>(`/markets/${encodeURIComponent(uid)}/holders`, p, undefined, indexForUid(uid))
   return Array.isArray(j.holders) ? j : { marketUid: uid, holders: [] }
 }
@@ -386,7 +447,7 @@ export const vaultsAt = async (address: string) => {
   return Array.isArray(j.vaults) ? j : { vaults: [] }
 }
 /** Trending: one index when a chain is named, both (merged; the hook re-sorts by `netUsd`) when none is. */
-export async function trending(p: { window?: '1h' | '24h' | '7d'; chainId?: string; side?: string; limit?: number } = {}): Promise<{ window: string; markets: TrendingMarket[] }> {
+export async function trending(p: { window?: '1h' | '24h' | '7d'; chainId?: string; side?: string; limit?: number } & AssetClassQuery = {}): Promise<{ window: string; markets: TrendingMarket[] }> {
   const safe = (j: { window?: string; markets?: unknown } | null) =>
     j && Array.isArray(j.markets) ? (j as { window: string; markets: TrendingMarket[] }) : { window: p.window ?? '24h', markets: [] as TrendingMarket[] }
   if (p.chainId) {
@@ -421,6 +482,9 @@ export interface EarnerLeg {
   assetGroup: string | null
   /** the money this leg's token is in (pos-indexer tickets/0072); null = none named */
   exposure?: Exposure | null
+  /** the token's asset class (`stock`, `etf`, …); null = not a tokenized real-world asset, absent = an older index */
+  assetClass?: AssetClass | null
+  underlyingTicker?: string | null
   valueStatus?: string | null
   faceUsd?: number | null
 }
@@ -455,11 +519,42 @@ export interface EarnerRow {
   legs: EarnerLeg[]
   /** the money of the supply side — what the board's exposure chips cut on */
   exposure?: PositionExposure
+  /** the supply side's asset class (≥ 90 % of its USD in one class, else null) — what `assetClasses=` cuts on */
+  assetClass?: AssetClass | null
+  underlyingTicker?: string | null
   wallet: WalletTotal | null
   accountKind?: AccountKind
   accountLabel?: string | null
   accountLabelSource?: string | null
+  /** the ONE strategy the board ranks this position under (`model/boardGroups.ts::primaryStrategyKey`); absent = an older index */
+  strategyKey?: string | null
 }
+/**
+ * A strategy beside its best position (`/earners?group=strategy`,
+ * docs/board-strategies.md): the members are the positions the flat board
+ * would rank with the same filters, folded by `strategyKey`.
+ */
+export interface StrategyGroup {
+  /** `loop:<held uid>|<debt uid>`, `dep:<uid>`, or `pos:<position key>` for a row with nothing to key it by */
+  key: string
+  kind: 'loop' | 'deposit' | 'position'
+  wallets: number
+  positions: number
+  equityUsd: number
+  annualUsd: number | null
+  perDayUsd: number | null
+  /** Σ annual / Σ equity: the holders' APR weighted by their equity */
+  aprPct: number | null
+  aprMin: number | null
+  aprMax: number | null
+  leverageMin: number | null
+  leverageMax: number | null
+  /** up to three holders, best first */
+  faces: string[]
+  /** the earliest opened position among the members */
+  firstSince: string | null
+}
+export interface StrategyBoardRow extends EarnerRow { strategy: StrategyGroup }
 export interface WalletEarnerRow {
   account: string
   chains: string[]
@@ -477,7 +572,7 @@ export interface WalletEarnerRow {
   flaggedNavUsd: number
   risk: string[]
   topKey: string | null
-  best: { key: string; aprPct: number | null; marketName: string | null } | null
+  best: { key: string; aprPct: number | null; marketName: string | null; strategyKey?: string | null } | null
   /** realized POOL yield over 7 d — a token's own appreciation (PT, LST, savings) is in its price, not here */
   poolRealized7dUsd: number | null
   /** the exposure the figures above are cut to (`exposure=`); null / absent = the whole wallet */
@@ -499,9 +594,20 @@ interface EarnersEnvelope {
   hidden: Record<string, number>
   ratingFlags: { status: 'ok' | 'stale' | 'unavailable'; computedAt: string | null; nSubjects: number | null }
   computedAt: string | null
+  /** `strategy` when the index grouped the rows; absent = an index that predates `group=` (it answered flat rows) */
+  group?: string | null
+  /** the `strategyKey=` filter, echoed; absent = an index that ignored it */
+  strategyKey?: string | null
+  /** set HERE, never by an index: the rows were folded from a flat top 200 (`strategyBoard`, `strategyHolders`) */
+  partial?: boolean
 }
 export interface EarnersResponse extends EarnersEnvelope { by: 'position'; rows: EarnerRow[] }
 export interface WalletEarnersResponse extends EarnersEnvelope { by: 'wallet'; rows: WalletEarnerRow[] }
+/**
+ * `partial`: folded here from each index's flat top 200, because an index
+ * predates `group=strategy` — a strategy with no position that high is not on it.
+ */
+export interface StrategyBoardResponse extends EarnersEnvelope { by: 'strategy'; rows: StrategyBoardRow[]; partial?: boolean }
 /**
  * The money a position's supply side is in (pos-indexer tickets/0072). The
  * board's chips are `usd · eth · btc · sol · hype` and `more` (everything
@@ -516,13 +622,19 @@ export interface EarnersQuery {
   people?: boolean
   chainIds?: string
   exposure?: ExposureChip
+  /** `stocks` etc. (see `AssetClassQuery`); the board's Stocks chip, exclusive with `exposure` there */
+  assetClasses?: string
+  /** one row per strategy (docs/board-strategies.md) — `strategyBoard` sets it */
+  group?: 'strategy'
+  /** only the positions ranked under this strategy key — `strategyHolders` sets it */
+  strategyKey?: string
   limit?: number
 }
 /**
  * The URL is the server's cache key, and the index PRE-WARMS the app's default
  * board URLs after every tick (pos-indexer `EARNERS_PREWARM_URLS`) — so the
  * parameters are written in ONE fixed order: by, sort, preset, people,
- * chainIds, exposure, limit. Reordering them here silently turns every
+ * chainIds, exposure, assetClasses, group, strategyKey, limit. Reordering them here silently turns every
  * pre-warmed hit into a cold query; an absent exposure leaves the URL as it was.
  */
 const earnersParams = (by: 'wallet' | undefined, p: EarnersQuery): Params => ({
@@ -532,6 +644,10 @@ const earnersParams = (by: 'wallet' | undefined, p: EarnersQuery): Params => ({
   people: p.people ? '1' : undefined,
   chainIds: p.chainIds,
   exposure: p.exposure,
+  // after everything the index pre-warms, so an unset class leaves those URLs byte for byte
+  assetClasses: p.assetClasses,
+  group: p.group,
+  strategyKey: p.strategyKey,
   limit: p.limit,
 })
 /**
@@ -548,6 +664,14 @@ const SOL_EXPOSURES = new Set<ExposureChip | undefined>([undefined, 'sol', 'usd'
 const cutAsAsked = (r: EarnersEnvelope | null, exposure: ExposureChip | undefined) =>
   !r || !exposure || r.exposure === exposure
 /**
+ * The same for a class cut. The envelope may echo `assetClasses`; else an
+ * index that answers the `/asset-classes` facet has the cut (one deploy), else
+ * its position rows carry an `assetClass` field — an older index's carry none.
+ */
+const classCutAsAsked = (r: (EarnersEnvelope & { rows?: object[] }) | null, classes: string | undefined, base: string) =>
+  !r || !classes || 'assetClasses' in r || classSupport.get(base) === true ||
+  !Array.isArray(r.rows) || !r.rows.length || r.rows.some((x) => 'assetClass' in x)
+/**
  * The board over BOTH indexes (pos-indexer tickets/0036 + the Solana twin in
  * `apps/sol-indexer/src/api/earners.ts`, the same shape): each answers its
  * own top `limit` for the scope `splitScope` plans, and the two ranked lists
@@ -556,21 +680,28 @@ const cutAsAsked = (r: EarnersEnvelope | null, exposure: ExposureChip | undefine
  * keeps its URL byte for byte (the index pre-warms the default one); a
  * Solana half that fails or predates `/earners` reads as no rows, never as an
  * error over the EVM board.
+ *
+ * `half` is how one index is asked (the strategy board folds an older index's
+ * flat answer there), `rank` what the merge sorts on.
  */
+type Half<R> = (base: string, p: EarnersQuery) => Promise<EarnersEnvelope & { rows: R[] }>
 async function bothBoards<R extends { annualUsd: number | null; apr24hPct: number | null }>(
   by: 'wallet' | undefined,
   p: EarnersQuery,
+  half: Half<R> = (base, q) => get('/earners', earnersParams(by, q), undefined, base),
+  rank: (r: R) => number | null = (r) => (p.sort === 'apr' ? r.apr24hPct : r.annualUsd),
 ): Promise<EarnersEnvelope & { rows: R[] }> {
   const { evm, sol } = splitScope(p.chainIds)
   type Resp = EarnersEnvelope & { rows: R[] }
   const [a, b0] = await Promise.all([
-    evm !== null ? get<Resp>('/earners', earnersParams(by, { ...p, chainIds: evm })) : Promise.resolve(null),
+    evm !== null ? half(INDEX_BASE_URL, { ...p, chainIds: evm }) : Promise.resolve(null),
     sol && SOL_EXPOSURES.has(p.exposure)
-      ? get<Resp>('/earners', earnersParams(by, { ...p, chainIds: undefined }), undefined, SOL_INDEX_BASE_URL).catch(() => null)
+      ? half(SOL_INDEX_BASE_URL, { ...p, chainIds: undefined }).catch(() => null)
       : Promise.resolve(null),
   ])
   if (!cutAsAsked(a, p.exposure)) throw new Error('this deploy of the index cannot cut the board by exposure yet')
-  const b = cutAsAsked(b0, p.exposure) ? b0 : null
+  if (!classCutAsAsked(a, p.assetClasses, INDEX_BASE_URL)) throw new Error('this deploy of the index cannot cut the board by asset class yet')
+  const b = cutAsAsked(b0, p.exposure) && classCutAsAsked(b0, p.assetClasses, SOL_INDEX_BASE_URL) ? b0 : null
   const halves = [a, b].filter((x): x is Resp => !!x && Array.isArray(x.rows))
   // Solana alone in scope under a chip it cannot hold (ETH on Solana): nothing, not an error
   if (!halves.length && evm === null && !SOL_EXPOSURES.has(p.exposure))
@@ -581,10 +712,9 @@ async function bothBoards<R extends { annualUsd: number | null; apr24hPct: numbe
   // only the Solana index in scope and it has no board yet: say so, as the EVM one would
   if (!halves.length) throw new Error('no earners board for this chain selection yet')
   if (halves.length === 1) return halves[0]
-  const key = (r: R) => (p.sort === 'apr' ? r.apr24hPct : r.annualUsd)
   const rows = [...a!.rows, ...b!.rows]
     .sort((x, y) => {
-      const kx = key(x), ky = key(y)
+      const kx = rank(x), ky = rank(y)
       if (kx === null) return ky === null ? 0 : 1
       if (ky === null) return -1
       return ky - kx
@@ -598,6 +728,7 @@ async function bothBoards<R extends { annualUsd: number | null; apr24hPct: numbe
     hidden,
     // the older of the two: the merged board is no fresher than its stalest half
     computedAt: [a!.computedAt, b!.computedAt].filter((x): x is string => !!x).sort()[0] ?? null,
+    ...(a!.partial || b!.partial ? { partial: true } : {}),
   }
 }
 /**
@@ -652,6 +783,63 @@ export async function strategyProofs(keys: string[], signal?: AbortSignal): Prom
 
 export const earners = (p: EarnersQuery = {}) =>
   bothBoards<EarnerRow>(undefined, p).then((r) => ({ ...r, by: 'position' as const }))
+
+/**
+ * Per index: does it answer `group=strategy` / `strategyKey=`? Learned from
+ * the echo (an index that predates them ignores both and answers its flat
+ * board); absent = not asked yet. Both ship in one deploy.
+ */
+const groupSupport = new Map<string, boolean>()
+/** The flat top 200 an older index is folded from — the index pre-warms these URLs too. */
+const FOLD_LIMIT = 200
+/**
+ * The board by STRATEGY (docs/board-strategies.md): one row per strategy, its
+ * best position as the face, the group beside it. An index that groups
+ * answers its own top `limit` strategies; an older one is asked for its flat
+ * top 200 and folded here (`partial`). The halves merge on what the servers
+ * rank groups by — the best position's APR, or the strategy's Σ $/day.
+ */
+export async function strategyBoard(p: EarnersQuery = {}): Promise<StrategyBoardResponse> {
+  const sort = p.sort === 'apr' ? 'apr' : 'perDay'
+  const half: Half<StrategyBoardRow> = async (base, q) => {
+    if (groupSupport.get(base) !== false) {
+      const r = await get<EarnersEnvelope & { rows: StrategyBoardRow[] }>('/earners', earnersParams(undefined, { ...q, group: 'strategy' }), undefined, base)
+      if (r.group === 'strategy' && Array.isArray(r.rows)) {
+        groupSupport.set(base, true)
+        return r
+      }
+      groupSupport.set(base, false)
+    }
+    const flat = await get<EarnersEnvelope & { rows: EarnerRow[] }>('/earners', earnersParams(undefined, { ...q, limit: FOLD_LIMIT }), undefined, base)
+    return { ...flat, rows: Array.isArray(flat.rows) ? groupByStrategy(flat.rows, sort).slice(0, q.limit ?? 50) : [], partial: true }
+  }
+  const r = await bothBoards<StrategyBoardRow>(undefined, p, half, (x) => groupRank(x, sort))
+  return { ...r, by: 'strategy' as const }
+}
+/** The chain a strategy key lives on — its first uid's, or a `pos:` position key's head. */
+export const strategyChain = (key: string) => (key.startsWith('pos:') ? key.slice(4).split('|')[0] : keyChain(key))
+/**
+ * Who runs one strategy (`strategyKey=`, docs/board-strategies.md): the flat
+ * board cut to the positions ranked under that key, from the index of its
+ * chain only. An older index ignores the cut, so its flat top 200 is filtered
+ * here instead (`partial`).
+ */
+export async function strategyHolders(key: string, p: EarnersQuery = {}): Promise<EarnersResponse> {
+  const chainIds = strategyChain(key)
+  const base = isSvmChain(chainIds) ? SOL_INDEX_BASE_URL : INDEX_BASE_URL
+  const q = { ...p, chainIds: base === SOL_INDEX_BASE_URL ? undefined : chainIds, group: undefined }
+  if (groupSupport.get(base) !== false) {
+    const r = await get<EarnersEnvelope & { rows: EarnerRow[] }>('/earners', earnersParams(undefined, { ...q, strategyKey: key }), undefined, base)
+    if (r.strategyKey === key && Array.isArray(r.rows)) {
+      groupSupport.set(base, true)
+      return { ...r, by: 'position' }
+    }
+    groupSupport.set(base, false)
+  }
+  const flat = await get<EarnersEnvelope & { rows: EarnerRow[] }>('/earners', earnersParams(undefined, { ...q, limit: FOLD_LIMIT }), undefined, base)
+  const rows = Array.isArray(flat.rows) ? flat.rows.filter((r) => groupKeyOf(r) === key) : []
+  return { ...flat, rows: rows.slice(0, p.limit ?? 50), by: 'position', partial: true }
+}
 export const walletEarners = (p: EarnersQuery = {}) =>
   bothBoards<WalletEarnerRow>('wallet', p).then((r) => ({ ...r, by: 'wallet' as const }))
 
@@ -700,11 +888,16 @@ export interface HotMarket {
   collateralLogo?: string | null
   lenderName?: string | null
   lenderLogo?: string | null
+  /** the market's asset class, where the index answers one (absent on an older index) */
+  assetClass?: AssetClass | null
+  underlyingTicker?: string | null
 }
-export async function hot(p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; issuers?: string; issuerMatch?: IssuerMatch; curator?: string; assetGroups?: string; limit?: number } = {}): Promise<{ window: string; hours: number; method: string; markets: HotMarket[] }> {
-  type Hot = { window: string; hours: number; method: string; markets: HotMarket[] }
+export async function hot(p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: string; chainIds?: string; protocols?: string; issuers?: string; issuerMatch?: IssuerMatch; curator?: string; assetGroups?: string; limit?: number } & AssetClassQuery = {}): Promise<{ window: string; hours: number; method: string; markets: HotMarket[]; classStale?: boolean }> {
+  type Hot = { window: string; hours: number; method: string; markets: HotMarket[]; classStale?: boolean }
   const { evm, sol } = feedScope(p.chainIds ?? p.chainId, p.curator)
-  const ask = (base: string, chainIds: string | undefined) => get<Hot>('/hot', { ...p, chainId: undefined, chainIds }, undefined, base)
+  // a market row names no single asset, so only the facet says whether an index honours a class filter
+  const guard = (base: string) => (j: Hot) => (honoursClasses(base, p) ? j : { ...j, markets: [], classStale: true })
+  const ask = (base: string, chainIds: string | undefined) => get<Hot>('/hot', { ...p, chainId: undefined, chainIds }, undefined, base).then(guard(base))
   const safe = (j: Hot | null) => (j && Array.isArray(j.markets) ? j : null)
   const [e, s] = await Promise.all([
     evm !== null ? ask(INDEX_BASE_URL, evm) : Promise.resolve(null),
@@ -712,6 +905,7 @@ export async function hot(p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: st
   ])
   if (!s) return e ?? { window: p.window ?? '24h', hours: 0, method: '', markets: [] }
   if (!e) return { ...s, markets: s.markets.slice(0, p.limit) }
+  const classStale = e.classStale || s.classStale ? { classStale: true } : {}
   // the two heat scores are percentiles over DIFFERENT populations and do not
   // compare — interleave by rank (plan "Open decisions") until the ledgers
   // merge and can score jointly
@@ -720,7 +914,7 @@ export async function hot(p: { window?: '1h' | '6h' | '24h' | '7d'; chainId?: st
     if (e.markets[i]) markets.push(e.markets[i])
     if (s.markets[i]) markets.push(s.markets[i])
   }
-  return { ...e, markets: p.limit ? markets.slice(0, p.limit) : markets }
+  return { ...e, markets: p.limit ? markets.slice(0, p.limit) : markets, ...classStale }
 }
 
 /**
@@ -743,10 +937,15 @@ type FacetQuery = { window?: '1h' | '6h' | '24h' | '7d'; chainIds?: string; limi
  * throws as before; the Solana side reads as `null` when it is down, 404s
  * (route not deployed yet) or answers another shape — EVM-only, silently.
  */
-async function fanFacet<T>(path: string, p: { chainIds?: string }, ok: (j: T | null) => boolean): Promise<[T | null, T | null]> {
+async function fanFacet<T>(path: string, p: { chainIds?: string }, ok: (j: T | null) => boolean, softEvm = false): Promise<[T | null, T | null]> {
   const { evm, sol } = splitScope(p.chainIds)
   return Promise.all([
-    evm !== null ? get<T>(path, { ...p, chainIds: evm }) : Promise.resolve(null),
+    // `softEvm`: a facet newer than some deploys — the EVM side 404ing reads as no chips, like Solana's
+    evm !== null
+      ? softEvm
+        ? get<T>(path, { ...p, chainIds: evm }).then((j) => (ok(j) ? j : null)).catch(() => null)
+        : get<T>(path, { ...p, chainIds: evm })
+      : Promise.resolve(null),
     sol ? get<T>(path, { ...p, chainIds: undefined }, undefined, SOL_INDEX_BASE_URL).then((j) => (ok(j) ? j : null)).catch(() => null) : Promise.resolve(null),
   ])
 }
@@ -802,6 +1001,70 @@ export async function issuers(p: FacetQuery = {}): Promise<{ window: string; hou
     })
   }
   return { ...e, issuers: [...by.values()].sort((a, b) => b.rows - a.rows).slice(0, p.limit) }
+}
+
+/**
+ * The asset classes worth offering as a filter (pos-indexer + sol-indexer
+ * `GET /asset-classes`): the same shape as `/issuers`, the class as the key —
+ * `rows` / `via` / `wallets` / `markets` / `chains` mean what they mean there
+ * (`via` = rows that reach the class only through the market's collateral).
+ *
+ * The route is newer than some deploys of either index, so BOTH sides
+ * degrade: `supported` is false when neither answered it, and the filter
+ * hides. Which index answered is remembered (`classSupport`), so a feed or
+ * Hot half from an index without it is dropped under a class filter.
+ */
+export interface AssetClassFacet {
+  assetClass: AssetClass
+  name: string
+  rows: number
+  via: number
+  wallets: number
+  markets: number
+  chains: string[]
+}
+type ClassFacetWire = { window?: string; hours?: number; [k: string]: unknown }
+/**
+ * The contract's shape is `{window, hours, assetClasses: [{assetClass, name,
+ * rows, via, wallets, markets, chains}]}` on both indexes; the other spellings
+ * are a lenient fallback only.
+ */
+const classRows = (j: ClassFacetWire | null): AssetClassFacet[] | null => {
+  const arr = j && (j.assetClasses ?? j.classes ?? j.issuers)
+  if (!Array.isArray(arr)) return null
+  return arr
+    .map((x: Record<string, unknown>) => ({
+      assetClass: String(x.assetClass ?? x.class ?? x.issuer ?? '') as AssetClass,
+      name: String(x.name ?? x.assetClass ?? x.class ?? x.issuer ?? ''),
+      rows: Number(x.rows ?? 0),
+      via: Number(x.via ?? 0),
+      wallets: Number(x.wallets ?? 0),
+      markets: Number(x.markets ?? 0),
+      chains: Array.isArray(x.chains) ? (x.chains as string[]) : [],
+    }))
+    .filter((f) => !!f.assetClass)
+}
+export async function assetClasses(p: FacetQuery = {}): Promise<{ window: string; hours: number; assetClasses: AssetClassFacet[]; supported: boolean }> {
+  const { evm, sol } = splitScope(p.chainIds)
+  const [e, s] = await fanFacet<ClassFacetWire>('/asset-classes', p, (j) => !!classRows(j), true)
+  // only an index that was asked can be judged; a missing answer is "cannot honour the filter" until the next ask
+  if (evm !== null) classSupport.set(INDEX_BASE_URL, !!e)
+  if (sol) classSupport.set(SOL_INDEX_BASE_URL, !!s)
+  const by = new Map<string, AssetClassFacet>()
+  for (const f of [...(classRows(e) ?? []), ...(classRows(s) ?? [])]) {
+    const cur = by.get(f.assetClass)
+    by.set(f.assetClass, !cur ? f : {
+      ...cur, name: cur.name || f.name, chains: union(cur.chains, f.chains),
+      rows: cur.rows + f.rows, via: cur.via + f.via, markets: cur.markets + f.markets, wallets: Math.max(cur.wallets, f.wallets),
+    })
+  }
+  const head = e ?? s
+  return {
+    window: String(head?.window ?? p.window ?? '7d'),
+    hours: Number(head?.hours ?? 0),
+    assetClasses: [...by.values()].sort((a, b) => b.rows - a.rows).slice(0, p.limit),
+    supported: !!(e || s),
+  }
 }
 
 /**

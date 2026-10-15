@@ -22,7 +22,8 @@ import { ConnectButton } from '../wallet/ConnectButton'
 import { useBook } from './useBook'
 import { PaperOffer } from './PaperPanel'
 import { useRateHistory } from '../sdk/queries'
-import { steadyRate, type HistoryGet } from '../model/rateHistory'
+import { historyUids, steadyRate, type HistoryGet } from '../model/rateHistory'
+import { historyHeld } from '../sdk/rateHistoryStore'
 import { BANDS, BAND_ORDER, DENOMS, bandOf, clockOf, denomOf, denomOfAsset, isFixedDebt, recommendAll, type Band, type Denom, type Pick_ } from '../model/activity'
 import { useStrategyProofs } from '../index/queries'
 import { bookKeyOf } from '../model/uid'
@@ -45,37 +46,70 @@ const LANE: Record<Band, { color: string; ico: string; tag: string }> = {
 export function Start() {
   const { isConnected, allChains, chainIds } = useApp()
   const b = useBook()
-  const get = useRateHistory(b.all, !b.isFetching)
+  // which bands' rows are all in, for every selected chain: Passive needs only
+  // the deposit listing (the fastest answer), Medium the loop books too,
+  // Active the PT loops as well (asked once the listing has named the PTs)
+  const answered = (set: Set<string>) => chainIds.every((c) => set.has(c))
+  const rowsIn: Record<Band, boolean> = {
+    passive: answered(b.phases.deposits),
+    medium: answered(b.phases.deposits) && answered(b.phases.loops),
+    active: answered(b.phases.deposits) && answered(b.phases.loops) && answered(b.phases.pts),
+  }
+  // every strategy that could be a card, by band, in every denomination (a
+  // chip switch then costs no request)
+  const cands: Record<Band, Strategy[]> = { passive: [], medium: [], active: [] }
+  for (const s of b.all) { const band = bandOf(s); if (band && denomOf(s)) cands[band].push(s) }
+  // a band is RANKED by its steady rate (`steadyRate`: the 30-day mean where
+  // tonight's rate is a spike), so its history is asked as soon as its rows are in
+  const get = useRateHistory(BAND_ORDER.flatMap((band) => (rowsIn[band] ? cands[band] : [])))
   const rank = (s: Strategy) => steadyRate(s, get)
-  // who holds each strategy that could be a card, in every denomination (a
-  // chip switch then costs no request): the index's strategy book, every
-  // person's position ≥ $1k — the proof behind every "recommended"
-  // (`b.all` is a new array every render: memo on the joined list, or the proofs' debounce never settles)
-  const keyList = [...new Set(b.all.filter((s) => bandOf(s) && denomOf(s)).map(bookKeyOf).filter((k): k is string => !!k))].sort().join(' ')
-  const keys = React.useMemo(() => (keyList ? keyList.split(' ') : []), [keyList])
-  const proofs = useStrategyProofs(keys)
+  // who holds each of them: the index's strategy book, every person's position
+  // ≥ $1k — the proof behind every "recommended". Asked per key as rows land
+  // (`index/proofStore.ts`), so each band's keys are in hand as soon as its
+  // rows are, not after the whole catalogue has held still
+  const bandKeys = Object.fromEntries(BAND_ORDER.map((band) => [band, new Set(cands[band].map(bookKeyOf).filter((k): k is string => !!k))])) as Record<Band, Set<string>>
+  const proofs = useStrategyProofs(BAND_ORDER.flatMap((band) => [...bandKeys[band]]).sort())
   const book = proofs.data
   // one denomination at a time, so exposures are never mixed: a SOL rate is
   // SOL-on-SOL, and putting it beside a dollar rate would rank apples by oranges
   const [denom, setDenom] = React.useState<Denom>('USD')
   const menu = b.all.filter((s) => denomOf(s) === denom)
-  const picks = recommendAll(menu, book, rank)
+  const live = recommendAll(menu, book, rank)
+  // the cards are a RANKING of the catalogue by who holds what and what it
+  // steadily pays: until every selected chain has answered for a band's rows
+  // and the proofs and histories cover them, a band that looks empty (or a
+  // card about to be outranked) is a guess, so it shows placeholders — never
+  // "nothing here" while a chain is still on its way. Band by band, and Medium
+  // and Active rank against Passive's card (`recommendAll`'s hurdle), so they
+  // wait for it too. Once per chain scope: a background refetch later keeps
+  // the cards on screen
+  const scope = chainIds.join(',')
+  const bandReady = (band: Band) => rowsIn[band] && proofs.held(bandKeys[band]) && historyHeld(cands[band].flatMap(historyUids))
+  const passiveReady = bandReady('passive')
+  const ready: Record<Band, boolean> = { passive: passiveReady, medium: passiveReady && bandReady('medium'), active: passiveReady && bandReady('active') }
+  const [readyFor, setReadyFor] = React.useState<Record<Band, string | null>>({ passive: null, medium: null, active: null })
+  if (BAND_ORDER.some((band) => ready[band] && readyFor[band] !== scope)) {
+    setReadyFor((r) => ({ ...r, ...Object.fromEntries(BAND_ORDER.filter((band) => ready[band]).map((band) => [band, scope])) }))
+  }
+  const loading = (band: Band) => !ready[band] && readyFor[band] !== scope
+  // a return visit paints the cards it last showed for this scope and asset
+  // straight away, marked as refreshing, instead of three rows of placeholders
+  const key = `${scope}|${denom}`
+  const kept = React.useMemo(() => readKept(key), [key])
+  const fresh = BAND_ORDER.filter((band) => !loading(band) && live[band].length)
+  const freshSig = fresh.map((band) => `${band}:${live[band].map((p) => `${p.s.id}@${p.s.rate}/${p.proof?.wallets ?? 0}`).join(',')}`).join('|')
+  React.useEffect(() => {
+    if (fresh.length) keep(key, Object.fromEntries(fresh.map((band) => [band, live[band]])) as Partial<Record<Band, Pick_[]>>)
+  }, [key, freshSig]) // eslint-disable-line react-hooks/exhaustive-deps
+  const picks: Record<Band, Pick_[]> = { ...live }
+  const stale: Record<Band, boolean> = { passive: false, medium: false, active: false }
+  for (const band of BAND_ORDER) if (loading(band) && kept?.[band]?.length) { picks[band] = kept[band]!; stale[band] = true }
   // one profiles request for every face the cards show
   const { profile } = useProfiles(BAND_ORDER.flatMap((band) => picks[band].map((p) => p.proof?.best?.account)).filter((a): a is string => !!a))
   // the teaser counts only money already IN this denomination — moving a coin
   // into dollars first would be an exposure change, not parking idle money
   const idleUsd = b.books.filter((x) => denomOfAsset(x.group, x.asset) === denom).reduce((a, x) => a + x.idleUsd, 0)
-  const bestPassive = picks.passive[0]?.s
-  // the cards are a RANKING of the whole catalogue by who holds what: until every
-  // selected chain has answered and the proofs cover the list, a band that looks
-  // empty (or a card about to be outranked) is a guess, so it shows
-  // placeholders — never "nothing here" while a chain is still on its way. Once
-  // per chain scope: a background refetch later keeps the cards on screen
-  const scope = chainIds.join(',')
-  const ready = chainIds.every((c) => b.settled.has(c)) && proofs.current
-  const [readyFor, setReadyFor] = React.useState<string | null>(null)
-  if (ready && readyFor !== scope) setReadyFor(scope)
-  const loading = !ready && readyFor !== scope
+  const bestPassive = live.passive[0]?.s
   return (
     <div className="start">
       <header className="start-hero">
@@ -93,7 +127,7 @@ export function Start() {
         )}
         {/* no wallet, or a wallet with nothing in it: the same strategies on paper (tickets/0006) */}
         {(!isConnected || (!b.paper && !b.positionsLoading && b.books.reduce((a, x) => a + x.totalUsd, 0) < 5)) && <div style={{ marginTop: 14 }}><PaperOffer empty={isConnected} /></div>}
-        {isConnected && !loading && idleUsd > 0 && bestPassive && (
+        {isConnected && !loading('passive') && idleUsd > 0 && bestPassive && (
           <div className="note start-idle">
             You have <b>{usdShort(idleUsd)}</b> sitting idle. In the passive strategy below it would
             earn about <b className="ok">{usdShort(idleUsd * bestPassive.rate / 100)}/yr</b> — without you touching it again.
@@ -113,7 +147,7 @@ export function Start() {
       </div>
 
       {BAND_ORDER.map((band) => (
-        <BandSection key={band} band={band} picks={picks[band]} loading={loading} get={get} profile={profile} scoped={!allChains} />
+        <BandSection key={band} band={band} picks={picks[band]} loading={loading(band) && !stale[band]} stale={stale[band]} get={get} profile={profile} scoped={!allChains} />
       ))}
 
       <section className="sec">
@@ -128,13 +162,38 @@ export function Start() {
   )
 }
 
+/**
+ * The cards last shown, per chain scope and asset, so a return visit opens on
+ * them (marked as refreshing) while this visit's catalogue loads. Kept a day;
+ * browser storage only, a convenience: without it the page shows placeholders.
+ */
+const KEPT_LS = 'yc.start.kept.v1'
+const KEPT_MS = 24 * 3600_000
+const KEPT_MAX = 12
+type Kept = Record<string, { at: number; picks: Partial<Record<Band, Pick_[]>> }>
+function readAllKept(): Kept {
+  try { const v = JSON.parse(localStorage.getItem(KEPT_LS) ?? '{}') as Kept; return v && typeof v === 'object' ? v : {} } catch { return {} }
+}
+function readKept(key: string): Partial<Record<Band, Pick_[]>> | null {
+  const e = readAllKept()[key]
+  return e && Date.now() - e.at < KEPT_MS ? e.picks : null
+}
+function keep(key: string, picks: Partial<Record<Band, Pick_[]>>) {
+  const all = readAllKept()
+  all[key] = { at: Date.now(), picks: { ...all[key]?.picks, ...picks } }
+  const trimmed = Object.fromEntries(Object.entries(all).sort((a, b) => b[1].at - a[1].at).slice(0, KEPT_MAX))
+  try { localStorage.setItem(KEPT_LS, JSON.stringify(trimmed)) } catch { /* private mode, or full */ }
+}
+
 type ProfileOf = ReturnType<typeof useProfiles>['profile']
 
 /** One band: the heading with its effort marks, the plain words, and the cards. */
-function BandSection({ band, picks, loading, get, profile, scoped }: {
+function BandSection({ band, picks, loading, stale, get, profile, scoped }: {
   band: Band
   picks: Pick_[]
   loading: boolean
+  /** the cards are the ones kept from the last visit, while this one's load */
+  stale: boolean
   get: HistoryGet
   profile: ProfileOf
   /** a chain filter is on — the likelier reason a band is empty */
@@ -147,10 +206,11 @@ function BandSection({ band, picks, loading, get, profile, scoped }: {
       <div className="sec-h">
         <h2><span className="band-ico" aria-hidden>{lane.ico}</span>{m.word} <span className="t50">· {lane.tag}</span></h2>
         <Effort n={m.effort} />
+        {stale && <span className="stcards-upd t50">refreshing…</span>}
         <span className="sub">{m.why}</span>
       </div>
       <div className="band-tend">{m.tend}</div>
-      <div className="stcards">
+      <div className={stale ? 'stcards stcards-stale' : 'stcards'} aria-busy={stale || loading}>
         {loading
           ? [0, 1, 2].map((i) => <StartCardSk key={i} />)
           : !picks.length

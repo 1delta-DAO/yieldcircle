@@ -22,6 +22,7 @@
     "notes": "node scripts/notes.mjs",
     "rpcs": "node scripts/rpcs.mjs",
     "menu-seed": "node scripts/menu-seed.mjs",
+    "prewarm-check": "node scripts/prewarm-check.mjs",
     "search-rank": "node scripts/search-rank.mjs",
     "asset-class": "node scripts/asset-class.mjs",
     "paper-check": "node scripts/paper-check.mjs",

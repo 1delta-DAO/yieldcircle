@@ -72,6 +72,9 @@ export function requestRateHistory(uids: Iterable<string>) {
   if (added && !timer) timer = setTimeout(() => void flush(), 30)
 }
 
+/** Has every one of `uids` been answered — held, known to have no history, or failed (and backing off)? */
+export const historyHeld = (uids: Iterable<string>) => { for (const u of uids) if (!entries.has(u) && !failedAt.has(u)) return false; return true }
+
 export type HistoryLookup = (uid: string) => RateHistoryItem | undefined
 const lookup: HistoryLookup = (uid) => entries.get(uid)?.item ?? undefined
 

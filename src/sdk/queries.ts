@@ -284,9 +284,11 @@ const CRYPTO_BORROW: { key: string; q: Omit<OptimizerQuery, 'chainIds'> }[] = [
  * every chain's wrapped gas coin (WBNB, WAVAX, SOL…), WETH among them — the duplicate folds by id.
  */
 const OUT_DEBT_TAGS: Record<Exclude<Out, 'USD'>, string[]> = { ETH: ['eth', 'lst', 'lrt'], BTC: ['btc'], MORE: ['wnative'] }
+const STOCK_PAGES = 5
+const CRYPTO_PAGES = 3
 const stockOffersQuery = (chainIds: string[]) => ({
   queryKey: ['borrow-offers', 'stocks', chainIds.join(',')],
-  queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...STOCK_BORROW }, 5)),
+  queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...STOCK_BORROW }, STOCK_PAGES)),
   staleTime: 10 * 60_000,
   enabled: chainIds.length > 0,
 })
@@ -307,7 +309,7 @@ export function useBorrowOffers(chainIds: string[], o: { crypto?: boolean; out?:
     queries: [
       ...CRYPTO_BORROW.map((r) => ({
         queryKey: ['borrow-offers', r.key, chainIds.join(',')],
-        queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...r.q }, 3)),
+        queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...r.q }, CRYPTO_PAGES)),
         staleTime: 10 * 60_000,
         enabled: crypto && chainIds.length > 0,
       })),
@@ -331,6 +333,35 @@ export function useBorrowOffers(chainIds: string[], o: { crypto?: boolean; out?:
     isLoading: stocks.isLoading || rest.some((q) => q.isLoading),
     error: [stocks, ...rest].find((q) => q.error)?.error ?? null,
   }
+}
+
+/**
+ * A book with a page missing (`optimizerPages`' `partial`) is shown, and asked
+ * again in 30 s, rather than kept as the answer for ten minutes.
+ */
+type Freshness = { state: { data?: { partial?: boolean } } }
+const BOOK_FRESHNESS = {
+  staleTime: (q: Freshness) => (q.state.data?.partial ? 0 : 10 * 60_000),
+  refetchInterval: (q: Freshness) => (q.state.data?.partial ? 30_000 : false as const),
+}
+const loopBook = async (q: OptimizerQuery) => { const r = await optimizerPages(q); return sortOut(r.map(classifyPair), 'loop', r.partial) }
+/** The catalogue's loop requests, as asked (worker-api pre-warms these: `prewarmBooks`). */
+const loopQuery = (r: ReturnType<typeof loopRequests>[number]): OptimizerQuery => ({ chainIds: r.chainIds, ...r.q, collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })
+const exposureLoopQuery = (e: (typeof EXPOSURE_ASSETS)[number]): OptimizerQuery => ({ chainIds: [e.chainId], collaterals: [e.address], debtTags: ['stablecoin'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })
+/**
+ * Every pair-book request a first visit makes at the defaults (all chains,
+ * wide net off), with its page cap: the catalogue's loops, the exposure
+ * asset's loops and the dollar loans. worker-api's cron pre-warms exactly
+ * these (`scheduled/prewarmListings.ts`, `PREWARM_PAGED`), so its cache is
+ * warm when a visitor arrives; `pnpm prewarm-check` prints them to diff.
+ */
+export function prewarmBooks(chainIds = CHAINS.map((c) => c.id)): { q: OptimizerQuery; pages: number }[] {
+  return [
+    ...loopRequests(chainIds, false).map((r) => ({ q: loopQuery(r), pages: MAX_PAGES })),
+    ...EXPOSURE_ASSETS.filter((e) => chainIds.includes(e.chainId)).map((e) => ({ q: exposureLoopQuery(e), pages: MAX_PAGES })),
+    { q: { chainIds, ...STOCK_BORROW }, pages: STOCK_PAGES },
+    ...CRYPTO_BORROW.map((r) => ({ q: { chainIds, ...r.q }, pages: CRYPTO_PAGES })),
+  ]
 }
 
 /** A row that a floor is holding back, carrying the code that says which one. */
@@ -363,8 +394,8 @@ export function useCatalog(chainIds: string[]) {
   const loops = useQueries({
     queries: loopReqs.map((r) => ({
       queryKey: ['loops', r.chainIds.join(','), r.key],
-      queryFn: async () => sortOut((await optimizerPages({ chainIds: r.chainIds, ...r.q, collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop'),
-      staleTime: 10 * 60_000,
+      queryFn: () => loopBook(loopQuery(r)),
+      ...BOOK_FRESHNESS,
     })),
   })
   /**
@@ -383,8 +414,8 @@ export function useCatalog(chainIds: string[]) {
       },
       {
         queryKey: ['exposure-loops', e.chainId, e.sym],
-        queryFn: async () => sortOut((await optimizerPages({ chainIds: [e.chainId], collaterals: [e.address], debtTags: ['stablecoin'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop') as Sorted<Strategy>,
-        staleTime: 10 * 60_000,
+        queryFn: async () => (await loopBook(exposureLoopQuery(e))) as Sorted<Strategy>,
+        ...BOOK_FRESHNESS,
       },
     ]),
   })
@@ -406,8 +437,8 @@ export function useCatalog(chainIds: string[]) {
   const ptLoops = useQueries({
     queries: ptMints.map(({ chainId, refs }) => ({
       queryKey: ['pt-loops', chainId, refs.join(',')],
-      queryFn: async () => sortOut((await optimizerPages({ chainIds: [chainId], collaterals: refs, debtTags: ['stablecoin', 'wnative'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })).map(classifyPair), 'loop') as Sorted<Strategy>,
-      staleTime: 10 * 60_000,
+      queryFn: async () => (await loopBook({ chainIds: [chainId], collaterals: refs, debtTags: ['stablecoin', 'wnative'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })) as Sorted<Strategy>,
+      ...BOOK_FRESHNESS,
     })),
   })
   const extra = [...exposure, ...ptLoops]
@@ -477,9 +508,21 @@ export function useCatalog(chainIds: string[]) {
   ptMints.forEach((m, i) => { if (!ptLoops[i]?.isFetched) exposurePending.add(m.chainId) })
   const loopsPending = new Set(loopReqs.flatMap((r, i) => (loops[i]?.isFetched ? [] : r.chainIds)))
   // a chain is not settled before the stock request answers: its balance read would miss the stock tokens
-  const settled = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched ? ids : [])).filter((c) => !exposurePending.has(c) && !loopsPending.has(c) && (stocks.isFetched || !stocks.isFetching)))
+  const depositsIn = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched ? ids : [])))
+  const settled = new Set([...depositsIn].filter((c) => !exposurePending.has(c) && !loopsPending.has(c) && (stocks.isFetched || !stocks.isFetching)))
+  /**
+   * The same, per kind of row, for a page that can show one kind before the
+   * others (Start's bands): the deposit listing, the loop archetypes, and the
+   * PT loops (asked only once the deposit listing has named the PTs).
+   */
+  const ptPending = new Set(ptMints.flatMap((m, i) => (ptLoops[i]?.isFetched ? [] : [m.chainId])))
+  const phases = {
+    deposits: depositsIn,
+    loops: new Set(chainIds.filter((c) => !loopsPending.has(c))),
+    pts: new Set([...depositsIn].filter((c) => !ptPending.has(c))),
+  }
   return {
-    ...derived, settled,
+    ...derived, settled, phases,
     isLoading: earn.some((q) => q.isLoading) || loops.some((q) => q.isLoading),
     isFetching: earn.some((q) => q.isFetching) || loops.some((q) => q.isFetching) || extra.some((q) => q.isFetching),
     anyData: earn.some((q) => q.data) || loops.some((q) => q.data),

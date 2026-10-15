@@ -19,7 +19,6 @@
 import React from 'react'
 import { Logo, Mark } from '@yieldcircle/design'
 import { Character, type Spec } from '../src/identity/character'
-import { APP_URL } from './config'
 
 const hic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
 const css = (o: Record<string, string | number>) => o as React.CSSProperties
@@ -228,22 +227,22 @@ export function Deck() {
         <h2 className="lp-h2 center">Most money sits idle. <span className="lp-mark">Proof</span> moves it.</h2>
         <div className="lp-comic deck-comic deck-why">
           <div className="lp-panel in" style={css({ '--tilt': '-1.2deg' })}>
-            <div className="deck-big c-ink">14 %</div>
+            <div className="deck-big c-ink">14 %<small>of USDC earns yield</small></div>
             <Character addr="sold" spec={CAST.sold} size={88} title="" />
             <b>Most money earns nothing.</b>
-            <span>Only 14 % of USDC earns anything.</span>
+            <span>Just $10b of $73b sits in a lending market.</span>
           </div>
           <div className="lp-panel in" style={css({ '--tilt': '1deg' })}>
-            <div className="deck-big c-gold">1 in 2</div>
+            <div className="deck-big c-gold">1 in 2<small>US holders never earned yield</small></div>
             <Character addr="lost" spec={CAST.lost} size={88} title="" />
             <b>Yield feels too risky to touch.</b>
-            <span>Half of retail has never earned yield.</span>
+            <span>A safe, easy exit matters more than the rate.</span>
           </div>
           <div className="lp-panel in" style={css({ '--tilt': '-0.8deg' })}>
-            <div className="deck-big c-moss">28.7 %</div>
+            <div className="deck-big c-moss">28.7 %<small>net APR · one real wallet</small></div>
             <Character addr="0x4a7c1e2f9b0d6c3a8e5f7b2d1c9a4e6f8b3d5a7c" size={88} title="" />
             <b>Seeing who farms changes minds.</b>
-            <span>People copy what experts hold.</span>
+            <span>Anyone can verify. 40 % of eToro users copy.</span>
           </div>
         </div>
         <p className="deck-foot">Sources: 1delta index 2026-10-10 · MoreMarkets 2025 · Bursztyn et al. 2014 · eToro</p>
@@ -292,25 +291,17 @@ export function Deck() {
         </div>
       </Slide>
 
-      {/* 8 - ask / roadmap */}
-      <Slide n={8} kicker="The ask" className="deck-end">
+      {/* 8 - roadmap: built, prove, scale, default */}
+      <Slide n={8} kicker="Roadmap" className="deck-end">
         <div className="land-glow" aria-hidden="true" />
         <span className="lp-sticker sol">Where this goes</span>
-        <h2 className="lp-h2 center">Raising <span className="lp-mark">$500k.</span></h2>
+        <h2 className="lp-h2 center">From <span className="lp-mark">proof</span> to the default yield app.</h2>
         <div className="deck-road">
-          <div className="lp-card c-cyan in" style={css({ '--tilt': '-1.5deg' })}><i>Built</i><b>The baseline stack</b><span>Feeds, PnL, execution, bridging.</span></div>
-          <div className="lp-card c-gold in" style={css({ '--tilt': '1deg' })}><i>Next</i><b>Yield Cup</b><span>A paper farming tournament with cash prizes.</span></div>
-          <div className="lp-card c-plum in" style={css({ '--tilt': '-1deg' })}><i>Then</i><b>Creator economy</b><span>Margin-sharing for KOLs, auto-copy.</span></div>
+          <div className="lp-card c-cyan in" style={css({ '--tilt': '-1.5deg' })}><i>Built · live today</i><b>The baseline stack</b><span>Feeds, PnL, execution, bridging.</span></div>
+          <div className="lp-card c-gold in" style={css({ '--tilt': '1deg' })}><i>Next · proof of concept</i><b>Yield Cup</b><span>A paper farming tournament with cash prizes.</span></div>
+          <div className="lp-card c-plum in" style={css({ '--tilt': '-1deg' })}><i>Then · with the raise</i><b>Scale the creator economy</b><span>Margin-sharing for KOLs, auto-copy, more chains, mobile.</span></div>
           <div className="lp-card c-moss in" style={css({ '--tilt': '0.8deg' })}><i>After</i><b>The default yield app</b><span>Every idle asset one push from proven carry.</span></div>
         </div>
-        <div className="deck-uses">
-          <span className="lp-sticker">Marketing</span>
-          <span className="lp-sticker">KOL onboarding</span>
-          <span className="lp-sticker">Chains &amp; protocols</span>
-          <span className="lp-sticker">Mobile app</span>
-          <small>plus a token sale via MetaDAO for user and KOL incentives</small>
-        </div>
-        <a className="join-cta deck-cta" href={APP_URL}>Open the app</a>
         <Crowd />
       </Slide>
     </div>

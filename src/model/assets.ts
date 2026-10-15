@@ -88,6 +88,7 @@ const BASE: Record<string, { sym: string; group: GroupId; what: string; color: s
   WETH: { sym: 'ETH', group: 'ETH', what: 'Ether', color: '#8fa6ff', desk: 'plain:ETH' },
   WBTC: { sym: 'WBTC', group: 'BTC', what: 'Wrapped bitcoin (BitGo)', color: '#f09242', desk: 'bitgo' },
   CBBTC: { sym: 'cbBTC', group: 'BTC', what: 'Coinbase wrapped bitcoin', color: '#1652f0', desk: 'coinbase' },
+  CIRBTC: { sym: 'cirBTC', group: 'BTC', what: 'Circle wrapped bitcoin', color: '#2775ca', desk: 'circle' },
   TBTC: { sym: 'tBTC', group: 'BTC', what: 'Threshold bitcoin', color: '#7d7d7d', desk: 'threshold' },
   LBTC: { sym: 'LBTC', group: 'BTC', what: 'Lombard staked bitcoin', color: '#62d0a5', desk: 'lombard' },
   // the key is the UPPER-CASED symbol, so the dot survives: 'BTC.b' → 'BTC.B'
@@ -231,6 +232,7 @@ const DESK: Record<DeskGroup, Record<string, Entry>> = {
   BTC: {
     bitgo: { sym: 'WBTC', name: 'BitGo', what: 'WBTC · custodied by BitGo', color: '#f09242', kind: 'issued' },
     coinbase: { sym: 'cbBTC', name: 'Coinbase', what: 'cbBTC · custodied by Coinbase', color: '#1652f0', kind: 'issued' },
+    circle: { sym: 'cirBTC', name: 'Circle', what: 'cirBTC · custodied by Circle', color: '#2775ca', kind: 'issued' },
     binance: { sym: 'BTCB', name: 'Binance', what: 'BTCB · custodied by Binance', color: '#f0b90b', kind: 'issued' },
     threshold: { sym: 'tBTC', name: 'Threshold', what: 'tBTC · threshold-signed bridge', color: '#7d7d7d', kind: 'yield' },
     lombard: { sym: 'LBTC', name: 'Lombard', what: 'LBTC · staked bitcoin (Babylon)', color: '#62d0a5', kind: 'yield' },

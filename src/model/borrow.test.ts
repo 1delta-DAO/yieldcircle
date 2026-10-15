@@ -63,6 +63,24 @@ describe('offerFromRow', () => {
     b.underlyingInfoShort = { asset: { chainId: '8453', address: '0x0555e30da8f98308edb960aa94c0db47230d2b9c', symbol: 'WBTC', decimals: 8 } as never }
     expect(offerFromRow(b)).toBeNull()
   })
+  it('reads Circle wrapped bitcoin on Arc as bitcoin, both as collateral and as a take-out', () => {
+    // as token-lists names it since 2026-10-15: `denomination: BTC`, issuer circle
+    const cir = { chainId: '5042', address: '0x171a4217b86a807a64eb94757db6849fb4bdbaa0', symbol: 'CIRBTC', decimals: 8, props: { denomination: 'BTC', issuer: { id: 'circle', name: 'Circle', kind: 'institution' } } }
+    const arcUsdc = { chainId: '5042', address: '0x3600000000000000000000000000000000000000', symbol: 'USDC', decimals: 6, props: { stablecoin: { base: 'USD' }, issuer: { id: 'circle' } } }
+    const r = row({ coll: cir, chainId: '5042', lender: 'MORPHO_BLUE_C2DB', marketLongUid: `MORPHO_BLUE_C2DB:5042:${cir.address}`, marketShortUid: `MORPHO_BLUE_C2DB:5042:${arcUsdc.address}` })
+    r.underlyingInfoShort = { asset: arcUsdc as never, prices: { priceUsd: 1 } }
+    const o = offerFromRow(r)!
+    expect(o).toBeTruthy()
+    expect(o.asset).toBe('cirBTC')
+    expect(o.group).toBe('BTC')
+    expect(o.out).toBe('USD')
+    // and lent out against ether: a bitcoin take-out
+    const t = row({ coll: { chainId: '5042', address: '0x128cc466b61f542da60c70e3aa11c10e19b84edb', symbol: 'WETH', props: { denomination: 'ETH' } }, chainId: '5042' })
+    t.underlyingInfoShort = { asset: cir as never }
+    expect(offerFromRow(t)!.out).toBe('BTC')
+    // even with no props (an older answer): the symbol alone names it
+    expect(keyOfToken({ chainId: '5042', address: cir.address, symbol: 'CIRBTC' })).toBe('cirBTC')
+  })
   it('refuses a debt in nothing it can name', () => {
     const r = row({ coll: TSLA })
     r.underlyingInfoShort = { asset: { chainId: '8453', address: '0x00000000000000000000000000000000000000ab', symbol: 'ZZZ', decimals: 18 } as never }

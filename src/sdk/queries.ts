@@ -242,7 +242,8 @@ function mergeStructural(parts: { structural: Sorted<Strategy>['structural']; ki
  * Asked by the biggest collateral market first (`totalDepositsUsdLong`), not by the loop's net
  * yield, which says nothing about a loan; at least $1k free to borrow (a stock market is asked
  * with no floor — Robinhood's are small and are said to be). Measured 2026-10-14 over all
- * chains: stocks 261 pairs, wrapped native 166, BTC 316, LST/LRT 548. The crypto families are
+ * chains: stocks 261 pairs, wrapped native 166, BTC 316, LST/LRT 548; ether (2026-10-15) 171,
+ * most of them the wrapped-native rows again (they fold by offer id). The crypto families are
  * capped at three pages each: the tail is markets nobody has put anything into.
  *
  * The STOCK request is also the catalogue's (`useCatalog`): every stock token it names is noted
@@ -252,6 +253,10 @@ const STOCK_BORROW: Omit<OptimizerQuery, 'chainIds'> = { collateralAssetClasses:
 const CRYPTO_BORROW: { key: string; q: Omit<OptimizerQuery, 'chainIds'> }[] = [
   { key: 'native', q: { collateralTags: ['wnative'], debtTags: ['stablecoin'] } },
   { key: 'btc', q: { collateralTags: ['btc'], debtTags: ['stablecoin'] } },
+  // ether where it is not the gas coin (bridged ETH on BNB, Avalanche, Monad, Polygon, Plasma, Arc):
+  // `wnative` names only the wrapped gas coin, so these were in no request — 62 pairs with $1k+ to lend
+  // (2026-10-15), Aave V4's WETH → USDC on Arc ($35m free) among them
+  { key: 'eth', q: { collateralTags: ['eth'], debtTags: ['stablecoin'] } },
   { key: 'lst', q: { collateralTags: ['lst', 'lrt'], debtTags: ['stablecoin'] } },
 ].map((x) => ({ ...x, q: { ...x.q, sortBy: 'totalDepositsUsdLong', sortDir: 'DESC', minBorrowLiquidityUsd: 1000 } as Omit<OptimizerQuery, 'chainIds'> }))
 /**

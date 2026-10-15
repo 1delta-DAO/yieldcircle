@@ -18,6 +18,7 @@ brand/mascot/
 
 # social post material (X images, data, copy) stays local
 images/
+docs/x-posts/
 
 # launch / waitlist playbook stays local
 docs/waitlist-launch.md

@@ -18,7 +18,7 @@
  */
 import React from 'react'
 import { Logo, Mark, Socials, TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL } from '@yieldcircle/design'
-import { Showcase, SHOWCASE_AT } from '../src/ui/Showcase'
+import { Showcase } from '../src/ui/Showcase'
 import { Character, type Spec } from '../src/identity/character'
 import { displayFor } from '../src/identity/name'
 import { useQueries } from '@tanstack/react-query'
@@ -258,7 +258,6 @@ export function Landing() {
 
       <footer className="lp-foot">
         <Logo height={22} href="/" />
-        <span>Realized PnL from on-chain records as of {SHOWCASE_AT}. Board figures are live from the position index.</span>
         <Socials label="Telegram" />
       </footer>
     </div>

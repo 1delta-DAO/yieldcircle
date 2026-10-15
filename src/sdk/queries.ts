@@ -117,25 +117,44 @@ export function chainBuckets(chainIds: string[]): string[][] {
  * stablecoin` alone is 2 647): sorted by APR, the tail is what nobody opens.
  */
 const MAX_PAGES = 10
-async function optimizerPages(q: OptimizerQuery, maxPages = MAX_PAGES): Promise<OptimizerResponse['items']> {
+/**
+ * One page, with one more try for anything but a 429 (which `http.ts` has
+ * already waited out and retried). A cold origin page can time out or fail
+ * while its siblings answer; retrying the page, not the whole query, is what
+ * keeps one bad page from re-reading all eight (measured 2026-10-15: a failed
+ * stable page re-ran the archetype and added 6 s to the home page).
+ */
+async function optimizerPage(q: OptimizerQuery): Promise<OptimizerResponse> {
+  try {
+    return await fetchOptimizerPairs(q)
+  } catch (e) {
+    if ((e as { status?: number })?.status === 429) throw e
+    return fetchOptimizerPairs(q)
+  }
+}
+/** A book's rows; `partial` when a page after the first failed twice and is missing (see `useCatalog`'s refetch). */
+type Paged = OptimizerResponse['items'] & { partial?: true }
+async function optimizerPages(q: OptimizerQuery, maxPages = MAX_PAGES): Promise<Paged> {
   const MAX_PAGES = maxPages
-  const first = await fetchOptimizerPairs({ ...q, count: 100 })
-  const items = [...first.items]
+  const first = await optimizerPage({ ...q, count: 100 })
+  const items: Paged = [...first.items]
   if (!first.hasMore || !first.items.length) return items
   const per = first.items.length
   const total = Number(first.total)
   // no usable `total`: walk the pages one by one on `hasMore`
   if (!Number.isFinite(total) || total <= per) {
     for (let i = 1; i < MAX_PAGES; i++) {
-      const r = await fetchOptimizerPairs({ ...q, count: 100, start: items.length })
+      const r = await optimizerPage({ ...q, count: 100, start: items.length }).catch(() => null)
+      if (!r) { items.partial = true; break }
       items.push(...r.items)
       if (!r.hasMore || !r.items.length) break
     }
     return items
   }
   const pages = Math.min(MAX_PAGES, Math.ceil(total / per))
-  const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => fetchOptimizerPairs({ ...q, count: 100, start: (i + 1) * per })))
-  for (const r of rest) items.push(...r.items)
+  // what answered is kept: rows sorted by APR, a missing tail page costs the least
+  const rest = await Promise.allSettled(Array.from({ length: pages - 1 }, (_, i) => optimizerPage({ ...q, count: 100, start: (i + 1) * per })))
+  for (const r of rest) if (r.status === 'fulfilled') items.push(...r.value.items); else items.partial = true
   return items
 }
 
@@ -209,8 +228,8 @@ const WIDE_DEBT_TAGS = ['stablecoin', 'wnative', 'btc']
  * counts the rows there is no strategy for at all, with a few names, so a list
  * that is empty can say what it is empty OF.
  */
-interface Sorted<T extends Strategy> { rows: T[]; structural: Partial<Record<HideCode, { n: number; examples: string[] }>>; kind: 'simple' | 'loop' }
-function sortOut<T extends Strategy>(cands: Candidate<T>[], kind: 'simple' | 'loop'): Sorted<T> {
+interface Sorted<T extends Strategy> { rows: T[]; structural: Partial<Record<HideCode, { n: number; examples: string[] }>>; kind: 'simple' | 'loop'; partial?: boolean }
+function sortOut<T extends Strategy>(cands: Candidate<T>[], kind: 'simple' | 'loop', partial?: boolean): Sorted<T> {
   const rows: T[] = []
   const structural: Sorted<T>['structural'] = {}
   for (const c of cands) {
@@ -220,7 +239,7 @@ function sortOut<T extends Strategy>(cands: Candidate<T>[], kind: 'simple' | 'lo
     cur.n++
     if (cur.examples.length < 4 && !cur.examples.includes(c.label)) cur.examples.push(c.label)
   }
-  return { rows, structural, kind }
+  return { rows, structural, kind, ...(partial ? { partial } : {}) }
 }
 export interface StructuralCount { code: HideCode; kind: 'simple' | 'loop'; n: number; examples: string[] }
 function mergeStructural(parts: { structural: Sorted<Strategy>['structural']; kind: 'simple' | 'loop' }[]): StructuralCount[] {

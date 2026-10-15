@@ -48,7 +48,6 @@
 .join-paper small{font-size:11px;font-weight:500;color:var(--tx50)}
 .join-paper:hover{border-color:var(--paper);transform:translateY(-1px)}
 .join-in:hover{color:var(--tx);border-color:var(--tx50)}
-.join-foot{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:11px;color:var(--tx40);z-index:2;pointer-events:none}
 /* the field */
 .join-field{position:absolute;inset:0;z-index:1}
 /* iOS Safari clips a drifting (composited) orb to its border box, ink overflow and all: the ring and glow were cut off flat
@@ -124,7 +123,6 @@
 @media (prefers-reduced-motion:reduce){.lp .lp-hero .join-field,.lp .lp-hero .join-glow{transition:none}}
 @media (max-width:720px){.lp.lp-deep .lp-hero .join-field{opacity:.24;filter:saturate(.8) blur(1px)}} /* a phone's column has no margins: the field sits right under the words */
 .lp-hint{bottom:64px}
-.lp .lp-hero .join-foot{bottom:40px}
 @media (max-width:720px){.lp-hint{display:none}}
 .lp-hero-copy h1{font-weight:700;font-size:clamp(38px,7vw,78px);letter-spacing:-.035em}
 .lp-hero-copy p b{color:var(--tx);font-weight:600}
@@ -323,7 +321,6 @@
 @media (prefers-reduced-motion:reduce){.lp-crowd span{animation:none}}
 @media (max-width:720px){.lp-crowd span:nth-child(2n){display:none}}
 .lp-foot{display:flex;align-items:center;gap:18px;flex-wrap:wrap;max-width:1060px;margin:0 auto;padding:28px var(--gutter) 48px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--tx40)}
-.lp-foot>span{flex:1;min-width:240px}
 .lp-foot .socials{margin-left:auto}
 @media (max-width:860px){.lp-nav{display:none}}
 @media (max-width:720px){.lp-social{display:none}.lp-top{height:56px;gap:10px}.lp .join.lp-hero .join-hero{padding-top:56px}.lp-sec{padding:72px var(--gutter)}.lp-tape{margin-top:-18px}}

@@ -11,7 +11,7 @@ import showcase from '../data/showcase.json'
 import { Character } from '../identity/character'
 import { useEarners } from '../index/queries'
 import { chainLabel } from '../sdk/queries'
-import { readTouch, useViewport } from './useViewport'
+import { useViewport } from './useViewport'
 
 type Pick = (typeof showcase)[number]
 /** where the showcase orbs sit (% of the viewport), clear of the middle column; the card opens below a top orb, above a bottom one, never over the hero */
@@ -34,7 +34,6 @@ const usd = (v: number) => `${v < 0 ? '−' : '+'}$${Math.abs(v).toLocaleString(
 /** The showcase as numbers: what the farmers on the field have realized between them. */
 export const SHOWCASE_PNL = showcase.reduce((s, p) => s + p.pnl, 0)
 export const SHOWCASE_N = showcase.length
-export const SHOWCASE_AT = showcase[0]?.at
 
 /** `quiet`: the field is only a backdrop for now (the landing, scrolled past its hero) — no card open, no tour. */
 export function Showcase({ className = '', quiet = false, children }: { className?: string; quiet?: boolean; children: React.ReactNode }) {
@@ -117,7 +116,6 @@ export function Showcase({ className = '', quiet = false, children }: { classNam
       </div>
       {children}
       {!wide && open && <div className={`join-sheet${phone ? '' : ' corner'}`}><Card p={showcase.find((p) => p.name === open)!} onEnded={ended} /></div>}
-      <footer className="join-foot">Realized PnL from on-chain records as of {SHOWCASE_AT} · {readTouch() ? 'tap' : 'hover'} a farmer</footer>
     </div>
   )
 }

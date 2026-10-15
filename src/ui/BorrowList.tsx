@@ -119,8 +119,9 @@ function RiskOf({ o }: { o: BorrowOffer }) {
  */
 export function BorrowCats({ offers, current, mine, keep }: {
   offers: BorrowOffer[]; current: GroupId | 'all'
-  /** the filter: on or off, how many assets it would show and the most they could take; absent with no wallet */
-  mine?: { on: boolean; n: number; room: number; set: (on: boolean) => void }
+  /** the filter: on or off, how many assets it would show and the most they could take; absent with no wallet.
+   *  `busy` while the wallet or the offers are still being read: "nothing" is not said before it is known */
+  mine?: { on: boolean; n: number; room: number; set: (on: boolean) => void; busy?: boolean }
   /** what a move to another group carries along (`hold`, `out`) */
   keep?: Record<string, string | undefined>
 }) {
@@ -138,7 +139,7 @@ export function BorrowCats({ offers, current, mine, keep }: {
     <nav className="bcats" aria-label="Borrow against">
       {mine && <button type="button" className="bcat yours" aria-pressed={mine.on} onClick={() => mine.set(!mine.on)}>
         <span className="bn">Against what you hold</span>
-        <small>{mine.n ? `${mine.n} asset${mine.n === 1 ? '' : 's'}${mine.room >= 1 ? ` · up to ${usdShort(mine.room)}` : ''}` : 'nothing you hold here'}</small>
+        <small>{mine.n ? `${mine.n} asset${mine.n === 1 ? '' : 's'}${mine.room >= 1 ? ` · up to ${usdShort(mine.room)}` : ''}` : mine.busy ? 'reading your wallet…' : 'nothing you hold here'}</small>
       </button>}
       <button type="button" className="bcat plain" aria-pressed={current === 'all'} onClick={() => go('borrow', keep ?? {})}><span className="bn">All</span><small>every shelf</small></button>
       {groups.map((g) => { const c = by.get(g.id); return (

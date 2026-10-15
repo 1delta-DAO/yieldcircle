@@ -258,7 +258,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
             <span className="hint">{kind === 'borrow' ? `Take ${outWord} out against ${u === 'all' ? (stocks ? 'tokenized stocks' : 'what you hold') : nameOf(u)} without selling it. You pay the rate; if the price falls past the line, the lender sells part of it.` : stocks && kind === 'simple' ? 'Lend dollars into the markets where people borrow against stocks. Their stocks back your loan; the rate is what they pay.' : kind === 'simple' ? (list.length && !list.some((s) => isSavings(s.nature)) ? 'Hold one token. No debt, nothing to liquidate — but its price moves with a market.' : 'Hold one token that grows. No debt, nothing to liquidate.') : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
           </div>
           {kind === 'borrow' ? (<>
-            <BorrowCats offers={bo.offers} current={group.id} keep={{ out: outQ, hold: route.hold }} mine={b.account ? { on: mineOn, ...mineSummary(offersHere, yours), set: setMine } : undefined} />
+            <BorrowCats offers={bo.offers} current={group.id} keep={{ out: outQ, hold: route.hold }} mine={b.account ? { on: mineOn, ...mineSummary(offersHere, yours), set: setMine, busy: b.positionsLoading || bo.isLoading } : undefined} />
             <BorrowList key={`${out}:${mineOn}`} offers={offersHere} loading={bo.isLoading} groupId={group.id} u={u} selId={borrowSel?.id} held={heldLoans} mine={{ on: mineOn, yours, set: setMine }} out={out} onOut={(f) => go(group.id, { u, k: 'borrow', out: f === 'USD' ? undefined : f, hold: route.hold })} onPick={(o) => openLoan(o)} />
           </>) : (<>
           {phone && (list.length || b.isLoading) ? (

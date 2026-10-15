@@ -681,6 +681,13 @@ const isZeroRaw = (raw: string | null | undefined) => !!raw && /^0+$/.test(raw)
  *
  * Still one live read per chain, sent once that chain's catalogue has SETTLED (its list is final);
  * `placeholderData` keeps the last answer on screen while a key changes.
+ *
+ * Settling waits on the slowest pair book (ten pages: 2–6 s), so a FIRST look goes out at once,
+ * before any list: the same POST with no asset list per chain answers every token the index holds
+ * for the wallet there (`held`). A complete chain shows those rows straight away; the settled read
+ * then adds what the index does not read (live) and takes over every row it answers. What only the
+ * first look names stays — a held token in no catalogue row is still held. A chain marked live
+ * (`liveBalances.ts`) never takes it: right after a transaction the index may be behind.
  */
 export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: string; addresses: string[]; extra?: string[]; ready: boolean }[]) {
   const live = useLiveChains()
@@ -694,6 +701,16 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
     enabled: !!account && Object.keys(asked).length > 0,
     queryKey: ['balances-index', account, JSON.stringify(asked)],
     queryFn: ({ signal }) => indexBalances(account!, asked, signal),
+    staleTime: 15_000,
+    refetchInterval: 60_000,
+    retry: 1,
+    placeholderData: keepPreviousData,
+  })
+  const evmChains = chains.filter((c) => isEvmChain(c.chainId) && accountFits(account, c.chainId)).map((c) => c.chainId)
+  const held = useQuery({
+    enabled: !!account && evmChains.length > 0,
+    queryKey: ['balances-index-held', account, evmChains.join(',')],
+    queryFn: ({ signal }) => indexBalances(account!, Object.fromEntries(evmChains.map((c) => [c, []])), signal),
     staleTime: 15_000,
     refetchInterval: 60_000,
     retry: 1,
@@ -720,7 +737,9 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
     // new key is in flight, the previous answer decides for the chains it already carries.
     // Solana is never in the POST, so it never waits on it.
     const decided = ready && (!acct || !fits || isSvmChain(chainId) || idx.isError || (!!idx.data && (!idx.isPlaceholderData || !!c)))
-    return { chainId, acct, ready, fromIdx, indexItems, liveAssets: [...liveAssets].sort(), decided }
+    const h = held.data?.chains.find((x) => x.chainId === chainId)
+    const heldItems = h && h.state === 'complete' && !live.has(chainId) && !held.isError ? h.items.map(fromIndex).filter((b): b is TokenBalance => !!b) : []
+    return { chainId, acct, ready, fromIdx, indexItems, heldItems, liveAssets: [...liveAssets].sort(), decided }
   })
   const liveQs = useQueries({
     queries: plans.map((p) => ({
@@ -739,9 +758,12 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
     // always adds the native coin, which the index already carries on a complete chain)
     const have = new Set(p.indexItems.map((b) => normAddr(b.address)))
     const items = [...p.indexItems, ...(q.data?.items ?? []).filter((b) => !have.has(normAddr(b.address)))]
+    // the first look fills what the settled read has not answered (all of it, before that read)
+    for (const b of items) have.add(normAddr(b.address))
+    items.push(...p.heldItems.filter((b) => !have.has(normAddr(b.address))))
     const done = p.decided && (!needLive || !!q.data || q.isError)
     return {
-      data: done || p.indexItems.length ? { items } : undefined,
+      data: done || items.length ? { items } : undefined,
       isLoading: !!p.acct && p.ready && !done,
       isFetched: done,
       fetchStatus: (idx.fetchStatus === 'fetching' || q.fetchStatus === 'fetching' ? 'fetching' : 'idle') as 'fetching' | 'idle',

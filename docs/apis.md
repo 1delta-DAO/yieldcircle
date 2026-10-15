@@ -180,7 +180,7 @@ Those come from `/v1/data/earn/positions` (live). `accountPositions` is for
 | Risk | `stress` `/stress?markets=` | `useStress` |
 | Crowns | `crowns` `/crowns?account=` (places 1–3 of the wallet APR board, `scope` `all` or a chain id; EVM index only) | `useCrowns` — the board's Reigning strip and rank; everywhere else crowns arrive as `crown.<scope>.<place>` badges on the profile |
 | Health | `health` `/health` | `useIndexHealth` |
-| Balances | `indexBalances` → `POST /balances/:account/query` `{ assets: { [chainId]: address[] } }` | `useBalancesPerChain` in **`sdk/queries.ts`** |
+| Balances | `indexBalances` → `POST /balances/:account/query` `{ assets: { [chainId]: address[] } }` | `useBalancesPerChain` in **`sdk/queries.ts`**: a first look at once with `[]` per chain (every token held there, no `unknownAssets`), then the settled read with the catalogue's list per chain |
 
 Common filters on feed/hot: `chainIds`, `protocols`, `issuers` + `issuerMatch`
 (`any` = union), `curator`, `assetGroups`, `follower` + `follow` (following

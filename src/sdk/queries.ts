@@ -1,4 +1,4 @@
-import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQueries, useQuery, type QueryFunctionContext } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopDepthShort, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
 import { capPerAsset, classifyEarn, classifyPair, dedupe, foldDates, rowKey, type Candidate, type LoopStrategy, type LoopTenor, type SimpleStrategy, type Strategy } from '../model/strategies'
@@ -134,9 +134,10 @@ async function optimizerPage(q: OptimizerQuery): Promise<OptimizerResponse> {
 }
 /** A book's rows; `partial` when a page after the first failed twice and is missing (see `useCatalog`'s refetch). */
 type Paged = OptimizerResponse['items'] & { partial?: true }
-async function optimizerPages(q: OptimizerQuery, maxPages = MAX_PAGES): Promise<Paged> {
+async function optimizerPages(q: OptimizerQuery, maxPages = MAX_PAGES, read?: OptimizerResponse): Promise<Paged> {
   const MAX_PAGES = maxPages
-  const first = await optimizerPage({ ...q, count: 100 })
+  // `read`: page 1, already in hand (a borrow family shows it before the rest land)
+  const first = read ?? await optimizerPage({ ...q, count: 100 })
   const items: Paged = [...first.items]
   if (!first.hasMore || !first.items.length) return items
   const per = first.items.length
@@ -286,12 +287,28 @@ const CRYPTO_BORROW: { key: string; q: Omit<OptimizerQuery, 'chainIds'> }[] = [
 const OUT_DEBT_TAGS: Record<Exclude<Out, 'USD'>, string[]> = { ETH: ['eth', 'lst', 'lrt'], BTC: ['btc'], MORE: ['wnative'] }
 const STOCK_PAGES = 5
 const CRYPTO_PAGES = 3
-const stockOffersQuery = (chainIds: string[]) => ({
-  queryKey: ['borrow-offers', 'stocks', chainIds.join(',')],
-  queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...STOCK_BORROW }, STOCK_PAGES)),
-  staleTime: 10 * 60_000,
-  enabled: chainIds.length > 0,
-})
+/**
+ * A borrow family in two queries: page 1 on its own (`p1`), and the whole book, which reads page 1
+ * through the cache (never twice) and then the pages its `total` calls for. The list shows page 1
+ * while the rest load — rows by the biggest collateral market first, so the category pills and the
+ * top of the list are already the final ones. Measured 2026-10-15 over all chains, warm: every page
+ * 1 in 0.3–1.4 s, the pages after it 2–3.5 s more (a later page is cold more often), so the pills
+ * waited ~3 s on the slowest page of the fastest family; now on its first page.
+ */
+const borrowBook = (key: string[], q: OptimizerQuery, pages: number, enabled: boolean) => {
+  const p1 = { queryKey: [...key, 'p1'], queryFn: () => optimizerPage({ ...q, count: 100 }), staleTime: 10 * 60_000 }
+  return {
+    first: { ...p1, enabled, select: firstOffers },
+    book: {
+      queryKey: key,
+      queryFn: async ({ client }: QueryFunctionContext) => offersFrom(await optimizerPages(q, pages, await client.fetchQuery(p1))),
+      staleTime: 10 * 60_000,
+      enabled,
+    },
+  }
+}
+const firstOffers = (r: OptimizerResponse) => offersFrom(r.items)
+const stockBook = (chainIds: string[]) => borrowBook(['borrow-offers', 'stocks', chainIds.join(',')], { chainIds, ...STOCK_BORROW }, STOCK_PAGES, chainIds.length > 0)
 /**
  * Every dollar loan on the selected chains. `crypto: false` asks only the stocks (which the
  * catalogue holds anyway): a page that shows stock offers alone need not pay for the rest.
@@ -304,34 +321,27 @@ const stockOffersQuery = (chainIds: string[]) => ({
 export function useBorrowOffers(chainIds: string[], o: { crypto?: boolean; out?: Out } = {}) {
   const crypto = o.crypto ?? true
   const out = o.out && o.out !== 'USD' ? o.out : null
-  const stocks = useQuery(stockOffersQuery(chainIds))
-  const rest = useQueries({
-    queries: [
-      ...CRYPTO_BORROW.map((r) => ({
-        queryKey: ['borrow-offers', r.key, chainIds.join(',')],
-        queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...r.q }, CRYPTO_PAGES)),
-        staleTime: 10 * 60_000,
-        enabled: crypto && chainIds.length > 0,
-      })),
-      ...[...CRYPTO_BORROW, { key: 'stocks', q: STOCK_BORROW }].map((r) => ({
-        queryKey: ['borrow-offers', r.key, `out:${out ?? '-'}`, chainIds.join(',')],
-        queryFn: async () => offersFrom(await optimizerPages({ chainIds, ...r.q, debtTags: OUT_DEBT_TAGS[out!] }, 2)),
-        staleTime: 10 * 60_000,
-        enabled: !!out && chainIds.length > 0 && (crypto || r.key === 'stocks'),
-      })),
-    ],
-  })
-  const stamp = [stocks.dataUpdatedAt, ...rest.map((q) => q.dataUpdatedAt)].join('|')
+  const families = [
+    stockBook(chainIds),
+    ...CRYPTO_BORROW.map((r) => borrowBook(['borrow-offers', r.key, chainIds.join(',')], { chainIds, ...r.q }, CRYPTO_PAGES, crypto && chainIds.length > 0)),
+    ...[...CRYPTO_BORROW, { key: 'stocks', q: STOCK_BORROW }].map((r) => borrowBook(['borrow-offers', r.key, `out:${out ?? '-'}`, chainIds.join(',')], { chainIds, ...r.q, debtTags: OUT_DEBT_TAGS[out!] }, 2, !!out && chainIds.length > 0 && (crypto || r.key === 'stocks'))),
+  ]
+  const books = useQueries({ queries: families.map((f) => f.book) })
+  const firsts = useQueries({ queries: families.map((f) => f.first) })
+  // each family's whole book once it is in, its first page until then
+  const got = books.map((q, i) => q.data ?? firsts[i].data)
+  const stamp = [...books, ...firsts].map((q) => q.dataUpdatedAt).join('|')
   const offers = useMemo(() => {
     const by = new Map<string, BorrowOffer>()
-    for (const o of [...(stocks.data ?? []), ...rest.flatMap((q) => q.data ?? [])]) if (!by.has(o.id)) by.set(o.id, o)
+    for (const o of got.flatMap((d) => d ?? [])) if (!by.has(o.id)) by.set(o.id, o)
     return [...by.values()].sort(byOffer)
   }, [stamp]) // eslint-disable-line react-hooks/exhaustive-deps
   return {
     offers,
+    // until every book is whole: a list empty on the first pages may still fill from a later one.
     // (a disabled query is never `isLoading` in v5: the families nobody asked for do not hold the list)
-    isLoading: stocks.isLoading || rest.some((q) => q.isLoading),
-    error: [stocks, ...rest].find((q) => q.error)?.error ?? null,
+    isLoading: books.some((q) => q.isLoading),
+    error: books.find((q) => q.error)?.error ?? null,
   }
 }
 
@@ -444,7 +454,7 @@ export function useCatalog(chainIds: string[]) {
   const extra = [...exposure, ...ptLoops]
   // the stock loans (tickets/0009): the request that teaches the app which tokens are stocks
   // (`noteStock`, run as the offers are read) — so it lands before anything is classified by it
-  const stocks = useQuery(stockOffersQuery(chainIds))
+  const stocks = useQuery(stockBook(chainIds).book)
   // one stamp for "any answer changed": this hook runs in the header, the
   // feed and Hot at once, and every catalogue query landing re-renders all three
   const stamp = [chainIds.join(','), stocks.dataUpdatedAt, ...[...earn, ...loops, ...extra].map((q) => q.dataUpdatedAt)].join('|')
@@ -654,6 +664,7 @@ function fromIndex(i: IndexBalanceItem): TokenBalance | null {
   if (i.decimals == null || i.balance == null) return null
   return { address: i.address, symbol: i.symbol ?? '', decimals: i.decimals, balanceRaw: i.balanceRaw, balance: i.balance, priceUSD: i.priceUsd ?? undefined, balanceUSD: i.balanceUSD ?? undefined }
 }
+const isZeroRaw = (raw: string | null | undefined) => !!raw && /^0+$/.test(raw)
 
 /**
  * Idle balances per chain: the INDEX first (pos-indexer tickets/0044), the live route only where
@@ -702,7 +713,9 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
     const fromIdx = !!c && c.state === 'complete' && !live.has(chainId) && !idx.isError
     const indexItems: TokenBalance[] = []
     const liveAssets = new Set<string>(fromIdx ? c!.unknownAssets ?? [] : all)
-    if (fromIdx) for (const i of c!.items) { const b = fromIndex(i); if (b) indexItems.push(b); else liveAssets.add(normAddr(i.address)) }
+    // a row the index answers ZERO for needs no decimals: nothing is held, so nothing is read live
+    // (2026-10-15: every chain listed a few `0` rows without decimals, and each sent its chain live)
+    if (fromIdx) for (const i of c!.items) { const b = fromIndex(i); if (b) indexItems.push(b); else if (!isZeroRaw(i.balanceRaw)) liveAssets.add(normAddr(i.address)) }
     // wait for the index's answer before reading live (one request instead of fifteen); while a
     // new key is in flight, the previous answer decides for the chains it already carries.
     // Solana is never in the POST, so it never waits on it.

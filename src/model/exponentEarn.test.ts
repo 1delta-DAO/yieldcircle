@@ -17,6 +17,11 @@ describe('Exponent PT earn rows', () => {
     expect(hide).toBeNull()
     expect(s).toMatchObject({ group: 'USD', holds: 'PT ONyc', source: 'fixed', booked: true, via: 'Fixed on Exponent · 10 Jan 2027' })
   })
+  it('pays a unit-quoted PT in the base its deposit names', () => {
+    const m = row('HH7FiYbEfDwQoK2ZJpkMz1T6wG6TqPsWcxWCtEVgigrZ', 'PT ONyc (USD) Solana · 10 Jan 2027', { address: 'USD1111111111111111111111111111111111111119', symbol: 'USD', decimals: 9 })
+    m.capabilities[0] = { action: 'deposit', requires: ['slippage'], inputs: [{ asset: '5Y8NV33Vv7WbnLfq3zBcKSdYPrk7g2KoiQoe7M2tcxp5', mode: 'direct' }] }
+    expect(classifyEarn(m).s).toMatchObject({ assetAddress: '5Y8NV33Vv7WbnLfq3zBcKSdYPrk7g2KoiQoe7M2tcxp5' })
+  })
   it('reads the bracketed base of a PT over an LST', () => {
     const { s } = classifyEarn(row('8aUSDnpp5kjCuWtJqaAahNGtvC8HSgFQpUR731CNwMVd', 'PT hyloSOL+ (SOL) Solana · 12 Dec 2026', { address: 'So11111111111111111111111111111111111111112', symbol: 'wSOL', decimals: 9 }))
     expect(s).toMatchObject({ asset: 'SOL', holds: 'PT hyloSOL+', source: 'fixed' })

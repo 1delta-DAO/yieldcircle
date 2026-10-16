@@ -19,9 +19,32 @@
  */
 import React from 'react'
 import { useApp } from '../state/AppState'
-import { CHAINS } from '../sdk/queries'
+import { CHAINS, chainLabel } from '../sdk/queries'
 import { ChainMark } from './ChainMark'
 import { Popover } from './bits'
+
+/**
+ * A link just changed the chains — which are global, so this is said out loud
+ * with a way back, rather than done silently to the reader's own selection.
+ * On the pages that take chains from a link: the feed and the board.
+ */
+export function LinkChainsToast() {
+  const { chainsFromLink, chains, dismissLinkChains } = useApp()
+  React.useEffect(() => {
+    if (!chainsFromLink) return
+    const t = setTimeout(() => dismissLinkChains(), 10000)
+    return () => clearTimeout(t)
+  }, [chainsFromLink, chains])
+  if (!chainsFromLink) return null
+  const names = chains.length ? chains.map(chainLabel).join(', ') : 'every chain'
+  return (
+    <div className="toast on act" role="status">
+      Showing <b>{names}</b> from this link.{' '}
+      <button className="lnk" onClick={() => dismissLinkChains(true)}>Undo</button>
+      <button className="lnk t50" aria-label="Dismiss" onClick={() => dismissLinkChains()}>✕</button>
+    </div>
+  )
+}
 
 /** The scope as a filter chip, opening the list. */
 export function ChainChip() {

@@ -73,7 +73,8 @@ export function readFeedLink(hash = location.hash): FeedFilters | null {
 export function feedHash(tab: string, f: FeedFilters): string {
   const q = new URLSearchParams()
   if (tab !== 'menu') q.set('t', tab)
-  if (f.chains.length && f.chains.length < CHAINS.length) q.set('c', f.chains.map(slugOf).sort().join(','))
+  const c = chainsParam(f.chains)
+  if (c) q.set('c', c)
   if (f.protocols.length) q.set('p', [...f.protocols].sort().join(','))
   if (f.issuers.length) {
     q.set('i', [...f.issuers].sort().join(','))
@@ -88,6 +89,34 @@ export function feedHash(tab: string, f: FeedFilters): string {
   const s = q.toString().replace(/%2C/g, ',')
   return '#/feed' + (s ? '?' + s : '')
 }
+
+/**
+ * The chains as a link's `c=`: lowercase labels, sorted, commas — undefined for every chain. Every
+ * page that takes chains from its address spells them this way (the feed above, the board below).
+ */
+export const chainsParam = (chains: string[]) =>
+  chains.length && chains.length < CHAINS.length ? chains.map(slugOf).sort().join(',') : undefined
+
+/**
+ * The board's chains as a link (`#/board?c=ethereum,base&by=wallet`): `c=` sets them, `c=all` sets
+ * every chain, and a board link without `c` leaves the reader's own — the board's other params
+ * (`by`, `t`, `x`, `s`) say nothing about chains. Null when it is not the board or carries no `c`.
+ */
+export function readBoardChains(hash = location.hash): string[] | null {
+  const h = hash.replace(/^#\/?/, '')
+  const at = h.indexOf('?')
+  if (at < 0 || h.slice(0, at).replace(/\/$/, '') !== 'board') return null
+  const c = new URLSearchParams(h.slice(at + 1)).get('c')
+  if (c == null) return null
+  if (c.trim().toLowerCase() === 'all') return []
+  const chains = [...new Set(list(c).map(chainOf).filter((x): x is string => !!x))]
+  // a `c=` that names no chain this build knows is no selection at all, not "every chain"
+  if (!chains.length) return null
+  return chains.length === CHAINS.length ? [] : chains
+}
+
+/** The chains any link carries — a feed link's, or a board link's — or null when it sets none. */
+export const readLinkChains = (hash = location.hash): string[] | null => readFeedLink(hash)?.chains ?? readBoardChains(hash)
 
 /** Same filters, whatever order they were picked in. */
 export const sameFilters = (a: FeedFilters, b: FeedFilters) => feedHash('', a) === feedHash('', b)

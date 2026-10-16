@@ -27,7 +27,8 @@ import { CrownIcon, FollowButton, Money, Who, crownTitle } from './social-bits'
 import { Sk, pct, usdShort } from './bits'
 import { costWord } from './PaperMoves'
 import { usePaper } from '../state/Paper'
-import { ChainChip } from './ChainPicker'
+import { ChainChip, LinkChainsToast } from './ChainPicker'
+import { chainsParam } from '../state/feedLink'
 import { StrategyBanner, StrategyRows } from './BoardStrategies'
 
 type Sort = 'perDay' | 'apr'
@@ -238,7 +239,22 @@ function PaperBoard({ window: w }: { window?: string }) {
 function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; by?: string; x?: string; s?: string }) {
   // on a paper account the board that ranks you is the paper one — said up front, one tap away
   const onPaper = usePaper().active
-  const { chainIds, allChains } = useApp()
+  const { chains: picked, chainIds, allChains } = useApp()
+  /**
+   * The address bar carries the chains (`c=`), so the board as it looks is the board a copied link
+   * opens (`AppState` reads it back). Replaced, never pushed, and after every render: a toggle's
+   * `go('board', …)` leaves `c` out and this puts it back on that same history entry.
+   */
+  const c = chainsParam(picked)
+  React.useEffect(() => {
+    const [path, q = ''] = location.hash.split('?')
+    const p = new URLSearchParams(q)
+    if ((p.get('c') ?? undefined) === c) return
+    if (c) p.set('c', c)
+    else p.delete('c')
+    const s = p.toString().replace(/%2C/g, ',')
+    history.replaceState(history.state, '', location.pathname + location.search + path + (s ? '?' + s : ''))
+  })
   const sort: Sort = w === 'day' ? 'perDay' : 'apr'
   // `?s=` lists one strategy's holders: the flat rows, cut by the index to that key
   const by: By = strategyKey ? 'position' : b === 'wallet' ? 'wallet' : b === 'position' ? 'position' : 'strategy'
@@ -317,6 +333,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
 
   return (
     <>
+      <LinkChainsToast />
       {strategyKey && <a className="crumb" href={`#/board${sort === 'perDay' ? '?t=day' : ''}`}>‹ Board</a>}
       <div className="feed-h">
         <h1>Board</h1>

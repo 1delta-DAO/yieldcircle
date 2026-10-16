@@ -462,6 +462,10 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   // at any floor. Size, rate and risk are floors and live in `softHide`.
   if (!m.availability?.canDeposit) return no('closed')
   const dep = m.capabilities.find((c) => c.action === 'deposit'); if (!dep) return no('closed')
+  // a PT quoted in a UNIT (`USD111…9`, no wallet holds it) is paid in its market's base: the
+  // deposit names that mint as its direct input, and it is what the ticket's balance must read
+  const payIn = pt ? dep.inputs?.find((i) => i.mode === 'direct' && i.asset !== m.asset.address) : undefined
+  const payToken = payIn ? { address: payIn.asset, symbol: payIn.symbol ?? strategyToken(m.chainId, payIn.asset)?.symbol ?? m.asset.symbol } : { address: m.asset.address, symbol: m.asset.symbol }
   const rate = m.rate?.total ?? 0
   const tvl = m.tvl?.usd ?? 0
   const isVault = m.venueKind === 'vault'
@@ -516,7 +520,7 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const s: SimpleStrategy = {
     id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, assetGroup: groupKey(m.asset.assetGroup), tokenLogo: m.asset.logoURI || undefined, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
     nature: natureOfDeposit(m.venue, asset, m.name, m.risk?.yieldProfile), rate, risk, riskLabel, riskScore, rated: !!m.risk?.score, tvlUsd: tvl,
-    earnUid: m.earnUid, market, via, source, assetAddress: m.asset.address, assetSymbol: m.asset.symbol, shareGroup: shareSym && shareSym.toUpperCase() !== m.asset.symbol.toUpperCase() ? (share?.assetGroup ? groupKey(share.assetGroup) : shareSym) : undefined, shareLogo: share?.logoURI ?? undefined, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
+    earnUid: m.earnUid, market, via, source, assetAddress: payToken.address, assetSymbol: payToken.symbol, shareGroup: shareSym && shareSym.toUpperCase() !== m.asset.symbol.toUpperCase() ? (share?.assetGroup ? groupKey(share.assetGroup) : shareSym) : undefined, shareLogo: share?.logoURI ?? undefined, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
     exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, exitSecs: m.exit?.cooldownSecs || undefined, exitFeeBps: m.exit?.feeBps || undefined, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0, intrinsic: m.rate?.intrinsic || undefined, passthrough: m.rate?.passthrough || undefined,
     // an API that knows the flag sets it on the deposit; then a missing withdraw leg (an async exit) is a no

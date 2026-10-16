@@ -4,7 +4,7 @@ import { isAddr, normAddr } from '../model/address'
 import { canonGroup } from '../model/assetGroup'
 import { useSolWallet } from '../wallet/solana'
 import { CHAINS } from '../sdk/queries'
-import { readFeedLink } from './feedLink'
+import { readFeedLink, readLinkChains } from './feedLink'
 
 /**
  * Route = the hash. The catalogue's routes are unchanged; the social ones are
@@ -24,7 +24,9 @@ import { readFeedLink } from './feedLink'
  *                            "Against what you hold" pill
  *   #/w/0x…                  a wallet
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
- *   #/board                  the earners board (apr by default; ?t=day for $/day, &by=wallet)
+ *   #/board                  the earners board (apr by default; ?t=day for $/day; by=wallet|position|paper,
+ *                            strategies without; x=usd|eth|btc|stocks… the held-in chip; s=<strategy key>;
+ *                            c=ethereum,base sets the chains — `c=all` every chain, no `c` the reader's own)
  *   #/me                     profile editor
  *   #/alerts                 what happened while you were away
  *   #/t                      the asset book (every token the index lends)
@@ -135,9 +137,9 @@ export const walletHref = (a: string) => `#/w/${normAddr(a)}`
 export const tokenHref = (group: string) => `#/t/${encodeURIComponent(canonGroup(group))}`
 
 /**
- * A feed link followed in a tab that is already open — pasted, or Back onto a
- * feed view — sets the chains in the SAME listener that moves the route, so
- * both land in one render and the feed mounts already scoped. A listener of
+ * A feed or board link followed in a tab that is already open — pasted, or Back onto a
+ * feed or board view — sets the chains in the SAME listener that moves the route, so
+ * both land in one render and the page mounts already scoped. A listener of
  * its own would run after this one, when the feed has already rendered, and
  * mirrored the old chains into the address.
  */
@@ -146,8 +148,8 @@ export function useRoute(): Route {
   const [r, setR] = React.useState(parseRoute)
   React.useEffect(() => {
     const h = () => {
-      const link = readFeedLink()
-      if (link) followLinkChains?.(link.chains)
+      const link = readLinkChains()
+      if (link) followLinkChains?.(link)
       setR(parseRoute())
     }
     addEventListener('hashchange', h)
@@ -203,12 +205,12 @@ function readChains(): string[] {
   } catch { return [] }
 }
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x))
-/** the page load: a feed link's chains, when it carries any filter, over the stored ones */
+/** the page load: a link's chains (a feed link with any filter, a board link with `c=`) over the stored ones */
 function initChains(): { chains: string[]; fromLink: { prev: string[] } | null } {
   const stored = readChains()
-  const link = readFeedLink()
-  if (!link || sameSet(link.chains, stored)) return { chains: stored, fromLink: null }
-  return { chains: link.chains, fromLink: { prev: stored } }
+  const link = readLinkChains()
+  if (!link || sameSet(link, stored)) return { chains: stored, fromLink: null }
+  return { chains: link, fromLink: { prev: stored } }
 }
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [init] = React.useState(initChains)

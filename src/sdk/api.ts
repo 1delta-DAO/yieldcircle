@@ -10,9 +10,11 @@ import type { RateHistoryResponse } from '../model/rateHistory'
 import type { AnyTx, ApiTx, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmResponse, LendingActionData, LendingBook, LendingRange, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
 
 /**
- * The catalogue listings (earn + optimizer) answer in 0.5–4 s; the home page waits for every one
- * of them before it ranks a card, so one that never answers must fail instead (`timeoutMs`).
- * With the app's single retry a wedged request costs ~50 s, then the chain settles without it.
+ * The catalogue listings (earn + optimizer) answer in 0.5–4 s; a chain is settled once every one
+ * of them has answered, so one that never answers must fail instead (`timeoutMs`). With the
+ * app's single retry a wedged request costs ~50 s, then the chain settles without it. The home
+ * page does not wait that long to paint: it ranks what has arrived after `START_DEADLINE_MS`
+ * (`Start.tsx`) and replaces that ranking once every chain has settled.
  */
 const LISTING_TIMEOUT_MS = 25_000
 

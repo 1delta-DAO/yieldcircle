@@ -407,6 +407,23 @@ export function vaultTag(name: string | null | undefined, known: (string | null 
   return !tag || sameWords(tag.replace(/[-_]/g, ''), holds.replace(/[-_]/g, '')) ? '' : tag
 }
 
+/** `PT-hyloSOL+-12DEC26` → `hyloSOL+` */
+const ptInnerOf = (sym: string | undefined) => (sym ? /^PT-([A-Za-z0-9.+]+)-/.exec(sym)?.[1] : undefined)
+
+/**
+ * An Exponent row's PT as a token: the mint is the row's `ref`, the symbol the share's (the row's
+ * own, else the build-time map, else spelled from the row's name — `PT ONyc (USD) Solana · …` and
+ * `Exponent PT-sUSDai-25FEB27 · …` both occur), and the name as its group, whose brackets
+ * `moneyOf` / `baseOfCollateral` read for a PT's money.
+ */
+function exponentPt(m: EarnMarket) {
+  const named = /\bPT[-\s]([A-Za-z0-9.+]+)/.exec(m.name ?? '')?.[1]
+  const symbol = m.shareToken?.symbol ?? strategyToken(m.chainId, m.ref)?.symbol ?? (named ? `PT-${named}-` : m.asset.symbol)
+  return { chainId: m.chainId, address: m.ref, symbol, name: m.name ?? symbol, assetGroup: m.name ?? undefined, props: { exponent: {} } }
+}
+/** A PT's whitelisted base: its bracketed underlying (`(SOL)`), else its inner token's. */
+const ptBase = (pt: { symbol: string; assetGroup?: string }) => baseOfSymbol(/\(([A-Za-z0-9.]+)\)/.exec(pt.assetGroup ?? '')?.[1]) ?? baseOfSymbol(ptInnerOf(pt.symbol))
+
 /**
  * `/earn` row → plain deposit, or null when it is not a strategy on a base asset we present.
  *
@@ -420,16 +437,23 @@ export function vaultTag(name: string | null | undefined, known: (string | null 
 export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const label = `${m.asset?.symbol ?? '?'} \u00b7 ${m.protocol?.name ?? m.brand ?? m.venue}`
   const no = (hide: HideCode): Candidate<SimpleStrategy> => ({ s: null, hide, label, chainId: m.chainId })
-  // a dollar, ether or bitcoin sits on its desk's row; anything else on its whitelisted base
-  const tok = { ...m.asset, chainId: m.chainId }
+  // a dollar, ether or bitcoin sits on its desk's row; anything else on its whitelisted base.
+  // An Exponent PT is filed by the PT itself: its `asset` is the market's QUOTE, often a unit no
+  // wallet holds (`USD111…1`, symbol USD) or a token no desk knows (USDai, SLX), and with it seven
+  // of twelve rows were `unmapped` (2026-10-16). The PT's name brackets its money (`PT ONyc (USD)`)
+  // and its inner token names the desk — the loop side's reading of the same PT as collateral.
+  // A PT that names neither (PT STRCx, PT xSOL) falls back to its quote, like any other row.
+  const pt = m.venue === 'vault.exponent' ? exponentPt(m) : undefined
+  const byPt = pt && (moneyOf(pt) || ptBase(pt)) ? pt : undefined
+  const tok = byPt ?? { ...m.asset, chainId: m.chainId }
   // a vault whose SHARE is an exposure asset is that asset, whatever it is deposited in: Jupiter's
   // JLP pool is minted with USDC (its unit, `asset`), and filed by that it read "USDC savings"
   const exposed = m.venueKind === 'vault' ? EXPOSURE_ASSETS.find((e) => e.chainId === m.chainId && e.address === m.ref) : undefined
   const money = exposed ? undefined : moneyOf(tok)
-  const coin = exposed ? exposed.sym : baseOfSymbol(m.asset.symbol)
+  const coin = exposed ? exposed.sym : byPt ? ptBase(byPt) : baseOfSymbol(m.asset.symbol)
   let asset = money ? deskKey(tok, money) : coin
   if (!asset) return no('unmapped')
-  if (money) noteToken(m.chainId, m.asset.address, asset)
+  if (money) noteToken(m.chainId, tok.address, asset)
   // the token in words: the asset is a desk for a dollar (`USDS` for a DAI market), so what the
   // row HOLDS is spelled from the token itself
   const own = coin ?? m.asset.symbol
@@ -478,6 +502,7 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   else if (m.venue === 'vault.lst') { via = `Stake with ${brand}`; source = 'staking'; holds = shareSym || named || own }
   else if (m.venue === 'vault.savings') { via = `${brand} savings`; source = 'savings'; holds = shareSym ?? (named || own) }
   else if (m.venue === 'vault.pendle') { via = `Fixed on Pendle${maturity ? ` · ${dateOf(maturity)}` : ''}`; source = 'fixed'; holds = 'PT ' + (named || own).replace(/^PT\s*/, '').split(' ')[0] }
+  else if (pt) { via = `Fixed on ${protocol}${maturity ? ` · ${dateOf(maturity)}` : ''}`; source = 'fixed'; holds = `PT ${ptInnerOf(pt.symbol) ?? own}` }
   else if (isVault) { const who = `${brand}${market ? ` ${market}` : ''} vault`; via = sameWords(brand, protocol) ? who : `${who} · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || own) }
   // the token's own yield, parked as collateral: nobody borrows JLP, and "Lend" would say they do
   else if (m.rate?.passthrough) { via = `Collateral on ${brand}${market ? ` · ${market}` : ''}`; source = 'collateral'; holds = own }

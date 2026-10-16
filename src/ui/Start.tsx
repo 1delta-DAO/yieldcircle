@@ -42,6 +42,9 @@ const LANE: Record<Band, { color: string; ico: string; tag: string }> = {
   active: { color: 'var(--violet)', ico: '⏰', tag: 'on a clock' },
 }
 
+/** how long the lanes wait for the slowest chain before ranking what has arrived (see `partial`) */
+const START_DEADLINE_MS = 2500
+
 // ---------------------------------------------------------------- the page
 export function Start() {
   const { isConnected, allChains, chainIds } = useApp()
@@ -91,19 +94,41 @@ export function Start() {
   if (BAND_ORDER.some((band) => ready[band] && readyFor[band] !== scope)) {
     setReadyFor((r) => ({ ...r, ...Object.fromEntries(BAND_ORDER.filter((band) => ready[band]).map((band) => [band, scope])) }))
   }
-  const loading = (band: Band) => !ready[band] && readyFor[band] !== scope
+  const complete = (band: Band) => ready[band] || readyFor[band] === scope
+  /**
+   * The page is never hostage to its slowest request (pos-indexer tickets/0082
+   * follow-up, measured 2026-10-16). The bands wait for every chain's listing,
+   * and a listing that wedges is only given up after `LISTING_TIMEOUT_MS` and
+   * one retry, 25–50 s. One such request on a first visit of the day held all
+   * three lanes on placeholders for 32 s. So `START_DEADLINE_MS` after the
+   * scope was picked, a band with cards to show shows the ranking of what has
+   * arrived, marked as refreshing, and the full ranking replaces it when the
+   * last chain answers. Only a complete ranking is kept for the next visit.
+   */
+  const [lateFor, setLateFor] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    const id = setTimeout(() => setLateFor(scope), START_DEADLINE_MS)
+    return () => clearTimeout(id)
+  }, [scope])
+  const partial = (band: Band) => !complete(band) && lateFor === scope && live[band].length > 0
+  const loading = (band: Band) => !complete(band) && !partial(band)
   // a return visit paints the cards it last showed for this scope and asset
   // straight away, marked as refreshing, instead of three rows of placeholders
   const key = `${scope}|${denom}`
   const kept = React.useMemo(() => readKept(key), [key])
-  const fresh = BAND_ORDER.filter((band) => !loading(band) && live[band].length)
+  const fresh = BAND_ORDER.filter((band) => complete(band) && live[band].length)
   const freshSig = fresh.map((band) => `${band}:${live[band].map((p) => `${p.s.id}@${p.s.rate}/${p.proof?.wallets ?? 0}`).join(',')}`).join('|')
   React.useEffect(() => {
     if (fresh.length) keep(key, Object.fromEntries(fresh.map((band) => [band, live[band]])) as Partial<Record<Band, Pick_[]>>)
   }, [key, freshSig]) // eslint-disable-line react-hooks/exhaustive-deps
   const picks: Record<Band, Pick_[]> = { ...live }
   const stale: Record<Band, boolean> = { passive: false, medium: false, active: false }
-  for (const band of BAND_ORDER) if (loading(band) && kept?.[band]?.length) { picks[band] = kept[band]!; stale[band] = true }
+  // the last complete ranking beats a partial one: it is painted at once, and
+  // swapping it for a partial ranking first would reshuffle the cards twice
+  for (const band of BAND_ORDER) {
+    if (!complete(band) && kept?.[band]?.length) { picks[band] = kept[band]!; stale[band] = true }
+    else if (partial(band)) stale[band] = true
+  }
   // one profiles request for every face the cards show
   const { profile } = useProfiles(BAND_ORDER.flatMap((band) => picks[band].map((p) => p.proof?.best?.account)).filter((a): a is string => !!a))
   // the teaser counts only money already IN this denomination — moving a coin
@@ -164,11 +189,15 @@ export function Start() {
 
 /**
  * The cards last shown, per chain scope and asset, so a return visit opens on
- * them (marked as refreshing) while this visit's catalogue loads. Kept a day;
- * browser storage only, a convenience: without it the page shows placeholders.
+ * them (marked as refreshing) while this visit's catalogue loads — ~0.2 s to
+ * the first card instead of the whole catalogue. Kept a week: a day let the
+ * first visit of each day open on placeholders, and a card a few days old,
+ * marked as refreshing and replaced within a second or two, is the better
+ * first paint. Browser storage only, a convenience: without it the page shows
+ * placeholders.
  */
 const KEPT_LS = 'yc.start.kept.v1'
-const KEPT_MS = 24 * 3600_000
+const KEPT_MS = 7 * 24 * 3600_000
 const KEPT_MAX = 12
 type Kept = Record<string, { at: number; picks: Partial<Record<Band, Pick_[]>> }>
 function readAllKept(): Kept {

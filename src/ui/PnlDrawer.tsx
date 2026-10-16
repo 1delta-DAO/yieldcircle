@@ -218,6 +218,7 @@ function Body({ s, money, f: unitOf, toggle }: {
                   <span className="t70" title={`unit kind ${l.unitKind}`}>
                     {l.walk === 'units' ? 'units' : 'amount'} · {l.indexSource === 'log' ? 'lender’s index' : l.indexSource === 'cache' ? 'hourly index' : 'no index'}
                     {l.priceSource === 'pendle' && ' · priced at Pendle’s market'}
+                    {l.priceSource === 'exponent' && ' · priced at Exponent’s market'}
                   </span>
                   <span className="t50">
                     {l.rows} row{l.rows === 1 ? '' : 's'} · {l.closed ? 'closed — its moves net to zero' : l.openedInRange ? 'walks back to 0 ✓' : `older (${pct(l.openResidual * 100, 1)} before first row)`}

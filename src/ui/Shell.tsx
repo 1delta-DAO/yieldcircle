@@ -47,6 +47,7 @@ import { useBook } from './useBook'
 import { TxInFlight, TxTray } from './TxTray'
 import { Sk, usd, usdShort } from './bits'
 import { gated, onAccessCode, openGate, useOnList, WAITLIST_HREF } from '../wallet/gate'
+import { usePaperSession } from '../wallet/paper'
 
 const ic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
 /**
@@ -167,12 +168,13 @@ const LATER_KEY = 'yc.waitlist-later'
 function Waitlist() {
   const { account } = useApp()
   const onList = useOnList(account)
+  const paper = !!usePaperSession()
   const [later, setLater] = React.useState(() => { try { return sessionStorage.getItem(LATER_KEY) === '1' } catch { return false } })
   const hide = () => { try { sessionStorage.setItem(LATER_KEY, '1') } catch { /* private mode */ } setLater(true) }
-  // in on paper, without beta access: everything works on paper, real trading waits (tickets/0006)
+  // without beta access, browsing or on paper: everything but real trading works (tickets/0006)
   if (gated() && !later) return (
     <div className="waitnudge">
-      <span>You're on paper. Trading with a real wallet is in closed beta.</span>
+      <span>{paper ? "You're on paper. " : ''}Trading with a real wallet is in closed beta.</span>
       <button className="btn sm pri" onClick={() => openGate()}>Join the waitlist</button>
       <button className="btn sm ghost" onClick={hide}>Later</button>
     </div>

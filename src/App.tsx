@@ -10,8 +10,6 @@ import { Board } from './ui/Board'
 import { ProfilePage } from './ui/Profile'
 import { Alerts } from './ui/Alerts'
 import { Join } from './ui/Join'
-import { gated } from './wallet/gate'
-import { usePaperSession } from './wallet/paper'
 import { Start } from './ui/Start'
 import { BorrowPage } from './ui/BorrowPage'
 import { useRoute } from './state/AppState'
@@ -19,11 +17,9 @@ import { GROUPS } from './model/assets'
 
 export default function App() {
   const r = useRoute()
-  // no beta access: the join page is the front door, whatever the hash (the hash survives — the gate
-  // reloads into it). The full landing page is its own deployment (`landing/`). A paper account is
-  // the way in without it (tickets/0006): play money needs no beta, only real trading does
-  const paperIn = !!usePaperSession()
-  if (r.view === 'join' || (gated() && !paperIn)) return <Join />
+  // the app is open to every visitor, beta access or not, paper or not: browsing needs neither, and
+  // only real trading stays behind the waitlist (`realTradingGated`). The join page is `#/join` only
+  if (r.view === 'join') return <Join />
   const group = GROUPS.find((g) => g.id === r.group)
   return (
     <Shell>

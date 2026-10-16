@@ -1,8 +1,8 @@
 /**
- * #/join — the one-screen waitlist page: the app's front door for a visitor
- * WITHOUT beta access, whatever the route (the full landing page is its own
- * deployment, `landing/`), and the welcome the gate lands a new member on after
- * the signature.
+ * #/join — the one-screen waitlist page. The app itself is open to every
+ * visitor (only real trading needs beta access), so this is reached by its
+ * route only: the welcome the gate lands a new member on after the signature,
+ * and a page to link to (the full landing page is its own deployment, `landing/`).
  * One button in the middle, the join flow is the overlay's own card
  * (`openGate`), and the field behind it is real farmers (`Showcase.tsx`).
  * A visitor without access can also go in on PAPER (a name and a password, play money): the app

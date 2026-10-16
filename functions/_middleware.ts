@@ -65,8 +65,8 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
   const holder = await readCookie(request.headers.get('cookie'), env.GATE_SECRET!).catch(() => null)
   if (holder && holder !== 'pass') return res
 
-  // no access: the app shows its one-screen join page (window.ycGated, src/ui/Join.tsx) and the
-  // overlay ships hidden — the join page's button is what opens it. (The full landing is its own
+  // no access: the app opens anyway, real trading gated (window.ycGated, src/wallet/gate.ts), and the
+  // overlay ships hidden — the waitlist buttons in the app open it. (The full landing is its own
   // deployment, `landing/`, which only puts wallets in line; signing in always happens here.) An access-code holder is in, but not on the
   // list: the app asks them to join (window.ycPass), and the page it links to, `/?waitlist`, is
   // the overlay's own waitlist flow

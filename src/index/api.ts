@@ -358,8 +358,8 @@ export interface SeriesLeg {
   unitKind: string
   walk: 'units' | 'amount'
   indexSource: 'log' | 'cache' | 'none'
-  /** where its prices come from: the shared feed, or its market's own series (a Pendle PT) */
-  priceSource?: 'feed' | 'pendle'
+  /** where its prices come from: the shared feed, or its market's own series (a Pendle / Exponent PT) */
+  priceSource?: 'feed' | 'pendle' | 'exponent' | 'kamino-reserve'
   openedInRange: boolean
   /** no read: the leg's rows net to zero units */
   closed?: boolean

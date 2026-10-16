@@ -362,6 +362,39 @@ function yLabels(vs: number[], y: (v: number) => number, h: number, fmt: (v: num
   })
 }
 
+const MONTHS: Record<string, number> = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, SEPT: 8, OCT: 9, NOV: 10, DEC: 11 }
+/** a PT's maturity off its ticker (`PT-ONyc-10SEPT26`, Pendle's `PT-sUSDE-27NOV2025`): the day, 00:00 UTC */
+function maturityOfSymbol(sym: string | null): number | null {
+  const m = sym?.match(/^PT-.*-(\d{1,2})([A-Z]{3,4})(\d{4}|\d{2})$/)
+  if (!m || MONTHS[m[2]] === undefined) return null
+  const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])
+  return Date.UTC(y, MONTHS[m[2]], Number(m[1]))
+}
+
+/**
+ * Where a PT the position HELD matured inside the chart: from there it
+ * redeems for a fixed amount and earns nothing, so a loop that kept it
+ * pays its debt's interest against nothing — the line turning down there is
+ * that, not a loss on the PT. The index's `maturesAt`, else the ticker's date.
+ */
+function maturityMarks(s: PositionSeries, t0: number, t1: number): { t: number; symbol: string }[] {
+  const out = new Map<number, string[]>()
+  s.legs.forEach((l, li) => {
+    const t = l.maturesAt ? Date.parse(l.maturesAt) : maturityOfSymbol(l.symbol)
+    if (t == null || !Number.isFinite(t) || t <= t0 || t > t1) return
+    // held at maturity: a balance on the last point before it
+    let held = false
+    for (const p of s.points) {
+      if (Date.parse(p.t) > t) break
+      held = (p.legs[li] ?? 0) > 0
+    }
+    if (!held) return
+    const day = Math.floor(t / 86_400_000) * 86_400_000
+    out.set(day, [...(out.get(day) ?? []), l.symbol ?? 'PT'])
+  })
+  return [...out].map(([t, syms]) => ({ t, symbol: [...new Set(syms)].join(', ') }))
+}
+
 /** The legs' prices on a day (one entry per token), so a swing in the PnL can be read off the price that made it. */
 function priceLine(s: PositionSeries, prices: (number | null)[], unit: string, label: string): string {
   const seen = new Set<string>()
@@ -458,6 +491,8 @@ function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabe
     pts.forEach((p, i) => { if (i > i0 && Math.abs(Date.parse(p.t) - tx) < Math.abs(Date.parse(pts[best].t) - tx)) best = i })
     setHover(best)
   }
+  const marks = maturityMarks(s, t0, t1)
+  const matLines = (y1: number, y2: number) => marks.map((m) => <line key={m.t} className="pnl-mat" x1={x(m.t)} x2={x(m.t)} y1={y1} y2={y2} />)
   const hp = pts[hover ?? (lastI >= 0 ? lastI : pts.length - 1)]
   const hpPnl = hp.nav == null ? null : hp.pnl
   const hoverLine = (y1: number, y2: number) => hover != null && <line className="pnl-hover" x1={xi(hover)} x2={xi(hover)} y1={y1} y2={y2} />
@@ -481,16 +516,27 @@ function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabe
           </defs>
           <path className="pnl-area" fill={`url(#${gid})`} d={area(pnl, py)} />
           <line className="pnl-zero" x1={padL} x2={W - padR} y1={py(0)} y2={py(0)} />
+          {matLines(2, H - 2)}
           <path className={`pnl-line ${dir}`} d={path(pnl, py)} />
           {lastI >= 0 && hover == null && <line className={`pnl-dot ${dir}`} x1={xi(lastI)} x2={xi(lastI)} y1={py(pnl[lastI]!)} y2={py(pnl[lastI]!)} />}
           {hover != null && pnl[hover] != null && <line className={`pnl-dot ${dir}`} x1={xi(hover)} x2={xi(hover)} y1={py(pnl[hover]!)} y2={py(pnl[hover]!)} />}
           {hoverLine(4, H - 4)}
         </svg>
         {yLabels([phi, plo, 0], py, H, (v) => (v === 0 ? f.vs(0) : `${v > 0 ? '+' : '−'}${f.vs(Math.abs(v))}`))}
+        {marks.map((m) => {
+          const at = x(m.t) / W
+          return (
+            <span key={m.t} className={`pnl-mat-l${at > 0.8 ? ' end' : ''}`} style={{ left: `${at * 100}%` }}
+              title={`${m.symbol} matured ${day(new Date(m.t).toISOString())}: from here it redeems for a fixed amount and earns nothing — a loop that keeps it pays its debt's interest against nothing`}>
+              PT matured
+            </span>
+          )
+        })}
       </div>
       <div className="pnl-rwrap">
         <svg viewBox={`0 0 ${W} ${CH}`} className="pnl-svg pnl-p" onPointerMove={onMove} onPointerLeave={() => setHover(null)} preserveAspectRatio="none">
           <line className="pnl-zero" x1={padL} x2={W - padR} y1={cy(0)} y2={cy(0)} />
+          {matLines(2, CH - 2)}
           <path className="pnl-con" d={path(con, cy, true)} />
           <path className="pnl-nav" d={path(nav, cy)} />
           {moves && s.events.map((e, i) => {
@@ -506,6 +552,7 @@ function Chart({ s, f, unitLabel, rates }: { s: PositionSeries; f: Fmt; unitLabe
         <span><i className={`sw pnl ${dir}`} /> PnL so far</span>
         <span><i className="sw nav" /> value</span>
         <span><i className="sw con" /> in it (value − PnL)</span>
+        {marks.length > 0 && <span title="a PT the position held reached maturity: it earns nothing after"><i className="sw mat" /> matured</span>}
         {moves && <><span><i className="sw tin" /> in</span><span><i className="sw tout" /> out</span><span><i className="sw tliq" /> liquidation</span></>}
         <label className="pnl-opt" title="a tick on the value chart for every move: green in, amber out, red a liquidation">
           <input type="checkbox" checked={moves} onChange={(e) => setMoves(e.target.checked)} /> moves

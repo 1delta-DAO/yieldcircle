@@ -22,7 +22,7 @@ import type { AssetBookRow, AssetHistory, AssetMarket, AssetSlice } from '../ind
 import { indexChainLabel, subjectOf } from '../index/types'
 import { chainLabel, useAssetStrategies, useCatalog, type StructuralCount } from '../sdk/queries'
 import { useSettings } from '../state/Settings'
-import { HIDES, hideDetail, softHide, type HideCode } from '../model/visibility'
+import { HIDES, hideDetail, letIn, softHide, type HideCode } from '../model/visibility'
 import { canonGroup, isSolGroup, spellingsOf } from '../model/assetGroup'
 import type { Strategy } from '../model/strategies'
 import { loadAssetNotes, noteOf } from '../model/assetNotes'
@@ -111,7 +111,8 @@ function strategyHref(s: Strategy) {
  * (`useAssetStrategies` — deposits, passthrough included, and every loop with it as
  * collateral), plus the vaults that MINT it from the menu (USDC into Nest's savings vault
  * is how you hold nOPAL; the API cannot be asked for those by share yet). A row a menu
- * floor would hold back is listed after the rest, muted, with the floor's word.
+ * floor would hold back is listed after the rest, muted, with the floor's word; one a widened
+ * floor let in wears the word the default would have held it with (`letIn`).
  */
 function EarnWith({ group, sym, members, solCounted, max = 8 }: { group: string; sym: string; members?: { chainId: string; address: string }[]; solCounted?: boolean; max?: number }) {
   const { chainIds, allChains } = useApp()
@@ -153,12 +154,15 @@ function EarnWith({ group, sym, members, solCounted, max = 8 }: { group: string;
       <div className="card"><table className="tbl">
         <tbody>{(all ? ordered : ordered.slice(0, max)).map((s) => {
           const held = heldOf(s)
+          // the floor a widened setting let it past: a $0-borrowable loop must not read like a curated one
+          const lifted = held ? null : letIn(s)
+          const chip = held ?? (lifted === 'unrated' ? null : lifted)
           return (
             <tr key={s.id} className={held ? 'held' : undefined} onClick={() => { location.hash = strategyHref(s) }}>
               <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}
                 <a href={strategyHref(s)} onClick={(e) => e.stopPropagation()}><b>{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds}</b></a>
                 <span className="t50 hide-m"> · {s.kind === 'loop' ? s.venue : s.via}</span><KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} />
-                {held && <span className="heldchip" title={`${HIDES[held].why}${hideDetail(s, held) ? ` (${hideDetail(s, held)})` : ''}`}>{HIDES[held].word}</span>}</div>
+                {chip && <span className="heldchip" title={`${HIDES[chip].why}${hideDetail(s, chip) ? ` (${hideDetail(s, chip)})` : ''}`}>{HIDES[chip].word}{!held && hideDetail(s, chip) ? ` · ${hideDetail(s, chip)}` : ''}</span>}</div>
                 <small>{chainLabel(s.chainId)}</small></td>
               <td className="r"><span className={s.rate >= 0 ? 'ok' : 'bad'}>{pct(s.rate)}</span><small>APR{s.kind === 'loop' ? ' · levered' : ''}</small></td>
               <td className="r t40" style={{ width: 20 }}>›</td>

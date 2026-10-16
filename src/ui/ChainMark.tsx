@@ -44,7 +44,7 @@ export const CHAIN_INFO: Record<string, ChainInfo> = {
   '137': { id: '137', name: 'Polygon', short: 'POL', color: '#8247e5', explorer: 'https://polygonscan.com', explorerName: 'Polygonscan' },
   '143': { id: '143', name: 'Monad', short: 'MON', color: '#836ef9', explorer: 'https://monadscan.com', explorerName: 'MonadScan' },
   '999': { id: '999', name: 'HyperEVM', short: 'HYPE', color: '#1a9e8f', explorer: 'https://hyperevmscan.io', explorerName: 'HyperEVMScan' },
-  '4663': { id: '4663', name: 'Robinhood Chain', short: 'HOOD', color: '#00a804', explorer: 'https://robinscan.io', explorerName: 'Robinscan' },
+  '4663': { id: '4663', name: 'Robinhood Chain', short: 'HOOD', color: '#00a804', explorer: 'https://robin.etherscan.io', explorerName: 'Robinhood Etherscan' },
   '9745': { id: '9745', name: 'Plasma', short: 'XPL', color: '#64748b', explorer: 'https://plasmascan.to', explorerName: 'Plasmascan' },
   '5042': { id: '5042', name: 'Arc', short: 'ARC', color: '#64748b', explorer: 'https://explorer.arc.io', explorerName: 'Arc Explorer' },
   '4217': { id: '4217', name: 'Tempo', short: 'TEMPO', color: '#64748b', explorer: 'https://explore.tempo.xyz', explorerName: 'Tempo Explorer' },

@@ -13,6 +13,13 @@
  * anyone can take home — phantom, rate-capped, locked, strategy, exploited —
  * and leaves them out of a wallet's total; the board SAYS what it hid, and one
  * tap shows everything, flagged. A flag marks a row, it never deletes it.
+ *
+ * Beside what positions earn NOW, the board ranks what they MADE (pos-indexer
+ * tickets/0084, `?t=pnl` / `?t=yield`): the PnL drawer's own lifetime record,
+ * drawn in the background and walked to now. PnL counts every price move;
+ * yield is the same without each token's money moving against the dollar —
+ * ether's price under a wstETH loop is direction, wstETH's growth against
+ * ether is yield. Both APRs are on the same capital-days.
  */
 import React from 'react'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -31,7 +38,8 @@ import { ChainChip, LinkChainsToast } from './ChainPicker'
 import { chainsParam } from '../state/feedLink'
 import { StrategyBanner, StrategyRows } from './BoardStrategies'
 
-type Sort = 'perDay' | 'apr'
+type Sort = idx.EarnersSort
+const isLifetime = idx.isLifetimeSort
 /** `strategy` is the default (docs/board-strategies.md); `position` the flat list, one row per position */
 type By = 'strategy' | 'position' | 'wallet'
 
@@ -111,6 +119,51 @@ function AccountCell({ r }: { r: idx.EarnerRow }) {
       <span className={apr == null ? 't40' : apr >= 0 ? 'ok' : 'warn'}>{apr == null ? '—' : `${w.exact ? '' : '≈ '}${pct(apr)}`}</span>
       <small>{whole ? 'the whole account' : share != null ? `${pct(share * 100, 1)} of ${usdShort(w.navUsd)}` : `on ${usdShort(w.navUsd)}`}</small>
     </span>
+  )
+}
+
+/** How a lifetime figure was drawn, in words, for its hover. */
+function lifetimeTitle(f: idx.EarnerLifetime, part: 'pnl' | 'yield'): string {
+  const at = f.at ? new Date(f.at).toLocaleString() : null
+  const how = f.basis === 'walk' ? `the record drawn ${at} walked to now (the price move and the pool carry since)`
+    : f.basis === 'held' ? `the record drawn ${at}, held: the position moved since and is redrawn shortly`
+    : `the record drawn ${at}`
+  const what = part === 'pnl'
+    ? `Lifetime PnL${f.directionalUsd != null ? ` — ${usdShort(f.directionalUsd)} of it the money’s own move against the dollar` : ''}`
+    : 'Yield: the PnL without each token’s money moving against the dollar — interest, a token’s growth against its money (staking, a PT’s pull to par), depegs, liquidations'
+  return `${what}. ${f.since ? 'Since 1 Jan 2026, where the index’s history starts — the position is older. ' : ''}${f.avgCapitalUsd != null ? `APR on ${usdShort(f.avgCapitalUsd)} average equity over ${Math.round(f.openDays ?? 0)} days. ` : ''}From ${how}.`
+}
+
+/**
+ * The two lifetime cells (pos-indexer tickets/0084): what the position made,
+ * price moves included, and the yield without them, each with its APR on
+ * the same capital. A phone gets the sorted one with the other as caption.
+ */
+export function LifetimeCells({ f, sort }: { f: idx.EarnerLifetime | null | undefined; sort: Sort }) {
+  if (!f)
+    return (
+      <>
+        <span className="v hide-m t40" title="the index has not drawn this position’s lifetime record yet">—<small>PnL</small></span>
+        <span className="v hide-m t40">—<small>yield</small></span>
+        <span className="v only-m t40">—<small>not drawn yet</small></span>
+      </>
+    )
+  const mark = f.basis === 'held' ? '≈ ' : ''
+  const tone = (v: number | null) => (v == null ? 't40' : v >= 0 ? 'ok' : 'bad')
+  const sorted = sort === 'yield' ? f.yieldUsd : f.pnlUsd
+  return (
+    <>
+      <span className={`v hide-m ${tone(f.pnlUsd)}${sort === 'pnl' ? ' apr' : ''}`} title={lifetimeTitle(f, 'pnl')}>
+        {mark}{usdShort(f.pnlUsd)}<small>{pct(f.pnlAprPct)} APR{f.since ? ' · since Jan 1' : ''}</small>
+      </span>
+      <span className={`v hide-m ${tone(f.yieldUsd)}${sort === 'yield' ? ' apr' : ''}`} title={lifetimeTitle(f, 'yield')}>
+        {mark}{usdShort(f.yieldUsd)}<small>yield · {pct(f.yieldAprPct)}</small>
+      </span>
+      <span className={`v only-m ${tone(sorted)}`} title={lifetimeTitle(f, sort === 'yield' ? 'yield' : 'pnl')}>
+        {mark}{usdShort(sorted)}
+        <small>{sort === 'yield' ? `yield · PnL ${usdShort(f.pnlUsd)}` : `PnL · yield ${usdShort(f.yieldUsd)}`}</small>
+      </span>
+    </>
   )
 }
 
@@ -255,7 +308,8 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
     const s = p.toString().replace(/%2C/g, ',')
     history.replaceState(history.state, '', location.pathname + location.search + path + (s ? '?' + s : ''))
   })
-  const sort: Sort = w === 'day' ? 'perDay' : 'apr'
+  const sort: Sort = w === 'day' ? 'perDay' : w === 'pnl' ? 'pnl' : w === 'yield' ? 'yield' : 'apr'
+  const lifetime = isLifetime(sort)
   // `?s=` lists one strategy's holders: the flat rows, cut by the index to that key
   const by: By = strategyKey ? 'position' : b === 'wallet' ? 'wallet' : b === 'position' ? 'position' : 'strategy'
   // a strategy names its own money, so the chips do not cut its holders
@@ -321,9 +375,10 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
       ? <span className="rank lead crowned" title={crownTitle(c)}><CrownIcon place={c.place} size={16} /></span>
       : <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
   }
+  const tParam = (t: Sort) => (t === 'perDay' ? 'day' : t === 'apr' ? undefined : t)
   const nav = (p: { t?: Sort; by?: By; x?: idx.ExposureChip | typeof STOCKS | null }) =>
     go('board', {
-      t: (p.t ?? sort) === 'perDay' ? 'day' : undefined,
+      t: tParam(p.t ?? sort),
       by: (p.by ?? by) === 'strategy' ? undefined : (p.by ?? by),
       x: p.x === null ? undefined : (p.x ?? (stocks ? STOCKS : exposure)),
       // a sort switch stays on the strategy's page; a unit or a chip leaves it for the board
@@ -334,7 +389,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
   return (
     <>
       <LinkChainsToast />
-      {strategyKey && <a className="crumb" href={`#/board${sort === 'perDay' ? '?t=day' : ''}`}>‹ Board</a>}
+      {strategyKey && <a className="crumb" href={`#/board${tParam(sort) ? `?t=${tParam(sort)}` : ''}`}>‹ Board</a>}
       <div className="feed-h">
         <h1>Board</h1>
         <span className="sp" />
@@ -347,6 +402,10 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
         <div className="seg">
           <button aria-pressed={sort === 'apr'} onClick={() => nav({ t: 'apr' })} title={by === 'wallet' ? 'highest net APR — exact wallets over $10k NAV only' : 'highest net APR — exact positions over $10k equity only'}>APR</button>
           <button aria-pressed={sort === 'perDay'} onClick={() => nav({ t: 'perDay' })} title="most dollars a day at today’s rates">$/day</button>
+        </div>
+        <div className="seg" role="group" aria-label="What was made">
+          <button aria-pressed={sort === 'pnl'} onClick={() => nav({ t: 'pnl' })} title="most made since the position opened — every price move included">PnL</button>
+          <button aria-pressed={sort === 'yield'} onClick={() => nav({ t: 'yield' })} title="most made without the money’s own move against the dollar: interest, staking and PT accretion, depegs, liquidations">Yield</button>
         </div>
       </div>
 
@@ -369,7 +428,17 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
         : inWord && (by === 'wallet'
           ? <>Each wallet is ranked on its <b>{inWord}</b> book alone — the positions whose supply side is {inWord}, never what they borrow. </>
           : <>Positions whose supply side is <b>{inWord}</b> — what is borrowed against it does not decide. </>)}
-        {by === 'wallet' ? (
+        {lifetime ? (
+          <>
+            What {by === 'wallet' ? 'wallets' : by === 'strategy' ? 'strategies' : 'positions'} <b>made</b>: {sort === 'pnl'
+              ? <>lifetime PnL, every price move included</>
+              : <>the yield — PnL without each token’s money moving against the dollar (ether’s price under a wstETH loop is direction; wstETH’s growth against ether is yield)</>}, since each position opened or since 1 Jan 2026 where it is older{by === 'strategy' ? ', summed over every holder' : by === 'wallet' ? ', summed over the wallet’s open positions' : ''}.
+            {' '}APRs are on the capital at work, day by day. The records are the PnL drawer’s own, drawn in the background and walked to now; a position not drawn yet is not ranked.
+            {showAll
+              ? ' Every position counts, flagged.'
+              : <> Positions whose figure is not a lending yield are left out{hidden.length > 0 && <> ({hidden.map(([f, n]) => `${f} ${n}`).join(' · ')})</>}.</>}
+          </>
+        ) : by === 'wallet' ? (
           <>
             What wallets <b>earn now</b>: every position’s net carry weighted by its equity — Σ yearly carry ÷ Σ NAV, at today’s rates.
             {showAll
@@ -421,6 +490,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
           ? 'This deploy of the index cannot cut the board by asset class yet — All still works.'
           : exposure
           ? 'This deploy of the index cannot cut the board by what positions are held in yet — All still works.'
+          : lifetime ? (q.error as Error)?.message?.includes('lifetime') ? `${(q.error as Error).message[0].toUpperCase()}${(q.error as Error).message.slice(1)} — APR and $/day still work.` : 'The lifetime board is not answering right now — APR and $/day still work.'
           : 'This deploy of the index has no earners board yet — it appears the moment the position-carry job runs.'}</div>}
         {!loading && !q.isError && !accounts.length && (
           <div className="empty">{strategyKey
@@ -428,6 +498,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
                 {sort === 'perDay' ? <button type="button" className="linklike" onClick={() => nav({ t: 'apr' })}>Rank them by APR ›</button> : <a className="pri" href="#/board">Every strategy ›</a>}</>
             : !allChains && chainIds.every((id) => isSvmChain(id))
             ? 'Nothing on Solana to rank with these filters.'
+            : lifetime ? 'No position has a lifetime record with these filters yet — the index draws them in the background, biggest first.'
             : inWord ? `No ${inWord} positions to rank with these filters.` : 'Nothing to rank with these filters.'}</div>
         )}
         <div className="list">
@@ -450,6 +521,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
                       </>
                     } />
                   <span className="sp" />
+                  {lifetime ? <WalletLifetime r={r} sort={sort} /> : <>
                   <span className="v ok apr hide-m" title={r.exact ? 'every counted position carries a price and a rate' : 'a position has no rate or price: this is a floor, not a guess'}>
                     {r.exact ? '' : '≈ '}{pct(r.apr24hPct ?? r.netAprPct)}<small>wallet APR</small>
                   </span>
@@ -457,12 +529,32 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
                     <Money usd={r.perDayUsd} /><small>a day</small>
                   </span>
                   <MobileV sort={sort} apr={r.apr24hPct ?? r.netAprPct} exact={r.exact} perDay={r.perDayUsd} />
+                  </>}
                   <span onClick={(e) => e.preventDefault()}><FollowButton kind="wallet" target={r.account} small /></span>
                 </a>
               ))
             : positions.map((r, i) => <PositionRow key={r.key} r={r} sort={sort} profile={profile} rank={rank(r.account, i)} />)}
         </div>
       </div>
+    </>
+  )
+}
+
+/** A wallet's lifetime figure: Σ over its open positions with a record, both APRs on their summed capital. */
+function WalletLifetime({ r, sort }: { r: idx.WalletEarnerRow; sort: Sort }) {
+  const f = r.lifetime
+  if (!f) return <span className="v t40" title="none of this wallet’s positions has a lifetime record yet">—<small>not drawn yet</small></span>
+  const tone = (v: number | null) => (v == null ? 't40' : v >= 0 ? 'ok' : 'bad')
+  const sorted = sort === 'yield' ? f.yieldUsd : f.pnlUsd
+  return (
+    <>
+      <span className={`v hide-m ${tone(f.pnlUsd)}${sort === 'pnl' ? ' apr' : ''}`} title="Σ lifetime PnL over the wallet’s open positions that have a record — every price move included; the APR is on their summed capital-days">
+        {usdShort(f.pnlUsd)}<small>{pct(f.pnlAprPct)} APR</small>
+      </span>
+      <span className={`v hide-m ${tone(f.yieldUsd)}${sort === 'yield' ? ' apr' : ''}`} title="the same without each token’s money moving against the dollar">
+        {usdShort(f.yieldUsd)}<small>yield · {pct(f.yieldAprPct)}</small>
+      </span>
+      <span className={`v only-m ${tone(sorted)}`}>{usdShort(sorted)}<small>{sort === 'yield' ? 'yield' : 'PnL'}</small></span>
     </>
   )
 }
@@ -485,6 +577,7 @@ export function PositionRow({ r, sort, profile, rank }: { r: idx.EarnerRow; sort
         } />
       <span className="sp" />
       <Flags risk={r.risk} detail={r.riskDetail} />
+      {isLifetime(sort) ? <LifetimeCells f={r.lifetime} sort={sort} /> : <>
       <span className="v ok apr hide-m" title={`${r.apr24hPct != null ? 'the 24 h mean — what the board ranks on; ' : ''}${r.exact ? 'every leg carries a price and a rate' : 'a leg has no rate or price: this is a floor, not a guess'}`}>
         {r.exact ? '' : '≈ '}{pct(r.apr24hPct ?? r.netAprPct)}
         <small>{r.apr24hPct != null ? `${pct(r.netAprPct)} now` : 'position APR'}</small>
@@ -492,6 +585,7 @@ export function PositionRow({ r, sort, profile, rank }: { r: idx.EarnerRow; sort
       <AccountCell r={r} />
       <span className="v hide-m"><Money usd={r.perDayUsd} /><small>a day</small></span>
       <MobileV sort={sort} apr={r.apr24hPct ?? r.netAprPct} exact={r.exact} perDay={r.perDayUsd} />
+      </>}
       <span onClick={(e) => e.preventDefault()}><FollowButton kind="wallet" target={r.account} small /></span>
     </a>
   )

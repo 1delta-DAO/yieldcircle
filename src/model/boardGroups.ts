@@ -13,7 +13,7 @@
  * `position-store/src/strategyBook.ts::primaryStrategyKey`. Change both or
  * neither: a key that drifts files the same position under two rows.
  */
-import type { EarnerLeg, EarnerRow, StrategyGroup, StrategyBoardRow } from '../index/api'
+import type { EarnerLeg, EarnerRow, EarnersSort, StrategyGroup, StrategyBoardRow } from '../index/api'
 
 const isDebt = (side: string) => side === 'borrow' || side === 'debt'
 const largest = (legs: EarnerLeg[]) =>
@@ -47,9 +47,21 @@ export const groupKeyOf = (r: EarnerRow) => r.strategyKey ?? primaryStrategyKey(
 export const kindOfKey = (key: string): StrategyGroup['kind'] =>
   key.startsWith('loop:') ? 'loop' : key.startsWith('dep:') ? 'deposit' : 'position'
 
-/** The figure the board ranks a single position on: the 24 h APR (the servers' default window) or its yearly carry. */
+/**
+ * The figure the board ranks a single position on: the 24 h APR (the servers' default window),
+ * its yearly carry, or what it made (pos-indexer tickets/0084: its lifetime PnL, or the yield).
+ */
 const aprOf = (r: EarnerRow) => r.apr24hPct ?? r.netAprPct
-const rankOf = (r: EarnerRow, sort: 'apr' | 'perDay') => (sort === 'apr' ? aprOf(r) : r.annualUsd)
+const rankOf = (r: EarnerRow, sort: EarnersSort) =>
+  sort === 'apr' ? aprOf(r)
+  : sort === 'pnl' ? r.lifetime?.pnlUsd ?? null
+  : sort === 'yield' ? r.lifetime?.yieldUsd ?? null
+  : r.annualUsd
+/** Σ of a figure over the members that have it; null when none does — never a zero */
+const sumOf = (xs: (number | null | undefined)[]) => {
+  const v = xs.filter((x): x is number => x != null && Number.isFinite(x))
+  return v.length ? v.reduce((a, b) => a + b, 0) : null
+}
 const desc = (a: number | null, b: number | null) => (a === null ? (b === null ? 0 : 1) : b === null ? -1 : b - a)
 const minMax = (xs: (number | null)[]) => {
   const v = xs.filter((x): x is number => x != null && Number.isFinite(x))
@@ -63,7 +75,7 @@ const minMax = (xs: (number | null)[]) => {
  * the strategy pays all its holders a day ("where the money is"). Every row is
  * its best position's own row, with the group beside it.
  */
-export function groupByStrategy(rows: EarnerRow[], sort: 'apr' | 'perDay'): StrategyBoardRow[] {
+export function groupByStrategy(rows: EarnerRow[], sort: EarnersSort): StrategyBoardRow[] {
   const groups = new Map<string, EarnerRow[]>()
   for (const r of rows) {
     const k = groupKeyOf(r)
@@ -96,15 +108,20 @@ export function groupByStrategy(rows: EarnerRow[], sort: 'apr' | 'perDay'): Stra
       leverageMax,
       faces: [...new Set(members.map((r) => r.account))].slice(0, 3),
       firstSince: since[0] ?? null,
+      pnlUsd: sumOf(members.map((r) => r.lifetime?.pnlUsd)),
+      yieldUsd: sumOf(members.map((r) => r.lifetime?.yieldUsd)),
     }
     out.push({ ...best, strategyKey: key, strategy })
   }
   return out.sort((a, b) => desc(groupRank(a, sort), groupRank(b, sort)))
 }
 
-/** What strategy rows are ranked, and merged across the two indexes, by. */
-export const groupRank = (r: StrategyBoardRow, sort: 'apr' | 'perDay') =>
-  sort === 'apr' ? aprOf(r) : r.strategy.annualUsd
+/** What strategy rows are ranked, and merged across the two indexes, by: the best's APR, or the members' dollars summed. */
+export const groupRank = (r: StrategyBoardRow, sort: EarnersSort) =>
+  sort === 'apr' ? aprOf(r)
+  : sort === 'pnl' ? r.strategy.pnlUsd ?? null
+  : sort === 'yield' ? r.strategy.yieldUsd ?? null
+  : r.strategy.annualUsd
 
 /** A strategy whose first holder on the board opened less than a week ago: what is starting, not just what is big. */
 export const isNewStrategy = (g: StrategyGroup, now = Date.now()) =>

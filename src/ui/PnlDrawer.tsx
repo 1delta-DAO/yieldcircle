@@ -161,12 +161,22 @@ function Body({ s, money, f: unitOf, toggle }: {
         {priceBet ? (
           <>
             <b className={m.pnl >= 0 ? 'ok' : 'bad'}>{f.sg(m.pnl)}</b> over {daysTxt(m.openDays)}: {f.sg(m.interest)} from interest, {f.sg(m.priceMove)} from prices.
-            <div className="t50 pnl-sub">No APR: its legs are different money, so this is a price position as much as a yield.</div>
+            {m.yield != null
+              ? <div className="t50 pnl-sub" title="the PnL without each token’s money moving against the unit: interest, a token’s growth against its money (staking, a PT’s pull to par), depegs, liquidations">
+                  Without the moneys’ own moves it {m.yield >= 0 ? 'earned' : 'lost'} <b className={m.yield >= 0 ? 'ok' : 'bad'}>{f.sg(m.yield)}</b>{m.yieldAprPct != null && <> — {pct(m.yieldAprPct)} APR on the same equity</>}; the rest, {f.sg(m.directional ?? 0)}, is direction.
+                </div>
+              : <div className="t50 pnl-sub">No APR: its legs are different money, so this is a price position as much as a yield.</div>}
           </>
         ) : (
           <>
             Earned <b className={m.pnl >= 0 ? 'ok' : 'bad'}>{f.sg(m.pnl)}</b> on <b>{f.v(m.avgCapital)}</b> average equity over <b>{daysTxt(m.openDays)}</b>
             {m.aprPct != null && <> — <b className={m.aprPct >= 0 ? 'ok' : 'bad'}>{pct(m.aprPct)} APR</b></>}
+            {/* valued in another money than its own (dollars on an ETH loop): say what the money's move was */}
+            {m.yield != null && m.directional != null && Math.abs(m.directional) > Math.max(0.005 * Math.abs(m.pnl), 1e-9) && (
+              <div className="t50 pnl-sub">
+                {f.sg(m.directional)} of it is the moneys’ own move; without it, <b className={m.yield >= 0 ? 'ok' : 'bad'}>{f.sg(m.yield)}</b>{m.yieldAprPct != null && <> — {pct(m.yieldAprPct)} APR</>}.
+              </div>
+            )}
           </>
         )}
       </div>

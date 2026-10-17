@@ -337,6 +337,15 @@ export interface SeriesSummary {
   pnl: number
   interest: number
   priceMove: number
+  /**
+   * the part of `priceMove` that is each leg's MONEY moving against the unit (ether's dollar price
+   * under a wstETH leg; pos-indexer tickets/0084) — absent on an older index
+   */
+  directional?: number
+  /** pnl − directional: interest, a token's growth against its money, depegs, liquidations */
+  yield?: number
+  /** yield ÷ the same capital-days × 365 */
+  yieldAprPct?: number | null
   capitalDays: number
   /** days it held something and could be priced */
   openDays: number
@@ -530,7 +539,33 @@ export interface EarnerRow {
   accountLabelSource?: string | null
   /** the ONE strategy the board ranks this position under (`model/boardGroups.ts::primaryStrategyKey`); absent = an older index */
   strategyKey?: string | null
+  /** what the position MADE (pos-indexer tickets/0084); null = not drawn yet, absent = an older index */
+  lifetime?: EarnerLifetime | null
 }
+/**
+ * The lifetime record on a board row (pos-indexer tickets/0084): the PnL drawer's own series,
+ * drawn in the background and walked to now. `yieldUsd` is the PnL without each leg's MONEY
+ * moving against the dollar (ether's price under a wstETH loop) — interest, a token's accretion
+ * against its money, depegs, liquidations. Both APRs are on the same capital-days, so they add up.
+ * `since`: the line starts at the ledger's floor (2026-01-01); the position is older.
+ * `basis`: `series` as drawn, `walk` walked forward from `at`, `held` moved since (redrawn soon).
+ */
+export interface EarnerLifetime {
+  pnlUsd: number
+  yieldUsd: number | null
+  directionalUsd: number | null
+  pnlAprPct: number | null
+  yieldAprPct: number | null
+  avgCapitalUsd: number | null
+  openDays: number | null
+  since: string | null
+  basis: 'series' | 'walk' | 'held' | null
+  at: string | null
+  exact: boolean
+}
+/** today's carry (`apr`, `perDay`) or what was made (`pnl`, `yield`: pos-indexer tickets/0084) */
+export type EarnersSort = 'perDay' | 'apr' | 'pnl' | 'yield'
+export const isLifetimeSort = (s: EarnersSort | undefined) => s === 'pnl' || s === 'yield'
 /**
  * A strategy beside its best position (`/earners?group=strategy`,
  * docs/board-strategies.md): the members are the positions the flat board
@@ -555,6 +590,9 @@ export interface StrategyGroup {
   faces: string[]
   /** the earliest opened position among the members */
   firstSince: string | null
+  /** Σ the members' lifetime PnL / yield (pos-indexer tickets/0084); null = none drawn, absent = an older index */
+  pnlUsd?: number | null
+  yieldUsd?: number | null
 }
 export interface StrategyBoardRow extends EarnerRow { strategy: StrategyGroup }
 export interface WalletEarnerRow {
@@ -581,6 +619,8 @@ export interface WalletEarnerRow {
   exposure?: string | null
   /** with an exposure: the whole wallet's figure beside its book in that exposure */
   wallet?: WalletTotal | null
+  /** Σ over its positions that have a lifetime record (pos-indexer tickets/0084) */
+  lifetime?: { pnlUsd: number; yieldUsd: number | null; pnlAprPct: number | null; yieldAprPct: number | null } | null
   accountKind?: AccountKind
   accountLabel?: string | null
   accountLabelSource?: string | null
@@ -619,7 +659,7 @@ export type Exposure = 'usd' | 'eth' | 'btc' | 'sol' | 'hype' | 'bnb' | 'avax' |
 export type PositionExposure = Exposure | 'mixed' | 'other'
 export type ExposureChip = 'usd' | 'eth' | 'btc' | 'sol' | 'hype' | 'more'
 export interface EarnersQuery {
-  sort?: 'perDay' | 'apr'
+  sort?: EarnersSort
   preset?: 'all'
   people?: boolean
   chainIds?: string
@@ -687,20 +727,36 @@ const classCutAsAsked = (r: (EarnersEnvelope & { rows?: object[] }) | null, clas
  * flat answer there), `rank` what the merge sorts on.
  */
 type Half<R> = (base: string, p: EarnersQuery) => Promise<EarnersEnvelope & { rows: R[] }>
-async function bothBoards<R extends { annualUsd: number | null; apr24hPct: number | null }>(
+type Lifetimed = { lifetime?: { pnlUsd: number; yieldUsd: number | null } | null }
+async function bothBoards<R extends { annualUsd: number | null; apr24hPct: number | null } & Lifetimed>(
   by: 'wallet' | undefined,
   p: EarnersQuery,
   half: Half<R> = (base, q) => get('/earners', earnersParams(by, q), undefined, base),
-  rank: (r: R) => number | null = (r) => (p.sort === 'apr' ? r.apr24hPct : r.annualUsd),
+  rank: (r: R) => number | null = (r) =>
+    p.sort === 'apr' ? r.apr24hPct
+    : p.sort === 'pnl' ? r.lifetime?.pnlUsd ?? null
+    : p.sort === 'yield' ? r.lifetime?.yieldUsd ?? null
+    : r.annualUsd,
 ): Promise<EarnersEnvelope & { rows: R[] }> {
   const { evm, sol } = splitScope(p.chainIds)
   type Resp = EarnersEnvelope & { rows: R[] }
+  // the Solana index draws no lifetime records yet (pos-indexer tickets/0084): under a
+  // lifetime sort it is not asked, rather than merged in as rows with nothing to rank on
+  const lifetime = isLifetimeSort(p.sort)
   const [a, b0] = await Promise.all([
-    evm !== null ? half(INDEX_BASE_URL, { ...p, chainIds: evm }) : Promise.resolve(null),
-    sol && SOL_EXPOSURES.has(p.exposure)
+    evm !== null
+      ? half(INDEX_BASE_URL, { ...p, chainIds: evm }).catch((e) => {
+          // an index that predates the lifetime sorts answers 400 for them
+          if (lifetime) throw new Error('this deploy of the index does not rank by lifetime PnL yet')
+          throw e
+        })
+      : Promise.resolve(null),
+    sol && SOL_EXPOSURES.has(p.exposure) && !lifetime
       ? half(SOL_INDEX_BASE_URL, { ...p, chainIds: undefined }).catch(() => null)
       : Promise.resolve(null),
   ])
+  // an index that ignored the sort answered today's board: never shown as a lifetime ranking
+  if (lifetime && a && a.sort !== p.sort) throw new Error('this deploy of the index does not rank by lifetime PnL yet')
   if (!cutAsAsked(a, p.exposure)) throw new Error('this deploy of the index cannot cut the board by exposure yet')
   if (!classCutAsAsked(a, p.assetClasses, INDEX_BASE_URL)) throw new Error('this deploy of the index cannot cut the board by asset class yet')
   const b = cutAsAsked(b0, p.exposure) && classCutAsAsked(b0, p.assetClasses, SOL_INDEX_BASE_URL) ? b0 : null
@@ -712,7 +768,8 @@ async function bothBoards<R extends { annualUsd: number | null; apr24hPct: numbe
       ratingFlags: { status: 'ok', computedAt: null, nSubjects: null }, computedAt: null, rows: [],
     }
   // only the Solana index in scope and it has no board yet: say so, as the EVM one would
-  if (!halves.length) throw new Error('no earners board for this chain selection yet')
+  if (!halves.length)
+    throw new Error(lifetime ? 'the Solana index does not rank by lifetime PnL yet' : 'no earners board for this chain selection yet')
   if (halves.length === 1) return halves[0]
   const rows = [...a!.rows, ...b!.rows]
     .sort((x, y) => {
@@ -802,7 +859,7 @@ const FOLD_LIMIT = 200
  * rank groups by — the best position's APR, or the strategy's Σ $/day.
  */
 export async function strategyBoard(p: EarnersQuery = {}): Promise<StrategyBoardResponse> {
-  const sort = p.sort === 'apr' ? 'apr' : 'perDay'
+  const sort: EarnersSort = p.sort ?? 'perDay'
   const half: Half<StrategyBoardRow> = async (base, q) => {
     if (groupSupport.get(base) !== false) {
       const r = await get<EarnersEnvelope & { rows: StrategyBoardRow[] }>('/earners', earnersParams(undefined, { ...q, group: 'strategy' }), undefined, base)

@@ -347,7 +347,7 @@ export function useStress(markets: string[]) {
 export interface EarnersKey {
   /** `strategy`: one row per strategy (docs/board-strategies.md) */
   by: 'position' | 'wallet' | 'strategy'
-  sort: 'perDay' | 'apr'
+  sort: api.EarnersSort
   /** 'all' lifts the default preset that hides flagged positions */
   preset?: 'all'
   people: boolean

@@ -191,3 +191,22 @@ fallback for an index that does not group.
   `?s=<key>` = who runs one strategy; `PositionRow` shared by the flat list and
   the holders; the Wallets board's "best <market>" opens its strategy.
 - `src/ui/Start.tsx`: a card's "held by N+" opens `#/board?s=<key>`.
+
+## What was made: the PnL and Yield sorts (2026-10-17)
+
+pos-indexer tickets/0084 (`docs/lifetime-pnl.md` there) adds a second kind of
+ranking beside today's carry: what positions **made**. `#/board?t=pnl` and
+`?t=yield` sort every view (strategies, positions, wallets) by:
+
+- **PnL**: the PnL drawer's own lifetime record, every price move included,
+  since the position opened (since 1 Jan 2026 where it is older);
+- **Yield**: the same without each token's money moving against the dollar.
+  Ether's price under a wstETH loop is direction; wstETH's growth against
+  ether is yield. A depeg is yield (a loss).
+
+Both come with their APR on the same capital-days. A strategy ranks by its
+holders' sum and shows its best holder. The index draws the records in the
+background and walks them to now, so a row can be `≈` (`held`: the position
+moved since its record). A position not drawn yet is not ranked. The Solana
+index draws no records yet, so a lifetime sort does not ask it. The drawer
+states the split under its record.

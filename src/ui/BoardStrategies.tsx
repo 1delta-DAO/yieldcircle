@@ -25,7 +25,8 @@ import { Comments, Face, Money, Who } from './social-bits'
 import { ProtocolLogo, Sk, pct, protocolIconUrls, usdShort } from './bits'
 import { Flags, MobileV, PositionRow } from './Board'
 
-type Sort = 'perDay' | 'apr'
+type Sort = idx.EarnersSort
+const isLifetime = (s: Sort) => s === 'pnl' || s === 'yield'
 type ProfileOf = ReturnType<typeof useProfiles>['profile']
 const isDebt = (side: string) => side === 'borrow' || side === 'debt'
 /** The index names an isolated market after a leg (`Collateral PT-…`, `Loan USDG`): that repeats the title, so the protocol says where instead. */
@@ -217,6 +218,7 @@ function StrategyRow({ r, i, sort, profile, proof, st, comments, venue, open, on
         </a>
         {/* a cell even when empty: the grid's columns line up row under row */}
         <span className="srow-flags"><Flags risk={r.risk} detail={r.riskDetail} /></span>
+        {isLifetime(sort) ? <GroupMade r={r} sort={sort} /> : <>
         <span className="v ok apr hide-m" title={sort === 'apr' ? 'the best position’s 24 h APR — what the board ranks strategies on' : 'the best position’s 24 h APR'}>
           {r.exact ? '' : '≈ '}{pct(apr)}
           <small>{g.positions > 1 && g.aprPct != null ? `avg ${pct(g.aprPct)}` : 'one position'}</small>
@@ -225,6 +227,7 @@ function StrategyRow({ r, i, sort, profile, proof, st, comments, venue, open, on
           <Money usd={perDay} /><small>{sort === 'perDay' ? 'a day, all' : 'a day'}</small>
         </span>
         <MobileV sort={sort} apr={apr} exact={r.exact} perDay={perDay} />
+        </>}
         <Comments n={comments} onClick={talkTo(st, t.uid)} />
         <CopyOrOpen st={st} r={r} />
       </div>
@@ -238,6 +241,31 @@ function StrategyRow({ r, i, sort, profile, proof, st, comments, venue, open, on
       )}
       {open && <Holders strategyKey={g.key} filter={filter} href={holdersHref} />}
     </div>
+  )
+}
+
+/**
+ * A strategy under a lifetime sort (pos-indexer tickets/0084): what its best holder made, and
+ * what all its holders made together — the figure the board ranks strategies on.
+ */
+function GroupMade({ r, sort }: { r: idx.StrategyBoardRow; sort: Sort }) {
+  const g = r.strategy
+  const f = r.lifetime
+  const all = sort === 'yield' ? g.yieldUsd : g.pnlUsd
+  const best = f ? (sort === 'yield' ? f.yieldUsd : f.pnlUsd) : null
+  const bestApr = f ? (sort === 'yield' ? f.yieldAprPct : f.pnlAprPct) : null
+  const word = sort === 'yield' ? 'yield' : 'PnL'
+  const tone = (v: number | null | undefined) => (v == null ? 't40' : v >= 0 ? 'ok' : 'bad')
+  return (
+    <>
+      <span className={`v hide-m ${tone(best)} apr`} title={`the best holder’s lifetime ${word}${sort === 'yield' ? ' — without the money’s own move against the dollar' : ', every price move included'}; its APR on the capital it had at work`}>
+        {f?.basis === 'held' ? '≈ ' : ''}{usdShort(best)}<small>{pct(bestApr)} best</small>
+      </span>
+      <span className={`v hide-m ${tone(all)}`} title={`Σ lifetime ${word} over every holder on the board with a record — what the board ranks strategies on`}>
+        {usdShort(all)}<small>{word}, all</small>
+      </span>
+      <span className={`v only-m ${tone(all)}`}>{usdShort(all)}<small>{word}, all · best {usdShort(best)}</small></span>
+    </>
   )
 }
 
@@ -284,12 +312,17 @@ export function StrategyBanner({ rows, strategyKey, sort, partial, onPerDay }: {
     <div className="sbanner">
       <span className="strat-logo"><ProtocolLogo urls={protocolIconUrls(protocolKeyOf(g.lenderKey), venue?.logoUri)} name={venue?.name ?? g.lenderKey} /></span>
       <div className="sb-t">
-        <small className="t50">Strategy · <a className="pri" href={`#/board${sort === 'perDay' ? '?t=day' : ''}`}>every strategy</a></small>
+        <small className="t50">Strategy · <a className="pri" href={`#/board${sort === 'perDay' ? '?t=day' : isLifetime(sort) ? `?t=${sort}` : ''}`}>every strategy</a></small>
         <b>{t.name}{t.word && <span className="t50"> {t.word}</span>}{isNewStrategy(g.strategy) && <span className="pill new">new</span>}</b>
         <span className="t50"><Where r={g} t={t} venue={venue} lev={levRange(g.strategy)} /> · {wallets}{lifted ? '+' : ''} wallet{wallets === 1 ? '' : 's'} · {usdShort(equity)}</span>
       </div>
+      {isLifetime(sort) ? <>
+        <div className="sb-v hide-m"><b className={(g.strategy[sort === 'yield' ? 'yieldUsd' : 'pnlUsd'] ?? 0) >= 0 ? 'ok' : 'bad'}>{usdShort(g.strategy[sort === 'yield' ? 'yieldUsd' : 'pnlUsd'])}</b><small>{sort === 'yield' ? 'yield' : 'PnL'}, all below</small></div>
+        <div className="sb-v hide-m"><b><Money usd={g.strategy.perDayUsd} /></b><small>a day now, all below</small></div>
+      </> : <>
       <div className="sb-v hide-m"><b className="ok">{pct(g.apr24hPct ?? g.netAprPct)}</b><small>best{g.strategy.positions > 1 && g.strategy.aprPct != null ? ` · avg ${pct(g.strategy.aprPct)}` : ''}</small></div>
       <div className="sb-v hide-m"><b><Money usd={g.strategy.perDayUsd} /></b><small>a day, all below</small></div>
+      </>}
       <Comments n={thread ? counts.count(thread.kind, thread.key) : 0} onClick={talkTo(st, t.uid)} />
       <CopyOrOpen st={st} r={g} />
       {/* the book counts holders the APR list leaves out: under $10k, or no exact rate. $/day lists every size */}

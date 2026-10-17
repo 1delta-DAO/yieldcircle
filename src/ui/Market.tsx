@@ -95,7 +95,6 @@ export function Market({ uid }: { uid: string }) {
 
   return (
     <>
-      <a className="crumb" href="#/">‹ Home</a>
       <header className="mhdr">
         {/* the asset opens its own page — only by the index's GROUP key: a ticker is not an identity (two reUSDs) */}
         <TokLink group={m.data?.assetGroup ?? fromTape?.assetGroup} sym={symbol} logo={logo ?? undefined} size={40} />

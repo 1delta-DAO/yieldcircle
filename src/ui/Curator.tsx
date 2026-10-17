@@ -104,7 +104,6 @@ export function Curator({ id }: { id: string }) {
 
   return (
     <>
-      <a className="crumb" href="#/">‹ Home</a>
       <header className="mhdr">
         <CuratorLogo urls={d ? curatorIconUrls(id, d.logoUri) : []} />
         <div>

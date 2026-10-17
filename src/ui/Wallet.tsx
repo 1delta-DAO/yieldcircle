@@ -189,7 +189,6 @@ export function Wallet({ addr }: { addr: string }) {
 
   return (
     <>
-      <a className="crumb" href="#/">‹ Home</a>
       <header className="wcard">
         <Character addr={addr} avatarUrl={profile?.avatarUrl} size={72} />
         <div className="wc-t">

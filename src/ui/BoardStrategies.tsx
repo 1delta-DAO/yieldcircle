@@ -13,7 +13,7 @@
 import React from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type * as idx from '../index/api'
-import { earnersQuery, useProtocols, useStrategyProofs } from '../index/queries'
+import { earnersQuery, useMarket, useProtocols, useStrategyProofs, useVaultsAt } from '../index/queries'
 import { useCounts, useProfiles, useStrategyThreads } from '../social/queries'
 import { go, marketHref, walletHref } from '../state/AppState'
 import { chainLabel } from '../sdk/queries'
@@ -87,9 +87,33 @@ function CopyOrOpen({ st, r }: { st: Strategy | null; r: idx.EarnerRow }) {
     : <a className="btn sm copyb off" href={walletHref(r.account)} title="Not in the menu: copy it from the best holder’s page, with its warning">Open</a>
 }
 
+/**
+ * A deposit's market when its leg names nothing: `USDG deposit · Morpho` alone
+ * does not say whether the money backs a curated vault or one isolated market
+ * lent against a tokenized stock. A vault the index has no name for is asked
+ * by its share token (`Steakhouse Financial USDG`); an isolated market by its
+ * uid, which says the collateral (`against cbBTC`) or failing that the
+ * market's own name minus the protocol (`cbBTC-USDC 86`).
+ */
+function useDepositMarket(t: ReturnType<typeof strategyTitle>, chainId: string, venue: idx.ProtocolFacet | null): string | null {
+  const ask = t.word === 'deposit' && !tellsMore(t.market) ? t.uid : undefined
+  const vault = !!ask && ask.startsWith('vault.')
+  const addr = vault ? ask.split(':')[2] : undefined
+  const v = useVaultsAt(addr).data?.vaults.find((x) => x.chainId === chainId && x.name)
+  const m = useMarket(vault ? undefined : ask).data
+  if (!ask) return null
+  if (vault) return v?.name ?? null
+  if (m?.collateralSymbol) return `against ${m.collateralSymbol}`
+  const own = m?.lenderName?.trim()
+  const rest = own && venue?.name && own.startsWith(venue.name) ? own.slice(venue.name.length).trim() : own
+  return rest && rest !== t.name && rest !== m?.assetSymbol ? rest : null
+}
+
 /** What the row's second line says: protocol · market (when it tells more) · chain · leverage. */
 function Where({ r, t, venue, lev }: { r: idx.EarnerRow; t: ReturnType<typeof strategyTitle>; venue: idx.ProtocolFacet | null; lev: string | null }) {
-  return <>{venue?.name && <>{venue.name} · </>}{tellsMore(t.market) && <>{t.market} · </>}{chainLabel(r.chainId)}{lev && <> · {lev}</>}</>
+  const named = useDepositMarket(t, r.chainId, venue)
+  const market = tellsMore(t.market) ? t.market : named
+  return <>{venue?.name && <>{venue.name} · </>}{market && <>{market} · </>}{chainLabel(r.chainId)}{lev && <> · {lev}</>}</>
 }
 
 const levRange = (g: idx.StrategyGroup) => {

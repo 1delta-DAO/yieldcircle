@@ -143,9 +143,9 @@ export function LifetimeCells({ f, sort }: { f: idx.EarnerLifetime | null | unde
   if (!f)
     return (
       <>
-        <span className="v hide-m t40" title="the index has not drawn this position’s lifetime record yet">—<small>PnL</small></span>
+        <span className="v hide-m t40" title="no reliable lifetime record for this position yet — the index draws them in the background, and leaves out a line whose interest index or ledger it cannot trust">—<small>PnL</small></span>
         <span className="v hide-m t40">—<small>yield</small></span>
-        <span className="v only-m t40">—<small>not drawn yet</small></span>
+        <span className="v only-m t40">—<small>no record yet</small></span>
       </>
     )
   const mark = f.basis === 'held' ? '≈ ' : ''
@@ -433,7 +433,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
             What {by === 'wallet' ? 'wallets' : by === 'strategy' ? 'strategies' : 'positions'} <b>made</b>: {sort === 'pnl'
               ? <>lifetime PnL, every price move included</>
               : <>the yield — PnL without each token’s money moving against the dollar (ether’s price under a wstETH loop is direction; wstETH’s growth against ether is yield)</>}, since each position opened or since 1 Jan 2026 where it is older{by === 'strategy' ? ', summed over every holder' : by === 'wallet' ? ', summed over the wallet’s open positions' : ''}.
-            {' '}APRs are on the capital at work, day by day. The records are the PnL drawer’s own, drawn in the background and walked to now; a position not drawn yet is not ranked.
+            {' '}APRs are on the capital at work, day by day. The records are the PnL drawer’s own, drawn in the background and walked to now; a position with no record yet, or one whose interest index or ledger the index cannot trust, is not ranked.
             {showAll
               ? ' Every position counts, flagged.'
               : <> Positions whose figure is not a lending yield are left out{hidden.length > 0 && <> ({hidden.map(([f, n]) => `${f} ${n}`).join(' · ')})</>}.</>}
@@ -543,7 +543,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
 /** A wallet's lifetime figure: Σ over its open positions with a record, both APRs on their summed capital. */
 function WalletLifetime({ r, sort }: { r: idx.WalletEarnerRow; sort: Sort }) {
   const f = r.lifetime
-  if (!f) return <span className="v t40" title="none of this wallet’s positions has a lifetime record yet">—<small>not drawn yet</small></span>
+  if (!f) return <span className="v t40" title="none of this wallet’s positions has a lifetime record yet">—<small>no record yet</small></span>
   const tone = (v: number | null) => (v == null ? 't40' : v >= 0 ? 'ok' : 'bad')
   const sorted = sort === 'yield' ? f.yieldUsd : f.pnlUsd
   return (

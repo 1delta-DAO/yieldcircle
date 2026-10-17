@@ -1,4 +1,4 @@
-import { keepPreviousData, useQueries, useQuery, type QueryFunctionContext } from '@tanstack/react-query'
+import { keepPreviousData, useQueries, useQuery, type QueryClient, type QueryFunctionContext } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopDepthShort, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
 import { capPerAsset, classifyEarn, classifyPair, dedupe, foldDates, rowKey, type Candidate, type LoopStrategy, type LoopTenor, type SimpleStrategy, type Strategy } from '../model/strategies'
@@ -132,12 +132,21 @@ async function optimizerPage(q: OptimizerQuery): Promise<OptimizerResponse> {
     return fetchOptimizerPairs(q)
   }
 }
+/**
+ * One page as its own cached query, keyed by the exact request. A book is the
+ * pages it reads through the cache, so a book asked again because a page was
+ * missing (`BOOK_FRESHNESS`, every 30 s) sends ONLY the missing pages — it used
+ * to re-read all of them, eight stable pages a turn while one kept failing,
+ * which is what ran the budget (500 / 15 min) into 429s. Failed pages are not
+ * cached; `optimizerPage` has already retried once.
+ */
+const pageQuery = (q: OptimizerQuery) => ({ queryKey: ['opt-page', q], queryFn: () => optimizerPage(q), staleTime: 10 * 60_000, retry: false })
 /** A book's rows; `partial` when a page after the first failed twice and is missing (see `useCatalog`'s refetch). */
 type Paged = OptimizerResponse['items'] & { partial?: true }
-async function optimizerPages(q: OptimizerQuery, maxPages = MAX_PAGES, read?: OptimizerResponse): Promise<Paged> {
+async function optimizerPages(client: QueryClient, q: OptimizerQuery, maxPages = MAX_PAGES): Promise<Paged> {
   const MAX_PAGES = maxPages
-  // `read`: page 1, already in hand (a borrow family shows it before the rest land)
-  const first = read ?? await optimizerPage({ ...q, count: 100 })
+  const page = (start?: number) => client.fetchQuery(pageQuery({ ...q, count: 100, start }))
+  const first = await page()
   const items: Paged = [...first.items]
   if (!first.hasMore || !first.items.length) return items
   const per = first.items.length
@@ -145,7 +154,7 @@ async function optimizerPages(q: OptimizerQuery, maxPages = MAX_PAGES, read?: Op
   // no usable `total`: walk the pages one by one on `hasMore`
   if (!Number.isFinite(total) || total <= per) {
     for (let i = 1; i < MAX_PAGES; i++) {
-      const r = await optimizerPage({ ...q, count: 100, start: items.length }).catch(() => null)
+      const r = await page(items.length).catch(() => null)
       if (!r) { items.partial = true; break }
       items.push(...r.items)
       if (!r.hasMore || !r.items.length) break
@@ -154,7 +163,7 @@ async function optimizerPages(q: OptimizerQuery, maxPages = MAX_PAGES, read?: Op
   }
   const pages = Math.min(MAX_PAGES, Math.ceil(total / per))
   // what answered is kept: rows sorted by APR, a missing tail page costs the least
-  const rest = await Promise.allSettled(Array.from({ length: pages - 1 }, (_, i) => optimizerPage({ ...q, count: 100, start: (i + 1) * per })))
+  const rest = await Promise.allSettled(Array.from({ length: pages - 1 }, (_, i) => page((i + 1) * per)))
   for (const r of rest) if (r.status === 'fulfilled') items.push(...r.value.items); else items.partial = true
   return items
 }
@@ -288,20 +297,19 @@ const OUT_DEBT_TAGS: Record<Exclude<Out, 'USD'>, string[]> = { ETH: ['eth', 'lst
 const STOCK_PAGES = 5
 const CRYPTO_PAGES = 3
 /**
- * A borrow family in two queries: page 1 on its own (`p1`), and the whole book, which reads page 1
- * through the cache (never twice) and then the pages its `total` calls for. The list shows page 1
+ * A borrow family in two queries: page 1 on its own (its `pageQuery`), and the whole book, which reads
+ * every page through the cache (page 1 never twice) and then the pages its `total` calls for. The list shows page 1
  * while the rest load — rows by the biggest collateral market first, so the category pills and the
  * top of the list are already the final ones. Measured 2026-10-15 over all chains, warm: every page
  * 1 in 0.3–1.4 s, the pages after it 2–3.5 s more (a later page is cold more often), so the pills
  * waited ~3 s on the slowest page of the fastest family; now on its first page.
  */
 const borrowBook = (key: string[], q: OptimizerQuery, pages: number, enabled: boolean) => {
-  const p1 = { queryKey: [...key, 'p1'], queryFn: () => optimizerPage({ ...q, count: 100 }), staleTime: 10 * 60_000 }
   return {
-    first: { ...p1, enabled, select: firstOffers },
+    first: { ...pageQuery({ ...q, count: 100, start: undefined }), enabled, select: firstOffers },
     book: {
       queryKey: key,
-      queryFn: async ({ client }: QueryFunctionContext) => offersFrom(await optimizerPages(q, pages, await client.fetchQuery(p1))),
+      queryFn: async ({ client }: QueryFunctionContext) => offersFrom(await optimizerPages(client, q, pages)),
       staleTime: 10 * 60_000,
       enabled,
     },
@@ -354,7 +362,7 @@ const BOOK_FRESHNESS = {
   staleTime: (q: Freshness) => (q.state.data?.partial ? 0 : 10 * 60_000),
   refetchInterval: (q: Freshness) => (q.state.data?.partial ? 30_000 : false as const),
 }
-const loopBook = async (q: OptimizerQuery) => { const r = await optimizerPages(q); return sortOut(r.map(classifyPair), 'loop', r.partial) }
+const loopBook = async (client: QueryClient, q: OptimizerQuery) => { const r = await optimizerPages(client, q); return sortOut(r.map(classifyPair), 'loop', r.partial) }
 /** The catalogue's loop requests, as asked (worker-api pre-warms these: `prewarmBooks`). */
 const loopQuery = (r: ReturnType<typeof loopRequests>[number]): OptimizerQuery => ({ chainIds: r.chainIds, ...r.q, collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })
 const exposureLoopQuery = (e: (typeof EXPOSURE_ASSETS)[number]): OptimizerQuery => ({ chainIds: [e.chainId], collaterals: [e.address], debtTags: ['stablecoin'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })
@@ -404,7 +412,7 @@ export function useCatalog(chainIds: string[]) {
   const loops = useQueries({
     queries: loopReqs.map((r) => ({
       queryKey: ['loops', r.chainIds.join(','), r.key],
-      queryFn: () => loopBook(loopQuery(r)),
+      queryFn: ({ client }: QueryFunctionContext) => loopBook(client, loopQuery(r)),
       ...BOOK_FRESHNESS,
     })),
   })
@@ -424,7 +432,7 @@ export function useCatalog(chainIds: string[]) {
       },
       {
         queryKey: ['exposure-loops', e.chainId, e.sym],
-        queryFn: async () => (await loopBook(exposureLoopQuery(e))) as Sorted<Strategy>,
+        queryFn: async ({ client }: QueryFunctionContext) => (await loopBook(client, exposureLoopQuery(e))) as Sorted<Strategy>,
         ...BOOK_FRESHNESS,
       },
     ]),
@@ -447,7 +455,7 @@ export function useCatalog(chainIds: string[]) {
   const ptLoops = useQueries({
     queries: ptMints.map(({ chainId, refs }) => ({
       queryKey: ['pt-loops', chainId, refs.join(',')],
-      queryFn: async () => (await loopBook({ chainIds: [chainId], collaterals: refs, debtTags: ['stablecoin', 'wnative'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })) as Sorted<Strategy>,
+      queryFn: async ({ client }: QueryFunctionContext) => (await loopBook(client, { chainIds: [chainId], collaterals: refs, debtTags: ['stablecoin', 'wnative'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })) as Sorted<Strategy>,
       ...BOOK_FRESHNESS,
     })),
   })
@@ -590,7 +598,7 @@ export function useAssetStrategies(group: string | undefined, members: { chainId
   const loops = useQueries({
     queries: chains.map((chainId) => ({
       queryKey: ['asset-loops', chainId, [...byChain[chainId]].sort().join(',')],
-      queryFn: async () => sortOut((await optimizerPages({ chainIds: [chainId], collaterals: byChain[chainId], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, includeIlliquid: true, maxConfigRiskScore: 5 })).map(classifyPair), 'loop'),
+      queryFn: async ({ client }: QueryFunctionContext) => sortOut((await optimizerPages(client, { chainIds: [chainId], collaterals: byChain[chainId], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, includeIlliquid: true, maxConfigRiskScore: 5 })).map(classifyPair), 'loop'),
       staleTime: 10 * 60_000,
     })),
   })

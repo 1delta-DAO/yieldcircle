@@ -381,6 +381,8 @@ export interface SeriesLeg {
   rows: number
   /** days this leg held a balance with no price (a hole in the record — pos-indexer tickets/0062) */
   unpricedPoints?: number
+  /** the money its token is in, lower-case (`bnb` for slisBNB, pos-indexer tickets/0072); null = none named */
+  money?: string | null
 }
 export interface PositionSeries {
   key: string

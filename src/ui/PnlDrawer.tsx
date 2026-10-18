@@ -73,12 +73,17 @@ type Fmt = ReturnType<typeof useFmt>
 
 /**
  * The money of the whole position, from its legs: `USD` / `ETH` / `BTC` when
- * every leg is that money, the legs' one asset group when they are all one
+ * every leg is that money (ours, else the money the index names per leg), the
+ * legs' one asset group when they are all one
  * token the taxonomy does not place, else null (a price position).
  */
 function moneyOfPosition(s: PositionSeries): { unit: string; label: string } | null {
   const ms = s.legs.map((l) => moneyOf({ symbol: l.symbol ?? undefined, address: l.asset ?? undefined, chainId: s.chainId }))
   if (ms.length && ms.every((m) => m && m === ms[0])) return { unit: ms[0]!, label: ms[0]! }
+  // the index names the money of tokens the taxonomy has no desk for (slisBNB → BNB). Without it
+  // a staked token fell to its own group, and valued in itself it never grows: +0 slisBNB, 0 % APR
+  const im = s.legs.map((l) => l.money?.toUpperCase())
+  if (im.length && im.every((m) => m && m === im[0])) return { unit: im[0]!, label: im[0]! }
   const gs = new Set(s.legs.map((l) => l.assetGroup))
   if (gs.size === 1 && s.legs[0]?.assetGroup) return { unit: s.legs[0].assetGroup, label: s.legs[0].symbol ?? s.legs[0].assetGroup }
   return null

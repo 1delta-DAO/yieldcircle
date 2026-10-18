@@ -24,8 +24,8 @@ import { readFeedLink, readLinkChains } from './feedLink'
  *                            "Against what you hold" pill
  *   #/w/0x…                  a wallet
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
- *   #/board                  the earners board (apr by default; ?t=day for $/day; by=wallet|position|paper,
- *                            strategies without; x=usd|eth|btc|stocks… the held-in chip; s=<strategy key>;
+ *   #/board                  the earners board (lifetime PnL by default; t=yield|apr|day; by=strategy|position|paper,
+ *                            wallets without; x=usd|eth|btc|stocks… the held-in chip; s=<strategy key>;
  *                            c=ethereum,base sets the chains — `c=all` every chain, no `c` the reader's own)
  *   #/me                     profile editor
  *   #/alerts                 what happened while you were away

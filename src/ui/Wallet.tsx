@@ -18,6 +18,7 @@ import { maturityClock, ptMaturityOf, termClock, type Strategy } from '../model/
 import { useAccount } from 'wagmi'
 import { go, marketHref, parseRoute, useApp, useRoute, walletHref } from '../state/AppState'
 import { PnlDrawer } from './PnlDrawer'
+import { WalletPnl } from './WalletPnl'
 import type { AccountSyncReport } from '../index/api'
 import { useAccountFlows, useAccountSync, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
 import { useFollowers, useProfile, useProfiles, useWalletLinks } from '../social/queries'
@@ -256,6 +257,9 @@ export function Wallet({ addr }: { addr: string }) {
         <Stat k="Moves" v={f ? String(f.nEvents) : '—'} s={f?.unpriced ? `${f.unpriced} unvalued` : 'valued at the block'} loading={flows.isLoading} />
       </div>
       </>}
+
+      {/* what it made: lifetime PnL off the index's records (your own only after the sync) */}
+      {!paperEvm && isEvmAddr(addr) && !hidden && !syncing && <WalletPnl addr={addr} />}
 
       <section className="sec">
         {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} inScope={inScope} /></> : <>

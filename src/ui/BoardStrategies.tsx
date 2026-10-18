@@ -312,7 +312,7 @@ export function StrategyBanner({ rows, strategyKey, sort, partial, onPerDay }: {
     <div className="sbanner">
       <span className="strat-logo"><ProtocolLogo urls={protocolIconUrls(protocolKeyOf(g.lenderKey), venue?.logoUri)} name={venue?.name ?? g.lenderKey} /></span>
       <div className="sb-t">
-        <small className="t50">Strategy · <a className="pri" href={`#/board${sort === 'perDay' ? '?t=day' : isLifetime(sort) ? `?t=${sort}` : ''}`}>every strategy</a></small>
+        <small className="t50">Strategy · <a className="pri" href={`#/board?by=strategy${sort === 'perDay' ? '&t=day' : sort === 'apr' ? '&t=apr' : sort === 'yield' ? '&t=yield' : ''}`}>every strategy</a></small>
         <b>{t.name}{t.word && <span className="t50"> {t.word}</span>}{isNewStrategy(g.strategy) && <span className="pill new">new</span>}</b>
         <span className="t50"><Where r={g} t={t} venue={venue} lev={levRange(g.strategy)} /> · {wallets}{lifted ? '+' : ''} wallet{wallets === 1 ? '' : 's'} · {usdShort(equity)}</span>
       </div>

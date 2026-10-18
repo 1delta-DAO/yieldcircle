@@ -308,10 +308,12 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
     const s = p.toString().replace(/%2C/g, ',')
     history.replaceState(history.state, '', location.pathname + location.search + path + (s ? '?' + s : ''))
   })
-  const sort: Sort = w === 'day' ? 'perDay' : w === 'pnl' ? 'pnl' : w === 'yield' ? 'yield' : 'apr'
+  // what was made is the default ranking (lifetime PnL); today's rates are a tap away (`t=apr`, `t=day`)
+  const sort: Sort = w === 'day' ? 'perDay' : w === 'apr' ? 'apr' : w === 'yield' ? 'yield' : 'pnl'
   const lifetime = isLifetime(sort)
   // `?s=` lists one strategy's holders: the flat rows, cut by the index to that key
-  const by: By = strategyKey ? 'position' : b === 'wallet' ? 'wallet' : b === 'position' ? 'position' : 'strategy'
+  // wallets by default: the board ranks people by what they made; strategies are `by=strategy`
+  const by: By = strategyKey ? 'position' : b === 'strategy' ? 'strategy' : b === 'position' ? 'position' : 'wallet'
   // a strategy names its own money, so the chips do not cut its holders
   const stocks = !strategyKey && x === STOCKS
   const exposure = stocks || strategyKey ? undefined : chipOf(x)
@@ -375,11 +377,11 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
       ? <span className="rank lead crowned" title={crownTitle(c)}><CrownIcon place={c.place} size={16} /></span>
       : <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
   }
-  const tParam = (t: Sort) => (t === 'perDay' ? 'day' : t === 'apr' ? undefined : t)
+  const tParam = (t: Sort) => (t === 'perDay' ? 'day' : t === 'pnl' ? undefined : t)
   const nav = (p: { t?: Sort; by?: By; x?: idx.ExposureChip | typeof STOCKS | null }) =>
     go('board', {
       t: tParam(p.t ?? sort),
-      by: (p.by ?? by) === 'strategy' ? undefined : (p.by ?? by),
+      by: (p.by ?? by) === 'wallet' ? undefined : (p.by ?? by),
       x: p.x === null ? undefined : (p.x ?? (stocks ? STOCKS : exposure)),
       // a sort switch stays on the strategy's page; a unit or a chip leaves it for the board
       s: p.by || p.x !== undefined ? undefined : strategyKey,
@@ -389,7 +391,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
   return (
     <>
       <LinkChainsToast />
-      {strategyKey && <a className="crumb" href={`#/board${tParam(sort) ? `?t=${tParam(sort)}` : ''}`}>‹ Board</a>}
+      {strategyKey && <a className="crumb" href={`#/board?by=strategy${tParam(sort) ? `&t=${tParam(sort)}` : ''}`}>‹ Board</a>}
       <div className="feed-h">
         <h1>Board</h1>
         <span className="sp" />
@@ -433,6 +435,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
             What {by === 'wallet' ? 'wallets' : by === 'strategy' ? 'strategies' : 'positions'} <b>made</b>: {sort === 'pnl'
               ? <>lifetime PnL, every price move included</>
               : <>the yield — PnL without each token’s money moving against the dollar (ether’s price under a wstETH loop is direction; wstETH’s growth against ether is yield)</>}, since each position opened or since 1 Jan 2026 where it is older{by === 'strategy' ? ', summed over every holder' : by === 'wallet' ? ', summed over the wallet’s open positions' : ''}.
+            {by === 'wallet' && <> A wallet’s figure is over the positions that have a record — the row says how many; its page breaks it down by strategy.</>}
             {' '}APRs are on the capital at work, day by day. The records are the PnL drawer’s own, drawn in the background and walked to now; a position with no record yet, or one whose interest index or ledger the index cannot trust, is not ranked.
             {showAll
               ? ' Every position counts, flagged.'
@@ -459,7 +462,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
           <>
             {strategyKey
               ? <>Everyone who runs this strategy, ranked.{data?.partial && <span className="t50"> From the index’s top 200 positions: it does not cut by strategy yet.</span>} </>
-              : <>Every position, one row each — <a className="pri" href={`#/board${sort === 'perDay' ? '?t=day' : ''}`}>fold them by strategy</a>. </>}
+              : <>Every position, one row each — <a className="pri" href={`#/board?by=strategy${tParam(sort) ? `&t=${tParam(sort)}` : ''}`}>fold them by strategy</a>. </>}
             What positions <b>earn now</b>: the net carry on equity at today’s rates, beside the whole wallet’s net APR.
             {showAll
               ? ' Every position is shown, flagged.'
@@ -546,10 +549,12 @@ function WalletLifetime({ r, sort }: { r: idx.WalletEarnerRow; sort: Sort }) {
   if (!f) return <span className="v t40" title="none of this wallet’s positions has a lifetime record yet">—<small>no record yet</small></span>
   const tone = (v: number | null) => (v == null ? 't40' : v >= 0 ? 'ok' : 'bad')
   const sorted = sort === 'yield' ? f.yieldUsd : f.pnlUsd
+  // over how many of the counted positions (an index before 0079 does not say)
+  const over = f.positions != null && f.positions < r.nCounted ? ` · ${f.positions} of ${r.nCounted}` : ''
   return (
     <>
-      <span className={`v hide-m ${tone(f.pnlUsd)}${sort === 'pnl' ? ' apr' : ''}`} title="Σ lifetime PnL over the wallet’s open positions that have a record — every price move included; the APR is on their summed capital-days">
-        {usdShort(f.pnlUsd)}<small>{pct(f.pnlAprPct)} APR</small>
+      <span className={`v hide-m ${tone(f.pnlUsd)}${sort === 'pnl' ? ' apr' : ''}`} title={`Σ lifetime PnL over the wallet’s open positions that have a record${f.positions != null ? ` (${f.positions} of ${r.nCounted})` : ''} — every price move included; the APR is on their summed capital-days`}>
+        {usdShort(f.pnlUsd)}<small>{pct(f.pnlAprPct)} APR{over}</small>
       </span>
       <span className={`v hide-m ${tone(f.yieldUsd)}${sort === 'yield' ? ' apr' : ''}`} title="the same without each token’s money moving against the dollar">
         {usdShort(f.yieldUsd)}<small>yield · {pct(f.yieldAprPct)}</small>

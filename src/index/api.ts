@@ -620,7 +620,14 @@ export interface WalletEarnerRow {
   /** with an exposure: the whole wallet's figure beside its book in that exposure */
   wallet?: WalletTotal | null
   /** Σ over its positions that have a lifetime record (pos-indexer tickets/0084) */
-  lifetime?: { pnlUsd: number; yieldUsd: number | null; pnlAprPct: number | null; yieldAprPct: number | null } | null
+  lifetime?: {
+    pnlUsd: number
+    yieldUsd: number | null
+    pnlAprPct: number | null
+    yieldAprPct: number | null
+    /** how many of the `nCounted` positions the figure is over (absent / null: an index before its 0079) */
+    positions?: number | null
+  } | null
   accountKind?: AccountKind
   accountLabel?: string | null
   accountLabelSource?: string | null

@@ -49,9 +49,18 @@ for (const chain of offered) {
   let list
   try { list = JSON.parse(readFileSync(join(root, `${chain}.json`), 'utf8')).list } catch { continue }
   const byAddr = new Map(Object.entries(list).map(([a, t]) => [norm(a), t]))
+  const bySym = new Map()
+  for (const t of byAddr.values()) bySym.set(t.symbol, [...(bySym.get(t.symbol) ?? []), t])
   const underOf = (p) => {
     const u = p.pendle?.underlyingAsset ?? p.spectra?.underlyingAsset ?? p.exponent?.underlyingAsset ?? p.receipt?.underlying
-    return typeof u === 'string' ? byAddr.get(norm(u)) : undefined
+    if (typeof u === 'string') return byAddr.get(norm(u))
+    // A token the INSTRUMENT issues itself — Exponent's senior tranches (srONyc over ONyc, srnOPAL
+    // over nOPAL) — is a slice of its underlying's yield, like a PT, and names that underlying
+    // only by symbol. The symbol is trusted here, and only when it is one token on the chain:
+    // the USD3 clash below is about savings tokens a real desk issues, which never reach this.
+    const s = INSTRUMENT.has(p.issuer?.id) ? p.savings?.underlying : undefined
+    const c = s ? bySym.get(s) : undefined
+    return c?.length === 1 ? c[0] : undefined
   }
   // A wrapper's own `issuer` is its INSTRUMENT (Pendle on a PT), not whose credit it holds: with
   // no exposure named, the walk goes on to the underlying, and ends unattributed rather than

@@ -31,7 +31,7 @@ import { AddrExplorers, CopyButton, ProtocolLogo, Sk, TermNote, Tip, Tok, TxLink
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
 import { Said } from './Talk'
-import { chainLabel, offMenuQuery, type OffMenuRef } from '../sdk/queries'
+import { chainLabel, LIVE_HINTS, offMenuQuery, useLiveHintReads, type OffMenuRef } from '../sdk/queries'
 import { HIDES } from '../model/visibility'
 import { useQueryClient } from '@tanstack/react-query'
 import { primaryLeg } from './Feed'
@@ -93,12 +93,21 @@ export function Wallet({ addr }: { addr: string }) {
   const cut = !allChains && !one
   const inScope = React.useCallback((id: string) => allChains || chainIds.includes(id), [allChains, chainIds])
   // your own page: sync first, then the index (pos-indexer tickets/0071)
-  const sync = useAccountSync(isMe && isEvmAddr(addr) && !paperEvm ? addr : undefined)
+  // another wallet's page: its own live read, as hints for what the ledger never saw. Its sync
+  // post goes out before the positions are asked for — opening the wallet spends the index's
+  // per-account write too, and hints sent after it would be reported, not read
+  const other = !isMe && isEvmAddr(addr) && !paperEvm
+  useLiveHintReads(other ? addr : undefined, chainIds)
+  const sync = useAccountSync(isEvmAddr(addr) && !paperEvm ? addr : undefined, isMe ? undefined : { source: LIVE_HINTS, giveUpMs: 3_000 })
   // waiting for the chip's live read counts as syncing: the call has not been sent yet
   const syncing = isMe && isEvmAddr(addr) && !sync.data && !sync.isError
   // hidden = your own page with no synced answer to show (Solana, or the sync failed)
   const hidden = isMe && !sync.data && !syncing
-  const pos = useIndexPositions(paperEvm ? undefined : !isMe || sync.data ? addr : undefined, one)
+  const asked = isMe ? !!sync.data : !other || !!sync.data || sync.isFetching || sync.isError
+  const pos = useIndexPositions(paperEvm || !asked ? undefined : addr, one)
+  // the positions wait up to 3 s for the live read; once shown, the sync may still add to them
+  const waiting = other && !asked
+  const checking = other && (waiting || sync.isFetching || (pos.data?.sync?.inFlight ?? 0) > 0)
   // `?pos=<group key>`: a position's PnL history is open (pos-indexer tickets/0061)
   const route = useRoute()
   const closePnl = React.useCallback(() => {
@@ -244,9 +253,9 @@ export function Wallet({ addr }: { addr: string }) {
       </div>
       </> : <>
       <div className="wstats hero">
-        <Stat k="Net value" v={hidden ? '—' : <span title={usd(nav)}>{usdBig(nav)}</span>} s={hidden ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={syncing || (!hidden && pos.isLoading)} />
+        <Stat k="Net value" v={hidden ? '—' : <span title={usd(nav)}>{usdBig(nav)}</span>} s={hidden ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={syncing || waiting || (!hidden && pos.isLoading)} />
         <Stat k="Net APR" v={hidden ? '—' : carry.netAprPct == null ? '—' : <span className={carry.netAprPct >= 0 ? 'ok' : 'warn'}>{carry.exact ? '' : '≈ '}{pct(carry.netAprPct)}</span>}
-          s={hidden ? 'on the live path' : <AccountAprNote c={carry} />} loading={syncing || (!hidden && pos.isLoading)} />
+          s={hidden ? 'on the live path' : <AccountAprNote c={carry} />} loading={syncing || waiting || (!hidden && pos.isLoading)} />
       </div>
       <div className="wstats flows">
         <span className="flows-k">Last 30 days</span>
@@ -263,13 +272,13 @@ export function Wallet({ addr }: { addr: string }) {
 
       <section className="sec">
         {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} inScope={inScope} /></> : <>
-        <div className="sec-h"><h2>Positions</h2><span className="sub">{hidden ? 'Your own positions come from the live path, not the index.' : syncing ? 'syncing your positions with the chain…' : isMe && sync.data ? <SyncNote s={sync.data} /> : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago</> : 'from the index'}</span></div>
+        <div className="sec-h"><h2>Positions</h2><span className="sub">{hidden ? 'Your own positions come from the live path, not the index.' : syncing ? 'syncing your positions with the chain…' : isMe && sync.data ? <SyncNote s={sync.data} /> : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago{checking ? ' · checking the chain for positions it has not read…' : ''}</> : checking ? 'checking the chain for positions the index has not read…' : 'from the index'}</span></div>
         {hidden ? (
           <div className="note">The index is for <b>other</b> wallets and for history — never for the connected user’s own positions. Yours are behind the balance in the top right, read live.</div>
         ) : (
           <div className="card">
-            {(syncing || pos.isLoading) && <div className="empty"><Sk w={220} /></div>}
-            {!syncing && !pos.isLoading && !rows.length && <div className="empty">The index has no open position for this wallet on {allChains ? 'the chains it follows' : chainLabelFor()}.</div>}
+            {(syncing || waiting || pos.isLoading) && <div className="empty"><Sk w={220} /></div>}
+            {!syncing && !waiting && !pos.isLoading && !rows.length && <div className="empty">The index has no open position for this wallet on {allChains ? 'the chains it follows' : chainLabelFor()}.</div>}
             {rows.length > 0 && <Book rows={rows} groups={groups} navUsd={carry.navUsd} copyOf={copyOf} who={addr} />}
           </div>
         )}

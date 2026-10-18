@@ -85,8 +85,8 @@ function qs(p: Params): string {
   const s = q.toString()
   return s ? '?' + s : ''
 }
-async function get<T>(path: string, p: Params = {}, signal?: AbortSignal, base = INDEX_BASE_URL): Promise<T> {
-  const r = await fetch(base + path + qs(p), { signal })
+async function get<T>(path: string, p: Params = {}, signal?: AbortSignal, base = INDEX_BASE_URL, cache?: RequestCache): Promise<T> {
+  const r = await fetch(base + path + qs(p), { signal, cache })
   const j = (await r.json().catch(() => ({}))) as T & { error?: string }
   if (!r.ok) throw new Error(j.error || `${path} → ${r.status}`)
   return j
@@ -266,8 +266,9 @@ export const accountFlows = async (account: string, p: { chainId?: string; days?
   return Array.isArray(j.flows) ? j : { account, days: p.days ?? 30, flows: [], totals: { depositedUsd: 0, withdrawnUsd: 0, borrowedUsd: 0, repaidUsd: 0, netSupplyUsd: 0, netBorrowUsd: 0, nEvents: 0, unpriced: 0 } }
 }
 /** Another wallet's positions. NEVER called for the connected user — that is the live allocator path. */
-export const accountPositions = async (account: string, p: { chainId?: string } & AssetClassQuery = {}) => {
-  const j = await get<PositionsResponse>(`/positions/${account}`, p, undefined, indexForAddr(account))
+/** `fresh` = past the browser cache: the index answers `max-age=60` once in sync, so a re-ask after a sync would be handed the answer from before it */
+export const accountPositions = async (account: string, p: { chainId?: string } & AssetClassQuery = {}, fresh = false) => {
+  const j = await get<PositionsResponse>(`/positions/${account}`, p, undefined, indexForAddr(account), fresh ? 'no-store' : undefined)
   return Array.isArray(j.positions) ? j : { account, identity: null, positions: [], totals: { depositsUsd: 0, debtUsd: 0, navUsd: 0 }, asOf: null }
 }
 

@@ -60,13 +60,21 @@ export function usePositionSeries(account: string | undefined, key: string | und
     retry: retry404,
   })
 }
+/**
+ * Another wallet's positions. Opening it makes the index queue reads of the legs it has seen but
+ * not read yet, and the answer comes back before they land (`sync.inFlight`), so it is asked
+ * again every 12 s (the index caches 10 s while syncing) until they have — ten times at most.
+ * Every re-ask goes past the browser cache.
+ */
 export function useIndexPositions(account: string | undefined, chainId?: string) {
+  const qc = useQueryClient()
   return useQuery({
     enabled: !!account,
     queryKey: ['idx-positions', account, chainId],
-    queryFn: () => api.accountPositions(account!, { chainId }),
+    queryFn: () => api.accountPositions(account!, { chainId }, (qc.getQueryState(['idx-positions', account, chainId])?.dataUpdatedAt ?? 0) > 0),
     staleTime: MIN,
     retry: retry404,
+    refetchInterval: (q) => ((q.state.data?.sync?.inFlight ?? 0) > 0 && q.state.dataUpdateCount < 10 ? 12_000 : false),
   })
 }
 /**
@@ -81,19 +89,23 @@ export function useIndexPositions(account: string | undefined, chainId?: string)
  * none, and the chip's own hint post would land inside the index's per-account cooldown and be
  * reported, not read. After 8 s with no live read (the chip failed or is off) it syncs on the
  * ledger alone.
+ *
+ * Another wallet's page syncs the same way off its own live read (`source` = `LIVE_HINTS`,
+ * `useLiveHintReads`): the ledger never sees some positions (a Fluid vault NFT, a market whose
+ * events it missed), and only a live read's hints get them read.
  */
-export function useAccountSync(account: string | undefined) {
+export function useAccountSync(account: string | undefined, { source = 'earn-positions', giveUpMs = 8_000 }: { source?: string; giveUpMs?: number } = {}) {
   const qc = useQueryClient()
-  const live = (q: Query) => q.queryKey[0] === 'earn-positions' && normAddr(String(q.queryKey[1])) === account
+  const live = (q: Query) => q.queryKey[0] === source && normAddr(String(q.queryKey[1])) === account
   const fetching = useIsFetching({ predicate: live })
   const answered = qc.getQueryCache().findAll({ predicate: live }).some((q) => q.state.dataUpdatedAt > 0 || q.state.status === 'error')
   const [gaveUp, setGaveUp] = useState(false)
   useEffect(() => {
     setGaveUp(false)
     if (!account) return
-    const t = setTimeout(() => setGaveUp(true), 8_000)
+    const t = setTimeout(() => setGaveUp(true), giveUpMs)
     return () => clearTimeout(t)
-  }, [account])
+  }, [account, giveUpMs])
   return useQuery({
     enabled: !!account && isEvmAddr(account) && ((answered && fetching === 0) || gaveUp),
     queryKey: ['idx-sync', account],

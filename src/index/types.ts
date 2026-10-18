@@ -250,6 +250,8 @@ export interface PositionsResponse {
   identity?: AccountIdentity | null
   positions: IndexPosition[]
   groups?: PositionGroup[]
+  /** what opening the wallet set off (pos-indexer tickets/0071): reads of its unread legs, `inFlight` of them still to land; null when the report took over 2 s */
+  sync?: { state: 'complete' | 'syncing' | 'gaps'; inFlight: number } | null
   totals: {
     depositsUsd: number; debtUsd: number; navUsd: number; impaired?: number; impairedFaceUsd?: number
     /** the ACCOUNT's net APR: Σ annual / Σ equity over `groups` (pos-indexer tickets/0057 §E); absent on an older index */

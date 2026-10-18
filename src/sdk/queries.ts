@@ -806,6 +806,25 @@ export function hintLegs(items: EarnPositionsResponse['items']): SyncHintLeg[] {
   return out
 }
 /**
+ * Another wallet's live read, for the index and never shown: its legs go to the index as sync
+ * hints (`useAccountSync` with this `source`), so a position the ledger never saw gets read and
+ * lands on the wallet's page from the index like the rest. The buckets of `useEarnPositions`, but
+ * no hint post per bucket: the index takes one write per account per five minutes, so every
+ * bucket's legs go in one post.
+ */
+export const LIVE_HINTS = 'live-hints'
+export function useLiveHintReads(account: string | undefined, chainIds: string[]) {
+  useQueries({
+    queries: chainBuckets(chainIds.filter(isEvmChain)).map((ids) => ({
+      enabled: !!account && isEvmAddr(account),
+      queryKey: [LIVE_HINTS, account, ids.join(',')],
+      queryFn: () => fetchEarnPositions(account!, ids),
+      staleTime: 5 * 60_000,
+      retry: false,
+    })),
+  })
+}
+/**
  * Positions, in the same buckets as the catalogue: the big chains alone, the
  * rest in one request. One request for every chain was the slowest answer on
  * the page (a single slow chain held up all of them); fifteen would spend the

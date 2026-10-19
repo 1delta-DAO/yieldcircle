@@ -513,7 +513,9 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   else if (m.venue === 'vault.savings') { via = `${brand} savings`; source = 'savings'; holds = shareSym ?? (named || own) }
   else if (m.venue === 'vault.pendle') { via = `Fixed on Pendle${maturity ? ` · ${dateOf(maturity)}` : ''}`; source = 'fixed'; holds = 'PT ' + (named || own).replace(/^PT\s*/, '').split(' ')[0] }
   else if (pt) { via = `Fixed on ${protocol}${maturity ? ` · ${dateOf(maturity)}` : ''}`; source = 'fixed'; holds = `PT ${ptInnerOf(pt.symbol) ?? own}` }
-  else if (isVault) { const who = `${brand}${market ? ` ${market}` : ''} vault`; via = sameWords(brand, protocol) ? who : `${who} · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || own) }
+  // a vault with no curator (Kamino kvaults: brand = protocol) leads with its own name, the way a
+  // curated one leads with the curator: `Steakhouse vault · Kamino Kvault`, as `Gauntlet Prime vault · Morpho`
+  else if (isVault) { const solo = sameWords(brand, protocol); const who = solo && market ? `${market} vault` : `${brand}${market ? ` ${market}` : ''} vault`; via = solo && !market ? who : `${who} · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || own) }
   // the token's own yield, parked as collateral: nobody borrows JLP, and "Lend" would say they do
   else if (m.rate?.passthrough) { via = `Collateral on ${brand}${market ? ` · ${market}` : ''}`; source = 'collateral'; holds = own }
   // the BRAND, not the protocol: `Aave V3` and `Aave V4` are both "Aave" upstream, and a V4

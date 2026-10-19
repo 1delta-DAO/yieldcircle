@@ -4,6 +4,7 @@ import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
 import { assetLogo, colorOf, deskById, deskOf, short, unitOf } from '../model/assets'
 import { ChainMark, addressUrl, chainInfo, txUrl } from './ChainMark'
 import { maturityClock, termClock, type Risk } from '../model/strategies'
+import { PROTOCOL_ICONS } from '../model/vaultDesk'
 
 export const pct = (x: number | null | undefined, d = 2) => (x == null || !Number.isFinite(x) ? '—' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%')
 /** One decimal while the figure is a single digit (9.44 → "9.4", 5.02 → "5"), whole from 10 on (9.97 → "10"). */
@@ -157,7 +158,7 @@ export function Tok({ sym, logo, size = 22 }: { sym: string; logo?: string | (st
   if (i < urls.length) return <img className="tok" src={urls[i]} alt="" width={size} height={size} style={{ width: size, height: size }} onError={() => setI((n) => n + 1)} title={sym} />
   return <i className="tok" style={{ background: colorOf(sym), width: size, height: size }} title={sym}>{short(sym)}</i>
 }
-const ICON_ROOT = 'https://raw.githubusercontent.com/1delta-DAO/protocol-icons/main/'
+const ICON_ROOT = PROTOCOL_ICONS
 /** `aave_v3` → `lender/aave_v3.webp`; a value with a slash or an extension is a path of its own. */
 const iconUrl = (n: string) => ICON_ROOT + (n.includes('/') ? n : 'lender/' + n) + (/\.\w+$/.test(n) ? '' : '.webp')
 // family → the GENERIC mark. The index hands each protocol the logo of one of its

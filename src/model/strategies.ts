@@ -14,6 +14,7 @@ import { natureOfDeposit, type Nature } from './nature'
 import type { HideCode } from './visibility'
 import STRATEGY_TOKENS from '../data/strategy-tokens.json'
 import { normAddr } from './address'
+import { vaultDesk } from './vaultDesk'
 import { canonGroup } from './assetGroup'
 /** `chain:vaultAddress` → the share token you end up holding (scripts/logos.mjs, from the chain token lists). */
 const strategyToken = (chainId: string, ref: string | undefined) => (ref ? (STRATEGY_TOKENS as Record<string, { symbol: string; logoURI: string | null; assetGroup?: string | null }>)[`${chainId}:${normAddr(ref)}`] : undefined)
@@ -522,7 +523,8 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   // isolated market is not the V3 pool the same sentence would have named
   else { via = `Lend on ${brand}${market ? ` · ${market}` : ''}`; source = 'lending'; holds = own }
   const ownLogo = m.logoURI && m.logoURI !== m.asset.logoURI ? m.logoURI : undefined
-  const logo = share?.logoURI ?? ownLogo ?? (isVault ? undefined : m.asset.logoURI)
+  // a vault with no picture of its own wears its curator's (a kvault's share logo is one generic Kamino coin)
+  const logo = share?.logoURI ?? ownLogo ?? (isVault ? vaultDesk(named || m.name, curator, sameWords(brand, protocol) ? undefined : brand)?.logo : m.asset.logoURI)
   const exitMode = m.exit?.mode ?? 'instant'
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const s: SimpleStrategy = {

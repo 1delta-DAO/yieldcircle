@@ -21,4 +21,10 @@ describe('Kamino kvault earn rows', () => {
   it('falls back to the venue alone when the name only repeats the asset', () => {
     expect(classifyEarn(row('USDC')).s?.via).toBe('Kamino Kvault vault')
   })
+  it("wears its curator's mark when the name places it, and no stand-in when it does not", () => {
+    expect(classifyEarn(row('Steakhouse USDC')).s?.logo).toMatch(/lender\/steakhouse_financial\.webp$/)
+    expect(classifyEarn(row('Plume x Re7 USDC')).s?.logo).toMatch(/lender\/re7_labs\.webp$/)
+    expect(classifyEarn(row('Kamino Private Credit USDC')).s?.logo).toMatch(/lender\/kamino\.webp$/)
+    expect(classifyEarn(row('RWA USDC')).s?.logo).toBeUndefined()
+  })
 })

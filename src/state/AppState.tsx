@@ -24,8 +24,8 @@ import { readFeedLink, readLinkChains } from './feedLink'
  *                            "Against what you hold" pill
  *   #/w/0x…                  a wallet
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
- *   #/board                  the earners board (lifetime PnL by default; t=yield|apr|day; by=strategy|position|paper,
- *                            wallets without; x=usd|eth|btc|stocks… the held-in chip; s=<strategy key>;
+ *   #/board                  the earners board (strategies by today's APR by default; t=pnl|yield|day;
+ *                            by=wallet|position|paper; x=usd|eth|btc|stocks… the held-in chip; s=<strategy key>;
  *                            c=ethereum,base sets the chains — `c=all` every chain, no `c` the reader's own)
  *   #/me                     profile editor
  *   #/alerts                 what happened while you were away
@@ -58,7 +58,7 @@ export interface Route {
   token?: string
   /** feed tab / board window — a plain `?t=` so a link carries it */
   t?: string
-  /** the board's unit: a position, or a whole wallet (`?by=wallet`) */
+  /** the board's unit: a strategy (none), a position (`?by=position`) or a whole wallet (`?by=wallet`) */
   by?: string
   /** the board's exposure chip (`?x=eth`, pos-indexer tickets/0072) */
   x?: string

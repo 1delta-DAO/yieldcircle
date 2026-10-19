@@ -179,7 +179,7 @@ export function Start() {
         <div className="sec-h"><h2>Go deeper</h2></div>
         <div className="deeper">
           <a href="#/feed"><span className="ico" aria-hidden>📡</span><b>Feed</b><small>Every move real wallets make, as it happens. Any one of them copies in a tap.</small></a>
-          <a href="#/board"><span className="ico" aria-hidden>🏆</span><b>Board</b><small>Wallets ranked by what they verifiably earn — not by what they say.</small></a>
+          <a href="#/board"><span className="ico" aria-hidden>🏆</span><b>Board</b><small>Strategies and wallets ranked by what they verifiably earn — not by what they say.</small></a>
           <a href="#/earn"><span className="ico" aria-hidden>🗂️</span><b>Earn</b><small>The whole catalogue, asset by asset, with every desk and every rate.</small></a>
         </div>
       </section>

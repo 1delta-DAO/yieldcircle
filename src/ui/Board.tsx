@@ -308,12 +308,13 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
     const s = p.toString().replace(/%2C/g, ',')
     history.replaceState(history.state, '', location.pathname + location.search + path + (s ? '?' + s : ''))
   })
-  // what was made is the default ranking (lifetime PnL); today's rates are a tap away (`t=apr`, `t=day`)
-  const sort: Sort = w === 'day' ? 'perDay' : w === 'apr' ? 'apr' : w === 'yield' ? 'yield' : 'pnl'
+  // today's APR is the default ranking: it is size-neutral, where a $1bn book out-earns any $100k one
+  // in dollars at a worse rate; what was made (`t=pnl`, `t=yield`) and $/day (`t=day`) are a tap away
+  const sort: Sort = w === 'day' ? 'perDay' : w === 'pnl' ? 'pnl' : w === 'yield' ? 'yield' : 'apr'
   const lifetime = isLifetime(sort)
   // `?s=` lists one strategy's holders: the flat rows, cut by the index to that key
-  // wallets by default: the board ranks people by what they made; strategies are `by=strategy`
-  const by: By = strategyKey ? 'position' : b === 'strategy' ? 'strategy' : b === 'position' ? 'position' : 'wallet'
+  // strategies by default; whole wallets are `by=wallet`, the flat list `by=position`
+  const by: By = strategyKey ? 'position' : b === 'wallet' ? 'wallet' : b === 'position' ? 'position' : 'strategy'
   // a strategy names its own money, so the chips do not cut its holders
   const stocks = !strategyKey && x === STOCKS
   const exposure = stocks || strategyKey ? undefined : chipOf(x)
@@ -377,11 +378,11 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
       ? <span className="rank lead crowned" title={crownTitle(c)}><CrownIcon place={c.place} size={16} /></span>
       : <span className={`rank${i < 3 ? ' lead' : ''}`}>{i + 1}</span>
   }
-  const tParam = (t: Sort) => (t === 'perDay' ? 'day' : t === 'pnl' ? undefined : t)
+  const tParam = (t: Sort) => (t === 'perDay' ? 'day' : t === 'apr' ? undefined : t)
   const nav = (p: { t?: Sort; by?: By; x?: idx.ExposureChip | typeof STOCKS | null }) =>
     go('board', {
       t: tParam(p.t ?? sort),
-      by: (p.by ?? by) === 'wallet' ? undefined : (p.by ?? by),
+      by: (p.by ?? by) === 'strategy' ? undefined : (p.by ?? by),
       x: p.x === null ? undefined : (p.x ?? (stocks ? STOCKS : exposure)),
       // a sort switch stays on the strategy's page; a unit or a chip leaves it for the board
       s: p.by || p.x !== undefined ? undefined : strategyKey,
@@ -391,7 +392,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
   return (
     <>
       <LinkChainsToast />
-      {strategyKey && <a className="crumb" href={`#/board?by=strategy${tParam(sort) ? `&t=${tParam(sort)}` : ''}`}>‹ Board</a>}
+      {strategyKey && <a className="crumb" href={`#/board${tParam(sort) ? `?t=${tParam(sort)}` : ''}`}>‹ Board</a>}
       <div className="feed-h">
         <h1>Board</h1>
         <span className="sp" />
@@ -462,7 +463,7 @@ function RealBoard({ window: w, by: b, x, s: strategyKey }: { window?: string; b
           <>
             {strategyKey
               ? <>Everyone who runs this strategy, ranked.{data?.partial && <span className="t50"> From the index’s top 200 positions: it does not cut by strategy yet.</span>} </>
-              : <>Every position, one row each — <a className="pri" href={`#/board?by=strategy${tParam(sort) ? `&t=${tParam(sort)}` : ''}`}>fold them by strategy</a>. </>}
+              : <>Every position, one row each — <a className="pri" href={`#/board${tParam(sort) ? `?t=${tParam(sort)}` : ''}`}>fold them by strategy</a>. </>}
             What positions <b>earn now</b>: the net carry on equity at today’s rates, beside the whole wallet’s net APR.
             {showAll
               ? ' Every position is shown, flagged.'

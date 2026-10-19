@@ -493,6 +493,8 @@ export interface EarnerLeg {
   intrinsicSource?: string | null
   aprEffective: number | null
   symbol: string | null
+  /** the token's mark, from the token lists (`asset_groups.logo_uri`); null = none known, absent = an older index */
+  logoUri?: string | null
   assetGroup: string | null
   /** the money this leg's token is in (pos-indexer tickets/0072); null = none named */
   exposure?: Exposure | null

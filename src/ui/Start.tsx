@@ -30,7 +30,7 @@ import { bookKeyOf } from '../model/uid'
 import { useProfiles } from '../social/queries'
 import { Who } from './social-bits'
 import { Avg30 } from './Spark'
-import { RiskDot, Sk, StratMark, Toks, pct, usdShort } from './bits'
+import { RewardsIncl, RiskDot, Sk, StratMark, Toks, pct, usdShort } from './bits'
 import { dateOf, type Strategy } from '../model/strategies'
 import { nameOf } from '../model/assets'
 import { ChainChip } from './ChainPicker'
@@ -306,6 +306,7 @@ function StartCard({ p, get, profile }: { p: Pick_; get: HistoryGet; profile: Pr
         <b className="ok">{pct(s.rate)}</b>
         <span className="t50">APR</span>
         <Avg30 s={s} get={get} prefix="30d " />
+        <RewardsIncl s={s} />
         {expiry ? <span className="pill pt" title={ptClock ? 'A fixed-rate PT: the rate holds until this date, then the money must be redeemed or rolled.' : 'A fixed-rate loan: it falls due on this date and must be repaid or rolled — past it, it can be liquidated.'}>{ptClock ? 'until' : 'loan due'} {dateOf(expiry)}</span>
           : fixedDebt ? <span className="pill pt" title="The borrow rate is fixed for the term you pick when you open it; at its end the loan must be repaid or rolled.">fixed term</span> : null}
       </div>

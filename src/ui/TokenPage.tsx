@@ -38,7 +38,7 @@ import { Rate } from './Rate'
 import { Thread } from './Thread'
 import { Flows, primaryLeg } from './Feed'
 import { Ago, Comments, ImpairedNote, Money, Who, describeBundle } from './social-bits'
-import { KindPill, ProtocolLogo, Sk, StratMark, Tok, Toks, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
+import { KindPill, ProtocolLogo, RewardsIncl, Sk, StratMark, Tok, Toks, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
 
 const chainName = (id: string) => indexChainLabel(id, chainLabel)
 /** utilization arrives as 0..1; a figure already in percent is passed through rather than shown ×100 */
@@ -164,7 +164,7 @@ function EarnWith({ group, sym, members, solCounted, max = 8 }: { group: string;
                 <span className="t50 hide-m"> · {s.kind === 'loop' ? s.venue : s.via}</span><KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} />
                 {chip && <span className="heldchip" title={`${HIDES[chip].why}${hideDetail(s, chip) ? ` (${hideDetail(s, chip)})` : ''}`}>{HIDES[chip].word}{!held && hideDetail(s, chip) ? ` · ${hideDetail(s, chip)}` : ''}</span>}</div>
                 <small>{chainLabel(s.chainId)}</small></td>
-              <td className="r"><span className={s.rate >= 0 ? 'ok' : 'bad'}>{pct(s.rate)}</span><small>APR{s.kind === 'loop' ? ' · levered' : ''}</small></td>
+              <td className="r"><span className={s.rate >= 0 ? 'ok' : 'bad'}>{pct(s.rate)}</span><small>APR{s.kind === 'loop' ? ' · levered' : ''}<RewardsIncl s={s} sep=" · " /></small></td>
               <td className="r t40" style={{ width: 20 }}>›</td>
             </tr>
           )

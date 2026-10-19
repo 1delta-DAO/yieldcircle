@@ -15,9 +15,9 @@ import { useApp, marketHref } from '../state/AppState'
 import { useFeedPage } from '../index/queries'
 import { useFollowers, useMyFollows, useProfiles } from '../social/queries'
 import { useSocialWrite } from '../social/sign'
-import { Ago, Money, Who, describeBundle } from './social-bits'
+import { Ago, Who, describeBundle } from './social-bits'
 import { Sk } from './bits'
-import { primaryLeg } from './Feed'
+import { primaryLeg, TxMoney } from './Feed'
 
 const SEEN = 'yieldcircle.alerts.seen'
 const readSeen = (): number => { try { return Number(localStorage.getItem(SEEN)) || 0 } catch { return 0 } }
@@ -88,7 +88,7 @@ function Group({ title, rows, profile, loading, empty }: {
               <Who account={subjectOf(t).account} profile={profile(subjectOf(t).account)} idx={subjectOf(t)} size={22} plain />
               <span className={`verb ${d.cls}`}>{d.verb}</span>
               <span className="tr-m">{l?.marketName ?? l?.symbol ?? ''} <span className="t50">{l?.lenderName ?? ''}</span></span>
-              <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} amount={l?.amount} symbol={l?.symbol} short /></span>
+              <span className="tr-v"><TxMoney t={t} l={l} short /></span>
               <span className="tr-t"><Ago ts={t.blockTs} /></span>
             </a>
           )

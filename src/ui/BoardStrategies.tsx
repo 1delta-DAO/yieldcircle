@@ -33,17 +33,17 @@ const isDebt = (side: string) => side === 'borrow' || side === 'debt'
 const tellsMore = (market: string | null) => !!market && !/^(Collateral|Loan|Supply|Borrow)\s/i.test(market)
 
 /** A strategy in words, from its best position's legs: `nOPAL / USDC` loop on `Kamino Nest Market nOPAL`. */
-export function strategyTitle(r: idx.EarnerRow, key: string): { name: string; word: string; market: string | null; uid: string | undefined; held?: string; debt?: string } {
+export function strategyTitle(r: idx.EarnerRow, key: string): { name: string; word: string; market: string | null; uid: string | undefined; held?: string; debt?: string; heldLogo?: string; debtLogo?: string } {
   const held = (uid: string) => r.legs.find((l) => l.marketUid === uid && !isDebt(l.side)) ?? r.legs.find((l) => l.marketUid === uid)
   const lp = parseLoopKey(key)
   if (lp) {
     const h = held(lp.long)
     const d = r.legs.find((l) => l.marketUid === lp.short && isDebt(l.side))
-    return { name: `${h?.symbol ?? '?'} / ${d?.symbol ?? '?'}`, word: 'loop', market: h?.marketName ?? null, uid: lp.long, held: h?.symbol ?? undefined, debt: d?.symbol ?? undefined }
+    return { name: `${h?.symbol ?? '?'} / ${d?.symbol ?? '?'}`, word: 'loop', market: h?.marketName ?? null, uid: lp.long, held: h?.symbol ?? undefined, debt: d?.symbol ?? undefined, heldLogo: h?.logoUri ?? undefined, debtLogo: d?.logoUri ?? undefined }
   }
   if (key.startsWith('dep:')) {
     const h = held(key.slice(4))
-    return { name: h?.symbol ?? h?.marketName ?? '?', word: 'deposit', market: h?.marketName ?? null, uid: key.slice(4), held: h?.symbol ?? undefined }
+    return { name: h?.symbol ?? h?.marketName ?? '?', word: 'deposit', market: h?.marketName ?? null, uid: key.slice(4), held: h?.symbol ?? undefined, heldLogo: h?.logoUri ?? undefined }
   }
   return { name: r.legs[0]?.marketName ?? r.riskKey, word: '', market: null, uid: r.marketUids[0] }
 }
@@ -51,8 +51,9 @@ export function strategyTitle(r: idx.EarnerRow, key: string): { name: string; wo
 /**
  * A strategy's face: the token the money sits in (a loop's debt beside it), the venue in the
  * corner — ten Kamino loops are ten different pairs, not ten Kamino marks. The catalogue row's
- * logos where the menu has it, else the token list's by symbol; a row with no symbol keeps the
- * venue's mark alone.
+ * logos where the menu has it, else the leg's own (the index's, from the token lists — an
+ * off-menu PT or LST), else the token list's by symbol; a row with no symbol keeps the venue's
+ * mark alone.
  */
 function StrategyMark({ t, st, lenderKey, venue, size }: { t: ReturnType<typeof strategyTitle>; st: Strategy | null; lenderKey: string; venue: idx.ProtocolFacet | null; size: number }) {
   const key = protocolKeyOf(lenderKey)
@@ -63,8 +64,8 @@ function StrategyMark({ t, st, lenderKey, venue, size }: { t: ReturnType<typeof 
     <span className="strat-mk">
       <span className="mark">
         <span className="toks">
-          <Tok sym={t.held} logo={loop ? loop.logoLong : st?.tokenLogo} size={size} />
-          {t.debt && <Tok sym={t.debt} logo={loop?.logoShort} size={size} />}
+          <Tok sym={t.held} logo={[loop ? loop.logoLong : st?.tokenLogo, t.heldLogo]} size={size} />
+          {t.debt && <Tok sym={t.debt} logo={[loop?.logoShort, t.debtLogo]} size={size} />}
         </span>
         <VenueBadge venueKey={key} brand={name} />
       </span>

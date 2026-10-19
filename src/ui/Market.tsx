@@ -18,13 +18,13 @@ import { DeskChips } from './IssuerFilter'
 import { CuratorMark } from './CuratorFilter'
 import { Rate } from './Rate'
 import { Ago, FollowButton, Impaired, Money, Who, describeBundle } from './social-bits'
-import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
+import { RewardsIncl, Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
 import { Thread } from './Thread'
 import { chainLabel, useRateHistory } from '../sdk/queries'
 import { Avg30 } from './Spark'
 import { indexChainLabel, subjectOf } from '../index/types'
 import type { MarketExposure, TxBundle } from '../index/types'
-import { Flows, primaryLeg } from './Feed'
+import { Flows, primaryLeg, TxMoney } from './Feed'
 import { TokLink } from './TokenPage'
 
 export function Market({ uid }: { uid: string }) {
@@ -101,7 +101,7 @@ export function Market({ uid }: { uid: string }) {
         <div>
           <h1>{name}</h1>
           <div className="sub">
-            {lender}{chainId ? ` · ${indexChainLabel(chainId, chainLabel)}` : ''}{s ? <> · in the menu at {pct(s.rate)}<Avg30 s={s} get={histGet} prefix=" · 30d " /></> : ''}
+            {lender}{chainId ? ` · ${indexChainLabel(chainId, chainLabel)}` : ''}{s ? <> · in the menu at {pct(s.rate)}<RewardsIncl s={s} sep=" " /><Avg30 s={s} get={histGet} prefix=" · 30d " /></> : ''}
             {m.data?.collateralSymbol && (
               <span className="mk-coll">
                 {' · against '}
@@ -207,7 +207,7 @@ export function Market({ uid }: { uid: string }) {
                     <a className="tape-row" href={`#/w/${subjectOf(t).account || l?.account}`}>
                       <span className={`verb ${d.cls}`}>{d.verb}</span>
                       <span className="tr-m"><Who account={subjectOf(t).account || l?.account || ''} idx={subjectOf(t)} size={20} plain /></span>
-                      <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} amount={l?.amount} symbol={l?.symbol} short /></span>
+                      <span className="tr-v"><TxMoney t={t} l={l} short /></span>
                       <span className="tr-t"><Ago ts={t.blockTs} /></span>
                     </a>
                     {t.legs.length > 1 && (

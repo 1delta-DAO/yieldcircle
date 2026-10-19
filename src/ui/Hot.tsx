@@ -34,7 +34,7 @@ import { AssetClassChips, ClassChip, ClassStaleNote, useAssetClassFilter } from 
 import { CuratorChips, useCuratorFilter } from './CuratorFilter'
 import { RateMark } from './Rate'
 import { ChainCorner } from './ChainMark'
-import { Sk, StratMark, Tok, Toks, pct, usdShort } from './bits'
+import { RewardsIncl, Sk, StratMark, Tok, Toks, pct, usdShort } from './bits'
 import { chainLabel } from '../sdk/queries'
 import { indexChainLabel } from '../index/types'
 import type { Strategy } from '../model/strategies'
@@ -174,7 +174,7 @@ function HotCard({ m, s, peak, comments, rating }: {
               ? `${m.lenderName} · not in the menu`
               : 'not in the menu'}{' '}<ClassChip x={m} /></small>
         </div>
-        {s && <span className="hc-rate">{pct(s.rate)}<Avg30 s={s} get={get} className="hc-avg" /></span>}
+        {s && <span className="hc-rate">{pct(s.rate)}<Avg30 s={s} get={get} className="hc-avg" /><RewardsIncl s={s} /></span>}
         <ChainCorner chainId={chainId} />
       </div>
 

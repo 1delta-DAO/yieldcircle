@@ -49,7 +49,7 @@ import { GetAsset } from './GetAsset'
 import { IrmLink } from './Irm'
 import { Thread } from './Thread'
 import { Who } from './social-bits'
-import { DecimalInput, Info, KindPill, RiskDot, SubAccountPill, Tok, Toks, num, pct, usd, usdShort } from './bits'
+import { BorrowRewards, DecimalInput, Info, KindPill, RiskDot, SubAccountPill, Tok, Toks, num, pct, usd, usdShort } from './bits'
 import { stepsFrom, useTicketLadder } from './useLadder'
 import { borrowPlan, paperPos, repayPlan } from './paperPlans'
 
@@ -346,7 +346,7 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
       {/* the sentence: the zone, what it costs in money, and the line in the asset's own price */}
       <div className="tsec bsum">
         <div className="bline"><span className={`zdot ${ZONES[zone].cls}`} aria-hidden /><b className={ZONES[zone].cls}>{ZONES[zone].word}</b>
-          <span className="t70"> · {owedUsd > 0.005 ? 'the whole loan costs' : 'costs'} about <b>{usd(monthly)}</b> a month</span> <span className="t50">({pct(apr)} APR{Math.abs(apr - o.borrowApr) >= 0.05 ? ` at this size, ${pct(o.borrowApr)} now` : ''})</span>
+          <span className="t70"> · {owedUsd > 0.005 ? 'the whole loan costs' : 'costs'} about <b>{usd(monthly)}</b> a month</span> <span className="t50">({pct(apr)} APR{Math.abs(apr - o.borrowApr) >= 0.05 ? ` at this size, ${pct(o.borrowApr)} now` : ''}<BorrowRewards apr={apr} rewards={o.rewards} sep=", " />)</span>
           <IrmLink uid={o.debt.uid} side="borrow" label="rate curve" /></div>
         {totalDebt > 0 && (o.pegged
           ? <div className="bline t70">Both sides are dollars: only {o.collateral.symbol} losing its peg by {pct(drop * 100, 1)} can liquidate this.</div>

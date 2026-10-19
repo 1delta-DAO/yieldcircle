@@ -54,8 +54,10 @@ export interface BorrowOffer {
   maxLtv: number
   /** where the lender liquidates, the same way */
   liqLtv: number
-  /** the borrow rate now, APR % (what the market charges at its current utilisation) */
+  /** the borrow rate now, APR % (what the market charges at its current utilisation), NET of `rewards` — the API takes them off */
   borrowApr: number
+  /** the incentive APR % paid to borrowers, already out of `borrowApr`; 0 = none */
+  rewards: number
   /** dollars that can still be borrowed */
   liquidityUsd: number
   /** the collateral market's size, USD (what is already put up) */
@@ -123,12 +125,12 @@ export function offerFromRow(r: OptimizerRowRaw): BorrowOffer | null {
     : /INSTITUTIONAL|PERMISSIONED|KYC/.test(r.lender) ? 'permissioned' : undefined
   const util = num(r.utilizationShort)
   return {
-    id: `b:${r.marketLongUid}|${r.marketShortUid}`, chainId: r.chainId, lender: r.lender, venue: venueLabel(r.lender, r.curatorNameLong),
+    id: `b:${r.marketLongUid}|${r.marketShortUid}`, chainId: r.chainId, lender: r.lender, venue: venueLabel(r.lender, r.curatorNameLong, r.marketNameLong),
     asset, group: groupOf(asset),
     collateral: { uid: r.marketLongUid, symbol: L.symbol, address: L.address, decimals: L.decimals ?? 18, logo: L.logoURI || undefined, price: r.underlyingInfoLong.prices?.priceUsd ?? undefined, group: L.assetGroup },
     debt: { uid: r.marketShortUid, symbol: S.symbol, address: S.address, decimals: S.decimals ?? 18, logo: S.logoURI || undefined, price: r.underlyingInfoShort.prices?.priceUsd ?? undefined, group: S.assetGroup },
     out,
-    maxLtv, liqLtv, borrowApr: num(r.borrowAprShort), liquidityUsd: num(r.borrowLiquidityUsdShort), collateralUsd: num(r.totalDepositsUsdLong),
+    maxLtv, liqLtv, borrowApr: num(r.borrowAprShort), rewards: num(r.rewardAprShort), liquidityUsd: num(r.borrowLiquidityUsdShort), collateralUsd: num(r.totalDepositsUsdLong),
     ...(util > 0 ? { utilization: util } : {}),
     risk, riskLabel, riskScore: worst || 5, rated: worst > 0,
     assetClass: cls === 'stock' || cls === 'etf' || cls === 'pre-ipo' ? cls : null,
@@ -256,7 +258,7 @@ export function offerFromHolding(h: Pick<Holding, 'chainId' | 'asset' | 'group' 
     // the debt's own decimals: 6 was a guess that is wrong for BNB's USDT and every coin (18)
     debt: { uid: h.debtUid, symbol: h.debtSymbol ?? 'USD', address: h.debtAddress, decimals: h.debtDecimals ?? 6, price: h.debtAmount && debtUsd ? debtUsd / h.debtAmount : 1 },
     out: outOf({ chainId: h.chainId, address: h.debtAddress, symbol: h.debtSymbol }) ?? 'USD',
-    maxLtv: 0, liqLtv, borrowApr: 0, liquidityUsd: 0, collateralUsd: 0, risk: 2, riskLabel: 'Unrated', riskScore: 5, rated: false,
+    maxLtv: 0, liqLtv, borrowApr: 0, rewards: 0, liquidityUsd: 0, collateralUsd: 0, risk: 2, riskLabel: 'Unrated', riskScore: 5, rated: false,
     assetClass: st?.cls ?? null, ...(st ? { ticker: st.ticker } : {}), pegged: false,
   }
 }

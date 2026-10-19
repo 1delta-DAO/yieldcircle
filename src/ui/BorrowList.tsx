@@ -19,7 +19,7 @@ import type { Holding, Idle } from '../model/positions'
 import { chainLabel } from '../sdk/queries'
 import { go } from '../state/AppState'
 import { useViewport } from './useViewport'
-import { GroupIcon, Sk, Toks, amt, pct, usdShort } from './bits'
+import { BorrowRewards, GroupIcon, Sk, Toks, amt, pct, usdShort } from './bits'
 
 /** What a list row says about how far a market lends: `up to 73 %`, and its room in the zone's words. */
 const lendsWord = (o: BorrowOffer) => `up to ${Math.round(o.maxLtv * 100)}%`
@@ -74,6 +74,7 @@ export function BorrowList({ offers, loading, groupId, u, selId, held, mine, out
             <div className="sc-top"><Toks a={o.collateral.symbol} b={o.debt.symbol} logoA={o.collateral.logo} logoB={o.debt.logo} /><b>{o.collateral.symbol}</b></div>
             <span className="sc-via">take {o.debt.symbol} · {o.venue}</span>
             <span className={`sc-rate ${o.borrowApr < 5 ? 'ok' : o.borrowApr > 15 ? 'bad' : ''}`}>{pct(o.borrowApr)}</span>
+            {o.rewards > 0.05 && <span className="sc-meta"><BorrowRewards apr={o.borrowApr} rewards={o.rewards} /></span>}
             <span className="sc-meta">{lendsWord(o)} · {chainLabel(o.chainId)}</span>
             <span className={`sc-meta ${o.liquidityUsd < DEEP_USD ? 'warn' : ''}`}>{usdShort(o.liquidityUsd)} free</span>
             <span className="sc-meta"><RiskOf o={o} /></span>
@@ -88,7 +89,7 @@ export function BorrowList({ offers, loading, groupId, u, selId, held, mine, out
             <tr key={o.id} aria-selected={selId === o.id} onClick={() => onPick(o)}>
               <td><div className="nm"><Toks a={o.collateral.symbol} b={o.debt.symbol} logoA={o.collateral.logo} logoB={o.debt.logo} /><span><b>{o.collateral.symbol}</b> <span className="t50">→ {o.debt.symbol} · {o.venue}</span></span>{(hs || y) && <HeldPill hs={hs} y={y} />}</div>
                 <small>{y && y.room >= 1 && <span className="ok">you could take up to {usdShort(y.room)} · </span>}{u === 'all' ? `${nameOf(o.asset)} · ` : ''}{chainLabel(o.chainId)} · <RiskOf o={o} /> · {lendsWord(o)} · <span className={o.liquidityUsd < DEEP_USD ? 'warn' : undefined}>{usdShort(o.liquidityUsd)} free to borrow</span>{o.utilization != null && o.utilization >= 0.95 ? <span className="warn"> · nearly all lent out</span> : ''}</small></td>
-              <td className="r"><span className={o.borrowApr < 5 ? 'ok' : o.borrowApr > 15 ? 'bad' : ''}>{pct(o.borrowApr)}</span></td>
+              <td className="r"><span className={o.borrowApr < 5 ? 'ok' : o.borrowApr > 15 ? 'bad' : ''}>{pct(o.borrowApr)}</span>{o.rewards > 0.05 && <small><BorrowRewards apr={o.borrowApr} rewards={o.rewards} /></small>}</td>
               <td className="r tail"><span className="t40">›</span></td>
             </tr>) })}</tbody>
         </table></div>

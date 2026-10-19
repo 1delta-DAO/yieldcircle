@@ -1512,6 +1512,10 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .avg30{color:var(--tx40);font-family:var(--mono);font-size:inherit;white-space:nowrap}
 .avg30.spike{color:var(--warning)}
 .hc-rate .hc-avg{display:block;font-size:10.5px;text-align:right;line-height:1.1}
+/* `incl. 1.2% rewards`: the incentive part of a headline rate (bits.tsx RewardsIncl), muted wherever it sits */
+.rw-incl{color:var(--tx50);cursor:help}
+.hc-rate .rw-incl,.stcard-rate .rw-incl{display:block;font-size:10.5px;text-align:right;line-height:1.1}
+.stcard-rate .rw-incl{text-align:left;font-size:11px}
 /* the ticket's history block */
 .rhist{display:flex;flex-direction:column;gap:6px}
 .rhist-h{display:flex;align-items:center;justify-content:space-between}

@@ -177,6 +177,7 @@ export interface LoopStrategy extends Base {
    */
   depSpot: number
   borSpot: number
+  /** incentive APR % of each leg, already inside `dep` (added to) and `bor` (taken off) — `loopRewards` at a leverage */
   rewardsLong: number
   rewardsShort: number
   maxLev: number
@@ -549,8 +550,9 @@ export const isBooked = (venue: string, caps?: EarnCapability[]): boolean =>
   venue.startsWith('vault.pendle') || venue.startsWith('vault.exponent') || !!caps?.some((c) => (c.action === 'deposit' || c.action === 'withdraw') && c.requires?.includes('slippage'))
 
 /** Lender keys carry 64-hex market ids — shorten to the family name. */
-export function venueLabel(lender: string, curator?: string | null): string {
-  if (lender.startsWith('AAVE_V4')) return 'Aave V4'
+export function venueLabel(lender: string, curator?: string | null, marketName?: string | null): string {
+  // a V4 hub lends through several spokes (Main, Etherfi, …), each its own risk book: `Aave V4 Etherfi weETH` → `Aave V4 · Etherfi`
+  if (lender.startsWith('AAVE_V4')) { const spoke = marketName?.match(/^Aave V4 (.+) \S+$/i)?.[1]; return spoke ? `Aave V4 · ${spoke}` : 'Aave V4' }
   if (lender.startsWith('AAVE_V3_PRIME') || lender.startsWith('AAVE_V3_LIDO')) return 'Aave V3 Prime'
   if (lender.startsWith('AAVE_V3')) return 'Aave V3'
   if (lender.startsWith('MORPHO_MIDNIGHT')) return 'Midnight'
@@ -576,6 +578,11 @@ export function venueLabel(lender: string, curator?: string | null): string {
  * FLOOR, kept in `Settings` and applied by `softHide` at render, so the list
  * can say how many rows it is holding back and let them in.
  */
+/** The incentive part of a loop's net yield at `L`×: the collateral's on all of it, the debt's on the borrowed part. */
+export const loopRewards = (s: { rewardsLong: number; rewardsShort: number }, L: number) => s.rewardsLong * L + s.rewardsShort * (L - 1)
+/** The incentive part of a strategy's headline `rate`: a deposit's own, a loop's at its headline leverage. */
+export const rewardsOf = (s: Strategy) => (s.kind === 'simple' ? s.rewards : loopRewards(s, s.rec))
+
 export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const L = r.underlyingInfoLong.asset, S = r.underlyingInfoShort.asset
   const label = `${L.symbol}/${S.symbol}`
@@ -629,7 +636,10 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const p = L.props ?? {}
   const collateralYields = !!(p.lst || p.savings || p.pendle || p.spectra || p.exponent || p.rwa || (L.intrinsicYield ?? 0) > 0)
   // the at-size legs (quoted at $10k of collateral) when the venue has a depth grid, else the sticker
-  const dep = num(r.depositAprAtAmount) || num(r.depositAprLong), maxLev = num(r.maxLeverage)
+  // incentives on BOTH legs: the API nets `rewardAprShort` into `borrowAprShort` but leaves `rewardAprLong` out of
+  // `depositAprLong`, so the collateral's is added here — the headline counts both, `loopRewards` says how much
+  const rL = num(r.rewardAprLong)
+  const dep = (num(r.depositAprAtAmount) || num(r.depositAprLong)) + rL, maxLev = num(r.maxLeverage)
   const bor = terms.length ? Math.min(...terms.map((t) => t.apr)) : num(r.borrowAprAtAmount) || num(r.borrowAprShort)
   // no leverage and no collateral value are the two the ticket cannot build around;
   // a collateral paying nothing simply lands in the negative-carry bucket below
@@ -649,7 +659,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   // no outlier cap here: at 75 % of a 28x range a thin carry is legitimately a big number, and the card says what it risks
   const rate = netAprAtLeverage(dep, bor, rec)
   const { risk, riskLabel } = riskOf(worst)
-  const venue = venueLabel(r.lender, r.curatorNameLong)
+  const venue = venueLabel(r.lender, r.curatorNameLong, r.marketNameLong)
   const instrument = r.collateralDesk?.via ?? (p.pendle || p.spectra || p.exponent ? p.issuer?.name : undefined)
   const s: LoopStrategy = {
     id: `l:${r.marketLongUid}|${r.marketShortUid}`, kind: 'loop', chainId: r.chainId, group: groupOf(asset), asset, desk: debtMoney && !exposed ? deskOf(asset)?.id : undefined, assetGroup: groupKey(L.assetGroup), tokenLogo: L.logoURI || undefined, debtGroup: groupKey(S.assetGroup), nature: exposed?.nature ?? 'savings', holds: L.symbol, venue, venueKey: r.lender, logo: L.logoURI,
@@ -658,7 +668,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     lender: r.lender, debt: S.symbol, marketLongUid: r.marketLongUid, marketShortUid: r.marketShortUid,
     collateralAddress: L.address, debtAddress: S.address, decimalsLong: L.decimals ?? 18, decimalsShort: S.decimals ?? 18,
     priceLong: r.underlyingInfoLong.prices?.priceUsd, priceShort: r.underlyingInfoShort.prices?.priceUsd, logoLong: L.logoURI, logoShort: S.logoURI,
-    dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: num(r.rewardAprLong), rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields, intrinsicLong: num(r.intrinsicYieldLong) || undefined,
+    dep, bor, depSpot: num(r.depositAprLong) ? num(r.depositAprLong) + rL : dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: rL, rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields, intrinsicLong: num(r.intrinsicYieldLong) || undefined,
     expiry, instrument,
     ...(terms.length ? { terms, borSpot: bor } : {}),
     ...(r.fixedTerm?.model === 'loopscale' ? { tenors: loopscaleTenors(r) } : {}),

@@ -34,7 +34,7 @@ import { Said } from './Talk'
 import { chainLabel, LIVE_HINTS, offMenuQuery, useLiveHintReads, type OffMenuRef } from '../sdk/queries'
 import { HIDES } from '../model/visibility'
 import { useQueryClient } from '@tanstack/react-query'
-import { primaryLeg } from './Feed'
+import { primaryLeg, TxMoney } from './Feed'
 import { usePaperSession } from '../wallet/paper'
 import { PaperWalletBook } from './PaperPanel'
 import { PaperMovesList, scopedBook, usePaperHistory, usePaperLedgerFor } from './PaperMoves'
@@ -301,7 +301,7 @@ export function Wallet({ addr }: { addr: string }) {
                 <a className="tape-row" href={l?.marketUid ? marketHref(l.marketUid) : undefined}>
                   <span className={`verb ${d.cls}`}>{d.verb}</span>
                   <span className="tr-m">{l?.marketName ?? l?.symbol ?? '—'} <span className="t50">{l?.lenderName ?? l?.lenderKey}</span> <ClassChip x={l} /></span>
-                  <span className="tr-v"><Money usd={t.volumeUsd ?? l?.amountUsd} status={l?.usdStatus} fromIndex={l?.amountFromIndex} amount={l?.amount} symbol={l?.symbol} short /></span>
+                  <span className="tr-v"><TxMoney t={t} l={l} short /></span>
                   <span className="tr-t"><Ago ts={t.blockTs} /></span>
                 </a>
                 <TxLink chainId={t.chainId} hash={t.txHash} />

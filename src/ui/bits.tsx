@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
 import { assetLogo, colorOf, deskById, deskOf, short, unitOf } from '../model/assets'
 import { ChainMark, addressUrl, chainInfo, txUrl } from './ChainMark'
-import { maturityClock, termClock, type Risk } from '../model/strategies'
+import { maturityClock, rewardsOf, termClock, type Risk, type Strategy } from '../model/strategies'
 import { PROTOCOL_ICONS } from '../model/vaultDesk'
 
 export const pct = (x: number | null | undefined, d = 2) => (x == null || !Number.isFinite(x) ? '—' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%')
@@ -147,6 +147,17 @@ export function Info({ children, label = 'What is this?' }: { children: React.Re
  */
 const DEAD_LOGO = /^(ipfs:|https?:\/\/([^/]*\.)?(ipfs\.io|dweb\.link|cloudflare-ipfs\.com|cf-ipfs\.com|nftstorage\.link|w3s\.link|4everland\.io)\/)/i
 const liveLogo = (u: string | null | undefined): u is string => !!u && !DEAD_LOGO.test(u)
+
+const INCENTIVE_WHY = 'Incentives (token rewards) paid on top of the market rate. They can stop without notice.'
+/** `incl. 1.2% rewards`: how much of a headline rate is incentives — every surface that shows `s.rate` says it. */
+export function RewardsIncl({ s, sep = '' }: { s: Strategy; sep?: string }) {
+  const rw = rewardsOf(s)
+  return rw > 0.05 ? <span className="rw-incl" title={INCENTIVE_WHY}>{sep}incl. {pct(rw)} rewards</span> : null
+}
+/** A borrow rate the API nets incentives out of: `after 0.5% rewards`, the gross rate in the tooltip. */
+export function BorrowRewards({ apr, rewards, sep = '' }: { apr: number; rewards: number; sep?: string }) {
+  return rewards > 0.05 ? <span className="rw-incl" title={`${pct(apr + rewards)} before incentives. ${INCENTIVE_WHY}`}>{sep}after {pct(rewards)} rewards</span> : null
+}
 
 /** Token mark: the icon when we have one, else a coloured disc with the first letters. */
 export function Tok({ sym, logo, size = 22 }: { sym: string; logo?: string | (string | undefined)[]; size?: number }) {

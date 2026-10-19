@@ -1,7 +1,7 @@
 import React from 'react'
 import { nameOf, unitOf } from '../model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
-import { dateOf, exitTerms, isBooked, isLoopscale, type LoopStrategy, type LoopTenor, type LoopTerm, type SimpleStrategy, type Strategy } from '../model/strategies'
+import { dateOf, exitTerms, isBooked, loopRewards, isLoopscale, type LoopStrategy, type LoopTenor, type LoopTerm, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { isSvmTx, type LoopActions } from '../sdk/types'
 import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
 import { earnDeposit, earnWithdraw, loopClose, loopOpen, nativeAsset } from '../sdk/api'
@@ -564,7 +564,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
       </div>
       {/* the two numbers that decide it stay up; the rest folds, so the button below never covers them */}
       <div className="tsec"><div className="cells">
-        <div className="c hero duo"><div><span className="k">Net yield</span><span className={`v ${net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{pct(net)}</span><span className="s">earn {pct(dep)} on {num(L, 1)}× · pay {pct(bor)} on {num(L - 1, 1)}×{term ? ` fixed to ${ends}` : tenor ? ` fixed for ${tenorWord(tenor)}` : s.dueAt ? ` fixed to ${due}` : Math.abs(bor - s.borSpot) >= 0.05 ? ` (${pct(s.borSpot)} now)` : ''}</span></div>
+        <div className="c hero duo"><div><span className="k">Net yield</span><span className={`v ${net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{pct(net)}</span><span className="s">earn {pct(dep)} on {num(L, 1)}× · pay {pct(bor)} on {num(L - 1, 1)}×{term ? ` fixed to ${ends}` : tenor ? ` fixed for ${tenorWord(tenor)}` : s.dueAt ? ` fixed to ${due}` : Math.abs(bor - s.borSpot) >= 0.05 ? ` (${pct(s.borSpot)} now)` : ''}{loopRewards(s, L) > 0.05 ? ` · incl. ${pct(loopRewards(s, L))} rewards` : ''}</span></div>
           <div className="hf" title={simHf ? 'Simulated by the API' : 'From the liquidation threshold'}><span className="k">Health</span><span className={`v ${(simHf ?? hf) < 1.1 ? 'bad' : (simHf ?? hf) < 1.25 ? 'warn' : 'ok'}`}>{(simHf ?? hf).toFixed(2)}</span></div></div>
         <button type="button" className="c more" aria-expanded={details} onClick={() => setDetails(!details)}>{details ? 'Hide details' : 'Details'}<span className="t40">{details ? '' : 'per year · hold and owe · liquidation'}</span><span className="chev" aria-hidden>▾</span></button>
         {details && <>

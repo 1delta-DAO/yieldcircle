@@ -2,7 +2,7 @@ import React from 'react'
 import { GROUPS, nameOf, type Group, type GroupId } from '../model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
-import { GroupIcon, Sk, Tok, amt, deskLogos, pct, usd, usdShort } from './bits'
+import { GroupIcon, RewardsIncl, Sk, Tok, amt, deskLogos, pct, usd, usdShort } from './bits'
 import type { AssetBook } from '../model/positions'
 import type { Strategy } from '../model/strategies'
 import { isSavings } from '../model/nature'
@@ -154,7 +154,7 @@ function TopRow({ s, n, get }: { s: Strategy; n: number; get: HistoryGet }) {
   return (
     <tr onClick={() => go(s.group, { u: s.asset, k: s.kind })}>
       <td><div className="nm"><Tok sym={s.asset} logo={deskLogos(s.asset, s.tokenLogo)} />{nameOf(s.asset)}<GroupTag gid={s.group} /></div></td>
-      <td className="r upto"><span className="t50">up to</span> <span className={s.rate >= 3 ? 'ok' : ''}>{pct(s.rate)}</span><small>{s.kind === 'loop' ? `${s.rec}× loop` : 'deposit'}<Avg30 s={s} get={get} prefix=" · 30d " /><span className="hide-m"> · {n} strateg{n !== 1 ? 'ies' : 'y'}</span></small></td>
+      <td className="r upto"><span className="t50">up to</span> <span className={s.rate >= 3 ? 'ok' : ''}>{pct(s.rate)}</span><small>{s.kind === 'loop' ? `${s.rec}× loop` : 'deposit'}<RewardsIncl s={s} sep=" · " /><Avg30 s={s} get={get} prefix=" · 30d " /><span className="hide-m"> · {n} strateg{n !== 1 ? 'ies' : 'y'}</span></small></td>
       <td className="r t40" style={{ width: 20 }}>›</td>
     </tr>
   )

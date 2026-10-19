@@ -3,8 +3,8 @@ import { subjectOf, type TxBundle } from '../index/types'
 import { marketHref, walletHref } from '../state/AppState'
 import { useApp } from '../state/AppState'
 import { useFeedPage } from '../index/queries'
-import { Ago, Money, Who, describeBundle } from './social-bits'
-import { isDust, primaryLeg } from './Feed'
+import { Ago, Who, describeBundle } from './social-bits'
+import { isDust, primaryLeg, TxMoney } from './Feed'
 
 /** how fast the tape runs, px/s: slow enough to read a name as it passes */
 const SPEED = 42
@@ -109,7 +109,7 @@ function Move({ t, hidden }: { t: TxBundle; hidden: boolean }) {
       <Who account={who} idx={subjectOf(t)} size={18} plain />
       <span className={`verb ${d.cls}`}>{d.verb}</span>
       <span className="p-m">{l.marketName ?? l.symbol}</span>
-      <span className="p-usd"><Money usd={t.volumeUsd ?? l.amountUsd} amount={l.amount} symbol={l.symbol} short /></span>
+      <span className="p-usd"><TxMoney t={t} l={l} short /></span>
       <Ago ts={t.blockTs} />
     </a>
   )

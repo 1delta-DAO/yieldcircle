@@ -47,7 +47,7 @@ import { useSettings } from "../state/Settings";
 import { Ago, Comments, Money, Who, describeBundle } from "./social-bits";
 import { ChainCorner } from "./ChainMark";
 import { indexChainLabel, subjectOf } from "../index/types";
-import { Sk, Tip, Tok, TxLink, pct } from "./bits";
+import { Sk, Tip, Tok, TxLink, pct, usdShort } from "./bits";
 import { Thread } from "./Thread";
 import { Talk } from "./Talk";
 import { ChainChip, LinkChainsToast } from "./ChainPicker";
@@ -697,6 +697,38 @@ export function primaryLeg(t: TxBundle, only?: string[]): TxLeg | undefined {
     .sort((a, b) => size(b) - size(a))[0];
   return pick ?? t.legs[0];
 }
+/**
+ * The size a row headlines. `volumeUsd` adds every leg, and on a loop that
+ * counts the borrowed money twice: it is borrowed AND posted as collateral in
+ * the same transaction, so a $50k collateral / $50k debt loop read "$100k" and
+ * five loops on one wallet looked like five duplicates of a bigger trade. When
+ * a bundle carries a debt leg beside a supply-side leg, the headline is the
+ * supply side (the position's size) and the debt is stated beside it, never
+ * added. A bundle with no debt leg, or whose supply side is unpriced, keeps
+ * `volumeUsd`.
+ */
+export function headlineUsd(t: TxBundle): { usd: number | null; debtUsd: number | null; debtWord: string } {
+  const legs = t.legs.filter((l) => !l.passthrough && l.kind !== "accrual");
+  const debt = legs.filter((l) => l.side === "borrow");
+  const held = legs.filter((l) => l.side !== "borrow");
+  const sum = (xs: TxLeg[]) => xs.reduce<number | null>((a, l) => (l.amountUsd == null ? a : (a ?? 0) + Math.abs(l.amountUsd)), null);
+  const heldUsd = sum(held);
+  if (!debt.length || heldUsd == null) return { usd: t.volumeUsd, debtUsd: null, debtWord: "" };
+  const debtWord = debt.some((l) => l.kind === "borrow") ? "borrowed" : "repaid";
+  return { usd: heldUsd, debtUsd: sum(debt), debtWord };
+}
+/** {@link headlineUsd} as the row's money cell, with the debt it leaves out in the hover */
+export function TxMoney({ t, l, short }: { t: TxBundle; l?: TxLeg; short?: boolean }) {
+  const h = headlineUsd(t);
+  const title = h.debtUsd != null
+    ? `${usdShort(h.usd)} posted or withdrawn · ${usdShort(h.debtUsd)} ${h.debtWord} in the same transaction — not added, the borrowed money is the same money as part of the collateral`
+    : undefined;
+  return (
+    <span title={title}>
+      <Money usd={h.usd ?? l?.amountUsd} status={l?.usdStatus} fromIndex={l?.amountFromIndex} amount={l?.amount} symbol={l?.symbol} short={short} />
+    </span>
+  );
+}
 /** The card's thread: the POSITION, which is stable and is what a comment written at execution time is posted against. */
 export function cardKey(t: TxBundle, only?: string[]): string {
   const l = primaryLeg(t, only);
@@ -908,13 +940,7 @@ function Card({
         </div>
         <div className="fc-n">
           <span className="big">
-            <Money
-              usd={tx.volumeUsd ?? leg?.amountUsd}
-              status={leg?.usdStatus}
-              fromIndex={leg?.amountFromIndex}
-              amount={leg?.amount}
-              symbol={leg?.symbol}
-            />
+<TxMoney t={tx} l={leg} />
           </span>
           {/* the extras sit behind a fixed-width glyph slot: spelling them out ("owes $3k")
               widened this card's money column alone and shoved its chain and buttons out of

@@ -1,13 +1,13 @@
 import React from 'react'
 import { assetLogo, isFiat, nameOf, whatIs, type Group } from '../model/assets'
-import { exitTerms, markPicks, type Strategy } from '../model/strategies'
+import { exitTerms, markPicks, rewardsOf, type Strategy } from '../model/strategies'
 import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
 import { useBook } from './useBook'
 import { HoldingTicket, Ticket } from './Ticket'
 import { RowSocial } from './TicketSocial'
 import { uidOf } from '../model/uid'
-import { GroupIcon, Info, KindPill, LegsPill, SubAccountPill, Sk, StratMark, Tok, Toks, amt, deskLogos, num, pct, usd, usdShort, HealthPill } from './bits'
+import { GroupIcon, Info, KindPill, RewardsIncl, LegsPill, SubAccountPill, Sk, StratMark, Tok, Toks, amt, deskLogos, num, pct, usd, usdShort, HealthPill } from './bits'
 import { chainLabel } from '../sdk/queries'
 import type { ThreadRef } from '../model/uid'
 import { useCounts, useThreadOf } from '../social/queries'
@@ -156,7 +156,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
       meta: `${chainLabel(h.chainId)}${h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}${h.kind === 'loop' && h.debtSymbol ? ` · owes ${amt(h.debtSymbol, h.debtAmount ?? 0)}` : ''}`,
       unit: h.kind === 'loop' ? 'equity' : num(h.amount, h.amount >= 100 ? 0 : 3),
       total,
-      rewards: s && s.kind === 'simple' ? s.rewards : 0,
+      rewards: s ? rewardsOf(s) : 0,
       cls: total != null && total >= 0 ? 'ok' : total != null ? 'bad' : '',
       ser: s ? seriesFor(s, get, withRewards, h.kind === 'loop' && h.leverage && h.leverage > 1 ? h.leverage : undefined) : null,
       acts: s ? <span className="acts"><button className="btn sm" onClick={() => open('add')}>Add</button><button className="btn sm" onClick={() => open(h.kind === 'loop' ? 'manage' : 'reduce')}>{out}</button></span>
@@ -277,6 +277,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                   </div>
                   <span className="sc-via">{s.kind === 'simple' ? s.via : `borrow ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span>
                   <span className={`sc-rate ${s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}`}>{pct(s.rate)}</span>
+                  {rewardsOf(s) > 0.05 ? <span className="sc-meta"><RewardsIncl s={s} /></span> : null}
                   {ser ? <span className="sc-trend"><RateTrend ser={ser} now={s.rate} spike={isSpike(s.rate, ser)} /></span> : null}
                   <span className="sc-meta sc-wrap">{u === 'all' ? `${nameOf(s.asset)} · ` : ''}{chainLabel(s.chainId)}</span>
                   <span className="sc-meta"><RiskWord s={s} /></span>
@@ -303,7 +304,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                     {/* the rate, on its own: nothing else in this cell to read past */}
                     <td className="r">{(() => { const ser = seriesFor(s, get, withRewards); const spike = isSpike(s.rate, ser); return (<>
                       <span className="rate-row">{ser && <RateTrend ser={ser} now={s.rate} spike={spike} />}<span className={s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}>{pct(s.rate)}</span></span>
-                      {s.kind === 'simple' && s.rewards > 0.05 ? <small className="hide-m">incl. {pct(s.rewards)} rewards</small> : null}</>) })()}</td>
+                      {rewardsOf(s) > 0.05 ? <small className="hide-m"><RewardsIncl s={s} /></small> : null}</>) })()}</td>
                     {/* a bubble on a row nobody has posted on is furniture, so it
                         only appears once there is something to open */}
                     <td className="r tail">

@@ -81,7 +81,7 @@ function Book({ b, addr }: { b: AccountPnlBook; addr: string }) {
       </div>
       {b.series.length < 2 && <div className="t50 wpnl-wait">The day-by-day line is still being drawn — the index redraws each position’s record in the background, biggest first.</div>}
       {b.series.length > 1 && b.coverage.withLine != null && b.coverage.withLine < b.coverage.withPnl && (
-        <div className="t50 wpnl-wait">{b.coverage.withPnl - b.coverage.withLine} of {b.coverage.withPnl} positions have no day-by-day line yet: their PnL is in the last point only, so the line jumps at the end.</div>
+        <div className="t50 wpnl-wait">The chart covers {b.coverage.withLine} of {b.coverage.withPnl} positions: the index is still redrawing the other {b.coverage.withPnl - b.coverage.withLine} with a day-by-day line, and they count in the figures above only.</div>
       )}
       {b.series.length > 1 && (
         <>

@@ -26,7 +26,7 @@ import { AutoTag, Badges, FollowButton, Impaired, Money, Who, Ago, describeBundl
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '../identity/name'
-import { isEvmAddr, isEvmChain, normAddr } from '../model/address'
+import { isAddr, isEvmAddr, isEvmChain, normAddr } from '../model/address'
 import { AddrExplorers, CopyButton, ProtocolLogo, Sk, TermNote, Tip, Tok, TxLink, pct, protocolIconUrls, usd, usdBig, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '../index/types'
 import { Thread } from './Thread'
@@ -268,7 +268,7 @@ export function Wallet({ addr }: { addr: string }) {
       </>}
 
       {/* what it made: lifetime PnL off the index's records (your own only after the sync) */}
-      {!paperEvm && isEvmAddr(addr) && !hidden && !syncing && <WalletPnl addr={addr} />}
+      {!paperEvm && isAddr(addr) && !hidden && !syncing && <WalletPnl addr={addr} />}
 
       <section className="sec">
         {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} inScope={inScope} /></> : <>

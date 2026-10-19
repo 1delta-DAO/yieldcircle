@@ -3,11 +3,12 @@
  * its docs/lifetime-pnl.md "The wallet book"): every board position's
  * lifetime record summed into one line, the daily PnL / yield line, and the
  * same per strategy. Computed by the index from records it already stored —
- * the call is one cheap read. EVM index only: the Solana one has no records.
+ * the call is one cheap read. Both indexes answer it (the Solana one since
+ * its PnL lane, docs/sol-lifetime-pnl.md), each for its own addresses.
  */
 import { useQuery } from '@tanstack/react-query'
-import { INDEX_BASE_URL } from '../config/backend'
-import { isEvmAddr } from '../model/address'
+import { indexForAddr } from './api'
+import { isEvmAddr, isSolAddr } from '../model/address'
 
 export interface PnlBookPoint {
   t: string
@@ -72,7 +73,7 @@ export interface AccountPnlBook {
 }
 
 export async function accountPnlBook(account: string): Promise<AccountPnlBook | null> {
-  const r = await fetch(`${INDEX_BASE_URL}/accounts/${account}/pnl`)
+  const r = await fetch(`${indexForAddr(account)}/accounts/${account}/pnl`)
   // an index before the route: no book, not an error worth a red box
   if (r.status === 404) return null
   const j = (await r.json().catch(() => ({}))) as AccountPnlBook & { error?: string }
@@ -82,9 +83,10 @@ export async function accountPnlBook(account: string): Promise<AccountPnlBook | 
 
 export function useAccountPnlBook(account: string | undefined) {
   return useQuery({
-    enabled: !!account && isEvmAddr(account),
-    queryKey: ['pnl-book', account?.toLowerCase()],
-    queryFn: () => accountPnlBook(account!.toLowerCase()),
+    enabled: !!account && (isEvmAddr(account) || isSolAddr(account)),
+    // a base58 key is case-significant: only an EVM address is lower-cased
+    queryKey: ['pnl-book', account && isEvmAddr(account) ? account.toLowerCase() : account],
+    queryFn: () => accountPnlBook(isEvmAddr(account) ? account.toLowerCase() : account!),
     staleTime: 5 * 60_000,
     retry: 1,
   })

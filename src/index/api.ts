@@ -750,8 +750,8 @@ async function bothBoards<R extends { annualUsd: number | null; apr24hPct: numbe
 ): Promise<EarnersEnvelope & { rows: R[] }> {
   const { evm, sol } = splitScope(p.chainIds)
   type Resp = EarnersEnvelope & { rows: R[] }
-  // the Solana index draws no lifetime records yet (pos-indexer tickets/0084): under a
-  // lifetime sort it is not asked, rather than merged in as rows with nothing to rank on
+  // both indexes draw lifetime records (pos-indexer tickets/0084, docs/sol-lifetime-pnl.md);
+  // a Solana deploy that predates them answers 400 under a lifetime sort and drops out
   const lifetime = isLifetimeSort(p.sort)
   const [a, b0] = await Promise.all([
     evm !== null
@@ -761,15 +761,19 @@ async function bothBoards<R extends { annualUsd: number | null; apr24hPct: numbe
           throw e
         })
       : Promise.resolve(null),
-    sol && SOL_EXPOSURES.has(p.exposure) && !lifetime
+    sol && SOL_EXPOSURES.has(p.exposure)
       ? half(SOL_INDEX_BASE_URL, { ...p, chainIds: undefined }).catch(() => null)
       : Promise.resolve(null),
   ])
+  // nor is a half that answered today's board under a lifetime sort
   // an index that ignored the sort answered today's board: never shown as a lifetime ranking
   if (lifetime && a && a.sort !== p.sort) throw new Error('this deploy of the index does not rank by lifetime PnL yet')
   if (!cutAsAsked(a, p.exposure)) throw new Error('this deploy of the index cannot cut the board by exposure yet')
   if (!classCutAsAsked(a, p.assetClasses, INDEX_BASE_URL)) throw new Error('this deploy of the index cannot cut the board by asset class yet')
-  const b = cutAsAsked(b0, p.exposure) && classCutAsAsked(b0, p.assetClasses, SOL_INDEX_BASE_URL) ? b0 : null
+  const b =
+    cutAsAsked(b0, p.exposure) && classCutAsAsked(b0, p.assetClasses, SOL_INDEX_BASE_URL) && !(lifetime && b0 && b0.sort !== p.sort)
+      ? b0
+      : null
   const halves = [a, b].filter((x): x is Resp => !!x && Array.isArray(x.rows))
   // Solana alone in scope under a chip it cannot hold (ETH on Solana): nothing, not an error
   if (!halves.length && evm === null && !SOL_EXPOSURES.has(p.exposure))

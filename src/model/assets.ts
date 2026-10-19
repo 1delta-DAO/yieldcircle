@@ -19,7 +19,7 @@ export const GROUPS: Group[] = [
   // tokenized equities and ETFs, one row per REAL-WORLD ticker (TSLAx, TSLAon and Coinbase's TSLA are
   // all `TSLA`). Mostly a borrow shelf: the money is in what they are lent against (tickets/0009)
   { id: 'STOCKS', name: 'Stocks', desc: 'Tokenized stocks and ETFs · take dollars out without selling', color: '#f472b6', unit: '' },
-  { id: 'MORE', name: 'More', desc: 'BNB, AVAX, SOL, JLP, euro, gold, other', color: '#c084fc', unit: '' },
+  { id: 'MORE', name: 'More', desc: 'BNB, AVAX, SOL, JLP, euro, franc, pound, gold, other', color: '#c084fc', unit: '' },
 ]
 export const group = (id: GroupId) => GROUPS.find((g) => g.id === id)!
 
@@ -118,8 +118,13 @@ const BASE: Record<string, { sym: string; group: GroupId; what: string; color: s
   // is those fees; its PRICE moves with the coins in it and with the traders' PnL. On the menu as a
   // market-exposure strategy, never a saving (`EXPOSURE` below, `model/nature.ts`).
   JLP: { sym: 'JLP', group: 'MORE', what: 'Jupiter perps LP · SOL, ETH, BTC and dollars, the house against Jupiter’s traders', color: '#c7f284' },
-  EURC: { sym: 'EURC', group: 'MORE', what: 'Circle euro stablecoin', color: '#2775ca' },
-  EURCV: { sym: 'EURCV', group: 'MORE', what: 'Société Générale euro stablecoin', color: '#e9041e' },
+  // The other fiat monies: ONE row per currency, not per ticker (`FIAT` below). Each has a handful of
+  // issuers and little in it next to the dollar — EUR $313M across EURCV, EURC, EUROP, EURe; CHF
+  // $13M (ZCHF, VCHF); GBP $5M (tGBP), measured 2026-10-19 — so a row per issuer, as the dollar
+  // has, would be a page of one-row desks. The row keeps the issuer in what it HOLDS (EURC, EURCV).
+  EUR: { sym: 'EUR', group: 'MORE', what: 'Euro stablecoins · EURC (Circle), EURCV (SG-Forge), EURe (Monerium), EUROP (Schuman)', color: '#2f55c8' },
+  CHF: { sym: 'CHF', group: 'MORE', what: 'Swiss franc stablecoins · ZCHF (Frankencoin), VCHF (VNX)', color: '#d52b1e' },
+  GBP: { sym: 'GBP', group: 'MORE', what: 'British pound stablecoins · tGBP (BCP Technologies)', color: '#4b3fa8' },
   XAUT: { sym: 'XAUt', group: 'MORE', what: 'Tether gold', color: '#d4af37' },
   PAXG: { sym: 'PAXG', group: 'MORE', what: 'Paxos gold', color: '#d4af37' },
 }
@@ -146,6 +151,11 @@ const WRAPPER: Record<string, string> = {
   USDT0: 'USDT', XAUT0: 'XAUt',
   // Avalanche's bridged ERC-20s keep a '.e' suffix; the same money either way
   'USDC.E': 'USDC', 'USDT.E': 'USDT', 'DAI.E': 'DAI', 'WETH.E': 'ETH', 'WBTC.E': 'WBTC',
+  // the fiat currencies' tokens, for what only has a symbol (positions, balances); a listing row is
+  // filed by its `asset.denomination` as well (`fiatOf`), so an issuer missing here still lands
+  EURC: 'EUR', EURCV: 'EUR', EURE: 'EUR', EUROP: 'EUR', EURA: 'EUR', AGEUR: 'EUR', STEUR: 'EUR', VEUR: 'EUR', EURAU: 'EUR', EURI: 'EUR',
+  ZCHF: 'CHF', SVZCHF: 'CHF', VCHF: 'CHF',
+  TGBP: 'GBP', VGBP: 'GBP',
   WSTETH: 'ETH', STETH: 'ETH', WEETH: 'ETH', EETH: 'ETH', CBETH: 'ETH', RETH: 'ETH', EZETH: 'ETH', RSETH: 'ETH', OSETH: 'ETH', METH: 'ETH', FRXETH: 'ETH', SFRXETH: 'ETH', ETHX: 'ETH', SWETH: 'ETH',
 }
 
@@ -283,7 +293,7 @@ const SYMBOL_DESK: Record<string, string> = {
 }
 export const deskOfBase = (sym: string | undefined): string | undefined => (sym ? SYMBOL_DESK[sym.toUpperCase()] ?? BASE[sym.toUpperCase()]?.desk : undefined)
 /** What to call a row: the desk's name for a desk, the asset itself elsewhere. */
-export const nameOf = (key: string): string => deskByKey(key)?.name ?? key
+export const nameOf = (key: string): string => deskByKey(key)?.name ?? FIAT[key]?.name ?? key
 export const deskOf = (key: string): Desk | undefined => deskByKey(key)
 export const baseInfo = (sym: string | undefined) => (sym ? BASE[sym.toUpperCase()] : undefined)
 /** Canonical base symbol for a symbol the user might own, or undefined when it is not a base asset we present. */
@@ -338,13 +348,15 @@ export const groupOf = (base: string): GroupId => baseInfo(base)?.group ?? deskB
  *
  * A loop is only carry when both legs are the same money. That is this.
  */
-export type Denomination = 'usd' | 'eth' | 'btc' | 'bnb' | 'avax' | 'eur' | 'xau' | string
+export type Denomination = 'usd' | 'eth' | 'btc' | 'bnb' | 'avax' | 'eur' | 'chf' | 'gbp' | 'xau' | string
 const DENOM: Record<string, Denomination> = {
   BNB: 'bnb', AVAX: 'avax',
   // raw chain coins, for an LST's `lst.asset` (`LBTC → BTC`) that has no
   // wrapper of its own in the whitelist
   BTC: 'btc', SOL: 'sol',
-  EURC: 'eur', EURCV: 'eur',
+  EUR: 'eur', CHF: 'chf', GBP: 'gbp',
+  // raw symbols, for an `lst.asset` or a debt read before it is resolved to its currency
+  EURC: 'eur', EURCV: 'eur', ZCHF: 'chf', TGBP: 'gbp',
   XAUT: 'xau', PAXG: 'xau',
 }
 export function denomOf(base: string): Denomination {
@@ -354,6 +366,43 @@ export function denomOf(base: string): Denomination {
   if (g === 'BTC') return 'btc'
   return DENOM[base.toUpperCase()] ?? base.toUpperCase()
 }
+/**
+ * The fiat currencies other than the dollar, each one row of the More group (`EUR`, `CHF`, `GBP` in
+ * BASE). The API names a token's money (`asset.denomination`), so a new euro issuer files itself;
+ * WRAPPER above is for what only has a symbol. The dollar is not here: it is a group of desks.
+ *
+ * `floor` is their own size floor. The menu's default ($2M) would leave the franc and the pound one
+ * row each, and these are worth seeing small: the listing is asked for them separately below the
+ * menu's floor (`useCatalog`), and `softHide` lets them through down to it.
+ */
+export const FIAT: Record<string, { name: string; glyph: string }> = {
+  EUR: { name: 'Euro', glyph: '€' },
+  CHF: { name: 'Swiss franc', glyph: 'Fr' },
+  GBP: { name: 'British pound', glyph: '£' },
+}
+export const FIAT_FLOOR = 100_000
+export const isFiat = (key: string | undefined): boolean => !!key && key in FIAT
+/** The currency row an `asset.denomination` files under (`EUR`), or undefined for every other money. */
+export const fiatOf = (denomination: string | null | undefined): string | undefined => {
+  const d = denomination?.toUpperCase()
+  return d && d in FIAT ? d : undefined
+}
+/**
+ * The issuers to ask for them by (`/v1/data/earn?issuers=`), as `asset.desk` names them. Circle is
+ * asked by symbol instead: its issuer id is USDC's too. A missing issuer only costs its rows under
+ * the menu's floor — above it the main listing has them, filed by denomination.
+ *
+ * Asked twice: neither match finds them all. The default left out Base's ZCHF savings vault, the
+ * exact one (`credit`) half the EURCV and tGBP markets; together they gave all 52 rows over $100k
+ * that the full listing held (2026-10-19).
+ */
+const FIAT_ISSUERS = ['sg-forge', 'monerium', 'schuman', 'angle', 'jarvis', 'frankencoin', 'vnx', 'bcp']
+export const FIAT_REQUESTS: { key: string; issuers?: string[]; issuerMatch?: 'credit'; assetSymbol?: string }[] = [
+  { key: 'issuers', issuers: FIAT_ISSUERS },
+  { key: 'issuers-credit', issuers: FIAT_ISSUERS, issuerMatch: 'credit' },
+  { key: 'EURC', assetSymbol: 'EURC' },
+]
+
 /**
  * Assets held FOR their market exposure, and the debt money they may be levered against.
  *
@@ -387,7 +436,7 @@ export function colorOf(sym: string): string {
   let h = 0; for (const c of sym) h = (h * 31 + c.charCodeAt(0)) >>> 0
   return `hsl(${h % 360} 45% 55%)`
 }
-export const short = (sym: string) => sym.replace(/^PT-/, '').slice(0, 3).toUpperCase()
+export const short = (sym: string) => FIAT[sym]?.glyph ?? sym.replace(/^PT-/, '').slice(0, 3).toUpperCase()
 
 /**
  * Logos for base assets and known wrappers: the token-lists pipeline publishes one ranked icon
@@ -399,6 +448,10 @@ export const short = (sym: string) => sym.replace(/^PT-/, '').slice(0, 3).toUppe
  * so it is never used for an asset mark.
  */
 import LOGOS from '../data/logos.json'
-export const assetLogo = (sym: string | undefined): string | undefined => (sym ? (LOGOS as Record<string, string>)[sym.toUpperCase()] ?? STOCK_ROWS.get(sym)?.logo : undefined)
+export const assetLogo = (sym: string | undefined): string | undefined => (sym ? FIAT_MARK[sym] ?? (LOGOS as Record<string, string>)[sym.toUpperCase()] ?? STOCK_ROWS.get(sym)?.logo : undefined)
+/** A currency row's mark is its sign on its colour: no token's logo stands for the euro as a whole. */
+const FIAT_MARK: Record<string, string> = Object.fromEntries(Object.entries(FIAT).map(([k, f]) => [k, 'data:image/svg+xml,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="${BASE[k].color}"/><text x="16" y="16" dy=".36em" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="700" font-size="${f.glyph.length > 1 ? 13 : 18}" fill="#fff">${f.glyph}</text></svg>`,
+)]))
 /** Unit a group's amounts are typed in: dollars for USD, the asset itself elsewhere (the group's coin for a desk known only by id, `SWELL:ETH`). */
 export const unitOf = (base: string) => (groupOf(base) === 'USD' ? '$' : base.includes(':') ? groupOf(base) : base)

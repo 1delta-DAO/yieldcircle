@@ -33,7 +33,7 @@ import type { Strategy } from '../model/strategies'
 import { Avg30 } from './Spark'
 import { useMyFollows } from '../social/queries'
 import { useMenu } from './useMenu'
-import { GroupIcon, Popover, ProtocolLogo, StratMark, Tok, pct, protocolIconUrls, usdShort } from './bits'
+import { GroupIcon, Popover, ProtocolLogo, StratMark, Tok, deskLogos, pct, protocolIconUrls, usdShort } from './bits'
 import { ChainMark } from './ChainMark'
 import { Character } from '../identity/character'
 import { shortAddr } from '../identity/name'
@@ -322,7 +322,7 @@ export function Search() {
         best.set(s.asset, cur && cur.rate >= r ? { ...cur, n: cur.n + 1 } : { group: s.group, rate: r, n: (cur?.n ?? 0) + 1, s })
       }
       const earn: Row[] = [...best].sort((x, y) => Number(x[0].toLowerCase() !== lo) - Number(y[0].toLowerCase() !== lo) || y[1].rate - x[1].rate).slice(0, 5)
-        .map(([asset, b]) => ({ id: `e:${asset}`, kind: 'earn', href: `#/${b.group}?u=${encodeURIComponent(asset)}`, title: `Earn on ${nameOf(asset)}`, sub: <>{b.n} strateg{b.n === 1 ? 'y' : 'ies'}</>, icon: <Tok sym={asset} size={24} />, metric: <>up to <span className="ok">{pct(b.s.rate)}</span><Avg30 s={b.s} get={histGet} prefix=" · 30d " /></>, score: asset.toLowerCase() === lo ? 45 : 25 }))
+        .map(([asset, b]) => ({ id: `e:${asset}`, kind: 'earn', href: `#/${b.group}?u=${encodeURIComponent(asset)}`, title: `Earn on ${nameOf(asset)}`, sub: <>{b.n} strateg{b.n === 1 ? 'y' : 'ies'}</>, icon: <Tok sym={asset} logo={deskLogos(asset)} size={24} />, metric: <>up to <span className="ok">{pct(b.s.rate)}</span><Avg30 s={b.s} get={histGet} prefix=" · 30d " /></>, score: asset.toLowerCase() === lo ? 45 : 25 }))
       for (const g of GROUPS) if (g.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(lo)) || g.id.toLowerCase() === lo)
         earn.push({ id: `g:${g.id}`, kind: 'earn', href: `#/${g.id}`, title: g.name, sub: g.desc, icon: <GroupIcon id={g.id} color={g.color} size={24} />, score: 20 })
       put('earn', earn)

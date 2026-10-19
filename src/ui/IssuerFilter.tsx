@@ -28,7 +28,7 @@ import { useApp } from '../state/AppState'
 import { useIssuers } from '../index/queries'
 import type { IssuerFacet, IssuerMatch } from '../index/api'
 import { useSticky } from '../state/sticky'
-import { Tip } from './bits'
+import { ProtocolLogo, Tip, issuerIconUrls } from './bits'
 import { ChipSkeleton } from './ProtocolFilter'
 
 const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n))
@@ -88,6 +88,7 @@ export function IssuerChips({ f, max = 8 }: { f: IssuerFilterState; max?: number
         <button key={i.issuer} className="pchip" aria-pressed={f.picked.includes(i.issuer)}
           onClick={(e) => (e.altKey ? f.setPicked([i.issuer]) : toggle(i.issuer))}
           title={title(i)}>
+          <ProtocolLogo urls={issuerIconUrls(i.issuer)} name={i.name} />
           <span className="pn">{i.name}</span>
           <span className="pc">{compact(i.rows)}</span>
           {i.via === i.rows && <span className="pv" title="every row here reaches this desk indirectly">via</span>}

@@ -13,12 +13,13 @@
  */
 import { DEFAULTS, NO_CAP, type Settings } from '../state/Settings'
 import type { Strategy } from './strategies'
+import { exposureOf, FIAT_FLOOR, isFiat } from './assets'
 
 export type HideCode =
   // structural — no setting brings these back
   | 'unmapped' | 'cross-denom' | 'brokered' | 'basket' | 'no-leverage' | 'thin-ltv' | 'closed'
   // soft — a floor in Settings
-  | 'small' | 'thin-borrow' | 'risky' | 'unrated' | 'negative' | 'rate-bet' | 'dust' | 'outlier'
+  | 'small' | 'collateral' | 'thin-borrow' | 'risky' | 'unrated' | 'negative' | 'rate-bet' | 'dust' | 'outlier'
 
 export interface HideMeta {
   /** the chip's word */
@@ -42,6 +43,7 @@ export const HIDES: Record<HideCode, HideMeta> = {
   closed: { word: 'closed', soft: false, kind: 'simple', why: 'The venue is not accepting deposits through the API right now (paused, capped or permissioned).' },
 
   small: { word: 'small', soft: true, kind: 'simple', refetch: true, why: 'Below the size floor. A market with little in it can be emptied by one depositor and its rate is often a promotion.' },
+  collateral: { word: 'collateral only', soft: true, kind: 'simple', refetch: true, why: 'The market pays nothing of its own: the token sits there as collateral and earns only what it earns in your wallet, with the market’s risk on top. Worth it when that is the only way to hold the token.' },
   'thin-borrow': { word: 'thin borrow', soft: true, kind: 'loop', why: 'Less of the debt asset is borrowable than the floor asks for. A loop that cannot be opened at size, or unwound, is a trap however good the rate looks.' },
   risky: { word: 'higher risk', soft: true, why: 'Above the risk cap. The score is the API’s own, over the market’s configuration, the lender and both tokens.' },
   unrated: { word: 'unrated', soft: true, why: 'The API has not scored this row: no score for the venue, the lender or the token. Unscored is not the same as safe, so these rows stay out with the higher-risk ones and come back with the same switch.' },
@@ -53,7 +55,7 @@ export const HIDES: Record<HideCode, HideMeta> = {
 
 export const isSoft = (c: HideCode) => HIDES[c].soft
 /** the order a bar lists them in: the ones a switch can fix first */
-export const HIDE_ORDER: HideCode[] = ['thin-borrow', 'small', 'rate-bet', 'negative', 'risky', 'unrated', 'dust', 'outlier', 'cross-denom', 'unmapped', 'brokered', 'basket', 'no-leverage', 'thin-ltv', 'closed']
+export const HIDE_ORDER: HideCode[] = ['thin-borrow', 'small', 'collateral', 'rate-bet', 'negative', 'risky', 'unrated', 'dust', 'outlier', 'cross-denom', 'unmapped', 'brokered', 'basket', 'no-leverage', 'thin-ltv', 'closed']
 
 /**
  * The soft gate a built row fails under the current settings, or null when it
@@ -72,7 +74,10 @@ export function softHide(s: Strategy, st: Settings): HideCode | null {
     if (s.rate <= 0 && !st.showNegative) return 'negative'
     return null
   }
-  if (s.tvlUsd < st.minTvlUsd) return 'small'
+  // an exposure asset's deposits (JLP) are all passthrough and asked for by name: they are the menu
+  if (s.passthrough && !st.showCollateral && !exposureOf(s.asset)) return 'collateral'
+  // a euro, franc or pound row has its own, lower floor: the whole currency is a few rows (`FIAT`)
+  if (s.tvlUsd < (isFiat(s.asset) ? Math.min(st.minTvlUsd, FIAT_FLOOR) : st.minTvlUsd)) return 'small'
   if (s.riskScore > st.maxRisk) return s.rated ? 'risky' : 'unrated'
   if (s.rate < st.minRate) return 'dust'
   if (s.rate > st.maxRate) return 'outlier'
@@ -98,6 +103,7 @@ export function hideDetail(s: Strategy, code: HideCode): string {
 export function relaxFor(code: HideCode): Partial<Settings> {
   switch (code) {
     case 'small': return { minTvlUsd: 0 }
+    case 'collateral': return { showCollateral: true }
     case 'thin-borrow': return { minBorrowLiquidityUsd: 0 }
     case 'risky':
     case 'unrated': return { maxRisk: 5 }
@@ -112,6 +118,7 @@ export function relaxFor(code: HideCode): Partial<Settings> {
 export function restoreFor(code: HideCode): Partial<Settings> {
   switch (code) {
     case 'small': return { minTvlUsd: 2_000_000 }
+    case 'collateral': return { showCollateral: false }
     case 'thin-borrow': return { minBorrowLiquidityUsd: 100_000 }
     case 'risky':
     case 'unrated': return { maxRisk: 4 }

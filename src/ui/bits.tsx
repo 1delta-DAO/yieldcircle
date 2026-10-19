@@ -1,7 +1,7 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
-import { assetLogo, colorOf, short, unitOf } from '../model/assets'
+import { assetLogo, colorOf, deskById, deskOf, short, unitOf } from '../model/assets'
 import { ChainMark, addressUrl, chainInfo, txUrl } from './ChainMark'
 import { maturityClock, termClock, type Risk } from '../model/strategies'
 
@@ -148,10 +148,10 @@ const DEAD_LOGO = /^(ipfs:|https?:\/\/([^/]*\.)?(ipfs\.io|dweb\.link|cloudflare-
 const liveLogo = (u: string | null | undefined): u is string => !!u && !DEAD_LOGO.test(u)
 
 /** Token mark: the icon when we have one, else a coloured disc with the first letters. */
-export function Tok({ sym, logo, size = 22 }: { sym: string; logo?: string; size?: number }) {
-  // a strategy passes its own picture (the vault, the LST, the venue token); a bare symbol gets the base-asset mark
-  // from the token list — and so does a passed picture that fails to load
-  const urls = React.useMemo(() => [...new Set([logo, assetLogo(sym)].filter(liveLogo))], [logo, sym])
+export function Tok({ sym, logo, size = 22 }: { sym: string; logo?: string | (string | undefined)[]; size?: number }) {
+  // a strategy passes its own picture (the vault, the LST, the venue token) — or several, tried in order; a bare
+  // symbol gets the base-asset mark from the token list — and so does a passed picture that fails to load
+  const urls = React.useMemo(() => [...new Set([...[logo].flat(), assetLogo(sym)].filter(liveLogo))], [String(logo), sym])
   const [i, setI] = React.useState(0)
   React.useEffect(() => setI(0), [urls.join()])
   if (i < urls.length) return <img className="tok" src={urls[i]} alt="" width={size} height={size} style={{ width: size, height: size }} onError={() => setI((n) => n + 1)} title={sym} />
@@ -205,6 +205,26 @@ export function protocolIconUrls(key: string, logoUri?: string | null): string[]
 export function curatorIconUrls(id: string, logoUri?: string | null): string[] {
   const slug = id.replace(/^desk:/, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
   return [...new Set([logoUri, slug && iconUrl(slug), slug && iconUrl(slug + '_lend')].filter(liveLogo))]
+}
+/** Desks whose brand mark the icon set files under another name than the desk id. */
+const DESK_ICON: Record<string, string> = { re: 're_protocol', liquity: 'liquity_v2', jupiter: 'jupiter_lend', aave: 'aave_v3', rocketpool: 'rocket_pool' }
+const deskIcon = (id: string) => iconUrl(DESK_ICON[id] ?? id.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''))
+/**
+ * A desk's mark, for a row keyed by desk (`AssetChips`, the Earn rows): the BRAND first — the row is
+ * named "Apyx", not "apxUSD", and an unregistered desk would otherwise wear whichever of its tokens
+ * the API sent a picture for (a PT, a generic "$" coin) — then the flagship ticker's, then `fallback`.
+ * An institution's dollar and plain Ether keep their token: USDC IS Circle's face, and they have no
+ * other mark in the icon set. A token nobody is named for (`sym:` desks) has no brand to try.
+ */
+export function deskLogos(key: string, fallback?: string): (string | undefined)[] {
+  const d = deskOf(key)
+  const brand = d && d.kind !== 'issued' && d.kind !== 'plain' && !d.id.startsWith('sym:') ? deskIcon(d.id) : undefined
+  return [brand, assetLogo(key), fallback]
+}
+/** An issuer facet's mark (the feed's desk chips): the brand, then its flagship token where the desk is registered. */
+export function issuerIconUrls(id: string): string[] {
+  const d = deskById(id) ?? deskById(id, 'ETH') ?? deskById(id, 'BTC')
+  return [...new Set([d?.kind === 'issued' ? undefined : deskIcon(id), d && assetLogo(d.sym), d?.kind === 'issued' ? deskIcon(id) : undefined].filter(liveLogo))]
 }
 /** The first of `urls` that loads; the name's first letter when none does. */
 export function ProtocolLogo({ urls, name }: { urls: string[]; name: string }) {

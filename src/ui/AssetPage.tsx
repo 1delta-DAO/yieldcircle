@@ -1,5 +1,5 @@
 import React from 'react'
-import { assetLogo, nameOf, whatIs, type Group } from '../model/assets'
+import { assetLogo, isFiat, nameOf, whatIs, type Group } from '../model/assets'
 import { exitTerms, markPicks, type Strategy } from '../model/strategies'
 import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
@@ -7,7 +7,7 @@ import { useBook } from './useBook'
 import { HoldingTicket, Ticket } from './Ticket'
 import { RowSocial } from './TicketSocial'
 import { uidOf } from '../model/uid'
-import { GroupIcon, Info, KindPill, LegsPill, SubAccountPill, Sk, StratMark, Tok, Toks, amt, num, pct, usd, usdShort, HealthPill } from './bits'
+import { GroupIcon, Info, KindPill, LegsPill, SubAccountPill, Sk, StratMark, Tok, Toks, amt, deskLogos, num, pct, usd, usdShort, HealthPill } from './bits'
 import { chainLabel } from '../sdk/queries'
 import type { ThreadRef } from '../model/uid'
 import { useCounts, useThreadOf } from '../social/queries'
@@ -349,6 +349,9 @@ function refOfHolding(h: Holding): OffMenuRef | null {
  * were simply gone — no fade, no arrow, nothing on screen admitting they
  * existed. It wraps now, ranked by how much each asset actually has to offer,
  * and the tail folds behind a count that says how many are folded.
+ *
+ * Except the currencies (`FIAT`): the euro, franc and pound are a few rows each, and ranked by
+ * count against BNB and SOL they would always be in the fold. They close the row instead.
  */
 function AssetChips({ group, route, assets, u, all, max = 6, offers }: { group: Group; route: Route; assets: string[]; u: string; all: Strategy[]; max?: number; /** the Stocks shelf counts its loans, and ranks its tickers by what is put up against them */ offers?: BorrowOffer[] }) {
   const [open, setOpen] = React.useState(false)
@@ -358,7 +361,8 @@ function AssetChips({ group, route, assets, u, all, max = 6, offers }: { group: 
     () => [...assets].sort((x, y) => sizeOf(y) - sizeOf(x) || countOf(y) - countOf(x) || x.localeCompare(y)),
     [assets, countOf, sizeOf],
   )
-  const head = open ? ranked : ranked.slice(0, max)
+  const pinned = ranked.filter((a) => isFiat(a))
+  const head = open ? ranked : [...ranked.filter((a) => !isFiat(a)).slice(0, Math.max(1, max - pinned.length)), ...pinned]
   // the asset you are filtered by never hides behind the +N
   const shown = u === 'all' || head.includes(u) ? head : [...head, u]
   const hidden = ranked.length - shown.length
@@ -406,8 +410,8 @@ function tokensOf(rows: Strategy[]) {
  * the registered desks and bases are curated; a desk the API names at runtime (Huma) or a
  * dollar nobody is named for would otherwise draw as initials.
  */
-const markOf = (key: string, rows: Strategy[]): string | undefined =>
-  assetLogo(key) ?? tokensOf(rows.filter((s) => s.asset === key)).find(([, x]) => x.logo)?.[1].logo
+const markOf = (key: string, rows: Strategy[]): (string | undefined)[] =>
+  deskLogos(key, tokensOf(rows.filter((s) => s.asset === key)).find(([, x]) => x.logo)?.[1].logo)
 
 /**
  * How big the market is, at the end of the row's sentence — and, on hover,

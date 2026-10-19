@@ -13,7 +13,7 @@ import React from 'react'
 import { GROUPS, nameOf, whatIs, type GroupId } from '../model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
-import { GroupIcon, HealthPill, KindPill, LegsPill, MaturityNote, Sk, Tok, amt, pct, usd, usdShort } from './bits'
+import { GroupIcon, HealthPill, KindPill, LegsPill, MaturityNote, Sk, Tok, amt, deskLogos, pct, usd, usdShort } from './bits'
 import type { AssetBook, Holding } from '../model/positions'
 import { chainLabel, useBorrowOffers } from '../sdk/queries'
 import { PaperPanel } from './PaperPanel'
@@ -141,7 +141,7 @@ function AssetPill({ b }: { b: AssetBook }) {
     idle ? `${usd(b.idleUsd)} idle, earning nothing` : null].filter(Boolean).join('\n')
   return (
     <button type="button" className="apill" title={title} onClick={() => go(b.group, { u: b.asset })}>
-      <Tok sym={b.asset} size={16} />
+      <Tok sym={b.asset} logo={deskLogos(b.asset)} size={16} />
       <span className="apt"><b>{nameOf(b.asset)}</b><span className="m">{usd(b.totalUsd)}</span>{earning && <span className="ok">{pct(b.blended, 1)}</span>}</span>
       {idle && <svg className="idlemark" viewBox="0 0 16 16" width="11" height="11" role="img" aria-label="part idle"><path d="M13.4 9.4A5.6 5.6 0 1 1 6.6 2.6a4.5 4.5 0 0 0 6.8 6.8z" fill="currentColor" /></svg>}
     </button>
@@ -156,7 +156,7 @@ function AssetDetail({ b, room }: { b: AssetBook; room: number }) {
   const g = GROUPS.find((x) => x.id === b.group)!
   return (
     <div className="xasset">
-      <div className="xh"><Tok sym={b.asset} size={15} /><span className="t">{nameOf(b.asset)}</span><span className="d">{whatIs(b.asset)}</span><span className="sp" />
+      <div className="xh"><Tok sym={b.asset} logo={deskLogos(b.asset)} size={15} /><span className="t">{nameOf(b.asset)}</span><span className="d">{whatIs(b.asset)}</span><span className="sp" />
         <span className="m">{g.unit === '$' || !b.idle?.price ? usd(b.totalUsd) : amt(b.asset, b.idle.amount + b.atWorkUsd / b.idle.price)}</span></div>
       {b.idle && (
         <button type="button" className="xrow idle" onClick={() => go(b.group, { u: b.asset })}>

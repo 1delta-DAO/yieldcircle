@@ -2246,6 +2246,10 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .srow .strat-n .wn b{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .srow .strat-n .wn small{font-size:11px;color:var(--tx50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .srow .strat-logo{flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:var(--b300)}
+/* the strategy's tokens, venue in the corner: one column wide enough for a loop's pair, so a deposit's name lines up under a loop's */
+.srow .strat-mk{flex:none;width:44px;display:flex;align-items:center}
+.sbanner .strat-mk{display:flex;align-items:center;padding-right:4px}
+.sbanner .strat-mk .mark .badge{width:16px;height:16px}
 .srow .strat-best{display:flex;align-items:center;gap:6px;min-width:0;color:inherit;text-decoration:none}
 .srow .strat-best .who{flex:0 1 auto;min-width:0}
 .srow .strat-best:hover .wn b{color:var(--primary)}
@@ -2267,7 +2271,7 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .strat-holders > .strat-more{margin:0;padding:6px 16px 4px}
 .stcard-held{cursor:pointer}
 .stcard-held:hover{color:var(--primary);text-decoration:underline}
-@media (max-width:640px){.row.wrow.board.srow{grid-template-columns:22px minmax(0,1fr) auto auto 28px;gap:8px}.srow .strat-logo{width:22px;height:22px}.srow .strat-n{gap:8px}.srow .strat-n .wn small{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}.srow .copyb{display:none}.strat-more{padding-left:72px}.strat-holders{margin-left:12px}}
+@media (max-width:640px){.row.wrow.board.srow{grid-template-columns:22px minmax(0,1fr) auto auto 28px;gap:8px}.srow .strat-logo{width:22px;height:22px}.srow .strat-mk{width:40px}.srow .strat-n{gap:8px}.srow .strat-n .wn small{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}.srow .copyb{display:none}.strat-more{padding-left:72px}.strat-holders{margin-left:12px}}
 /* `#/board?s=<key>`: which strategy the list below runs, said once */
 .sbanner{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto 28px auto;gap:16px;align-items:center;padding:16px 18px;margin:0 0 16px;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--b200)}
 .sbanner .strat-logo{width:40px;height:40px;display:grid;place-items:center;border-radius:50%;background:var(--b300)}

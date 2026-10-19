@@ -10,9 +10,10 @@ import React from 'react'
  * out (HyperEVM, 2026-09-24: four deposits, zero loops, 104 pairs upstream).
  *
  * So the floors live here, one per dimension, persisted, and every screen that
- * hides a row can say which of them did it and offer to move it. Two of them
+ * hides a row can say which of them did it and offer to move it. Three of them
  * change the REQUEST (`minTvlUsd` is the earn listing's own filter, `wideNet`
- * drops the optimizer's collateral tags) and therefore cost a fetch; the rest
+ * drops the optimizer's collateral tags, `showCollateral` asks the listing for
+ * its passthrough rows) and therefore cost a fetch; the rest
  * are applied to rows already in hand, so they flip instantly.
  */
 export interface Settings {
@@ -32,6 +33,13 @@ export interface Settings {
   showNegative: boolean
   /** ask the optimizer with the DEBT tag only, so untagged collateral is found too */
   wideNet: boolean
+  /**
+   * deposits whose market pays nothing of its own (`rate.passthrough`): the token parked as
+   * collateral, earning only what it earns in the wallet. Left out of the earn listing unless
+   * asked, so for a token like Piku's USP — no lending market, two Morpho collateral slots —
+   * they are the only way to hold it at all.
+   */
+  showCollateral: boolean
   /**
    * The max slippage every swap-routed build carries, in bp — a loop's open, leverage step and
    * close, and a deposit or withdrawal that trades on a book (a Pendle PT). `null` is AUTO
@@ -62,12 +70,13 @@ export const DEFAULTS: Settings = {
   showRateBets: false,
   showNegative: false,
   wideNet: false,
+  showCollateral: false,
   slippageBp: null,
 }
 
 /** The keys that decide what the menu SHOWS — what `widened` / `isCurated` count. */
 export const FILTER_KEYS = (Object.keys({
-  minTvlUsd: 0, minBorrowLiquidityUsd: 0, maxRisk: 0, minRate: 0, maxRate: 0, showRateBets: 0, showNegative: 0, wideNet: 0,
+  minTvlUsd: 0, minBorrowLiquidityUsd: 0, maxRisk: 0, minRate: 0, maxRate: 0, showRateBets: 0, showNegative: 0, wideNet: 0, showCollateral: 0,
 }) as (keyof Settings)[])
 
 /** Everything the API will serve, with only the structural gates left standing. */
@@ -80,6 +89,7 @@ export const WIDE_OPEN: Settings = {
   showRateBets: true,
   showNegative: true,
   wideNet: true,
+  showCollateral: true,
   slippageBp: DEFAULTS.slippageBp,
 }
 
@@ -100,6 +110,7 @@ function read(): Settings {
       showRateBets: boolOr(p.showRateBets, DEFAULTS.showRateBets),
       showNegative: boolOr(p.showNegative, DEFAULTS.showNegative),
       wideNet: boolOr(p.wideNet, DEFAULTS.wideNet),
+      showCollateral: boolOr(p.showCollateral, DEFAULTS.showCollateral),
       // the old `loopSlippageBp` (a fixed 10 persisted with every other switch) is dropped: everyone starts on auto
       slippageBp: typeof p.slippageBp === 'number' ? Math.min(100, Math.max(1, numOr(p.slippageBp, 10))) : null,
     }

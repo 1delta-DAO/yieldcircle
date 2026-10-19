@@ -47,9 +47,10 @@ const LISTING_TIMEOUT_MS = 25_000
 // `assetGroup` (the deposit token's index group) and `shareGroup` (the group of the token a vault
 // MINTS) are the asset page's own requests (`useAssetStrategies`): every row of one token, and every
 // vault that leaves you holding it, on every chain it lives on.
-export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number; assetSymbol?: string; assetGroup?: string; shareGroup?: string; passthrough?: boolean; maxPages?: number }): Promise<EarnResponse> {
+// `issuers` / `issuerMatch` are the fiat currencies' requests (`FIAT_REQUESTS`).
+export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number; assetSymbol?: string; assetGroup?: string; shareGroup?: string; issuers?: string[]; issuerMatch?: 'credit'; passthrough?: boolean; maxPages?: number }): Promise<EarnResponse> {
   const count = p.count ?? 500
-  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, assetGroup: p.assetGroup, shareGroup: p.shareGroup, passthrough: p.passthrough ? 'include' : undefined }
+  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, assetGroup: p.assetGroup, shareGroup: p.shareGroup, issuers: p.issuers?.join(','), issuerMatch: p.issuerMatch, passthrough: p.passthrough ? 'include' : undefined }
   const served = (r: EarnResponse) => r.items.length + (r.excluded?.unrealizable ?? 0)
   const first = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params, timeoutMs: LISTING_TIMEOUT_MS })
   const items = [...first.items]

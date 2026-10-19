@@ -27,6 +27,8 @@ export function HiddenBar({ kind, rows, structural, busy }: { kind: 'simple' | '
   // nine rows in — so the chip asks for them rather than counting them.
   const ask: { code: HideCode; word: string }[] = []
   if (kind === 'simple' && st.minTvlUsd > 0) { ask.push({ code: 'small', word: 'smaller markets' }); counts.delete('small') }
+  // passthrough rows are not in the listing unless asked for, so they cannot be counted either
+  if (kind === 'simple' && !st.showCollateral) ask.push({ code: 'collateral', word: 'collateral only' })
   const widened = widenedCodes(st).filter((c) => (HIDES[c].kind ?? kind) === kind)
   const struct = structural.filter((x) => x.kind === kind && x.n > 0).sort((a, b) => b.n - a.n)
   const nothing = counts.size === 0 && ask.length === 0 && widened.length === 0 && struct.length === 0 && (kind !== 'loop' || st.wideNet)

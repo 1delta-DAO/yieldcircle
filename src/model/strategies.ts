@@ -6,7 +6,7 @@
  * (`noteToken`), which positions and balances read.
  */
 import type { EarnCapability, EarnMarket, OptimizerRowRaw } from '../sdk/types'
-import { baseOfCollateral, baseOfSymbol, denomOf, deskOf, EXPOSURE_ASSETS, exposureOf, groupOf, sameMoney, type GroupId } from './assets'
+import { baseOfCollateral, baseOfSymbol, denomOf, deskOf, EXPOSURE_ASSETS, exposureOf, fiatOf, groupOf, isFiat, sameMoney, type GroupId } from './assets'
 import { creditDesk, deskKey, moneyOf, noteToken } from './desk'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
 import { marketTag } from './market'
@@ -265,9 +265,12 @@ const num = (v: string | number | null | undefined): number => { if (v == null |
  * every `low`/`medium`/`high` label sits on those scores). The score, not the
  * label, is read, because the earn listing mixes in colour words that disagree
  * with it (`2 yellow`, `4 red`). An unrated row wears the medium dot, never low.
+ * 6 is risk-data's `compromised` (drained, backing gone): the listings ask for
+ * `maxRiskScore: 5` so it should never arrive, and if one does it says so.
  */
 export const riskOf = (score: number | undefined, _label?: string): { risk: Risk; riskLabel: string } => {
   if (!score) return { risk: 2, riskLabel: 'Unrated' }
+  if (score >= 6) return { risk: 3, riskLabel: 'Compromised' }
   const risk: Risk = score <= 2 ? 1 : score <= 4 ? 2 : 3
   return { risk, riskLabel: risk === 1 ? 'Low' : risk === 2 ? 'Medium' : 'High' }
 }
@@ -450,13 +453,16 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   // JLP pool is minted with USDC (its unit, `asset`), and filed by that it read "USDC savings"
   const exposed = m.venueKind === 'vault' ? EXPOSURE_ASSETS.find((e) => e.chainId === m.chainId && e.address === m.ref) : undefined
   const money = exposed ? undefined : moneyOf(tok)
-  const coin = exposed ? exposed.sym : byPt ? ptBase(byPt) : baseOfSymbol(m.asset.symbol)
+  // a euro, franc or pound is filed by the money the API names, so an issuer no table here knows
+  // (EURe, EUROP, sjEUR) still lands on its currency's row
+  const coin = exposed ? exposed.sym : byPt ? ptBase(byPt) : baseOfSymbol(m.asset.symbol) ?? fiatOf(m.asset.denomination)
   let asset = money ? deskKey(tok, money) : coin
   if (!asset) return no('unmapped')
   if (money) noteToken(m.chainId, tok.address, asset)
   // the token in words: the asset is a desk for a dollar (`USDS` for a DAI market), so what the
-  // row HOLDS is spelled from the token itself
-  const own = coin ?? m.asset.symbol
+  // row HOLDS is spelled from the token itself — and so for a currency row, where the token is
+  // the issuer (EURC is Circle's euro, EURCV SG-Forge's)
+  const own = coin && !isFiat(coin) ? coin : m.asset.symbol
   if (m.basket) return no('basket')
   // the structural gates only: a row nobody can deposit into is not a strategy
   // at any floor. Size, rate and risk are floors and live in `softHide`.

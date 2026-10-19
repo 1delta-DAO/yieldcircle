@@ -4,7 +4,7 @@ import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook,
 import { capPerAsset, classifyEarn, classifyPair, dedupe, foldDates, rowKey, type Candidate, type LoopStrategy, type LoopTenor, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { HIDES, hideDetail, softHide, type HideCode } from '../model/visibility'
 import { parseUid } from '../model/uid'
-import { EXPOSURE_ASSETS } from '../model/assets'
+import { EXPOSURE_ASSETS, FIAT_FLOOR, FIAT_REQUESTS, fiatOf } from '../model/assets'
 import { useSettings, type Settings } from '../state/Settings'
 import type { EarnPositionsResponse, LendingBook, OptimizerResponse, TokenBalance } from './types'
 import { byOffer, offersFrom, type BorrowOffer, type Out } from '../model/borrow'
@@ -389,9 +389,10 @@ export type HiddenRow = Strategy & { hide: HideCode }
  * Both listings for the selected chains, normalised and curated. Chains load in
  * parallel and merge as they land.
  *
- * Two of the floors are part of the REQUEST — `minTvlUsd` is the earn
+ * Three of the floors are part of the REQUEST — `minTvlUsd` is the earn
  * listing's own filter (asking for everything costs 3.8 MB on Ethereum against
- * 2.6 MB, measured 2026-09-24) and `wideNet` adds optimizer requests — so they
+ * 2.6 MB, measured 2026-09-24), `showCollateral` adds its passthrough rows and
+ * `wideNet` adds optimizer requests — so they
  * are in the query keys and moving them refetches. Every other floor is
  * applied HERE, to rows already in hand, so the list can count what it is
  * holding back and let it in without a round trip. That is why the optimizer
@@ -403,8 +404,8 @@ export function useCatalog(chainIds: string[]) {
   const buckets = chainBuckets(chainIds)
   const earn = useQueries({
     queries: buckets.map((ids) => ({
-      queryKey: ['earn-rows', ids.join(','), st.minTvlUsd],
-      queryFn: async () => (await fetchEarn({ chainIds: ids, count: 1000, maxRiskScore: 5, minTvlUsd: st.minTvlUsd })).items,
+      queryKey: ['earn-rows', ids.join(','), st.minTvlUsd, st.showCollateral],
+      queryFn: async () => (await fetchEarn({ chainIds: ids, count: 1000, maxRiskScore: 5, minTvlUsd: st.minTvlUsd, passthrough: st.showCollateral })).items,
       staleTime: 10 * 60_000,
     })),
   })
@@ -459,7 +460,24 @@ export function useCatalog(chainIds: string[]) {
       ...BOOK_FRESHNESS,
     })),
   })
-  const extra = [...exposure, ...ptLoops]
+  /**
+   * The euro, franc and pound below the menu's size floor, down to their own (`FIAT_FLOOR`): asked
+   * by issuer, every chain in one request, and kept only where the API names one of those monies.
+   * What the main listing already holds (at or over its floor) is left to it. 2026-10-19 this added
+   * ZCHF's two smaller savings vaults, VCHF on Base, and a dozen EURC / EURCV markets.
+   */
+  const fiatReqs = st.minTvlUsd > FIAT_FLOOR && chainIds.length ? FIAT_REQUESTS : []
+  const fiat = useQueries({
+    queries: fiatReqs.map((q) => ({
+      queryKey: ['fiat-earn', chainIds.join(','), q.key, st.minTvlUsd, st.showCollateral],
+      queryFn: async () => {
+        const r = await fetchEarn({ chainIds, count: 1000, maxPages: 1, maxRiskScore: 5, minTvlUsd: FIAT_FLOOR, issuers: q.issuers, issuerMatch: q.issuerMatch, assetSymbol: q.assetSymbol, passthrough: st.showCollateral })
+        return sortOut(r.items.filter((m) => fiatOf(m.asset.denomination) && (m.tvl?.usd ?? 0) < st.minTvlUsd).map(classifyEarn), 'simple') as Sorted<Strategy>
+      },
+      staleTime: 10 * 60_000,
+    })),
+  })
+  const extra = [...exposure, ...ptLoops, ...fiat]
   // the stock loans (tickets/0009): the request that teaches the app which tokens are stocks
   // (`noteStock`, run as the offers are read) — so it lands before anything is classified by it
   const stocks = useQuery(stockBook(chainIds).book)
@@ -524,6 +542,7 @@ export function useCatalog(chainIds: string[]) {
   // one of them — it names rows, it does not add any.
   const exposurePending = new Set(exposed.filter((_, i) => !exposure[2 * i]?.isFetched || !exposure[2 * i + 1]?.isFetched).map((e) => e.chainId))
   ptMints.forEach((m, i) => { if (!ptLoops[i]?.isFetched) exposurePending.add(m.chainId) })
+  if (fiat.some((q) => !q.isFetched)) for (const c of chainIds) exposurePending.add(c)
   const loopsPending = new Set(loopReqs.flatMap((r, i) => (loops[i]?.isFetched ? [] : r.chainIds)))
   // a chain is not settled before the stock request answers: its balance read would miss the stock tokens
   const depositsIn = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched ? ids : [])))

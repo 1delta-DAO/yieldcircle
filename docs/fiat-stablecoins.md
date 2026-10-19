@@ -3,6 +3,16 @@
 **Status:** plan — authored 2026-10-01. Crosses three repos: `risk-data` (source of
 truth), `token-lists` (the flag the app/backend consume), `yieldcircle` (the app).
 
+**2026-10-19 — EUR, CHF, GBP shipped in the app, inside More.** The earn listing now carries
+`asset.denomination` (`EUR`/`CHF`/`GBP`) and `asset.desk` on every row, so the app files by
+that instead of waiting on Phase 1's flag. One row per currency (`EUR`, `CHF`, `GBP` in
+`BASE`, names and marks in `FIAT`, `src/model/assets.ts`); the token (EURC, EURCV, ZCHF,
+tGBP) stays in what the row holds. `denomOf` knows `eur`/`chf`/`gbp`. Their own size floor,
+`FIAT_FLOOR` ($100k), with the rows under the menu's floor asked for by issuer
+(`FIAT_REQUESTS`, `useCatalog`). Their chips are pinned on the More page. Measured that
+day: EUR $313M / 86 rows, CHF $13.5M / 7, GBP $5.3M / 10. Not done: JPY, SGD, BRL, ARS
+(too thin or a currency bet), and the board's exposure chips (index-side).
+
 ## Objective
 
 1. Surface fiat stablecoins — CHF, EUR, JPY, TRY, and the long tail (GBP, AUD, CAD,

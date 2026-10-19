@@ -42,6 +42,8 @@ export function SettingsPanel() {
         label="Negative carry" sub="loops that cost more than they pay" />
       <Check on={st.minRate === 0 && st.maxRate === NO_CAP} onChange={(v) => set(v ? { minRate: 0, maxRate: NO_CAP } : { minRate: DEFAULTS.minRate, maxRate: DEFAULTS.maxRate })}
         label="Extreme rates" sub="under 0.01 % and over 25 % — idle markets and spikes" />
+      <Check on={st.showCollateral} onChange={(v) => set({ showCollateral: v })}
+        label="Collateral-only deposits" sub="markets that pay nothing of their own — the token as collateral, earning only its own yield; one more request" />
       <Check on={st.wideNet} onChange={(v) => set({ wideNet: v })}
         label="Wider pair search" sub="ask the optimizer without collateral tags — finds untagged collateral (sUSDp, syzUSD), costs a few requests" />
 

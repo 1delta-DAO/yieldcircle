@@ -1,8 +1,8 @@
 import React from 'react'
-import { GROUPS, assetLogo, nameOf, type Group, type GroupId } from '../model/assets'
+import { GROUPS, nameOf, type Group, type GroupId } from '../model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
-import { GroupIcon, Sk, Tok, amt, pct, usd, usdShort } from './bits'
+import { GroupIcon, Sk, Tok, amt, deskLogos, pct, usd, usdShort } from './bits'
 import type { AssetBook } from '../model/positions'
 import type { Strategy } from '../model/strategies'
 import { isSavings } from '../model/nature'
@@ -114,7 +114,7 @@ const savingsFirst = (a: Strategy, b: Strategy, rank: (s: Strategy) => number) =
 function BookRow({ x, best, get, room }: { x: AssetBook; best: Strategy | undefined; get: HistoryGet; room: number }) {
   return (
     <tr onClick={() => go(x.group, { u: x.asset, k: best?.kind ?? (room >= 1 ? 'borrow' : undefined) })}>
-      <td><div className="nm"><Tok sym={x.asset} logo={assetLogo(x.asset) ?? best?.tokenLogo} />{nameOf(x.asset)}<GroupTag gid={x.group} className="hide-m" /></div></td>
+      <td><div className="nm"><Tok sym={x.asset} logo={deskLogos(x.asset, best?.tokenLogo)} />{nameOf(x.asset)}<GroupTag gid={x.group} className="hide-m" /></div></td>
       <td className="r">{amt(x.asset, (x.idle?.amount ?? 0) + (x.idle?.price ? x.atWorkUsd / x.idle.price : 0), x.totalUsd)}{x.atWorkUsd ? <small className="ok">{pct(x.blended)} on {Math.round(x.atWorkUsd / x.totalUsd * 100)}%</small> : <small className="t40">idle</small>}</td>
       <td className="r upto">{best ? <><span className="t50">up to</span> <span className={best.rate >= 3 ? 'ok' : ''}>{pct(best.rate)}</span><small>{best.kind === 'loop' ? `${best.rec}× loop` : 'deposit'}<Avg30 s={best} get={get} prefix=" · 30d " />{room >= 1 && <span className="hide-m"> · or borrow up to {usdShort(room)}</span>}</small></> : room >= 1 ? <><span className="t50">borrow up to</span> <span>{usdShort(room)}</span><small>without selling</small></> : <span className="t40">—</span>}</td>
       <td className="r t40" style={{ width: 20 }}>›</td>
@@ -153,7 +153,7 @@ function StockTile({ g, offers, earn, books, loading }: { g: Group; offers: Borr
 function TopRow({ s, n, get }: { s: Strategy; n: number; get: HistoryGet }) {
   return (
     <tr onClick={() => go(s.group, { u: s.asset, k: s.kind })}>
-      <td><div className="nm"><Tok sym={s.asset} logo={assetLogo(s.asset) ?? s.tokenLogo} />{nameOf(s.asset)}<GroupTag gid={s.group} /></div></td>
+      <td><div className="nm"><Tok sym={s.asset} logo={deskLogos(s.asset, s.tokenLogo)} />{nameOf(s.asset)}<GroupTag gid={s.group} /></div></td>
       <td className="r upto"><span className="t50">up to</span> <span className={s.rate >= 3 ? 'ok' : ''}>{pct(s.rate)}</span><small>{s.kind === 'loop' ? `${s.rec}× loop` : 'deposit'}<Avg30 s={s} get={get} prefix=" · 30d " /><span className="hide-m"> · {n} strateg{n !== 1 ? 'ies' : 'y'}</span></small></td>
       <td className="r t40" style={{ width: 20 }}>›</td>
     </tr>

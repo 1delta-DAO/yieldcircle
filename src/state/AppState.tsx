@@ -14,7 +14,7 @@ import { readFeedLink, readLinkChains } from './feedLink'
  *   #/                       the home: the beginner dashboard (src/ui/Start.tsx)
  *   #/feed                   pulse · hot · the feed  (?t=following|everyone|menu, filters: see feedLink.ts)
  *   #/earn                   the catalogue, by asset
- *   #/USD?u=USDC&s=<id>&k=loop   asset page + ticket (USD · ETH · BTC · STOCKS · MORE)
+ *   #/USD?u=USDC&s=<id>&k=loop   asset page + ticket (USD · ETH · BTC · STOCKS · MORE); `k=fixed` its Fixed rate books (tickets/0013)
  *   #/ETH?k=borrow&s=b:<coll>|<debt>   the loans against it, and a borrow ticket (tickets/0008);
  *                            `&h=<holding>&m=reduce` opens a running loan on Pay back
  *   #/STOCKS?u=TSLA&k=borrow  tokenized stocks, one row per real-world ticker (tickets/0009)
@@ -43,8 +43,8 @@ export interface Route {
   group?: string
   u: string
   s?: string
-  /** which list an asset page shows: deposits, loops, or loans against the asset (`borrow`, tickets/0008) — and so which ticket `s=` opens */
-  k: 'simple' | 'loop' | 'borrow' | undefined
+  /** which list an asset page shows: deposits, fixed-rate books (`fixed`, tickets/0013), loops, or loans against the asset (`borrow`, tickets/0008) — and so which ticket `s=` opens */
+  k: 'simple' | 'fixed' | 'loop' | 'borrow' | undefined
   m?: Mode
   /** a running position the catalogue has no row for — its `Holding.key`, managed from the position alone */
   h?: string
@@ -87,7 +87,7 @@ export function parseRoute(hash = location.hash): Route {
     u: p.get('u') ?? 'all',
     s: p.get('s') ?? undefined,
     h: p.get('h') ?? undefined,
-    k: p.get('k') === 'loop' ? ('loop' as const) : p.get('k') === 'simple' ? ('simple' as const) : p.get('k') === 'borrow' ? ('borrow' as const) : undefined,
+    k: p.get('k') === 'loop' ? ('loop' as const) : p.get('k') === 'simple' ? ('simple' as const) : p.get('k') === 'borrow' ? ('borrow' as const) : p.get('k') === 'fixed' ? ('fixed' as const) : undefined,
     m: m === 'reduce' || m === 'close' || m === 'manage' ? (m as Mode) : m === 'add' ? ('add' as Mode) : undefined,
     t: p.get('t') ?? undefined,
     by: p.get('by') ?? undefined,

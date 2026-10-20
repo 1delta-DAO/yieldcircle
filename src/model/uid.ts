@@ -160,7 +160,7 @@ export function parseUid(uid: string): { lender: string; chainId: string; ref: s
  * `api/unified.ts`): a base58 instance is not hex, so the EVM strip left
  * `PROJECT_0_4qp6…` whole and a Solana protocol chip matched no leg.
  */
-const SOL_PROTOCOLS = ['KAMINO', 'PROJECT_0', 'SAVE', 'JUPITER_LEND', 'LOOPSCALE']
+const SOL_PROTOCOLS = ['KAMINO', 'PROJECT_0', 'SAVE', 'JUPITER_LEND', 'JUPITER_OFFERBOOK', 'LOOPSCALE', 'ZODIAL', 'DEFITUNA']
 export function protocolKeyOf(lenderKey: string): string {
   if (lenderKey.startsWith('vault.')) return lenderKey
   for (const p of SOL_PROTOCOLS)

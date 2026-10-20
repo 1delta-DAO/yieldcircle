@@ -17,7 +17,8 @@ export interface IssuerRef { id: string; name?: string; kind?: string | null; ho
  */
 export interface DeskRef extends IssuerRef { via?: string }
 export interface EarnAsset { address: string; symbol: string; decimals: number; assetGroup?: string; priceUsd?: number; logoURI?: string; issuer?: IssuerRef | null; issuerExposures?: IssuerRef[] | null; desk?: DeskRef | null; denomination?: string | null }
-export interface EarnRate { total: number; base?: number; rewards?: number; intrinsic?: number; marketOwn?: number; passthrough?: boolean; kind: string; source: string }
+/** `kind: 'fixed-term'` is a rate locked to a date — a book loan (Midnight, Term) or a PT/vault row; only `venueKind` tells the two apart */
+export interface EarnRate { total: number; base?: number; rewards?: number; intrinsic?: number; marketOwn?: number; passthrough?: boolean; kind: 'variable-curve' | 'fixed-term' | 'user-set' | (string & {}); source: string }
 export interface EarnAmount { raw?: string; formatted?: number; usd?: number }
 export interface EarnExit { mode: string; settlement?: 'sync' | 'async'; cooldownSecs?: number; feeBps?: number }
 export interface EarnAvailability { canDeposit: boolean; canWithdraw: boolean; gating?: string; reason?: string }
@@ -78,11 +79,19 @@ export interface EarnMarket {
   availability: EarnAvailability
   risk?: EarnRisk
   capabilities: EarnCapability[]
-  maturity?: { maturity?: number; kind?: string; [k: string]: unknown }
+  /**
+   * `kind: 'fixed-date'`: the row ends on `maturity` (unix s). `secondsToMaturity` is a snapshot of
+   * the origin's read — never tick it down; derive from `maturity` and the clock.
+   */
+  maturity?: { maturity?: number; kind?: string; maturityIso?: string; secondsToMaturity?: number; [k: string]: unknown }
   termSheet?: EarnTermsDigest
 }
 /** `excluded.unrealizable`: rows the worker dropped from THIS page after the origin paged it, so `items` can be short of `count` on a page that was full */
-export interface EarnResponse { start: number; count: number; total: number; items: EarnMarket[]; appliedDefaults?: Record<string, unknown>; excluded?: { unrealizable?: number } }
+/**
+ * `excluded.unrealizable`: rows the worker dropped from THIS page after the origin paged it, so `items` can be short of `count` on a page that was full.
+ * `excluded.fixedTerm`: fixed-yield rows left out because the request did not ask for them (`includeFixedTerm`); `collateralLeg`: an order book's collateral side, never a deposit.
+ */
+export interface EarnResponse { start: number; count: number; total: number; items: EarnMarket[]; appliedDefaults?: Record<string, unknown> & { excludeFixedTerm?: boolean }; excluded?: { unrealizable?: number; fixedTerm?: number; collateralLeg?: number; matured?: number } }
 
 // ---------------------------------------------------------------- earn positions
 export interface EarnPositionAsset { address: string; symbol?: string; decimals?: number; priceUsd?: number; logoURI?: string; issuer?: IssuerRef | null; desk?: DeskRef | null; denomination?: string | null }
@@ -198,6 +207,8 @@ export interface LendingRange { collateralModeId?: string; borrowCollateralFacto
  * `/v1/data/lending/book`. `pricing: 'marginal'` (Midnight, Term): each level is a lot at its own
  * APR, so a size pays the assets-weighted mean of the levels it walks. `'uniform'` (Exactly): ONE rate
  * for the whole trade at its final size — the level whose `cumulativeAssets` covers it.
+ * `side: 'borrow'` is the lenders' offers (what a borrower takes, and what a lender's early sale
+ * fills against); `side: 'lend'` is the borrowers' offers (what a fixed-rate deposit takes).
  */
 export interface LendingBook {
   lender: string; chainId: string; side: 'borrow' | 'lend'; pricing: 'marginal' | 'uniform'; maturity?: number

@@ -4,8 +4,8 @@ import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt,
 import { dateOf, exitTerms, isBooked, loopRewards, isLoopscale, type LoopStrategy, type LoopTenor, type LoopTerm, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { isSvmTx, type LoopActions } from '../sdk/types'
 import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
-import { earnDeposit, earnWithdraw, loopClose, loopOpen, nativeAsset } from '../sdk/api'
-import { bookAprAt, chainLabel, quoteClose, SOL_POSITIONS_READY, useCloseQuote, useIrm, useLendingBooks, useLoopPayAssets, useLoopQuote, useRateHistory, useTenorQuotes } from '../sdk/queries'
+import { earnDeposit, earnWithdraw, loopClose, loopOpen, midnightSell, nativeAsset } from '../sdk/api'
+import { bookAprAt, bookDepth, chainLabel, quoteClose, SOL_POSITIONS_READY, useCloseQuote, useIrm, useLendingBooks, useLoopPayAssets, useLoopQuote, useRateHistory, useTenorQuotes } from '../sdk/queries'
 import { seriesFor } from '../model/rateHistory'
 import { RateHistoryPanel, useSparkRewards } from './Spark'
 import { useApp, type Mode } from '../state/AppState'
@@ -84,7 +84,8 @@ export function Ticket({ s, idle, holdings, pick, mode: mode0, copy, offMenu, ta
           <b>Not in the menu.</b> {offMenu} Check the liquidity, rate and risk yourself before you size it.
         </div>
       )}
-      {holding && mode !== 'add' ? (holding.subAccount?.unsupported ? <CannotManage h={holding} /> : s.kind === 'loop' ? <ManageLoop key={holding.key} s={s} h={holding} closeFirst={mode === 'close'} /> : <ManageTicket key={holding.key} s={s} h={holding} mode={mode} />)
+      {holding && mode !== 'add' ? (holding.subAccount?.unsupported ? <CannotManage h={holding} /> : s.kind === 'loop' ? <ManageLoop key={holding.key} s={s} h={holding} closeFirst={mode === 'close'} /> : s.book ? <ManageFixed key={holding.key} s={s} h={holding} mode={mode} /> : <ManageTicket key={holding.key} s={s} h={holding} mode={mode} />)
+        : s.kind === 'simple' && s.book ? <FixedTicket key={into?.key} s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} into={into} />
         : s.kind === 'simple' ? <SimpleTicket key={into?.key} s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} into={into} /> : <LoopTicket key={into?.key} s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={into} />}
       {holding && mode === 'add' && !into && <div className="tsec plain t50" style={{ fontSize: 12 }}>This opens a new position beside your {holding.subAccount?.label ?? 'existing one'}: YieldCircle cannot add to that one.</div>}
       {!socialInList && <TicketSocial uid={uid} thread={thread} s={s} focus={talk} />}
@@ -169,6 +170,7 @@ const SOURCE_WORDS: Record<string, string> = {
   lending: 'You deposit into the lending pool and receive a receipt token that grows with the interest borrowers pay. Withdraw any time while the pool has liquidity.',
   staking: 'You stake and receive a liquid staking token that grows with validator rewards. Sell it on a DEX any time, or unstake through the queue.',
   savings: 'You deposit into the savings module and receive a token that accrues the protocol\'s rate.',
+  'fixed-book': 'You lend on an order book: the deposit fills borrowers’ offers at their rates, best first, and the loan is repaid at face on its date. The rate is fixed when the offer is filled, whatever the market rate does after.',
   fixed: 'You buy a principal token at a discount. At maturity it redeems for exactly one unit of the underlying, which locks the yield in today. Selling before maturity gets the market price.',
   vault: 'You deposit into a curated vault that allocates across lending markets. You hold vault shares that grow in value.',
 }
@@ -312,6 +314,143 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={(i === 0 && s.risk >= 2) || (!isSavings(s.nature) && i === 0) ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
       {s.booked && <BookedSlippage pegged={isSavings(s.nature)} what={s.holds} />}
       <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} fee="deposit" />
+    </>
+  )
+}
+
+const DAY_S = 86_400
+/** `25 Dec` — a picker's date, the year said elsewhere */
+const dayMonth = (t: number) => new Date(t * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+/**
+ * A fixed-rate deposit into an order book (tickets/0013, `s.book`): the amount fills borrowers'
+ * offers on the lend side of the book, best rate first, and the position is repaid its FACE on the
+ * date — the amount plus the rate for the days to run, fixed at the fill. The rate at this size is
+ * the book's (`bookAprAt` on `side=lend`), and a size past the book's depth is refused here rather
+ * than by a build that fills part of it. A book with several maturities picks one (`s.dates`).
+ */
+function FixedTicket({ s: s0, idle: chainIdle, allIdle, into }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[]; into?: Holding | null }) {
+  const { account, isConnected } = useApp()
+  const dates = s0.dates?.length ? s0.dates : [s0]
+  const [dateId, setDateId] = useSticky<string>(`t:${s0.id}:date`, s0.id)
+  const s = dates.find((d) => d.id === dateId) ?? s0
+  const book = s.book!
+  const [getOpen, setGetOpen] = React.useState(false)
+  const tok = { address: normAddr(s.assetAddress), symbol: s.assetSymbol, decimals: s.decimals }
+  const idle = chainIdle.find((i) => sameToken(i.address, tok.address))
+  const unit = unitOf(s.asset) === '$' ? '$' : tok.symbol
+  const price = s.priceUsd ?? idle?.price ?? allIdle.find((i) => i.asset === s.asset)?.price ?? (unit === '$' ? 1 : 0)
+  const [amount, setAmount] = useSticky<number>(`t:${s0.id}:amount`, () => (unit === '$' ? 100 : Math.min(idle?.amount ?? 0.05, 0.05)))
+  // the lend side of every maturity's book: the picker quotes each at this size
+  const books = useLendingBooks(dates.map((d) => d.marketUid ?? d.earnUid), 'lend')
+  const bookOf = (d: SimpleStrategy) => books.find((b) => b.uid === (d.marketUid ?? d.earnUid))
+  const cur = bookOf(s)
+  const depth = bookDepth(cur?.book ?? null)
+  const rateAt = (d: SimpleStrategy, a: number) => { const b = bookOf(d)?.book; return b ? bookAprAt(b, a) : d.rate }
+  const r = rateAt(s, amount)
+  const over = !!cur?.book && r == null
+  const days = Math.max(0, (s.maturity! - Date.now() / 1000) / DAY_S)
+  const lock = r ?? s.rate
+  const face = amount * (1 + (lock / 100) * (days / 365))
+  const amtUsd = amount * price
+  const paper = usePaper()
+  const key = [s.id, into?.accountId ?? '', amount, account ?? ''].join('|')
+  const ladder = useTicketLadder(key, s.chainId, async () => {
+    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, tok.decimals), operator: account!, accountId: into?.accountId })
+    return stepsFrom(env.actions, s.via, s.chainId)
+  }, [s.earnUid, s.marketUid], [tok], depositPlan({ ...s, rate: lock }, { into, payToken: tok.address, amount, price, feed: paper.price }), true)
+  const more = !!idle && amount > idle.amount
+  const exit = exitTerms(s)
+  const money = (x: number) => (unit === '$' ? usd(x * price) : `${num(x, 4)} ${tok.symbol}`)
+  const who = book.collateral ? `${book.collateral}${book.lltv ? ` at up to ${book.lltv}% of its value` : ''}` : null
+  const risks = [
+    `The rate is fixed when the offers are filled. The book can move before you sign: the deposit takes the offers standing then, best first${cur?.book && cur.book.levels.length > 1 ? `, and a bigger amount walks into lower rates (${pct(cur.book.levels[0].aprPct)} on the first ${money(cur.book.levels[0].assets)})` : ''}.`,
+    exit.risk ?? '',
+    who ? `You are lending to borrowers who put up ${who}. If its price falls faster than they are liquidated, the lenders on this book take the loss.` : `The market does not name what its borrowers put up: check the book on ${s.brand} before you size it.`,
+    ...(book.family === 'term' ? ['Term Finance repays through a repurchase window after the date; a borrower who misses it is liquidated against their collateral, and the repo tokens are redeemed from what that recovers.'] : []),
+    ...(s.risk >= 3 ? ['Rated high risk by the API\'s venue and token scoring.'] : []),
+  ].filter(Boolean)
+  return (
+    <>
+      <div className="tsec">
+        {dates.length > 1 && <>
+          <span className="lbl">Repaid on <Info label="Maturities">Each date is its own book with its own borrowers and rate. Your loan is repaid at face on the date you pick; before it, {book.earlyExit ? 'the way out is selling to that book' : 'it cannot be taken out'}.</Info></span>
+          <div className="seg terms" role="radiogroup" aria-label="Repaid on" style={{ marginBottom: 10 }}>{dates.map((d) => { const x = rateAt(d, amount); return <button key={d.id} role="radio" aria-checked={d.id === s.id} aria-pressed={d.id === s.id} onClick={() => setDateId(d.id)}>{dayMonth(d.maturity!)}<span className="c">{x == null ? 'full' : pct(x)}</span></button> })}</div>
+        </>}
+        <span className="lbl">Amount of {unit === '$' ? s.assetSymbol : tok.symbol}</span>
+        <AmountBox unit={unit} value={amount} onChange={setAmount} onMax={idle ? () => setAmount(depth > 0 ? Math.min(idle.amount, depth) : idle.amount) : undefined} />
+        <div className="amt-sub"><span>{unit === '$' ? '' : `≈ ${usd(amtUsd)}`}{over && <span className="warn">{unit === '$' ? '' : ' · '}the book takes {money(depth)} now</span>}</span><span>{account ? <>Idle: {idle ? `${num(idle.amount, 4)} ${idle.symbol}` : `0 ${tok.symbol}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
+        <GetLine account={account} short={!idle || more} symbol={tok.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
+        {getOpen && <GetAsset targets={[{ chainId: s.chainId, address: tok.address, symbol: tok.symbol, decimals: tok.decimals, price, logo: s.tokenLogo, have: idle?.amount ?? 0 }]} want={amount} sources={allIdle} onClose={() => setGetOpen(false)} />}
+      </div>
+      <div className="tsec"><div className="cells">
+        <div className="c hero"><span className="k">You lock</span><span className={`v ${lock >= 3 ? 'ok' : ''}`}>{over ? '—' : pct(lock)}</span><span className="s">fixed to {dateOf(s.maturity!)}{cur?.pending ? ' · reading the book…' : cur?.failed ? ' · book not read, listed rate' : ''}</span></div>
+        <div className="c"><span className="k">Back on {dayMonth(s.maturity!)}</span><span className="v">{over ? '—' : money(face)}</span><span className="s">{over ? 'more than the book takes' : `+${money(face - amount)} in ${Math.ceil(days)} days`}</span></div>
+        <div className="c"><span className="k">Book</span><span className={`v ${cur?.book && depth * price < 1000 ? 'warn' : ''}`}>{cur?.book ? money(depth) : cur?.pending ? <Sk w={50} /> : '—'}</span><span className="s">{cur?.book ? `${cur.book.levels.length} offer${cur.book.levels.length === 1 ? '' : 's'} to fill · best ${pct(cur.book.levels[0]?.aprPct ?? s.rate)}` : 'borrowers’ offers'}</span></div>
+        <div className="c"><span className="k">Borrowers put up</span><span className="v" style={{ fontSize: 14 }}>{book.collateral ?? '—'}</span><span className="s">{book.lltv ? `borrow up to ${book.lltv}% of it` : book.collateral ? 'as collateral' : 'not named by the market'}</span></div>
+        <div className="c"><span className="k">Risk</span><span className="v" style={{ fontSize: 14 }}><RiskDot r={s.risk} label={s.riskLabel} /></span><span className="s">fixed-rate loan</span></div>
+        <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{exit.word}</span><span className="s">{exit.when}</span></div>
+      </div></div>
+      <HistorySec s={s} now={s.rate} />
+      <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={i === 1 ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
+      <Action ladder={ladder} label={`Lend · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${tok.symbol}`} to ${dayMonth(s.maturity!)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || over} blockedNote={over ? `This book takes at most ${money(depth)} right now.` : undefined} chainId={s.chainId} fee="deposit" />
+    </>
+  )
+}
+
+/**
+ * Out of a fixed-rate book loan. After its date the face is redeemed (`/earn/withdraw`). Before it,
+ * a Midnight loan is SOLD to the book (`/midnight/sell`): the face units go to the lenders' offers
+ * at their rate, so the proceeds are the face discounted for the days left — less than put in when
+ * rates have risen. A Term loan has no exit before its date.
+ */
+function ManageFixed({ s, h, mode }: { s: SimpleStrategy; h: Holding; mode: Mode }) {
+  const { account, isConnected } = useApp()
+  const book = s.book!
+  const now = Date.now() / 1000
+  const matured = !!s.maturity && now >= s.maturity
+  const sell = !matured && book.earlyExit
+  const locked = !matured && !book.earlyExit
+  const all = mode === 'close'
+  const [amount, setAmount] = useSticky<number>(`t:${h.key}:withdraw`, () => +h.amount.toFixed(6))
+  const eff = all ? h.amount : Math.min(amount, h.amount)
+  const fullExit = all || (h.amount > 0 && eff / h.amount > 0.999)
+  const raw = fullExit && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals)
+  // what the sale fetches: the face, discounted at the lenders' rate for the days left
+  const [sb] = useLendingBooks(sell ? [s.marketUid ?? s.earnUid] : [], 'borrow')
+  const sellApr = sb?.book ? bookAprAt(sb.book, eff) : null
+  const daysLeft = s.maturity ? Math.max(0, (s.maturity - now) / DAY_S) : 0
+  const proceeds = sellApr != null ? eff / (1 + (sellApr / 100) * (daysLeft / 365)) : null
+  const px = h.amount > 0 ? h.valueUsd / h.amount : 0
+  const paper = usePaper()
+  const key = [s.id, h.accountId ?? '', mode, eff, account ?? ''].join('|')
+  const ladder = useTicketLadder(key, h.chainId, async () => {
+    if (locked) throw new Error(`Locked until ${dateOf(s.maturity!)}.`)
+    const env = sell
+      ? await midnightSell({ chainId: h.chainId, lender: book.lender, amountRaw: raw, operator: account! })
+      : await earnWithdraw({ earnUid: s.earnUid, amountRaw: raw, operator: account!, isAll: fullExit, accountId: h.accountId })
+    return stepsFrom(env.actions, sell ? 'Sell to the book' : 'Withdraw', h.chainId)
+  }, [s.earnUid], [{ address: h.assetAddress ?? s.assetAddress, symbol: h.symbol }],
+    withdrawPlan({ ledger: paper.ledger, h, units: eff, all: fullExit, receiveToken: h.assetAddress ?? s.assetAddress, feed: paper.price, receiveName: { symbol: h.symbol, decimals: h.decimals }, refuse: locked ? `Locked until ${dateOf(s.maturity!)}.` : null }))
+  const exit = exitTerms(s)
+  const noBids = sell && !!sb && !sb.pending && !sb.failed && sellApr == null
+  return (
+    <>
+      {locked ? (
+        <div className="tsec"><div className="caution"><b>Locked until {dateOf(s.maturity!)}.</b> {s.brand} has no exit before the date: your {num(h.amount, 2)} {h.symbol} is repaid at face once the borrowers’ repayment window after it closes, and can be withdrawn here then.</div></div>
+      ) : (
+        <div className="tsec">
+          <span className="lbl">{sell ? 'Face to sell' : 'Amount to withdraw'} (of {num(h.amount, 4)} {h.symbol}) {sell && <Info label="Selling before the date">Your position is the {h.symbol} it is repaid on {dateOf(s.maturity!)}. Before then it can be sold to the lenders on this book, who pay that amount discounted at their rate for the days left — so if rates have risen since you lent, you get back less than you put in.</Info>}</span>
+          <div className="amt"><DecimalInput value={amount} onChange={setAmount} ariaLabel="Amount" /><span className="u">{h.symbol}</span><button className="max" onClick={() => setAmount(h.amount)}>Max</button></div>
+          <div className="amt-sub"><span>{amount > h.amount + 1e-9 && <span className="warn">more than you hold</span>}</span><span>{[25, 50, 75, 100].map((p) => <button key={p} className="pctb" onClick={() => setAmount(+(h.amount * p / 100).toFixed(6))}>{p}%</button>)}</span></div>
+        </div>
+      )}
+      <div className="tsec"><div className="cells">
+        <div className="c hero"><span className="k">{sell ? 'You get about' : 'You get back'}</span><span className="v">{locked ? '—' : sell ? (proceeds != null ? usd(proceeds * px) : sb?.pending ? <Sk w={60} /> : '—') : usd(eff * px)}</span>
+          <span className="s">{locked ? `on ${dateOf(s.maturity!)}` : sell ? (sellApr != null ? `sold at ${pct(sellApr)} · face ${num(eff, 2)} ${h.symbol}` : noBids ? 'no lender is buying at this size' : sb?.failed ? 'the book could not be read — the sale still fills at its rate' : 'reading the book…') : `${num(eff, 4)} ${h.symbol} to your wallet`}</span></div>
+        {sell && <div className="c"><span className="k">Or wait</span><span className="v">{usd(eff * px)}</span><span className="s">repaid {dateOf(s.maturity!)}</span></div>}
+        <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{exit.word}</span><span className="s">{exit.when}</span></div>
+      </div></div>
+      <Action ladder={ladder} label={locked ? `Locked to ${dayMonth(s.maturity!)}` : sell ? `Sell · ${num(eff, 4)} ${h.symbol}` : `Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={locked || !(eff > 0) || noBids} blockedNote={locked ? `${s.brand} repays after ${dateOf(s.maturity!)}; nothing can be taken out before.` : noBids ? 'Nobody on the book is buying this much right now: sell less, or wait for the date.' : undefined} chainId={h.chainId} fee="withdraw" />
     </>
   )
 }

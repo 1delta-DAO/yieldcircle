@@ -2,13 +2,13 @@ import React from 'react'
 import { GROUPS, nameOf, type Group, type GroupId } from '../model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
-import { GroupIcon, RewardsIncl, Sk, Tok, amt, deskLogos, pct, usd, usdShort } from './bits'
+import { GroupIcon, RewardsIncl, Sk, StratMark, Tok, amt, deskLogos, pct, usd, usdShort } from './bits'
 import type { AssetBook } from '../model/positions'
-import type { Strategy } from '../model/strategies'
+import { dateOf, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { isSavings } from '../model/nature'
 import { BACKEND_BASE_URL } from '../config/backend'
 import { ChainChip } from './ChainPicker'
-import { useRateHistory } from '../sdk/queries'
+import { chainLabel, useRateHistory } from '../sdk/queries'
 import { steadyRate, type HistoryGet } from '../model/rateHistory'
 import { Avg30 } from './Spark'
 import { useBorrowOffers } from '../sdk/queries'
@@ -84,6 +84,7 @@ export function Earn() {
           {top.map((s) => <TopRow key={s.asset} s={s} n={countBy.get(s.asset) ?? 0} get={get} />)}
         </tbody></table></div>
       </section>
+      <FixedShelf rows={b.fixed.rows} idle={b.fixed.idle} loading={b.fixed.isLoading} />
       <section className="sec"><div className="note"><b>Live.</b> Rates and sizes come from the 1delta API (plain deposits from the earn listing, loops from the pair optimizer), filtered to base assets, low-to-medium risk and real size. Each group’s page lists every desk and strategy, and says how many rows the floors are holding back; Filters in your profile menu (top left) move them. A loop is opened in one flash-funded transaction.</div></section>
     </>
   )
@@ -157,6 +158,32 @@ function TopRow({ s, n, get }: { s: Strategy; n: number; get: HistoryGet }) {
       <td className="r upto"><span className="t50">up to</span> <span className={s.rate >= 3 ? 'ok' : ''}>{pct(s.rate)}</span><small>{s.kind === 'loop' ? `${s.rec}× loop` : 'deposit'}<RewardsIncl s={s} sep=" · " /><Avg30 s={s} get={get} prefix=" · 30d " /><span className="hide-m"> · {n} strateg{n !== 1 ? 'ies' : 'y'}</span></small></td>
       <td className="r t40" style={{ width: 20 }}>›</td>
     </tr>
+  )
+}
+
+/**
+ * Fixed rate (tickets/0013): the order books a deposit can lock a rate into, best first. Its own
+ * request and its own section — never ranked with the variable rates above, whose rows are pools a
+ * reader can leave any time; these are dated, and small.
+ */
+function FixedShelf({ rows, idle, loading }: { rows: SimpleStrategy[]; idle: number; loading: boolean }) {
+  const top = [...rows].sort((a, b) => b.rate - a.rate).slice(0, 5)
+  if (!top.length && !loading && !idle) return null
+  return (
+    <section className="sec">
+      <div className="sec-h"><h2>Fixed rate</h2><span className="sub">lock a rate to a date by filling a borrower’s offer</span></div>
+      <div className="card"><table className="tbl slim"><tbody>
+        {loading && !top.length && [0, 1].map((i) => <tr key={i}><td><Sk w={160} /></td><td className="r"><Sk w={80} /></td><td /></tr>)}
+        {top.map((s) => (
+          <tr key={s.id} onClick={() => go(s.group, { u: s.asset, s: s.id, k: 'fixed' })}>
+            <td><div className="nm"><StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} /><span><b>{s.holds}</b> <span className="t50">· {s.via.replace(/ · [^·]+$/, '')}</span></span><GroupTag gid={s.group} className="hide-m" /></div></td>
+            <td className="r upto"><span className={s.rate >= 3 ? 'ok' : ''}>{pct(s.rate)}</span><small>to {dateOf(s.maturity!)}{(s.dates?.length ?? 0) > 1 ? ` +${s.dates!.length - 1} date${s.dates!.length > 2 ? 's' : ''}` : ''} · {chainLabel(s.chainId)}</small></td>
+            <td className="r t40" style={{ width: 20 }}>›</td>
+          </tr>
+        ))}
+        {!loading && !top.length && <tr><td colSpan={3} className="t50">Fixed-rate books are thin right now — {idle} book{idle === 1 ? '' : 's'} listed, none with a borrower offering.</td></tr>}
+      </tbody></table></div>
+    </section>
   )
 }
 

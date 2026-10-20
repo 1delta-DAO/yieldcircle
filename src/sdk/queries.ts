@@ -1,7 +1,7 @@
 import { keepPreviousData, useQueries, useQuery, type QueryClient, type QueryFunctionContext } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopDepthShort, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
-import { capPerAsset, classifyEarn, classifyPair, dedupe, foldDates, rowKey, type Candidate, type LoopStrategy, type LoopTenor, type SimpleStrategy, type Strategy } from '../model/strategies'
+import { bookOpen, capPerAsset, classifyEarn, classifyPair, dedupe, FIXED_BOOK_PROTOCOLS, foldBookDates, foldDates, rowKey, type Candidate, type LoopStrategy, type LoopTenor, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { HIDES, hideDetail, softHide, type HideCode } from '../model/visibility'
 import { parseUid } from '../model/uid'
 import { EXPOSURE_ASSETS, FIAT_FLOOR, FIAT_REQUESTS, fiatOf } from '../model/assets'
@@ -567,6 +567,39 @@ export function useCatalog(chainIds: string[]) {
   }
 }
 /**
+ * The Fixed rate shelf (tickets/0013): dated loans on order books (Morpho Midnight, Term Finance) a
+ * lender locks a rate into by filling a borrower's offer. The origin lists them only when asked
+ * (`includeFixedTerm`), so this is its own request — never a flag on the catalogue's, which is
+ * pre-warmed and must not change — narrowed to the venues a deposit is built for (`FIXED_BOOKS`),
+ * at no size floor: the books are small (a few hundred dollars to ~$100k deep, 2026-10-20) and the
+ * shelf is opt-in. EVM chains only; Solana's Offerbook has no builders yet.
+ *
+ * `rows`: what can be lent into now (a live offer, more than a day to run, under the risk cap),
+ * one per book with its maturities as `dates`. `all`: every book row the request answered, empty
+ * and matured ones too — a holder's position still needs its row to be managed. `idle`: how many
+ * books there are with nobody borrowing on them, for the shelf's empty state.
+ */
+export function useFixedRateCatalog(chainIds: string[]) {
+  const { st } = useSettings()
+  const ids = chainIds.filter(isEvmChain)
+  const q = useQuery({
+    enabled: ids.length > 0,
+    queryKey: ['fixed-rows', ids.join(',')],
+    queryFn: async () => (await fetchEarn({ chainIds: ids, count: 500, maxPages: 2, maxRiskScore: 5, minTvlUsd: 0, includeFixedTerm: true, protocols: FIXED_BOOK_PROTOCOLS })).items
+      .map(classifyEarn).flatMap((c) => (c.s?.book ? [c.s] : [])),
+    staleTime: 10 * 60_000,
+  })
+  return useMemo(() => {
+    const all = q.data ?? []
+    const open = all.filter((s) => bookOpen(s))
+    const { rows, rest } = foldBookDates(open.filter((s) => s.riskScore <= st.maxRisk))
+    // a book is idle when it still runs but none of its maturities has an offer: counted once per market name, not per date
+    const now = Date.now() / 1000
+    const idle = new Set(all.filter((s) => (s.maturity ?? 0) > now && !bookOpen(s) && !open.some((o) => o.chainId === s.chainId && o.market === s.market)).map((s) => `${s.chainId}|${s.market}`)).size
+    return { rows, rest, all, idle, risky: open.length - rows.length - rest.length, isLoading: q.isLoading, error: q.error as Error | null }
+  }, [q.data, q.isLoading, q.error, st.maxRisk])
+}
+/**
  * Everything the API can do with ONE token, for its asset page (docs/asset-info-plan.md 2.3).
  *
  * The page used to filter the Earn menu (`useCatalog`), which only holds what the menu's
@@ -998,10 +1031,12 @@ function loopQuoteOpts(l: LoopStrategy | null, equity: number, leverage: number,
  * The borrow books of dated markets (Midnight), one request per market — a pair has a handful of
  * maturities. `bookAprAt` turns one into the rate a size actually pays.
  */
-export function useLendingBooks(debtMarketUids: string[]) {
-  const qs = useQueries({ queries: debtMarketUids.map((uid) => ({ queryKey: ['book', uid], queryFn: () => fetchLendingBook(uid), staleTime: 30_000, retry: 1 })) })
-  return debtMarketUids.map((uid, i) => ({ uid, book: qs[i].data ?? null, pending: qs[i].isPending }))
+export function useLendingBooks(debtMarketUids: string[], side: 'borrow' | 'lend' = 'borrow') {
+  const qs = useQueries({ queries: debtMarketUids.map((uid) => ({ queryKey: ['book', side, uid], queryFn: () => fetchLendingBook(uid, side), staleTime: 30_000, retry: 1 })) })
+  return debtMarketUids.map((uid, i) => ({ uid, book: qs[i].data ?? null, pending: qs[i].isPending, failed: qs[i].isError }))
 }
+/** How much a book can fill right now, in its token: the last level's running total (0 for an empty book). */
+export const bookDepth = (book: LendingBook | null): number => book?.levels.at(-1)?.cumulativeAssets ?? 0
 /**
  * What borrowing `amount` debt tokens costs on this book: the assets-weighted APR of the levels it
  * walks (marginal), or the level that covers it (uniform). `null` when the book cannot fill it.

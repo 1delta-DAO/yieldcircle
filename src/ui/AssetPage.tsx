@@ -56,7 +56,9 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const u = assets.includes(route.u) ? route.u : 'all'
   // a floor hides a row from the list, never from the wallet that is in it: the held-back rows are whole strategies
   // a row the menu's per-asset cap dropped still opens: a profile's Copy can name one
-  const sel = route.s ? b.all.find((s) => s.id === route.s) ?? b.hidden.find((s) => s.id === route.s) ?? b.overflow.find((s) => s.id === route.s) ?? null : null
+  // a Fixed rate book (tickets/0013) is its own request: the lead row of each book first (it carries the dates), then any maturity
+  const fixedRows = [...b.fixed.rows, ...b.fixed.rest, ...b.fixed.all]
+  const sel = route.s ? b.all.find((s) => s.id === route.s) ?? b.hidden.find((s) => s.id === route.s) ?? b.overflow.find((s) => s.id === route.s) ?? fixedRows.find((s) => s.id === route.s) ?? null : null
   // a position with no row at all is still the wallet's: managed from what the positions route says about it
   // (a running LOAN is no off-menu row: it opens the borrow ticket below, on Pay back)
   // (and a deposit named alongside a borrow offer is collateral for that ticket, not a row to manage)
@@ -67,9 +69,12 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const offRef: OffMenuRef | null = sel ? null : route.s && route.oa ? { id: route.s, by: route.oa } : offMenu ? refOfHolding(offMenu) : null
   const off = useOffMenu(offRef)
   const offSel = off.data?.s ?? null
-  const kind: 'simple' | 'loop' | 'borrow' = sel ? sel.kind : offSel ? offSel.kind : offMenu ? offMenu.kind : route.k ?? (stocks ? 'borrow' : 'simple')
+  const kind: 'simple' | 'fixed' | 'loop' | 'borrow' = sel ? listOf(sel) : offSel ? listOf(offSel) : offMenu ? offMenu.kind : route.k ?? (stocks ? 'borrow' : 'simple')
   const inScope = (s: Strategy) => u === 'all' || (stocks ? !!lendsTo(s)?.has(u) : s.asset === u)
   const scoped = inGroup.filter(inScope)
+  // the group's fixed-rate books: a dollar book is on the dollar page, an ether one on ether's (never on the Stocks shelf)
+  const fixedInGroup = stocks ? [] : b.fixed.rows.filter((s) => s.group === group.id)
+  const fixedScoped = fixedInGroup.filter(inScope)
   // ---- the loans: the offers in scope, the wallet's running loans, and the one the ticket is on
   const offersHere = groupOffers.filter((o) => u === 'all' || o.asset === u)
   const sameLegs = (o: BorrowOffer, h: Holding) => !!h.collateralUid && !!h.debtUid && h.collateralUid.toLowerCase() === o.collateral.uid.toLowerCase() && h.debtUid.toLowerCase() === o.debt.uid.toLowerCase()
@@ -92,7 +97,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   // savings or market exposure: offered only where the scope has both — a page of lending rows
   // gets no switch with nothing behind it
   const [nat, setNat] = useSticky<NatureFilter>(`nature:${group.id}`, 'all')
-  const ofKindScoped = scoped.filter((s) => s.kind === kind)
+  const ofKindScoped = kind === 'fixed' ? fixedScoped : scoped.filter((s) => s.kind === kind)
   const nExposed = ofKindScoped.filter((s) => !isSavings(s.nature)).length, nSavings = ofKindScoped.length - nExposed
   const natOn: NatureFilter = nExposed && nSavings ? nat : 'all'
   const natOk = (s: Strategy) => natOn === 'all' || (natOn === 'savings') === isSavings(s.nature)
@@ -103,7 +108,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   // about the future, and the line says whether it is what this has paid or a
   // spike. Asked for every row of this kind (and the held positions'), once the
   // catalogue has settled — the shared cache answers the ticket and the rest
-  const ofKind = React.useMemo(() => all.filter((s) => s.kind === kind), [all, kind])
+  const ofKind = React.useMemo(() => (kind === 'fixed' ? fixedScoped.filter(natOk) : all.filter((s) => s.kind === kind)), [all, kind, fixedScoped.map((s) => s.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
   const get = useRateHistory(ofKind, !b.isFetching)
   const [withRewards, setWithRewards] = useSparkRewards()
   const phone = useViewport() === 'phone'
@@ -135,7 +140,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   /** a row's 💬 opens its ticket on the thread — where the strategy is talked about, beside what it pays */
   const talkOn = (x: Strategy) => go(group.id, { u, s: x.id, k: x.kind, talk: '1' })
   const running: { h: Holding; s: Strategy | null }[] = b.holdings.filter((h) => !h.directional && h.group === group.id && (u === 'all' || h.asset === u)).sort((x, y) => y.valueUsd - x.valueUsd)
-    .map((h) => ({ h, s: inGroup.find((s) => matches(s, h)) ?? b.hidden.find((s) => s.group === group.id && matches(s, h)) ?? null }))
+    .map((h) => ({ h, s: inGroup.find((s) => matches(s, h)) ?? b.hidden.find((s) => s.group === group.id && matches(s, h)) ?? fixedRows.find((s) => matches(s, h)) ?? null }))
   // the held positions' strategies may be of the other kind than the list shows
   useRateHistory(React.useMemo(() => running.flatMap((r) => (r.s ? [r.s] : [])), [running.map((r) => r.s?.id).join(',')]), !b.isFetching)
   // what an off-menu row can still do: a loop can always be unwound; a deposit needs the earn uid to withdraw through
@@ -247,15 +252,16 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
               {/* the Stocks shelf leads with its loans; its deposits are the dollars lent to them */}
               {stocks && <button aria-pressed={kind === 'borrow'} onClick={() => go(group.id, { u, k: 'borrow', out: outQ })}>Borrow <span className="c">{nOffers}</span></button>}
               <button aria-pressed={kind === 'simple'} onClick={() => go(group.id, { u, k: 'simple' })}>{stocks ? 'Lend to them' : 'Deposits'} <span className="c">{nS}</span></button>
+              {fixedInGroup.length > 0 && <button aria-pressed={kind === 'fixed'} title="Lend at a rate fixed to a date, by filling a borrower's offer on an order book" onClick={() => go(group.id, { u, k: 'fixed' })}>Fixed rate <span className="c">{fixedScoped.length}</span></button>}
               {(!stocks || nL > 0) && <button aria-pressed={kind === 'loop'} onClick={() => go(group.id, { u, k: 'loop' })}>Loops <span className="c">{nL}</span></button>}
               {!stocks && (offersHere.length > 0 || loans.length > 0) && <button aria-pressed={kind === 'borrow'} onClick={() => go(group.id, { u, k: 'borrow', out: outQ })}>Borrow <span className="c">{nOffers}</span></button>}
             </div>
-            {kind !== 'borrow' && nExposed > 0 && nSavings > 0 && <div className="seg kind" role="group" aria-label="Savings or market exposure">
+            {kind !== 'borrow' && kind !== 'fixed' && nExposed > 0 && nSavings > 0 && <div className="seg kind" role="group" aria-label="Savings or market exposure">
               <button aria-pressed={natOn === 'all'} onClick={() => setNat('all')}>All</button>
               <button aria-pressed={natOn === 'savings'} title={NATURES.savings.why} onClick={() => setNat('savings')}>Savings <span className="c">{nSavings}</span></button>
               <button aria-pressed={natOn === 'exposure'} title="Perp LPs and managed funds: they earn by taking a market’s side, and the value can fall" onClick={() => setNat('exposure')}>Market exposure <span className="c">{nExposed}</span></button>
             </div>}
-            <span className="hint">{kind === 'borrow' ? `Take ${outWord} out against ${u === 'all' ? (stocks ? 'tokenized stocks' : 'what you hold') : nameOf(u)} without selling it. You pay the rate; if the price falls past the line, the lender sells part of it.` : stocks && kind === 'simple' ? 'Lend dollars into the markets where people borrow against stocks. Their stocks back your loan; the rate is what they pay.' : kind === 'simple' ? (list.length && !list.some((s) => isSavings(s.nature)) ? 'Hold one token. No debt, nothing to liquidate — but its price moves with a market.' : 'Hold one token that grows. No debt, nothing to liquidate.') : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
+            <span className="hint">{kind === 'fixed' ? 'Lend at a rate fixed to a date: the deposit fills a borrower’s offer, and is repaid at face on the day. These books are small — the ticket says how much each can take.' : kind === 'borrow' ? `Take ${outWord} out against ${u === 'all' ? (stocks ? 'tokenized stocks' : 'what you hold') : nameOf(u)} without selling it. You pay the rate; if the price falls past the line, the lender sells part of it.` : stocks && kind === 'simple' ? 'Lend dollars into the markets where people borrow against stocks. Their stocks back your loan; the rate is what they pay.' : kind === 'simple' ? (list.length && !list.some((s) => isSavings(s.nature)) ? 'Hold one token. No debt, nothing to liquidate — but its price moves with a market.' : 'Hold one token that grows. No debt, nothing to liquidate.') : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
           </div>
           {kind === 'borrow' ? (<>
             <BorrowCats offers={bo.offers} current={group.id} keep={{ out: outQ, hold: route.hold }} mine={b.account ? { on: mineOn, ...mineSummary(offersHere, yours), set: setMine, busy: b.positionsLoading || bo.isLoading } : undefined} />
@@ -292,7 +298,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
             ) : list.length ? (
               <table className="tbl strat-t">
                 <colgroup><col /><col className="c-rate" /><col className="c-tail" /></colgroup>
-                <thead><tr><th>{kind === 'simple' ? 'Deposit' : 'Loop'}</th><th className="r">{kind === 'simple' ? 'APR' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier (Defensive for a market-exposure loop, whose price moves on its own): earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}<button className="rw-toggle" aria-pressed={withRewards} title={withRewards ? 'The 30-day line includes reward streams — click to show the rate without them' : 'The 30-day line excludes reward streams — click to include them'} onClick={() => setWithRewards(!withRewards)}>{withRewards ? '+rewards' : 'no rewards'}</button></th><th /></tr></thead>
+                <thead><tr><th>{kind === 'loop' ? 'Loop' : 'Deposit'}</th><th className="r">{kind !== 'loop' ? 'APR' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier (Defensive for a market-exposure loop, whose price moves on its own): earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}<button className="rw-toggle" aria-pressed={withRewards} title={withRewards ? 'The 30-day line includes reward streams — click to show the rate without them' : 'The 30-day line excludes reward streams — click to include them'} onClick={() => setWithRewards(!withRewards)}>{withRewards ? '+rewards' : 'no rewards'}</button></th><th /></tr></thead>
                 <tbody>{list.map((s) => { const h = held(s); const pick = picks.has(s.id); const on = sel?.id === s.id; const uid = on ? uidOf(s) : null; return (<React.Fragment key={s.id}>
                   <tr aria-selected={on} onClick={() => go(group.id, { u, s: s.id, k: s.kind })}>
                     <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}<NaturePill n={s.nature} /><WhyIn s={s} /></div>
@@ -300,7 +306,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                           its own where eight rows in nine said the same word; here it
                           sits second, so it is the part a narrow screen keeps rather
                           than the part it truncates. */}
-                      <small>{u === 'all' ? `${nameOf(s.asset)} · ` : ''}{s.kind === 'loop' && s.instrument ? `via ${s.instrument} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${exitTerms(s).short}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.source}` : ''}{(s.tvlUsd > 0 || s.kind === 'loop') && <> · <Size s={s} /></>}</small></td>
+                      <small>{u === 'all' ? `${nameOf(s.asset)} · ` : ''}{s.kind === 'loop' && s.instrument ? `via ${s.instrument} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${exitTerms(s).short}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.book ? 'fixed rate' : s.source}` : ''}{(s.tvlUsd > 0 || s.kind === 'loop') && <> · <Size s={s} /></>}</small></td>
                     {/* the rate, on its own: nothing else in this cell to read past */}
                     <td className="r">{(() => { const ser = seriesFor(s, get, withRewards); const spike = isSpike(s.rate, ser); return (<>
                       <span className="rate-row">{ser && <RateTrend ser={ser} now={s.rate} spike={spike} />}<span className={s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}>{pct(s.rate)}</span></span>
@@ -316,9 +322,10 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                   {on && <tr className="xp"><td colSpan={3}><RowSocial uid={uid} thread={threadOf(s)} s={s} focus={route.talk} /></td></tr>}
                 </React.Fragment>) })}</tbody>
               </table>
-            ) : <div className="empty">No {kind === 'simple' ? 'plain deposit' : 'loop'} for this filter{b.errors.length ? ` (${b.errors[0].message})` : ''}{heldBack.length ? ` — ${heldBack.length} held back by the floors below` : ''}.</div>}
+            ) : kind === 'fixed' ? <div className="empty">{b.fixed.isLoading ? 'Reading the fixed-rate books…' : <>No fixed-rate book with a live offer for this filter{b.fixed.idle ? ` — ${b.fixed.idle} book${b.fixed.idle === 1 ? ' is' : 's are'} listed, with nobody borrowing on ${b.fixed.idle === 1 ? 'it' : 'them'} right now` : ''}{b.fixed.error ? ` (${b.fixed.error.message})` : ''}.</>}</div>
+            : <div className="empty">No {kind === 'simple' ? 'plain deposit' : 'loop'} for this filter{b.errors.length ? ` (${b.errors[0].message})` : ''}{heldBack.length ? ` — ${heldBack.length} held back by the floors below` : ''}.</div>}
           </div>}
-          <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />
+          {kind === 'fixed' ? <FixedNote n={fixedScoped.length} idle={b.fixed.idle} risky={b.fixed.risky} /> : <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />}
           </>)}
         </div>
         <aside ref={aside} className={ticketOpen ? '' : 'closed'} id="aside">
@@ -333,6 +340,19 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
       </div>
       {ticketOpen && <div className="scrim" onClick={close} />}
     </>
+  )
+}
+
+/** Which list a row is on: a fixed-rate book is a deposit, listed on its own (tickets/0013). */
+const listOf = (s: Strategy): 'simple' | 'fixed' | 'loop' => (s.kind === 'simple' && s.book ? 'fixed' : s.kind)
+
+/** Under the Fixed rate list: how thin these books are, and what is not shown. */
+function FixedNote({ n, idle, risky }: { n: number; idle: number; risky: number }) {
+  return (
+    <div className="note" style={{ marginTop: 10 }}>
+      <b>Order books, not pools.</b> Each row is a book of borrowers’ offers on Morpho Midnight or Term Finance: a deposit fills them at their rates, best first, and is repaid at face on the date. The rate holds whatever happens to the market rate — but these books are small and leaving early is a sale (Midnight) or not possible (Term).
+      {(idle > 0 || risky > 0) && <> {n ? 'Not shown' : 'Not listed'}: {[idle > 0 && `${idle} book${idle === 1 ? '' : 's'} with no offer right now`, risky > 0 && `${risky} above your risk cap`].filter(Boolean).join(', ')}.</>}
+    </div>
   )
 }
 
@@ -444,7 +464,8 @@ function Size({ s }: { s: Strategy }) {
  * the same row, and the difference is the whole reason the switch exists.
  */
 function WhyIn({ s }: { s: Strategy }) {
-  const code = letIn(s)
+  // a fixed-rate book is never on the menu's floors: its own list says how small the books are
+  const code = s.kind === 'simple' && s.book ? null : letIn(s)
   // the risk word already says `unrated`; a chip saying it again adds nothing
   if (!code || code === 'unrated') return null
   const d = hideDetail(s, code)

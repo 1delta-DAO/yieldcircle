@@ -21,7 +21,7 @@ export function simpleSnap(s: SimpleStrategy, price: number, feed: PriceFn): Pap
   return {
     asset: s.asset, group: s.group, label: `${s.vaultName ?? s.holds} · ${s.brand}`, venue: s.venue, logo: s.logo,
     earnUid: s.earnUid, marketUid: s.marketUid, held: leg(s.assetSymbol, s.decimals, s.assetAddress, price, s.tokenLogo),
-    mode: peg ? 'peg' : 'live', ...(money ? { money } : {}), nature: s.nature, maturity: s.maturity,
+    mode: peg ? 'peg' : 'live', ...(money ? { money } : {}), nature: s.nature, maturity: s.maturity, ...(s.book ? { rateKind: 'fixed' as const } : {}),
   }
 }
 /** A saving earns its whole rate; a position priced live earns it without its token's own yield (the price carries that). */

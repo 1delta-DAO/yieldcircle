@@ -85,8 +85,10 @@ export interface Holding {
   marketUid?: string
   /** a deposit read by the borrow ticket as collateral with nothing owed yet (`depositsAsLoans`) — never a row of the positions list */
   putUp?: true
-  /** a Pendle PT's maturity (unix s), from its symbol — the positions route carries no expiry */
+  /** a Pendle PT's maturity (unix s), from its symbol — the positions route carries no expiry — or a book loan's repayment date (`bookLoan`) */
   maturity?: number
+  /** a fixed-rate loan on an order book (tickets/0013): `maturity` is the day it is repaid at face, joined from the shelf's row by market */
+  bookLoan?: true
   /** a paper position (tickets/0006): play money, kept by the paper ledger, never on chain */
   paper?: true
 }

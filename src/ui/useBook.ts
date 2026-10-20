@@ -1,6 +1,6 @@
 import { useApp } from '../state/AppState'
 import { isEvmAddr, isSolAddr } from '../model/address'
-import { useBalancesPerChain, useCatalog, useEarnPositions } from '../sdk/queries'
+import { useBalancesPerChain, useCatalog, useEarnPositions, useFixedRateCatalog } from '../sdk/queries'
 import { books, holdingsFrom, idleFrom, type AssetBook, type Holding, type Idle } from '../model/positions'
 import type { Strategy } from '../model/strategies'
 import { usePaper } from '../state/Paper'
@@ -27,10 +27,14 @@ export function useBook() {
   const idleMerged: Idle[] = []
   for (const i of idle) { const cur = idleMerged.find((x) => x.asset === i.asset); if (cur) { cur.amount += i.amount; cur.usd += i.usd; if (i.usd > cur.usd - i.usd) { cur.address = i.address; cur.decimals = i.decimals; cur.chainId = i.chainId } } else idleMerged.push({ ...i }) }
   const pos = useEarnPositions(accounts, chainIds)
-  const holdings: Holding[] = onPaper ? paper.holdings.filter((h) => chainIds.includes(h.chainId)) : pos.anyData ? holdingsFrom(pos.items) : []
+  // the Fixed rate shelf (tickets/0013) — its own request; its rows also date the book loans the wallet holds
+  const fixed = useFixedRateCatalog(chainIds)
+  const books0 = new Map(fixed.all.map((s) => [s.earnUid.toLowerCase(), s]))
+  const dated = (h: Holding): Holding => { const s = h.kind === 'simple' && h.earnUid ? books0.get(h.earnUid.toLowerCase()) : undefined; return s?.maturity ? { ...h, maturity: s.maturity, bookLoan: true } : h }
+  const holdings: Holding[] = (onPaper ? paper.holdings.filter((h) => chainIds.includes(h.chainId)) : pos.anyData ? holdingsFrom(pos.items) : []).map(dated)
   const bk: AssetBook[] = books(holdings, idleMerged)
   return {
-    ...cat, all, idle, idlePerChain: idle, books: bk, holdings,
+    ...cat, all, fixed, idle, idlePerChain: idle, books: bk, holdings,
     positionsLoading: onPaper ? !paper.ledger : !!(accounts.evm || accounts.sol) && (pos.isLoading || bals.some((b) => b.isLoading || (!b.data && b.fetchStatus === 'idle' && !b.isFetched))),
     positionsError: onPaper ? null : pos.error as Error | null,
     account,

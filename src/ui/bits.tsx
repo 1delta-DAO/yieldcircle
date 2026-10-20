@@ -189,6 +189,7 @@ const FAMILY: [RegExp, string][] = [
   [/^PROJECT_0/i, 'project_0'], [/^SAVE(_|$)/i, 'save'], [/^vault\.exponent$/i, 'exponent'],
   // vault platforms: the platform's mark, not the curator's (a Lagoon vault run by 9Summits is still a Lagoon vault)
   [/^vault\.lagoon$/i, 'lagoon'], [/^vault\.upshift$/i, 'upshift'], [/^vault\.gmx$/i, 'gmx'], [/^vault\.hypercore$/i, 'hyperliquid'], [/^vault\.spectra$/i, 'spectra'],
+  [/^TERM_FINANCE/i, 'term_finance'], [/^TERMMAX/i, 'termmax'], [/^TELLER/i, 'teller'], [/^JUPITER_OFFERBOOK/i, 'jupiter_offerbook'],
   [/^CURVANCE/i, 'curvance'], [/^FLYING_TULIP/i, 'flying_tulip'], [/^FRANKENCOIN/i, 'frankencoin'], [/^CAPY_FI/i, 'capy_fi'], [/^AVALON/i, 'avalon'], [/^EXACTLY/i, 'exactly'], [/^XLEND/i, 'xlend'],
 ]
 /**
@@ -283,7 +284,7 @@ export function SubAccountPill({ sub, venue }: { sub?: { label: string; count: n
 export function KindPill({ kind, source }: { kind: 'simple' | 'loop' | 'borrow'; source?: string }) {
   if (kind === 'loop') return <span className="pill loop">Loop</span>
   if (kind === 'borrow') return <span className="pill loan">Loan</span>
-  if (source === 'fixed') return <span className="pill pt">Fixed</span>
+  if (source === 'fixed' || source === 'fixed-book') return <span className="pill pt">Fixed</span>
   return <span className="pill dep">Deposit</span>
 }
 /**
@@ -364,8 +365,8 @@ export function HealthPill({ h }: { h: number }) {
   return <span className={`hp ${cls}`} title={`Health factor ${h.toFixed(2)} — liquidation at 1.00`}>{word} <b>{h.toFixed(2)}</b></span>
 }
 
-export function MaturityNote({ t }: { t: number }) {
-  const c = maturityClock(t)
+export function MaturityNote({ t, book }: { t: number; /** a book loan's repayment date, not a PT's (`Holding.bookLoan`) */ book?: boolean }) {
+  const c = maturityClock(t, undefined, book)
   return <> · <span className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span></>
 }
 /** ` · 1-day term · rolls daily · next 9 Oct 00:20 UTC` (or `· 1-week term · fixed to …`) on a fixed-rate loan's meta line; amber while a passed term awaits its roll. */

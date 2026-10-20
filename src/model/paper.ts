@@ -176,8 +176,13 @@ export interface PaperSnap {
   /** a 'peg' deposit's money (the chain's ether for an ETH deposit); absent = the open price holds. A loop's money is its debt. */
   money?: PaperLeg
   nature?: string
-  /** a fixed term or maturity, unix seconds (said, not enforced) */
+  /** a fixed term or maturity, unix seconds (said, not enforced — except on a `rateKind: 'fixed'` snap) */
   maturity?: number
+  /**
+   * `fixed`: a fixed-rate loan on an order book (tickets/0013) — it keeps the rate it opened at
+   * (never re-rated) and stops accruing at `maturity`, when it is repaid at face.
+   */
+  rateKind?: 'fixed'
 }
 export interface PaperPosition {
   id: string
@@ -324,9 +329,14 @@ export const starterRef = (chainId: string, token: string): number | undefined =
 
 // ----------------------------------------------------------------- accrual and valuation
 /** Units at `at`: the held side at the supply rate, the debt at the borrow rate, simple APR from `asOf`. */
+/** The supply rate a position earns at `at`: a fixed loan's is 0 once its date has passed. */
+const supplyAt = (p: PaperPosition, at: number) => (p.snap.rateKind === 'fixed' && p.snap.maturity && at >= p.snap.maturity * 1000 ? 0 : p.rate.supply)
 export function accrued(p: PaperPosition, at: number): { units: number; debtUnits: number } {
   const dt = Math.max(0, at - p.asOf) / YEAR_MS
-  return { units: p.units * (1 + (p.rate.supply / 100) * dt), debtUnits: p.debtUnits * (1 + (p.rate.borrow / 100) * dt) }
+  // a fixed loan earns up to its date and not a day after (tickets/0013)
+  const end = p.snap.rateKind === 'fixed' && p.snap.maturity ? Math.min(at, p.snap.maturity * 1000) : at
+  const dtSupply = Math.max(0, end - p.asOf) / YEAR_MS
+  return { units: p.units * (1 + (p.rate.supply / 100) * dtSupply), debtUnits: p.debtUnits * (1 + (p.rate.borrow / 100) * dt) }
 }
 /** The two legs' prices now. A 'peg' position keeps its open price, moved only by its money's (a loop's money is its debt). */
 export function legPrices(p: PaperPosition, price?: PriceFn): { pHeld: number; pDebt: number } {
@@ -346,7 +356,7 @@ export function valueOf(p: PaperPosition, at: number, price?: PriceFn): PaperVal
   const heldUsd = units * pHeld, debtUsd = debtUnits * pDebt, equityUsd = heldUsd - debtUsd
   const health = p.kind !== 'simple' && debtUsd > 0 && p.snap.liqLtv ? (heldUsd * p.snap.liqLtv) / debtUsd : null
   const leverage = p.kind === 'loop' && equityUsd > 0 ? heldUsd / equityUsd : null
-  const aprNet = equityUsd > 0 ? (heldUsd * p.rate.supply - debtUsd * p.rate.borrow) / equityUsd : 0
+  const aprNet = equityUsd > 0 ? (heldUsd * supplyAt(p, at) - debtUsd * p.rate.borrow) / equityUsd : 0
   return { units, debtUnits, heldUsd, debtUsd, equityUsd, leverage, health, pnlUsd: equityUsd - p.basisUsd, aprNet }
 }
 export interface PaperBook {
@@ -376,7 +386,7 @@ export function bookOf(l: PaperLedger, at: number, price?: PriceFn): PaperBook {
     const v = valueOf(p, at, price)
     deployedUsd += v.equityUsd
     open += v.pnlUsd
-    annualUsd += (v.heldUsd * p.rate.supply - v.debtUsd * p.rate.borrow) / 100
+    annualUsd += (v.heldUsd * supplyAt(p, at) - v.debtUsd * p.rate.borrow) / 100
     if (v.health != null) worst = worst == null ? v.health : Math.min(worst, v.health)
     chains.add(p.chainId)
   }
@@ -402,7 +412,8 @@ export function settle(l0: PaperLedger, ctx: ApplyCtx): PaperLedger {
       const a = accrued(p, ctx.now)
       p.units = a.units; p.debtUnits = a.debtUnits; p.asOf = ctx.now
     }
-    const r = ctx.rate?.(p)
+    // a fixed loan keeps the rate its offer was filled at: the index's rate for the market is the next lender's
+    const r = p.snap.rateKind === 'fixed' ? undefined : ctx.rate?.(p)
     if (r && fin(r.supply) && fin(r.borrow)) p.rate = clampRate({ ...p.rate, ...r })
   }
   const due = l.inflight.filter((t) => t.arrivesAt <= ctx.now)

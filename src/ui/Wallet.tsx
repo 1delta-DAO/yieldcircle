@@ -530,7 +530,7 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
             name={<a className="mkt" href={marketHref(r.marketUid)} onClick={(e) => e.stopPropagation()}>{r.marketName ?? r.symbol}</a>}
             venue={<Lender r={r} />}
             pills={<>{r.side === 'borrow' && <span className="pill k-borrow">debt</span>}<ClassChip x={r} /></>}
-            meta={<><LegNote r={r} maturity={st?.kind === 'simple' ? st.maturity : undefined} />{navShare(g.equityUsd, navUsd)}</>}
+            meta={<><LegNote r={r} maturity={st?.kind === 'simple' ? st.maturity : undefined} book={st?.kind === 'simple' && !!st.book} />{navShare(g.equityUsd, navUsd)}</>}
             value={r.valueStatus === 'impaired' ? <Impaired x={r} /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}
             valueSub={r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}
             rate={<LegRate r={r} />} />
@@ -611,13 +611,13 @@ function Leg({ r }: { r: IndexPosition }) {
 }
 
 /** The leg's chain (unless the card already said it) and its clock: a PT's maturity, a loan's term, or how its accrual is known. */
-function LegNote({ r, maturity, chain = true }: { r: IndexPosition; maturity?: number; chain?: boolean }) {
+function LegNote({ r, maturity, chain = true, book }: { r: IndexPosition; maturity?: number; chain?: boolean; /** `maturity` is a book loan's repayment date */ book?: boolean }) {
   const pt = maturity ?? ptMaturityOf(r.symbol)
   const parts: React.ReactNode[] = []
   if (chain) parts.push(indexChainLabel(r.chainId, chainLabel))
   if (pt) {
     // a PT's units never grow (its value does, toward par), so the index's accrual reads 0 — the maturity is what to show
-    const c = maturityClock(pt)
+    const c = maturityClock(pt, undefined, book)
     parts.push(<span key="pt" className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span>)
   } else {
     if (r.termEndsAt) { const c = termClock(r.termEndsAt, r.termDays); parts.push(<span key="term" className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span>) }

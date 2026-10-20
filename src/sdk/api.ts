@@ -48,9 +48,12 @@ const LISTING_TIMEOUT_MS = 25_000
 // MINTS) are the asset page's own requests (`useAssetStrategies`): every row of one token, and every
 // vault that leaves you holding it, on every chain it lives on.
 // `issuers` / `issuerMatch` are the fiat currencies' requests (`FIAT_REQUESTS`).
-export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number; assetSymbol?: string; assetGroup?: string; shareGroup?: string; issuers?: string[]; issuerMatch?: 'credit'; passthrough?: boolean; maxPages?: number }): Promise<EarnResponse> {
+// `includeFixedTerm` + `protocol` are the fixed-rate shelf's request only (tickets/0013): the origin
+// lists book loans (Midnight, Term) only when asked, and the default request must stay byte-identical
+// for the pre-warm, so both are sent only when set.
+export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number; assetSymbol?: string; assetGroup?: string; shareGroup?: string; issuers?: string[]; issuerMatch?: 'credit'; passthrough?: boolean; maxPages?: number; includeFixedTerm?: boolean; protocols?: string[] }): Promise<EarnResponse> {
   const count = p.count ?? 500
-  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, assetGroup: p.assetGroup, shareGroup: p.shareGroup, issuers: p.issuers?.join(','), issuerMatch: p.issuerMatch, passthrough: p.passthrough ? 'include' : undefined }
+  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, assetGroup: p.assetGroup, shareGroup: p.shareGroup, issuers: p.issuers?.join(','), issuerMatch: p.issuerMatch, passthrough: p.passthrough ? 'include' : undefined, includeFixedTerm: p.includeFixedTerm ? 'true' : undefined, protocol: p.protocols?.join(',') }
   const served = (r: EarnResponse) => r.items.length + (r.excluded?.unrealizable ?? 0)
   const first = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params, timeoutMs: LISTING_TIMEOUT_MS })
   const items = [...first.items]
@@ -80,12 +83,13 @@ export function fetchIrm(marketUids: string[]) {
 }
 
 /**
- * A fixed-rate lender's liquidity ladder (`MORPHO_MIDNIGHT_<id>`, Term, Exactly): `side=borrow` is
- * what a borrower takes, best rate first. Display and sizing only — the loop builders fill the book
- * server-side. `marketUid` is the DEBT market's.
+ * A fixed-rate lender's liquidity ladder (`MORPHO_MIDNIGHT_<id>`, Term, Exactly), best rate first.
+ * `side=borrow` is what a borrower takes (the lenders' offers — also what a lender's early sale
+ * fills); `side=lend` is what a fixed-rate deposit takes (the borrowers' offers). Display and sizing
+ * only — the builders fill the book server-side. `marketUid` is the LOAN token's market.
  */
-export function fetchLendingBook(marketUid: string, count = 50) {
-  return apiFetch<LendingBook>('/v1/data/lending/book', { params: { marketUid, side: 'borrow', count } })
+export function fetchLendingBook(marketUid: string, side: 'borrow' | 'lend' = 'borrow', count = 50) {
+  return apiFetch<LendingBook>('/v1/data/lending/book', { params: { marketUid, side, count } })
 }
 
 // The chain directory: id, name and a logo, for every chain the API knows.
@@ -201,6 +205,15 @@ export function earnDeposit(p: { earnUid: string; amountRaw: string; operator: s
 /** `accountId`: the sub-account the deposit sits in (`Holding.accountId`) — without it Euler withdraws from account 0, and Fluid / Jupiter Lend refuse */
 export function earnWithdraw(p: { earnUid: string; amountRaw: string; operator: string; isAll?: boolean; receiveAsset?: string; slippageBp?: number; accountId?: string }) {
   return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/earn/withdraw', { params: { earnUid: p.earnUid, amount: p.amountRaw, operator: p.operator, isAll: p.isAll ? 'true' : undefined, receiveAsset: p.receiveAsset, slippage: p.slippageBp, accountId: p.accountId } })
+}
+/**
+ * Sell a Midnight lend position before its maturity: `amountRaw` is FACE units (what the position
+ * is repaid at maturity, the positions route's `deposits`), filled against the lenders' offers at
+ * a discount to face. `/earn/withdraw` on the same market redeems only after maturity.
+ * `lender` is the market's `MORPHO_MIDNIGHT_<id>`.
+ */
+export function midnightSell(p: { chainId: string; lender: string; amountRaw: string; operator: string }) {
+  return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/midnight/sell', { params: { chainId: p.chainId, lender: p.lender, amount: p.amountRaw, account: p.operator } })
 }
 /** `loanId`: which fixed-term loan the repay pays down — required on a Lista broker debt, ignored elsewhere */
 export interface LoopCloseParams { collateralMarketUid: string; debtMarketUid: string; amountRaw: string; slippageBp: number; isAll?: boolean; account?: string; accountId?: string; loanId?: string }

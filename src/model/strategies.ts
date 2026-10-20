@@ -149,6 +149,47 @@ export interface SimpleStrategy extends Base {
    * the worker served no sheet; callers fall back to the source wording.
    */
   description?: string
+  /**
+   * A dated loan on an order book (`source: 'fixed-book'`, tickets/0013): the deposit fills a
+   * borrower's offer at its rate, and the position is repaid its FACE on `maturity` — the face is
+   * fixed at the fill and does not accrue. `lender` is the market's own key (`MORPHO_MIDNIGHT_<id>`),
+   * what the early sale names. `earlyExit`: the position can be sold to the book before maturity
+   * (Midnight); Term's repo tokens are only redeemed after it. `collateral` / `lltv` are what the
+   * borrowers put up, read off the market's name where it carries them.
+   */
+  book?: { family: FixedBookFamily; lender: string; earlyExit: boolean; collateral?: string; lltv?: number }
+  /** Every maturity of the same book on the same venue, soonest first (this row among them, without their own `dates`) — the ticket's date picker. */
+  dates?: SimpleStrategy[]
+}
+export type FixedBookFamily = 'midnight' | 'term'
+/**
+ * The order books a fixed-rate deposit is built for (tickets/0013): the deposit takes a borrower's
+ * offer (`/earn/deposit`), and the exit is a sale before maturity (Midnight, `/midnight/sell`) or a
+ * redemption after it (`/earn/withdraw`). Jupiter Offerbook, TermMax and Teller lend rows are not
+ * here: no builder fills them yet, or they are not dated.
+ */
+export const FIXED_BOOKS: { prefix: string; family: FixedBookFamily; name: string; earlyExit: boolean }[] = [
+  { prefix: 'MORPHO_MIDNIGHT', family: 'midnight', name: 'Midnight', earlyExit: true },
+  { prefix: 'TERM_FINANCE', family: 'term', name: 'Term Finance', earlyExit: false },
+]
+/** the `protocol=` filter of the shelf's request */
+export const FIXED_BOOK_PROTOCOLS = FIXED_BOOKS.map((b) => b.prefix)
+const fixedBookOf = (venue: string) => FIXED_BOOKS.find((b) => venue.startsWith(b.prefix))
+const escapeRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/**
+ * What a book's borrowers put up, from the market's name: Midnight's `cbBTC-USDC 86 2026-12-25`
+ * (collateral-loan LLTV date), Term's `USDC / PT-reUSD-10DEC2026 — 2026-12-10` (loan / collateral).
+ * An unnamed market (`USDC · 0x6CB9`) says nothing; its id tail is kept as the tag so two such
+ * books never fold into one.
+ */
+export function bookTerms(name: string | undefined, loan: string): { collateral?: string; lltv?: number; tag: string } {
+  const n = (name ?? '').replace(/\s*(?:—|-|·)?\s*\d{4}-\d{2}-\d{2}$/, '').trim()
+  const L = escapeRe(loan)
+  const mid = new RegExp(`^(.+?)-${L}\\s+(\\d+(?:\\.\\d+)?)$`, 'i').exec(n)
+  if (mid) return { collateral: mid[1], lltv: +mid[2], tag: `${mid[1]} ${mid[2]}` }
+  const term = new RegExp(`^${L}\\s*/\\s*(.+)$`, 'i').exec(n)
+  if (term) return { collateral: term[1], tag: term[1] }
+  return { tag: /0x[0-9a-f]{3,}$/i.exec(n)?.[0] ?? n }
 }
 export interface LoopStrategy extends Base {
   kind: 'loop'
@@ -301,8 +342,13 @@ export function ptMaturityOf(symbol: string | null | undefined): number | undefi
  * that the money has to move — a matured PT earns nothing until it is redeemed
  * or rolled into the next maturity.
  */
-export function maturityClock(t: number, now = Date.now() / 1000): { text: string; title: string; due: boolean } {
+export function maturityClock(t: number, now = Date.now() / 1000, book = false): { text: string; title: string; due: boolean } {
   const days = Math.ceil((t - now) / DAY)
+  // a fixed-rate loan on a book (tickets/0013) is repaid at face on its date: nothing to redeem at a
+  // price, and nothing to roll into — once repaid it earns nothing until it is withdrawn
+  if (book) return days <= 0
+    ? { text: `repaid ${dateOf(t)} · withdraw`, title: 'The loan has reached its date: the borrowers repay the face, which earns nothing more until you withdraw it.', due: true }
+    : { text: `repaid ${dateOf(t)} · ${days}d`, title: `Repaid at face on ${dateOf(t)}; the rate was fixed when the offer was filled. Before then the way out is selling to the book, at its rate then.`, due: days <= 7 }
   if (days <= 0) return { text: `matured ${dateOf(t)} · redeem or roll`, title: 'Past maturity the PT redeems 1:1 for the underlying and earns nothing more: redeem it, or roll into a later maturity.', due: true }
   return {
     text: `matures ${dateOf(t)} · ${days}d`,
@@ -364,6 +410,14 @@ export const spanOf = (secs: number) => {
  * as of 2026-10-02) it says so instead of a vague "may take time".
  */
 export function exitTerms(s: SimpleStrategy, now = Date.now() / 1000): { word: string; when: string; short: string; risk: string | null } {
+  if (s.book && s.maturity) {
+    const days = Math.ceil((s.maturity - now) / DAY), on = dateOf(s.maturity)
+    if (days <= 0) return { word: 'Matured', when: `repaid since ${on} · withdraw`, short: 'matured', risk: null }
+    const word = `${days} day${days === 1 ? '' : 's'}`
+    return s.book.earlyExit
+      ? { word, when: `repaid on ${on} · or sell to the book`, short: `repaid in ${days}d`, risk: `Before ${on} the only way out is selling to the book at the rate lenders ask then: if rates have risen since, you get back less than you put in.` }
+      : { word, when: `repaid on ${on} · no exit before`, short: `locked ${days}d`, risk: `Locked until ${on}: there is no early exit — the money comes back once the borrowers' repayment window after that date closes.` }
+  }
   if (s.maturity) {
     const days = Math.ceil((s.maturity - now) / DAY)
     if (days <= 0) return { word: 'Matured', when: `redeem at par since ${dateOf(s.maturity)}`, short: 'matured', risk: null }
@@ -509,6 +563,11 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const market = tag && !sameWords(tag, brand) && !sameWords(tag, protocol) ? tag : ''
   // a PT's maturity is part of WHICH product it is: PT sUSDai Oct and PT sUSDai Feb are two rows
   const maturity = typeof m.maturity?.maturity === 'number' ? m.maturity.maturity : undefined
+  // a dated loan on an order book (tickets/0013). `rate.kind` alone is not it: a Pendle or Spectra
+  // vault row says `fixed-term` too, and stays a PT (`fixed`)
+  const fam = m.venueKind === 'lending' && m.rate?.kind === 'fixed-term' ? fixedBookOf(m.venue) : undefined
+  const terms = fam ? bookTerms(m.name, m.asset.symbol) : undefined
+  const book = fam ? { family: fam.family, lender: m.venue, earlyExit: fam.earlyExit, ...(terms?.collateral ? { collateral: terms.collateral } : {}), ...(terms?.lltv ? { lltv: terms.lltv } : {}) } : undefined
   let via: string, source: string, holds: string
   if (exposed) { via = `Mint ${exposed.sym} on ${brand}`; source = 'pool'; holds = exposed.sym }
   else if (m.venue === 'vault.lst') { via = `Stake with ${brand}`; source = 'staking'; holds = shareSym || named || own }
@@ -518,6 +577,7 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   // a vault with no curator (Kamino kvaults: brand = protocol) leads with its own name, the way a
   // curated one leads with the curator: `Steakhouse vault · Kamino Kvault`, as `Gauntlet Prime vault · Morpho`
   else if (isVault) { const solo = sameWords(brand, protocol); const who = solo && market ? `${market} vault` : `${brand}${market ? ` ${market}` : ''} vault`; via = solo && !market ? who : `${who} · ${protocol}`; source = 'vault'; holds = shareSym ?? (named || own) }
+  else if (fam) { via = `Fixed on ${fam.name}${terms?.collateral ? ` · against ${terms.collateral}` : ''}${maturity ? ` · ${dateOf(maturity)}` : ''}`; source = 'fixed-book'; holds = own }
   // the token's own yield, parked as collateral: nobody borrows JLP, and "Lend" would say they do
   else if (m.rate?.passthrough) { via = `Collateral on ${brand}${market ? ` · ${market}` : ''}`; source = 'collateral'; holds = own }
   // the BRAND, not the protocol: `Aave V3` and `Aave V4` are both "Aave" upstream, and a V4
@@ -537,13 +597,16 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const s: SimpleStrategy = {
     id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, assetGroup: groupKey(m.asset.assetGroup), tokenLogo: m.asset.logoURI || undefined, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
     nature: natureOfDeposit(m.venue, asset, m.name, m.risk?.yieldProfile), rate, risk, riskLabel, riskScore, rated: !!m.risk?.score, tvlUsd: tvl,
-    earnUid: m.earnUid, market, via, source, assetAddress: payToken.address, assetSymbol: payToken.symbol, shareGroup: shareSym && shareSym.toUpperCase() !== m.asset.symbol.toUpperCase() ? (share?.assetGroup ? groupKey(share.assetGroup) : shareSym) : undefined, shareLogo: share?.logoURI ?? undefined, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
-    liquidityUsd: m.liquidity?.usd, utilization: typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
+    earnUid: m.earnUid, market: terms ? terms.tag : market, via, source, assetAddress: payToken.address, assetSymbol: payToken.symbol, shareGroup: shareSym && shareSym.toUpperCase() !== m.asset.symbol.toUpperCase() ? (share?.assetGroup ? groupKey(share.assetGroup) : shareSym) : undefined, shareLogo: share?.logoURI ?? undefined, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
+    // a book's `liquidity` is the OTHER side's depth (what borrowers could take), not what a lender can fill: the ticket reads the lend book
+    liquidityUsd: book ? undefined : m.liquidity?.usd, utilization: !book && typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
     exitMode, exitWord: maturity ? 'At maturity' : EXIT_WORD[exitMode] ?? exitMode, exitSecs: m.exit?.cooldownSecs || undefined, exitFeeBps: m.exit?.feeBps || undefined, ref: m.ref, vaultName: named || undefined, canDeposit: true, reason: m.availability?.reason, maturity, rewards: m.rate?.rewards ?? 0, intrinsic: m.rate?.intrinsic || undefined, passthrough: m.rate?.passthrough || undefined,
     // an API that knows the flag sets it on the deposit; then a missing withdraw leg (an async exit) is a no
     booked: isBooked(m.venue, m.capabilities) || undefined,
     nativeIn: dep.acceptsNative, nativeOut: dep.acceptsNative === undefined ? undefined : m.capabilities.find((c) => c.action === 'withdraw')?.acceptsNative ?? false,
-    headline: m.termSheet?.supply?.headline || undefined, description: m.termSheet?.supply?.description || undefined,
+    // a book's digest says "Variable … floating with utilization" (2026-10-20), which a filled offer is not: the ticket says it in its own words
+    headline: book ? undefined : m.termSheet?.supply?.headline || undefined, description: book ? undefined : m.termSheet?.supply?.description || undefined,
+    ...(book ? { book } : {}),
   }
   return { s, hide: null, label, chainId: m.chainId }
 }
@@ -640,7 +703,11 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   // a carry needs collateral that yields on its own (staking, savings, a PT, a fund); lending one plain stable
   // against another is a rate bet on a small market — a FLOOR (`Settings.showRateBets`), not a structural gate
   const p = L.props ?? {}
-  const collateralYields = !!(p.lst || p.savings || p.pendle || p.spectra || p.exponent || p.rwa || (L.intrinsicYield ?? 0) > 0)
+  // Resupply is the exception: it lends the collateral itself into the LlamaLend / Fraxlend market the
+  // pair backs (`depositAprLong`), and prices reUSD off that market's rate — the spread follows the
+  // collateral's rate, so plain crvUSD / frxUSD there is a carry, not a bet between two rates
+  const venuePays = /^RESUPPLY/.test(r.lender) && num(r.depositAprLong) > 0
+  const collateralYields = venuePays || !!(p.lst || p.savings || p.pendle || p.spectra || p.exponent || p.rwa || (L.intrinsicYield ?? 0) > 0)
   // the at-size legs (quoted at $10k of collateral) when the venue has a depth grid, else the sticker
   // incentives on BOTH legs: the API nets `rewardAprShort` into `borrowAprShort` but leaves `rewardAprLong` out of
   // `depositAprLong`, so the collateral's is added here — the headline counts both, `loopRewards` says how much
@@ -744,6 +811,30 @@ export function foldDates(rows: LoopStrategy[]): { rows: LoopStrategy[]; rest: L
   }
   return { rows: out, rest }
 }
+/**
+ * One row per book: the maturities of one fixed-rate book (each its own market, its own earn row)
+ * become one row — the best-paying — carrying all of them as `dates`, for the ticket's picker. A book
+ * is (chain, venue family, loan token, what the borrowers put up); a market whose name says nothing
+ * about its collateral is a book of its own. The others go back as `rest`, still openable by id.
+ */
+export function foldBookDates(rows: SimpleStrategy[]): { rows: SimpleStrategy[]; rest: SimpleStrategy[] } {
+  const groups = new Map<string, SimpleStrategy[]>()
+  const out: SimpleStrategy[] = [], rest: SimpleStrategy[] = []
+  for (const r of rows) {
+    if (!r.book || !r.maturity) { out.push(r); continue }
+    const k = [r.chainId, r.book.family, normAddr(r.assetAddress), r.book.collateral ?? r.earnUid, r.book.lltv ?? ''].join('|')
+    groups.set(k, [...(groups.get(k) ?? []), r])
+  }
+  for (const g of groups.values()) {
+    const dates = [...g].sort((a, b) => a.maturity! - b.maturity!)
+    const withDates = dates.map((r) => ({ ...r, dates }))
+    const lead = [...withDates].sort((a, b) => b.rate - a.rate)[0]
+    out.push(lead); rest.push(...withDates.filter((r) => r !== lead))
+  }
+  return { rows: out, rest }
+}
+/** A book row a deposit can go into now: someone is borrowing on it (a rate over 0) and it has more than a day to run. */
+export const bookOpen = (s: SimpleStrategy, now = Date.now() / 1000) => s.rate > 0 && !!s.maturity && s.maturity - now > DAY
 export function dedupe<T extends Strategy>(rows: T[]): T[] {
   const best = new Map<string, T>()
   for (const r of rows) {

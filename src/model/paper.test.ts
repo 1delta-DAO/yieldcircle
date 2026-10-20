@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { apply, bookOf, emptyLedger, frictionOf, NO_GAS, networkFeeUsd, PaperError, STARTER, valueOf, ZERO_EVM, SOL_NATIVE, tokenKey, type PaperLedger, type PaperOp, type PaperSnap, type PriceFn } from './paper'
+import { apply, bookOf, emptyLedger, settle, frictionOf, NO_GAS, networkFeeUsd, PaperError, STARTER, valueOf, ZERO_EVM, SOL_NATIVE, tokenKey, type PaperLedger, type PaperOp, type PaperSnap, type PriceFn } from './paper'
 
 const T0 = Date.UTC(2026, 9, 11)
 const DAY = 86_400_000
@@ -72,6 +72,20 @@ describe('deposits', () => {
     expect(l.bank['8453'][USDC_BASE]).toBeCloseTo(9000 + 1000 * (1 + 0.1 * 30 / 365), 6)
     // the interest, less the two network fees on Base (paid in its ETH)
     expect(l.realizedUsd).toBeCloseTo(1000 * 0.1 * 30 / 365 - networkFeeUsd('8453', 'deposit') - networkFeeUsd('8453', 'withdraw'), 6)
+  })
+  it('a fixed-rate book loan keeps its opening rate and stops at its date (tickets/0013)', () => {
+    const due = (T0 + 30 * DAY) / 1000
+    const op = deposit(1000) as Extract<PaperOp, { t: 'open' }>
+    const l = apply(genesis(), { ...op, snap: { ...vaultSnap, maturity: due, rateKind: 'fixed' } }, ctx())
+    const face = 1000 * (1 + 0.1 * 30 / 365)
+    expect(valueOf(l.positions[0], T0 + 365 * DAY, feed()).equityUsd).toBeCloseTo(face, 6)
+    expect(valueOf(l.positions[0], T0 + 365 * DAY, feed()).aprNet).toBe(0)
+    expect(valueOf(l.positions[0], T0 + 10 * DAY, feed()).aprNet).toBeCloseTo(10, 6)
+    // the index re-rates the market to the next lender's rate; the filled offer does not move
+    const s = settle(l, { ...ctx(10), rate: () => ({ supply: 50, borrow: 0 }) })
+    expect(s.positions[0].rate.supply).toBe(10)
+    // (a settle re-bases the units, so the simple rate compounds once — cents on a thousand)
+    expect(valueOf(s.positions[0], T0 + 365 * DAY, feed()).equityUsd).toBeCloseTo(face, 1)
   })
   it('refuses a withdrawal that pays out more than the position is worth', () => {
     const l = apply(genesis(), deposit(1000), ctx())

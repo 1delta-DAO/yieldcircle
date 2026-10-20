@@ -1,6 +1,6 @@
 import React from 'react'
 import { useAccount } from 'wagmi'
-import { isAddr, normAddr } from '../model/address'
+import { isAddr, isEvmAddr, isSvmChain, normAddr } from '../model/address'
 import { canonGroup } from '../model/assetGroup'
 import { useSolWallet } from '../wallet/solana'
 import { CHAINS } from '../sdk/queries'
@@ -186,6 +186,8 @@ interface AppCtx {
   signer: string | undefined
   /** the connected SOLANA wallet — one account per VM (docs/solana.md §5); a page's chain decides which is "you" */
   solSigner: string | undefined
+  /** who acts on `chainId`: that VM's own address — the Solana wallet on Solana, an EVM address (connected or "view as") on EVM; never one VM's address for the other */
+  actorOn: (chainId: string | undefined) => string | undefined
   viewAs: string | undefined
   setViewAs: (a: string | undefined) => void
   isConnected: boolean
@@ -253,6 +255,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         : `${chains.length} chains`
   // the EVM wallet leads; a Solana-only user is still "somebody" everywhere a page shows you to yourself
   const account = viewAs && isAddr(viewAs) ? normAddr(viewAs) : address ?? sol.account?.address
-  return <Ctx.Provider value={{ chains, setChains, toggleChain, chainIds, allChains, chainLabelFor, chainsFromLink, dismissLinkChains, account, signer: address?.toLowerCase(), solSigner: sol.account?.address, viewAs, setViewAs, isConnected: isConnected || !!sol.account }}>{children}</Ctx.Provider>
+  // `account` falls back to the Solana address for a Solana-only user: fine for showing you to yourself, wrong as an EVM sender or receiver
+  const actorOn = (chainId: string | undefined) => (isSvmChain(chainId) ? sol.account?.address : isEvmAddr(account) ? account : undefined)
+  return <Ctx.Provider value={{ chains, setChains, toggleChain, chainIds, allChains, chainLabelFor, chainsFromLink, dismissLinkChains, account, signer: address?.toLowerCase(), solSigner: sol.account?.address, actorOn, viewAs, setViewAs, isConnected: isConnected || !!sol.account }}>{children}</Ctx.Provider>
 }
 export const useApp = () => { const c = React.useContext(Ctx); if (!c) throw new Error('AppProvider missing'); return c }

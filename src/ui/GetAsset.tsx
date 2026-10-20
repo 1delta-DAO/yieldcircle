@@ -41,11 +41,11 @@ export type GetTarget = Target & { have: number }
  * form was bought, so it pays with that one.
  */
 export function GetAsset({ targets, want, sources, onTarget, onClose }: { targets: GetTarget[]; want: number; sources: Idle[]; onTarget?: (t: Target) => void; onClose: () => void }) {
-  const { account, solSigner } = useApp()
+  const { account, solSigner, actorOn } = useApp()
   // a paper account trades its paper bank at the same quotes (tickets/0006 §K): only the send differs
   const paper = usePaper()
   // each side is signed / received by its own VM's wallet: a Solana leg is the Solana account, never the EVM one
-  const walletOn = (chainId: string | undefined) => (isSvmChain(chainId) ? solSigner : account)
+  const walletOn = actorOn
   const [ti, setTi] = React.useState(0)
   const target = targets[Math.min(ti, targets.length - 1)]
   const need = Math.max(0, want - target.have)
@@ -92,7 +92,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
     const from = walletOn(src.chainId), to = walletOn(target.chainId)
     // a Solana leg with no Solana wallet: there is no one to send from, or to deliver to
     if (askGas === 'wait') return
-    if (!from || !to) { setQuote(null); setErr(`Connect a ${!from ? (isSvmChain(src.chainId) ? 'Solana' : 'EVM') : isSvmChain(target.chainId) ? 'Solana' : 'EVM'} wallet to ${!from ? 'pay from' : 'receive on'} ${chainLabel(!from ? src.chainId : target.chainId)}.`); return }
+    if (!from || !to) { setQuote(null); setErr(`Connect ${!from ? (isSvmChain(src.chainId) ? 'a Solana' : 'an EVM') : isSvmChain(target.chainId) ? 'a Solana' : 'an EVM'} wallet to ${!from ? 'pay from' : 'receive on'} ${chainLabel(!from ? src.chainId : target.chainId)}.`); return }
     const id = ++reqId.current
     const t = setTimeout(async () => {
       setQuoting(true); setErr(null)

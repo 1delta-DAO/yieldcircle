@@ -27,6 +27,7 @@ import { isDone, useTrace } from '../sdk/txTrace'
 import { Spin, TxNote } from './TxTray'
 import { GetAsset, type Target } from './GetAsset'
 import { IrmLink } from './Irm'
+import { BookLink } from './Book'
 import { uidOf, type ThreadRef } from '../model/uid'
 import { useThreadOf } from '../social/queries'
 import { NATURES, isSavings } from '../model/nature'
@@ -233,9 +234,9 @@ const hasRoute = (d: { quotes?: unknown[] } | null | undefined) => !!d?.quotes?.
 const NO_ROUTE = 'No swap route at this size right now, so there is nothing to sign. Try another amount or leverage, or come back later.'
 /** `into`: the held position an Add tops up — its sub-account is named, or the deposit lands in the venue's default (Euler 0) or a new Fluid / Jupiter Lend position */
 function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[]; into?: Holding | null }) {
-  const { account, isConnected, solSigner } = useApp()
+  const { account, isConnected, solSigner, actorOn } = useApp()
   // who the API builds for: the VM's own signer — a Solana row is built for the Solana wallet
-  const actor = isSvmChain(s.chainId) ? solSigner : account
+  const actor = actorOn(s.chainId)
   const [getOpen, setGetOpen] = React.useState(false)
   const opts = React.useMemo(() => payOptions(s), [s.id])
   // the balance of the EXACT token: a wstETH row is not paid with the wallet's ETH, and WHYPE is not HYPE until the API is told so
@@ -329,7 +330,9 @@ const dayMonth = (t: number) => new Date(t * 1000).toLocaleDateString('en-GB', {
  * than by a build that fills part of it. A book with several maturities picks one (`s.dates`).
  */
 function FixedTicket({ s: s0, idle: chainIdle, allIdle, into }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[]; into?: Holding | null }) {
-  const { account, isConnected } = useApp()
+  const { actorOn, isConnected } = useApp()
+  // the operator the API builds for: an EVM address, never a Solana-only user's Solana one
+  const account = actorOn(s0.chainId)
   const dates = s0.dates?.length ? s0.dates : [s0]
   const [dateId, setDateId] = useSticky<string>(`t:${s0.id}:date`, s0.id)
   const s = dates.find((d) => d.id === dateId) ?? s0
@@ -383,7 +386,8 @@ function FixedTicket({ s: s0, idle: chainIdle, allIdle, into }: { s: SimpleStrat
         {getOpen && <GetAsset targets={[{ chainId: s.chainId, address: tok.address, symbol: tok.symbol, decimals: tok.decimals, price, logo: s.tokenLogo, have: idle?.amount ?? 0 }]} want={amount} sources={allIdle} onClose={() => setGetOpen(false)} />}
       </div>
       <div className="tsec"><div className="cells">
-        <div className="c hero"><span className="k">You lock</span><span className={`v ${lock >= 3 ? 'ok' : ''}`}>{over ? '—' : pct(lock)}</span><span className="s">fixed to {dateOf(s.maturity!)}{cur?.pending ? ' · reading the book…' : cur?.failed ? ' · book not read, listed rate' : ''}</span></div>
+        <div className="c hero"><span className="k">You lock</span><span className={`v ${lock >= 3 ? 'ok' : ''}`}>{over ? '—' : pct(lock)}</span><span className="s">fixed to {dateOf(s.maturity!)}{cur?.pending ? ' · reading the book…' : cur?.failed ? ' · book not read, listed rate' : ''}</span>
+          <BookLink uid={s.marketUid ?? s.earnUid} side="lend" size={amount} symbol={tok.symbol} price={price || undefined} act="Lending" /></div>
         <div className="c"><span className="k">Back on {dayMonth(s.maturity!)}</span><span className="v">{over ? '—' : money(face)}</span><span className="s">{over ? 'more than the book takes' : `+${money(face - amount)} in ${Math.ceil(days)} days`}</span></div>
         <div className="c"><span className="k">Book</span><span className={`v ${cur?.book && depth * price < 1000 ? 'warn' : ''}`}>{cur?.book ? money(depth) : cur?.pending ? <Sk w={50} /> : '—'}</span><span className="s">{cur?.book ? `${cur.book.levels.length} offer${cur.book.levels.length === 1 ? '' : 's'} to fill · best ${pct(cur.book.levels[0]?.aprPct ?? s.rate)}` : 'borrowers’ offers'}</span></div>
         <div className="c"><span className="k">Borrowers put up</span><span className="v" style={{ fontSize: 14 }}>{book.collateral ?? '—'}</span><span className="s">{book.lltv ? `borrow up to ${book.lltv}% of it` : book.collateral ? 'as collateral' : 'not named by the market'}</span></div>
@@ -404,7 +408,8 @@ function FixedTicket({ s: s0, idle: chainIdle, allIdle, into }: { s: SimpleStrat
  * rates have risen. A Term loan has no exit before its date.
  */
 function ManageFixed({ s, h, mode }: { s: SimpleStrategy; h: Holding; mode: Mode }) {
-  const { account, isConnected } = useApp()
+  const { actorOn, isConnected } = useApp()
+  const account = actorOn(h.chainId)
   const book = s.book!
   const now = Date.now() / 1000
   const matured = !!s.maturity && now >= s.maturity
@@ -446,7 +451,8 @@ function ManageFixed({ s, h, mode }: { s: SimpleStrategy; h: Holding; mode: Mode
       )}
       <div className="tsec"><div className="cells">
         <div className="c hero"><span className="k">{sell ? 'You get about' : 'You get back'}</span><span className="v">{locked ? '—' : sell ? (proceeds != null ? usd(proceeds * px) : sb?.pending ? <Sk w={60} /> : '—') : usd(eff * px)}</span>
-          <span className="s">{locked ? `on ${dateOf(s.maturity!)}` : sell ? (sellApr != null ? `sold at ${pct(sellApr)} · face ${num(eff, 2)} ${h.symbol}` : noBids ? 'no lender is buying at this size' : sb?.failed ? 'the book could not be read — the sale still fills at its rate' : 'reading the book…') : `${num(eff, 4)} ${h.symbol} to your wallet`}</span></div>
+          <span className="s">{locked ? `on ${dateOf(s.maturity!)}` : sell ? (sellApr != null ? `sold at ${pct(sellApr)} · face ${num(eff, 2)} ${h.symbol}` : noBids ? 'no lender is buying at this size' : sb?.failed ? 'the book could not be read — the sale still fills at its rate' : 'reading the book…') : `${num(eff, 4)} ${h.symbol} to your wallet`}</span>
+          {sell && <BookLink uid={s.marketUid ?? s.earnUid} side="borrow" size={eff} symbol={h.symbol} price={px || undefined} act="Selling" />}</div>
         {sell && <div className="c"><span className="k">Or wait</span><span className="v">{usd(eff * px)}</span><span className="s">repaid {dateOf(s.maturity!)}</span></div>}
         <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{exit.word}</span><span className="s">{exit.when}</span></div>
       </div></div>
@@ -507,7 +513,7 @@ const tenorWord = (t: LoopTenor) => (t.days === 1 ? '1 day' : t.days === 7 ? '1 
 const dayOf = (days: number) => new Date(Date.now() + days * 86400_000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
 function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle[]; allIdle: Idle[]; holding: Holding | null }) {
-  const { account, isConnected, solSigner } = useApp()
+  const { account, isConnected, solSigner, actorOn } = useApp()
   // a dated pair (Midnight) is one row with a date per maturity, each its own market: the picked date
   // IS the strategy from here on — its lender, its market uids, its top of book
   const dates = s0.dates
@@ -515,7 +521,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const s = dates?.find((d) => d.id === dateId) ?? s0
   // every loop on the menu is a carry (one money); an exposure loop (JLP against dollars) is not
   const slip = slippageFor(useSettings().st, isSavings(s.nature))
-  const actor = isSvmChain(s.chainId) ? solSigner : account
+  const actor = actorOn(s.chainId)
   const [getOpen, setGetOpen] = React.useState(false)
   const unit = unitOf(s.asset)
   // pay with the collateral or the debt token, whichever the venue accepts and the wallet holds more of
@@ -716,7 +722,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
             loops — the "If borrow +2%" cell above says how much it would hurt,
             the curve says how close the market is to doing it. */}
         <div className="c"><span className="k">You hold</span><span className="v">{usd(C)}</span><span className="s">{s.holds} on {s.venue}</span><IrmLink uid={s.marketLongUid} side="supply" label="supply curve" rewards={s.rewardsLong} /></div>
-        <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · {term ? `fixed ${pct(term.apr)} for ${term.days} days` : tenor ? `fixed ${pct(bor)} for ${tenorWord(tenor)}` : s.dueAt ? `fixed ${pct(bor)}, due ${due}` : 'floating'} · {usdShort(s.borrowLiquidityUsd)} to borrow</span><IrmLink uid={s.marketShortUid} side="borrow" label={term ? 'rate after the term' : 'borrow curve'} rewards={s.rewardsShort} /></div>
+        <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · {term ? `fixed ${pct(term.apr)} for ${term.days} days` : tenor ? `fixed ${pct(bor)} for ${tenorWord(tenor)}` : s.dueAt ? `fixed ${pct(bor)}, due ${due}` : 'floating'} · {usdShort(s.borrowLiquidityUsd)} to borrow</span>{s.dueAt ? <BookLink uid={s.marketShortUid} side="borrow" size={debtTok} symbol={s.debt} price={s.priceShort} act="Borrowing" /> : <IrmLink uid={s.marketShortUid} side="borrow" label={term ? 'rate after the term' : 'borrow curve'} rewards={s.rewardsShort} />}</div>
         {!econ && <div className="c"><span className="k">Entry</span><span className="v">{q.isFetching ? <Sk w={60} h={14} /> : '—'}</span><span className="s">{noRoute ? 'no route at this size' : short ? 'too big for one lender' : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>}
         </>}
       </div>
@@ -755,8 +761,8 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
 
 /** Withdraw from a deposit the wallet already holds. `s` is null for a position the menu has no row for. */
 function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mode: Mode }) {
-  const { account, isConnected, solSigner } = useApp()
-  const actor = isSvmChain(h.chainId) ? solSigner : account
+  const { account, isConnected, solSigner, actorOn } = useApp()
+  const actor = actorOn(h.chainId)
   const all = mode === 'close'
   const [amount, setAmount] = useSticky<number>(`t:${h.key}:withdraw`, () => +(h.amount / 2).toFixed(6))
   const eff = all ? h.amount : Math.min(amount, h.amount)
@@ -845,9 +851,9 @@ function CannotManage({ h }: { h: Holding }) {
  * nothing but the two market uids the position already names.
  */
 function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; closeFirst?: boolean }) {
-  const { account, isConnected, solSigner } = useApp()
+  const { account, isConnected, solSigner, actorOn } = useApp()
   const slip = slippageFor(useSettings().st, s ? isSavings(s.nature) : !h.directional)
-  const actor = isSvmChain(h.chainId) ? solSigner : account
+  const actor = actorOn(h.chainId)
   const holds = s?.holds ?? h.symbol, debt = s?.debt ?? h.debtSymbol ?? 'debt'
   // the book as the API reports it: equity and leverage from the position, prices only to size the legs in tokens
   const E = Math.max(h.valueUsd, 0.01)
@@ -989,7 +995,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
       <div className="tsec"><div className="cells">
         {s && !loan && <div className="c hero"><span className="k">Net yield after</span><span className={`v ${net == null ? '' : net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{net == null ? '—' : pct(net)}</span><span className="s">{closing ? 'position closed' : `was ${pct(netAprAtLeverage(s.depSpot, s.borSpot, Lnow))} at ${num(Lnow, 2)}×`}</span></div>}
         <div className="c"><span className="k">You hold</span><span className="v">{usd(Math.max(0, C2 - otherUsd))}</span><span className="s">{holds} · was {usd(C - otherUsd)}{otherUsd > 0.5 ? ` · + ${usd(otherUsd)} ${otherColl.map((o) => o.symbol).join(' + ')} stays` : ''}</span><IrmLink uid={s?.marketLongUid ?? h.collateralUid} side="supply" label="supply curve" rewards={s?.rewardsLong} /></div>
-        <div className="c"><span className="k">You owe</span><span className="v">{usd(D2)}</span><span className="s">{debt} · was {usd(D)}</span><IrmLink uid={s?.marketShortUid ?? h.debtUid} side="borrow" label="borrow curve" rewards={s?.rewardsShort} /></div>
+        <div className="c"><span className="k">You owe</span><span className="v">{usd(D2)}</span><span className="s">{debt} · was {usd(D)}</span>{s?.dueAt ? <BookLink uid={s.marketShortUid} side="borrow" size={0} symbol={s.debt} price={s.priceShort} /> : <IrmLink uid={s?.marketShortUid ?? h.debtUid} side="borrow" label="borrow curve" rewards={s?.rewardsShort} />}</div>
         {closing ? <>
           <div className="c"><span className="k">You get back</span><span className={`v ${closeBlock === 'short' ? 'bad' : ''}`}>{cq.isPending ? <Sk w={60} h={14} /> : backUsd != null && backUsd > 0 ? usd(backUsd) : '—'}</span><span className="s">{closeBlock ? (closeBlock === 'short' ? 'the sale does not cover the debt' : closeBlock === 'keep-short' ? 'not enough to keep any' : '') : keep ? `≈ ${num(backColl!, 4)} ${holds} + ${num(leftover, 4)} ${debt}` : `≈ ${num(backDebt!, 4)} ${debt} · at market, not ${usd(h.valueUsd)}`}</span></div>
           <div className="c"><span className="k">Exit cost</span><span className="v">{sale?.exitCostUsd != null ? usd(sale.exitCostUsd * (keep && keepOk ? sellKeep! / h.amount : 1)) : '—'}</span><span className="s">{sale?.via ? `slippage and fees · via ${sale.via}` : 'slippage and fees'}</span></div>

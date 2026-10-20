@@ -158,8 +158,8 @@ function WhereLine({ o, choices, idle, onPick }: { o: BorrowOffer; choices: Borr
 
 // ----------------------------------------------------------------- Borrow
 function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding | null; idle: Idle[]; alternatives: BorrowOffer[] }) {
-  const { account, isConnected, solSigner } = useApp()
-  const actor = isSvmChain(o.chainId) ? solSigner : account
+  const { account, isConnected, solSigner, actorOn } = useApp()
+  const actor = actorOn(o.chainId)
   const paper = usePaper()
   // pay with the collateral token or — into a market of the chain's wrapped coin — the coin itself
   const opts = React.useMemo(() => {
@@ -389,8 +389,8 @@ function Landed({ o, take, what, line, debtKey }: { o: BorrowOffer; take: number
 
 // ----------------------------------------------------------------- Pay back
 function RepayPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] }) {
-  const { account, isConnected, solSigner } = useApp()
-  const actor = isSvmChain(o.chainId) ? solSigner : account
+  const { account, isConnected, solSigner, actorOn } = useApp()
+  const actor = actorOn(o.chainId)
   const paper = usePaper()
   const owed = h.debtAmount ?? 0
   const held = h.amount

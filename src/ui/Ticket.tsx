@@ -2,7 +2,7 @@ import React from 'react'
 import { nameOf, unitOf } from '../model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
 import { dateOf, exitTerms, isBooked, loopRewards, isLoopscale, type LoopStrategy, type LoopTenor, type LoopTerm, type SimpleStrategy, type Strategy } from '../model/strategies'
-import { isSvmTx, type LoopActions } from '../sdk/types'
+import { isSvmTx, type LoopActions, type LoopPayAsset } from '../sdk/types'
 import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
 import { earnDeposit, earnWithdraw, loopClose, loopOpen, midnightSell, nativeAsset } from '../sdk/api'
 import { bookAprAt, bookDepth, chainLabel, quoteClose, SOL_POSITIONS_READY, useCloseQuote, useIrm, useLendingBooks, useLoopPayAssets, useLoopQuote, useRateHistory, useTenorQuotes } from '../sdk/queries'
@@ -531,13 +531,18 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const opts = React.useMemo(() => {
     const coll = { role: 'collateral' as const, symbol: s.holds, address: s.collateralAddress, decimals: s.decimalsLong, price: s.priceLong ?? 0, logo: s.logoLong }
     const debt = { role: 'debt' as const, symbol: s.debt, address: s.debtAddress, decimals: s.decimalsShort, price: s.priceShort ?? 0, logo: s.logoShort }
-    const list = pay.data ? pay.data.payAssets.map((a) => a.role === 'collateral' ? { ...coll, address: a.address || coll.address } : a.role === 'debt' ? { ...debt, address: a.address || debt.address } : { ...(a.wrapsRole === 'debt' ? debt : coll), role: 'native' as const, address: nativeAsset(s.chainId), symbol: a.symbol || 'ETH', logo: a.logoURI }) : [coll, debt]
+    // A role can carry MORE than one token (Alchemix: the MYT share AND its underlying USDC both fund
+    // the collateral), so a row whose address is not the market's own token takes the server's metadata
+    // — copying the side's symbol / decimals onto it showed USDC as "mixUSDC" and scaled it by 1e12.
+    const own = (side: typeof coll | typeof debt, a: LoopPayAsset) => !a.address || normAddr(side.address) === normAddr(a.address) ? { ...side, address: a.address || side.address } : { ...side, address: a.address, symbol: a.symbol ?? side.symbol, decimals: a.decimals ?? side.decimals, price: 0, logo: a.logoURI }
+    const list = pay.data ? pay.data.payAssets.map((a) => a.role === 'collateral' ? own(coll, a) : a.role === 'debt' ? own(debt, a) : { ...(a.wrapsRole === 'debt' ? debt : coll), role: 'native' as const, address: nativeAsset(s.chainId), symbol: a.symbol || 'ETH', logo: a.logoURI }) : [coll, debt]
     return list
   }, [pay.data, s.id])
   // the pay-with chips read the exact token: native is the zero address in the balances (and the API), wrapped is its own entry
   const balOf = (address: string, _symbol: string) => idle.find((i) => sameToken(i.address, normAddr(address)))
-  const [role, setRole] = useSticky<'collateral' | 'debt' | 'native' | null>(`t:${s0.id}:role`, null)
-  const chosen = opts.find((o) => o.role === role) ?? [...opts].sort((a, b) => (balOf(b.address, b.symbol)?.usd ?? 0) - (balOf(a.address, a.symbol)?.usd ?? 0))[0]
+  // chosen by ADDRESS: two pay rows can share a role (see `own` above)
+  const [payAddr, setPayAddr] = useSticky<string | null>(`t:${s0.id}:payaddr`, null)
+  const chosen = opts.find((o) => !!payAddr && normAddr(o.address) === normAddr(payAddr)) ?? [...opts].sort((a, b) => (balOf(b.address, b.symbol)?.usd ?? 0) - (balOf(a.address, a.symbol)?.usd ?? 0))[0]
   const bal = chosen ? balOf(chosen.address, chosen.symbol) : undefined
   const price = chosen?.price || bal?.price || (unit === '$' ? 1 : 0)
   const [amount, setAmount] = useSticky<number>(`t:${s0.id}:amount`, () => (unit === '$' ? 1000 : 1))
@@ -584,7 +589,9 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const Lc = Eh > 0 ? (Eh * Lh + E * L) / (Eh + E) : L
   const netC = netAprAtLeverage(dep, bor, Lc), hfC = healthAt(liqLtv, Lc)
   // the VM's own signer, as the build below: a Solana loop quoted for the EVM address is quoted for nobody
-  const q = useLoopQuote(s, E, L, actor, slip, term?.id, tenor)
+  // the margin rides the preview too: a lender that checks health up front (Alchemix) cannot price a
+  // loop with no collateral of its own, and every other lender's preview is more accurate with it
+  const q = useLoopQuote(s, E, L, actor, slip, term?.id, tenor, chosen && amount > 0 ? { asset: chosen.address, raw: toRaw(amount, chosen.decimals) } : undefined)
   // the swap routes the API found for the leverage leg, best first; another is picked by its aggregator's
   // name, so the build (a fresh call) runs the same one wherever it lands in that answer's order
   const routes = q.data?.data?.quotes ?? []
@@ -611,7 +618,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const fitLev = short?.fit.leverage ?? 0
   const fitTier = fitLev ? [...TIERS].reverse().find((t) => s.tiers[t.id] <= fitLev) : undefined
   const yearly = E * net / 100
-  const key = [s.id, holding?.accountId ?? '', amount, L, term?.id ?? '', tenor?.id ?? '', chosen?.role ?? '', actor ?? '', slip, routeName ?? ''].join('|')
+  const key = [s.id, holding?.accountId ?? '', amount, L, term?.id ?? '', tenor?.id ?? '', chosen?.address ?? '', actor ?? '', slip, routeName ?? ''].join('|')
   const paper = usePaper()
   const { signTypedDataAsync } = useSignTypedData()
   // on paper, what the chain would refuse is refused too (tickets/0006): a quote with a route, the
@@ -651,13 +658,13 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
     <>
       <div className="tsec">
         <span className="lbl">You pay with <Info label="Paying for a loop">The margin can be paid in {opts.map((o) => o.symbol).join(' or ')}: whatever the venue accepts. Paid in {s.debt}, it is swapped into {s.holds} inside the same transaction.</Info></span>
-        <div className="seg" style={{ marginBottom: 10 }}>{opts.map((o) => <button key={o.role} aria-pressed={chosen?.role === o.role} onClick={() => setRole(o.role)}><Tok sym={o.symbol} logo={o.logo} size={16} /> {o.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? (balOf(o.address, o.symbol) ? num(balOf(o.address, o.symbol)!.amount, 2) : '0') : ''}</span></button>)}</div>
+        <div className="seg" style={{ marginBottom: 10 }}>{opts.map((o) => <button key={o.address} aria-pressed={!!chosen && normAddr(chosen.address) === normAddr(o.address)} onClick={() => setPayAddr(o.address)}><Tok sym={o.symbol} logo={o.logo} size={16} /> {o.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? (balOf(o.address, o.symbol) ? num(balOf(o.address, o.symbol)!.amount, 2) : '0') : ''}</span></button>)}</div>
         <AmountBox unit={chosen?.symbol ?? unit} value={amount} onChange={setAmount} onMax={bal ? () => setAmount(bal.amount) : undefined} />
         <div className="amt-sub"><span>≈ {usd(E)} equity</span><span>{account ? <>Idle: {bal ? `${num(bal.amount, 4)} ${chosen?.symbol}` : `0 ${chosen?.symbol ?? ''}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
         {holding && <LegsNote h={holding} holds={s.holds} debt={s.debt} adding />}
         {chosen && <GetLine account={account} short={!bal || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />}
         {getOpen && chosen && <GetAsset targets={getForms(opts, chosen, s.chainId).map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price: o.price || price || 0, logo: o.logo, have: balOf(o.address, o.symbol)?.amount ?? 0 }))} want={amount} sources={allIdle}
-          onTarget={(t) => setRole(opts.find((o) => normAddr(o.address) === normAddr(t.address))?.role ?? null)} onClose={() => setGetOpen(false)} />}
+          onTarget={(t) => setPayAddr(opts.find((o) => normAddr(o.address) === normAddr(t.address))?.address ?? null)} onClose={() => setGetOpen(false)} />}
         {s.terms && term && <>
           <span className="lbl" style={{ marginTop: 14 }}>Fix the {s.debt} rate for <Info label="Fixed-rate borrowing">
             <p style={{ margin: '0 0 6px' }}>{s.venue} lends {s.debt} here at a rate it sets for each term, the same at any size. The rate you pick is locked from today until the term ends.</p>

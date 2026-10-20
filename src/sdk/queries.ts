@@ -687,16 +687,27 @@ function split<T extends Strategy>(rows: T[], st: Settings): { show: T[]; hide: 
  * The asset list a balance read sends: native always (the zero address on EVM;
  * the Solana route answers the native row unasked), then the catalogue's,
  * sorted so the key is stable. Base58 keeps its case.
+ *
+ * Never cut: Ethereum's catalogue is ~450 tokens, and the 60 this used to keep (sorted by address)
+ * dropped everything past `0x2…` — crvUSD at `0xf939…` read as 0 in an open ticket, which reads its
+ * chain live (2026-10-20). A long EVM list is split into requests instead (`fetchBalancesChunked`).
  */
-const balanceAssets = (addresses: string[], chainId?: string, extra: string[] = []) => {
-  const base = [...new Set([...(isSvmChain(chainId) ? [] : ['0x0000000000000000000000000000000000000000']), ...addresses.filter(Boolean).map((a) => normAddr(a))])].sort()
-  // `extra` (stock tokens, tickets/0009) only takes the room the catalogue leaves under the cap
-  const more = [...new Set(extra.filter(Boolean).map((a) => normAddr(a)))].filter((a) => !base.includes(a)).sort()
-  const all = isSvmChain(chainId) ? [...base, ...more].sort() : [...base, ...more.slice(0, Math.max(0, 60 - base.length))].sort()
-  // the 60 cap is an EVM bound (`eth_call` cannot enumerate; the route caps `assets`). On Solana the
-  // list is only a FILTER over the owner's own token accounts, and a sorted base58 cut dropped every
-  // mint past the 60th — wSOL and every lower-case mint (mSOL, …) on a 94-mint catalogue.
-  return isSvmChain(chainId) ? all : all.slice(0, 60)
+const balanceAssets = (addresses: string[], chainId?: string, extra: string[] = []) =>
+  [...new Set([...(isSvmChain(chainId) ? [] : ['0x0000000000000000000000000000000000000000']), ...[...addresses, ...extra].filter(Boolean).map((a) => normAddr(a))])].sort()
+/** assets per chain the index's balance POST accepts (pos-indexer `api/balances.ts`) */
+const INDEX_ASK_MAX = 500
+/** EVM `assets` per balance request: one multicall each, and a URL that stays short */
+const BALANCE_CHUNK = 60
+/** One balance read for any number of assets: an EVM list in parallel requests of BALANCE_CHUNK, merged. */
+async function fetchBalancesChunked(account: string, chainId: string, assets: string[], fresh = false) {
+  if (isSvmChain(chainId) || assets.length <= BALANCE_CHUNK) return fetchTokenBalances(account, chainId, assets, fresh)
+  const parts: string[][] = []
+  for (let i = 0; i < assets.length; i += BALANCE_CHUNK) parts.push(assets.slice(i, i + BALANCE_CHUNK))
+  const rs = await Promise.all(parts.map((p) => fetchTokenBalances(account, chainId, p, fresh)))
+  // every request answers the native row: keep one
+  const seen = new Set<string>()
+  const items = rs.flatMap((r) => r.items).filter((b) => { const k = normAddr(b.address); if (seen.has(k)) return false; seen.add(k); return true })
+  return { ...rs[0], items }
 }
 /** The Solana balance read's whole-wallet ask: no `assets` filter (see `useBalancesPerChain`). */
 const SVM_ALL = '*'
@@ -715,7 +726,7 @@ export function useBalances(account: string | undefined, chainId: string, addres
   return useQuery({
     enabled: accountFits(account, chainId) && assets.length > 0,
     queryKey: ['balances', account, chainId, assets.join(',')],
-    queryFn: () => fetchTokenBalances(account!, chainId, assets),
+    queryFn: () => fetchBalancesChunked(account!, chainId, assets),
     staleTime: 30_000,
   })
 }
@@ -756,7 +767,8 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
   // has no Solana balances and the routes reject the address shape
   const settled = chains.filter((c) => c.ready && accountFits(accountOn(accounts, c.chainId), c.chainId))
   // the index's balance POST is the EVM index's; Solana reads live only
-  const asked = Object.fromEntries(settled.filter((c) => isEvmChain(c.chainId)).map((c) => [c.chainId, balanceAssets(c.addresses, c.chainId, c.extra)]))
+  // the index takes INDEX_ASK_MAX per chain (400 above it); the rest is read live beside it
+  const asked = Object.fromEntries(settled.filter((c) => isEvmChain(c.chainId)).map((c) => [c.chainId, balanceAssets(c.addresses, c.chainId, c.extra).slice(0, INDEX_ASK_MAX)]))
   const idx = useQuery({
     enabled: !!account && Object.keys(asked).length > 0,
     queryKey: ['balances-index', account, JSON.stringify(asked)],
@@ -789,7 +801,7 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
     const c = idx.data?.chains.find((x) => x.chainId === chainId)
     const fromIdx = !!c && c.state === 'complete' && !live.has(chainId) && !idx.isError
     const indexItems: TokenBalance[] = []
-    const liveAssets = new Set<string>(fromIdx ? c!.unknownAssets ?? [] : all)
+    const liveAssets = new Set<string>(fromIdx ? [...c!.unknownAssets ?? [], ...all.slice(INDEX_ASK_MAX)] : all)
     // a row the index answers ZERO for needs no decimals: nothing is held, so nothing is read live
     // (2026-10-15: every chain listed a few `0` rows without decimals, and each sent its chain live)
     if (fromIdx) for (const i of c!.items) { const b = fromIndex(i); if (b) indexItems.push(b); else if (!isZeroRaw(i.balanceRaw)) liveAssets.add(normAddr(i.address)) }
@@ -806,7 +818,7 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
       enabled: !!p.acct && p.decided && p.liveAssets.length > 0,
       queryKey: ['balances', p.acct, p.chainId, p.liveAssets.join(',')],
       // a chain read live is read for the chain's truth: never the browser's 15 s copy
-      queryFn: () => fetchTokenBalances(p.acct!, p.chainId, p.liveAssets.filter((a) => a !== SVM_ALL), live.has(p.chainId)),
+      queryFn: () => fetchBalancesChunked(p.acct!, p.chainId, p.liveAssets.filter((a) => a !== SVM_ALL), live.has(p.chainId)),
       staleTime: 30_000,
       placeholderData: keepPreviousData,
     })),
@@ -1009,22 +1021,23 @@ export function useRateHistory(rows: Strategy[], settled = true): HistoryGet {
 
 function useDebounced<T>(v: T, ms: number): T { const [d, setD] = useState(v); useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t) }, [v, ms]); return d }
 /** Quote-only loop (no account): the API's projected economics and simulated health for the ticket. */
-export function useLoopQuote(l: LoopStrategy | null, equityUsd: number, leverageLive: number, account?: string, slippageBp = 50, termId?: string, tenor?: LoopTenor) {
+export function useLoopQuote(l: LoopStrategy | null, equityUsd: number, leverageLive: number, account?: string, slippageBp = 50, termId?: string, tenor?: LoopTenor, pay?: { asset: string; raw: string }) {
   const leverage = useDebounced(leverageLive, 500)
   const equity = useDebounced(equityUsd, 500)
-  return useQuery(loopQuoteOpts(l, equity, leverage, account, slippageBp, termId, tenor))
+  const margin = useDebounced(pay, 500)
+  return useQuery(loopQuoteOpts(l, equity, leverage, account, slippageBp, termId, tenor, margin))
 }
-function loopQuoteOpts(l: LoopStrategy | null, equity: number, leverage: number, account: string | undefined, slippageBp: number, termId?: string, tenor?: LoopTenor) {
+function loopQuoteOpts(l: LoopStrategy | null, equity: number, leverage: number, account: string | undefined, slippageBp: number, termId?: string, tenor?: LoopTenor, pay?: { asset: string; raw: string }) {
   const debtUsd = equity * (leverage - 1)
   const debtTokens = l?.priceShort ? debtUsd / l.priceShort : 0
   return {
     // a Loopscale loop is not quoted without its tenor: the API refuses (`MISSING_PARAM`)
     enabled: !!l && debtTokens > 0 && (!l.tenors || !!tenor),
-    queryKey: ['loopq', l?.id, Math.round(debtTokens * 1e6), leverage, slippageBp, account ?? '', termId ?? '', tenor?.id ?? ''],
+    queryKey: ['loopq', l?.id, Math.round(debtTokens * 1e6), leverage, slippageBp, account ?? '', termId ?? '', tenor?.id ?? '', pay?.asset ?? '', pay?.raw ?? ''],
     staleTime: 20_000,
     retry: false,
     // some lenders (LlamaLend) only quote with an account; passing it costs nothing — nothing is signed here
-    queryFn: () => loopOpen({ collateralMarketUid: l!.marketLongUid, debtMarketUid: l!.marketShortUid, debtAmountRaw: toRaw(debtTokens, l!.decimalsShort), slippageBp, leverage, account, termId, tenor }),
+    queryFn: () => loopOpen({ collateralMarketUid: l!.marketLongUid, debtMarketUid: l!.marketShortUid, debtAmountRaw: toRaw(debtTokens, l!.decimalsShort), slippageBp, leverage, account, termId, tenor, payAsset: pay?.asset, payAmountRaw: pay?.raw }),
   }
 }
 /**

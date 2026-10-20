@@ -59,9 +59,10 @@ export interface Trace {
    * Wallet balances it moves, read until they do; `watchBase` is their raw amount at send. A swap's or
    * bridge's output; on a positions transaction the tokens the ticket pays with and gets back — the
    * position can show the change while the balance read (a Solana RPC at `finalized`, ~13 s behind
-   * `confirmed`) still answers the old amount, and nothing else would read it again.
+   * `confirmed`) still answers the old amount, and nothing else would read it again. `account` is the
+   * wallet that holds it when that is not the signer's (a Solana → EVM bridge lands in the EVM wallet).
    */
-  watch?: { chainId: string; address: string; symbol?: string }[]
+  watch?: { chainId: string; address: string; symbol?: string; account?: string }[]
   watchBase?: Record<string, string>
   /** What the watched balances GAINED (a withdrawal, a close, a swap's leftover dust), formatted. */
   received?: { symbol: string; amount: string }[]
@@ -406,7 +407,9 @@ async function readWatched(account: string, w: NonNullable<Trace['watch']>): Pro
       const same = (a: string, b: string) => normAddr(a) === b || (isNativeAddress(a) && isNativeAddress(b))
       // the route's `assets` filter wants the native coin as the zero address on EVM; Solana answers it unasked
       const ask = asked.map((a) => (isNativeAddress(a) && isEvmChain(c) ? '0x0000000000000000000000000000000000000000' : a)).filter((a) => !(isSvmChain(c) && isNativeAddress(a)))
-      const r = await fetchTokenBalances(account, c, ask, true)
+      // one holder per chain: the entry's own (a bridge's destination wallet), else the signer
+      const holder = w.find((x) => x.chainId === c && x.account)?.account ?? account
+      const r = await fetchTokenBalances(holder, c, ask, true)
       for (const a of asked) {
         const b = r.items.find((x) => same(x.address, a))
         out[`${c}:${a}`] = { raw: b?.balanceRaw ?? '0', symbol: b?.symbol || w.find((x) => x.chainId === c && normAddr(x.address) === a)?.symbol || '', decimals: b?.decimals ?? 0 }

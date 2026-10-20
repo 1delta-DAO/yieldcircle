@@ -198,7 +198,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
         title: cross ? `Bridge ${what}` : `Swap ${what}`, label: cross ? `${chainLabel(src.chainId)} → ${chainLabel(target.chainId)}` : `on ${chainLabel(src.chainId)}`,
         bridge: cross && best?.bridge ? { name: best.bridge, toChainId: target.chainId, tokenIn: src.address, tokenOut: target.address } : undefined,
         // "Received" means the target balance MOVED, not that the bridge said DONE
-        watch: [{ chainId: target.chainId, address: target.address }],
+        watch: [{ chainId: target.chainId, address: target.address, account: walletOn(target.chainId) }],
       })
       setSent({ hash: h, bridge: best?.bridge })
       // a gas leg (NEAR Intents, Gas.zip) is a second deposit the wallet sends right after the route
@@ -207,7 +207,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
         try {
           const g = isSvmTx(leg) ? base58Encode(await solSignAndSend(Uint8Array.from(atob(leg.transaction), (c) => c.charCodeAt(0)))) : await sendTx(leg as ApiTx)
           if (signer) traceTx({ hash: g, chainId: src.chainId, account: signer, moves: 'balances', title: `Gas for ${chainLabel(target.chainId)}`, label: `${num(gasOf(best!.destinationGas, 18)?.units ?? 0, 4)} ${dstGas.symbol} via ${best!.destinationGas!.bridge ?? 'gas leg'}`,
-            watch: [{ chainId: target.chainId, address: dstGasTok }] })
+            watch: [{ chainId: target.chainId, address: dstGasTok, account: walletOn(target.chainId) }] })
         } catch (e) { setErr(`The bridge is on its way, but the gas for ${chainLabel(target.chainId)} was not sent: ${shortErr((e as Error).message)}`) }
       }
     } catch (e) { setErr(shortErr((e as Error).message)) } finally { setBusy(false) }

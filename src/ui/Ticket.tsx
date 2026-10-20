@@ -28,6 +28,8 @@ import { Spin, TxNote } from './TxTray'
 import { GetAsset, type Target } from './GetAsset'
 import { IrmLink } from './Irm'
 import { BookLink } from './Book'
+import { useSignTypedData } from 'wagmi'
+import { withSignature } from '../sdk/signedAction'
 import { uidOf, type ThreadRef } from '../model/uid'
 import { useThreadOf } from '../social/queries'
 import { NATURES, isSavings } from '../model/nature'
@@ -611,6 +613,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const yearly = E * net / 100
   const key = [s.id, holding?.accountId ?? '', amount, L, term?.id ?? '', tenor?.id ?? '', chosen?.role ?? '', actor ?? '', slip, routeName ?? ''].join('|')
   const paper = usePaper()
+  const { signTypedDataAsync } = useSignTypedData()
   // on paper, what the chain would refuse is refused too (tickets/0006): a quote with a route, the
   // market's free liquidity, a dated book deep enough for the size
   const paperRefuse = !paper.active ? null
@@ -621,12 +624,14 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
     : null
   const ladder = useTicketLadder(key, s.chainId, async () => {
     const debtTokens = s.priceShort ? D / s.priceShort : 0
-    const env = await loopOpen({
+    const openParams = {
       collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!,
       payAsset: chosen?.address, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined, termId: term?.id, tenor,
       // into the position the after-figures below are computed for, not a fresh account beside it
       accountId: holding?.accountId,
-    })
+    }
+    // a venue may answer a sign step first (`actions.signs`: Inverse's ALE borrows on a per-action permit); paper asks, never signs
+    const env = await withSignature(await loopOpen(openParams), paper.active ? null : (td) => signTypedDataAsync(td as never))
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     if (chosen?.role === 'native' && !paysNative(env.actions)) throw new Error(`This loop does not take ${chosen.symbol} directly. Pay with another asset.`)
     const route = Math.max(0, (env.data?.quotes ?? []).findIndex((r) => r.deltas?.aggregator === routeName))
@@ -927,6 +932,9 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const valued = closing && !closeBlock && !h.others?.length && h.valueUsd > 0 && backUsd != null && backUsd > 0
   const vc = useValueCheck(valued ? h.valueUsd : 0, valued ? backUsd! : 0, `${key}|${backUsd}`)
   const paper = usePaper()
+  const { signTypedDataAsync } = useSignTypedData()
+  // Inverse's loop answers a signature request first; paper asks, never signs
+  const paperSign = paper.active ? null : (td: unknown) => signTypedDataAsync(td as never)
   // on paper: a deleverage costs what the slippage allows, a close what the sale quote says, a step up what the open quote says
   // on paper every step needs what the real one needs (tickets/0006): a close its sale quote (the
   // button already waits for it), a deleverage a quote for the part it sells, a step up a quote with
@@ -950,12 +958,14 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   const ladder = useTicketLadder(key, h.chainId, async () => {
     if (down || !s) {
       const amountRaw = closing && !keep ? allRaw : toRaw(closing ? sellKeep! : sellTok, h.decimals)
-      const env = await loopClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: slip, isAll: closing, account: actor!, accountId: h.accountId, loanId: loan?.id })
+      const closeParams = { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: slip, isAll: closing, account: actor!, accountId: h.accountId, loanId: loan?.id }
+      const env = await withSignature(await loopClose(closeParams), paperSign)
       if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
       return stepsFrom(env.actions, closing ? `Close the loop · receive ${keep ? holds : debt}` : `Deleverage to ${num(L, 2)}×`, h.chainId)
     }
     // a pure leverage step: borrow more against what is there, no new margin
-    const env = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!, accountId: h.accountId })
+    const upParams = { collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!, accountId: h.accountId }
+    const env = await withSignature(await loopOpen(upParams), paperSign)
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     return stepsFrom(env.actions, `Increase to ${num(L, 2)}×`, h.chainId)
   }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid], [{ address: h.collateralAddress ?? s?.collateralAddress, symbol: holds }, { address: h.debtAddress ?? s?.debtAddress, symbol: debt }], paperPlan)

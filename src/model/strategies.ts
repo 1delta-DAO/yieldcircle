@@ -657,6 +657,9 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const label = `${L.symbol}/${S.symbol}`
   const no = (hide: HideCode): Candidate<LoopStrategy> => ({ s: null, hide, label, chainId: r.chainId })
   if (r.isBasketLong) return no('basket')
+  // the API states per pair what it can build; a lender with no loop route (Inverse FiRM) answers `[]`
+  // and its `/loop/leverage` refuses. Absent = an API that does not say, so it is not held against the row
+  if (Array.isArray(r.capabilities) && !r.capabilities.some((c) => c.action === 'loop-open')) return no('no-route')
   // fixed-rate debt the ticket can build is a Lista broker's rate card: a few terms, one rate each, set
   // by the broker rather than by size. Every other fixed debt prices off an order book or an auction
   // the API does not quote at size yet (Midnight, Term, TermMax, Teller). Neither flag catches them

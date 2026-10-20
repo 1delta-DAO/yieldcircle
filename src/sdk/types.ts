@@ -147,6 +147,12 @@ export interface OptimizerRowRaw {
   utilizationShort?: string | number; totalDepositsUsdShort?: string | number; totalDebtUsdShort?: string | number
   borrowRestrictedShort?: boolean | null
   risk: { maxTokenScore?: number; breakdown: { category: string; score: number | null; label?: string }[] }
+  /**
+   * The position actions the API can BUILD on this pair (`loop-open`, `loop-close`, …), from its
+   * per-lender loop support. `[]` is a real answer — e.g. Inverse FiRM, whose BorrowController
+   * allowlists every contract caller, so `/loop/leverage` refuses it; absent on an API without it.
+   */
+  capabilities?: { action: string; endpoint?: string; route?: string }[]
 }
 export interface OptimizerResponse { start: number; count: number; total: number; hasMore: boolean; nextStart?: number; items: OptimizerRowRaw[] }
 
@@ -164,7 +170,18 @@ export interface SvmTx { chainType: 'svm'; transaction: string; lastValidBlockHe
 export type AnyTx = ApiTx | SvmTx
 export const isSvmTx = (t: AnyTx | undefined | null): t is SvmTx => !!t && (t as SvmTx).chainType === 'svm'
 /** `transactions` run in order (pre-steps when there are `alternatives`); `postTransactions` run after the chosen route (e.g. unwrap to native). */
-export interface LoopActions { transactions: AnyTx[]; permissions: AnyTx[]; alternatives?: AnyTx[]; postTransactions?: AnyTx[] }
+/** A MANDATORY signature step (worker-api `SignStep`) — see `sdk/signedAction.ts`. */
+export interface SignStep {
+  purpose: 'authorize-action' | 'publish-order'
+  format: 'eip712'
+  typedData: { domain: Record<string, unknown> & { chainId: number | string }; types: Record<string, { name: string; type: string }[]>; primaryType: string; message: Record<string, unknown> }
+  signer: string
+  deadline?: string
+  spender?: string
+  description: string
+  submit: { method: 'GET' | 'POST'; endpoint: string; params?: Record<string, string>; body?: Record<string, unknown>; signatureField: string }
+}
+export interface LoopActions { transactions: AnyTx[]; permissions: AnyTx[]; alternatives?: AnyTx[]; postTransactions?: AnyTx[]; signs?: SignStep[] }
 export interface TradeEconomics {
   notionalUsd: { equity: number; collateral: number; debt: number }
   entryCostUsd: { slippage: number; fees: number; gas: number | null; total: number }

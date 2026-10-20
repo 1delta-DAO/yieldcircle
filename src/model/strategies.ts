@@ -14,7 +14,7 @@ import { natureOfDeposit, type Nature } from './nature'
 import type { HideCode } from './visibility'
 import STRATEGY_TOKENS from '../data/strategy-tokens.json'
 import { normAddr } from './address'
-import { vaultDesk } from './vaultDesk'
+import { houseDesk, vaultDesk } from './vaultDesk'
 import { canonGroup } from './assetGroup'
 /** `chain:vaultAddress` → the share token you end up holding (scripts/logos.mjs, from the chain token lists). */
 const strategyToken = (chainId: string, ref: string | undefined) => (ref ? (STRATEGY_TOKENS as Record<string, { symbol: string; logoURI: string | null; assetGroup?: string | null }>)[`${chainId}:${normAddr(ref)}`] : undefined)
@@ -523,9 +523,15 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   // the BRAND, not the protocol: `Aave V3` and `Aave V4` are both "Aave" upstream, and a V4
   // isolated market is not the V3 pool the same sentence would have named
   else { via = `Lend on ${brand}${market ? ` · ${market}` : ''}`; source = 'lending'; holds = own }
-  const ownLogo = m.logoURI && m.logoURI !== m.asset.logoURI ? m.logoURI : undefined
-  // a vault with no picture of its own wears its curator's (a kvault's share logo is one generic Kamino coin)
-  const logo = share?.logoURI ?? ownLogo ?? (isVault ? vaultDesk(named || m.name, curator, sameWords(brand, protocol) ? undefined : brand)?.logo : m.asset.logoURI)
+  // the row's picture is its own when it is not the asset's — or when it is filed under the vault's
+  // own address (Unitas' sUSDu, OpenEden's cUSDO on BNB arrive with the share's picture on the asset
+  // too), or is a Pendle PT's (Pendle sends the PT's picture as both)
+  const selfLogo = !!m.logoURI && isVault && (m.venue === 'vault.pendle' || (!!m.ref && m.ref.length >= 32 && m.logoURI.toLowerCase().includes(m.ref.toLowerCase().replace(/^0x/, ''))))
+  const ownLogo = m.logoURI && (m.logoURI !== m.asset.logoURI || selfLogo) ? m.logoURI : undefined
+  // a vault with no picture of its own wears its curator's (a kvault's share logo is one generic Kamino
+  // coin; a savings or staking row's brand is its issuer, whatever the protocol is called), and an
+  // uncurated one on a platform that runs its own vaults the platform's (Lista's LisUSD Vault)
+  const logo = share?.logoURI ?? ownLogo ?? (isVault ? (vaultDesk(named || m.name, curator, sameWords(brand, protocol) && !/^vault\.(savings|lst)$/.test(m.venue) ? undefined : brand) ?? (curator ? undefined : houseDesk(m.venue)))?.logo : m.asset.logoURI)
   const exitMode = m.exit?.mode ?? 'instant'
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const s: SimpleStrategy = {

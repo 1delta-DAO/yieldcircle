@@ -20,6 +20,40 @@ import { Popover, Sk, num, pct, usdShort } from './bits'
 export type BookSide = 'lend' | 'borrow'
 const SHOWN = 8
 
+/**
+ * A redemption queue (Liquity family, Flex — `pricing: 'queue'`): the same ladder, but a level is
+ * debt that already exists at that rate, lowest first, and the lowest is redeemed first. Nothing
+ * fills; the rows at or below `rate` are the debt ahead of a loan at that rate.
+ */
+function QueueLadder({ book, rate, money }: { book: LendingBook; rate?: number; money: (x: number) => string }) {
+  const max = Math.max(...book.levels.map((l) => l.assets), 1e-9)
+  const bar = (a: number) => `${Math.max(4, (Math.log10(1 + a) / Math.log10(1 + max)) * 100)}%`
+  const total = book.totalDebt ?? book.levels.at(-1)?.cumulativeAssets ?? 0
+  const ahead = rate != null ? book.levels.filter((l) => l.aprPct <= rate + 1e-9).reduce((t, l) => t + l.assets, 0) : null
+  const youAt = rate != null ? book.levels.findIndex((l) => l.aprPct > rate + 1e-9) : -1
+  const you = rate != null && <tr className="you"><td className="r">{pct(rate)}</td><td colSpan={2}>your loan</td></tr>
+  return (
+    <>
+      <p style={{ marginTop: 0 }}>Every loan here at its own rate, lowest first. A redemption takes the lowest rates first — so what sits above a rate is what is redeemed before it.</p>
+      <table className="book-t"><tbody>
+        {book.levels.map((l, i) => (
+          <React.Fragment key={i}>
+            {i === youAt && you}
+            <tr className={rate != null && l.aprPct <= rate + 1e-9 ? 'ahead' : undefined}>
+              <td className="r">{pct(l.aprPct)}</td>
+              <td className="bar"><i style={{ width: bar(l.assets) }} /></td>
+              <td className="r">{money(l.assets)}</td>
+            </tr>
+          </React.Fragment>
+        ))}
+        {youAt === -1 && you}
+      </tbody></table>
+      <p>{ahead != null ? <><b>{money(ahead)}</b> of {money(total)} is redeemed before a loan at {pct(rate!)}.</> : <>{money(total)} borrowed here in all.</>}</p>
+      <p className="foot">Redemption is not a liquidation: the collateral is taken at its price to pay the debt down, with no penalty — the position is gone, not the money. The queue moves as others open, repay and change their rates.</p>
+    </>
+  )
+}
+
 function Ladder({ book, side, size, money, act }: { book: LendingBook; side: BookSide; size: number; money: (x: number) => string; act: string }) {
   const depth = bookDepth(book)
   const at = bookAprAt(book, size)
@@ -63,7 +97,7 @@ function Ladder({ book, side, size, money, act }: { book: LendingBook; side: Boo
  * market; `size` is in that token. The same query as the ticket's own book read, so opening it
  * costs nothing more.
  */
-export function BookLink({ uid, side, size, symbol, price, act = 'This size', label = 'the book' }: { uid: string | null | undefined; side: BookSide; size: number; symbol: string; /** shown in dollars when the token is one (price ≈ 1) or a price is known */ price?: number; act?: string; label?: string }) {
+export function BookLink({ uid, side, size, symbol, price, act = 'This size', label = 'the book', rate }: { uid: string | null | undefined; side: BookSide; size: number; symbol: string; /** shown in dollars when the token is one (price ≈ 1) or a price is known */ price?: number; act?: string; label?: string; /** a redemption queue: the rate whose debt-ahead to mark */ rate?: number }) {
   const ref = React.useRef<HTMLButtonElement>(null)
   const [open, setOpen] = React.useState(false)
   const [q] = useLendingBooks(uid ? [uid] : [], side)
@@ -80,6 +114,7 @@ export function BookLink({ uid, side, size, symbol, price, act = 'This size', la
       <Popover anchor={ref} open={open} onClose={() => setOpen(false)} width={320}>
         <div className="pop-text irm">
           {q?.pending ? <Sk w={200} h={100} />
+            : q?.book?.pricing === 'queue' ? (q.book.levels.length ? <QueueLadder book={q.book} rate={rate} money={money} /> : <p>Nobody borrows here yet: any loan opened now is first in line for a redemption, at any rate.</p>)
             : q?.book?.levels.length ? <Ladder book={q.book} side={side} size={size} money={money} act={act} />
             : <p>{q?.failed ? 'The book could not be read right now.' : side === 'lend' ? 'Nobody is borrowing on this book right now: there is no offer to lend into.' : 'Nobody is lending on this book right now.'}</p>}
         </div>

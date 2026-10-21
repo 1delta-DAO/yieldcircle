@@ -28,8 +28,11 @@ import { depositPlan, leverPlan, loopPlan, reducePlan, withdrawPlan } from './pa
 import { isDone, useTrace } from '../sdk/txTrace'
 import { Spin, TxNote } from './TxTray'
 import { GetAsset, type Target } from './GetAsset'
+import { FundingLock } from './FundingLock'
 import { IrmLink } from './Irm'
 import { BookLink } from './Book'
+import { RatePicker } from './RatePicker'
+import { clampRate, rateToWad, recommendedOf, userSetOfBook } from '../model/userSetRate'
 import { useSignTypedData } from 'wagmi'
 import { withSignature } from '../sdk/signedAction'
 import { uidOf, type ThreadRef } from '../model/uid'
@@ -45,7 +48,7 @@ import { AssetLink } from './TokenPage'
  * (`threadOf`), and the wallet being copied when the ticket was opened from a
  * feed card.
  */
-export const TicketCtx = React.createContext<{ uid: string | null; thread?: ThreadRef | null; copy?: string }>({ uid: null })
+export const TicketCtx = React.createContext<{ uid: string | null; thread?: ThreadRef | null; copy?: string; copyLev?: number }>({ uid: null })
 
 /** The ticket: what you do in plain words, amount (+ leverage), the numbers, what can go wrong, one button. */
 /**
@@ -54,7 +57,7 @@ export const TicketCtx = React.createContext<{ uid: string | null; thread?: Thre
  * never summed: each has its own health, and every action names one (`accountId`), so the ticket
  * shows a picker and works on the picked one. `pick`: the `Holding.key` to start on.
  */
-export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, offMenu, talk, socialInList, onClose }: { s: Strategy; idle: Idle[]; holdings: Holding[]; /** deposits in this loop's collateral market that a venue rule keeps it from levering in place (`depositsAsLoops`) */ beside?: { h: Holding; why: string }[]; pick?: string; mode?: Mode; copy?: string; offMenu?: string; talk?: boolean; /** the list shows the thread and who is in it under the picked row, so the ticket need not */ socialInList?: boolean; onClose: () => void }) {
+export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, copyLev, offMenu, talk, socialInList, onClose }: { s: Strategy; idle: Idle[]; holdings: Holding[]; /** deposits in this loop's collateral market that a venue rule keeps it from levering in place (`depositsAsLoops`) */ beside?: { h: Holding; why: string }[]; pick?: string; mode?: Mode; copy?: string; /** the leverage `copy` runs this loop at, offered as its own tile */ copyLev?: number; offMenu?: string; talk?: boolean; /** the list shows the thread and who is in it under the picked row, so the ticket need not */ socialInList?: boolean; onClose: () => void }) {
   const [hk, setHk] = React.useState(pick)
   const holding = holdings.find((h) => h.key === hk) ?? holdings[0] ?? null
   // what an Add builds on: the picked position, unless the API cannot build for its account — then a new one, never figures for a book it will not touch
@@ -64,7 +67,7 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, off
   const uid = uidOf(s)
   const thread = useThreadOf()(s)
   return (
-    <TicketCtx.Provider value={{ uid, thread, copy }}>
+    <TicketCtx.Provider value={{ uid, thread, copy, copyLev }}>
     <div className="ticket">
       <div className="grab" />
       <div className="th">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />}
@@ -84,7 +87,7 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, off
           {holdings.length < 2 && <SubAccountPill sub={holding.subAccount} venue={holding.venue} />}
         </div></div>
       )}
-      {copy && <CopyBanner who={copy} s={s} />}
+      {copy && <CopyBanner who={copy} s={s} lev={copyLev} />}
       {offMenu && (
         <div className="tsec offmenu" role="note">
           <b>Not in the menu.</b> {offMenu} Check the liquidity, rate and risk yourself before you size it.
@@ -136,16 +139,16 @@ export function HoldingTicket({ h, onClose }: { h: Holding; onClose: () => void 
 }
 
 /**
- * Copying is the same strategy and the same leverage tier at YOUR size —
- * never a mirror of someone else's amount, which would be a promise about a
- * balance sheet this app cannot see.
+ * Copying is the same strategy at the same leverage (when the link carries
+ * theirs) at YOUR size — never a mirror of someone else's amount, which would
+ * be a promise about a balance sheet this app cannot see.
  */
-function CopyBanner({ who, s }: { who: string; s: Strategy }) {
+function CopyBanner({ who, s, lev }: { who: string; s: Strategy; lev?: number }) {
   const { profile } = useProfiles([who])
   return (
     <div className="tsec copy">
       <Who account={who} profile={profile(who)} size={24} />
-      <span className="t70">is in this {s.kind === 'loop' ? 'loop' : 'strategy'}. You are opening the same one — your own size.</span>
+      <span className="t70">is in this {s.kind === 'loop' ? 'loop' : 'strategy'}. You are opening the same one{s.kind === 'loop' && lev ? <> at their {num(lev, 2)}×</> : ''} — your own size.</span>
     </div>
   )
 }
@@ -527,6 +530,41 @@ function useBorrowAt(s: LoopStrategy | null, term?: LoopTerm, bookApr?: number) 
  * moves the day the debt drops to the variable rate closer.
  */
 const defaultTerm = (ts: LoopTerm[]) => [...ts].sort((a, b) => a.apr - b.apr || b.days - a.days)[0]
+/**
+ * The number beside a leverage slider, typed into. A keystroke moves the slider only once the text
+ * reads as a leverage inside the range — "1" on the way to "1.5" would otherwise snap to the floor
+ * and eat the dot; Enter or leaving the box clamps whatever is there. The quote downstream is
+ * debounced, so typing costs no more requests than dragging.
+ */
+function LevInput({ value, min, max, onChange, className = '', label = 'Leverage' }: { value: number; min: number; max: number; onChange: (v: number) => void; className?: string; label?: string }) {
+  const [text, setText] = React.useState<string | null>(null)
+  const parse = (t: string) => parseFloat(t.replace(',', '.'))
+  const commit = () => {
+    if (text == null) return
+    const v = parse(text)
+    if (Number.isFinite(v)) onChange(Math.round(Math.min(max, Math.max(min, v)) * 100) / 100)
+    setText(null)
+  }
+  return (
+    <span className={`v levin ${className}`}>
+      <input inputMode="decimal" autoComplete="off" aria-label={label} value={text ?? value.toFixed(2)}
+        onFocus={(e) => { setText(value.toFixed(2)); e.target.select() }}
+        onChange={(e) => { const t = e.target.value.replace(/[^0-9.,]/g, ''); setText(t); const v = parse(t); if (v >= min && v <= max) onChange(v) }}
+        onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { setText(null); e.currentTarget.blur() } }} />×
+    </span>
+  )
+}
+/** The copied wallet's leverage as a tile beside the tiers; `theirs` above `l` means this venue's new-loop range held it down. */
+function CopiedTier({ l, theirs, on, n, d, onPick }: { l: number; theirs: number; on: boolean; n: number; d: number; onPick: () => void }) {
+  const capped = theirs > l + 0.01
+  return (
+    <button className="tier copied" role="radio" aria-checked={on} onClick={onPick} title={`${capped ? `They run ${num(theirs, 2)}×; a new loop here goes up to ${num(l, 2)}×. ` : ''}${num(l, 2)}× leverage · liquidated if the collateral falls ${pct(d * 100, 1)} against the debt`}>
+      <span className="tn">Copied{capped ? ' · capped' : ''}</span>
+      <span className={`tl ${d < 0.05 ? 'bad' : d < 0.1 ? 'warn' : ''}`}>{num(l, 2)}× · −{pct(d * 100, d < 0.1 ? 1 : 0)}</span>
+      <span className={`tr ${n >= 3 ? 'ok' : n < 0 ? 'bad' : ''}`}>{pct(n)}</span>
+    </button>
+  )
+}
 /** The tenor a Loopscale loop opens with before anyone picks: the cheapest quoted, the longest of equals; the shortest while nothing has answered. */
 const defaultTenor = <T extends { tenor: LoopTenor; offer: { apr: number } | null }>(qs: T[]) =>
   [...qs].filter((q) => q.offer).sort((a, b) => a.offer!.apr - b.offer!.apr || b.tenor.days - a.tenor.days)[0] ?? qs[0]
@@ -575,7 +613,13 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   // the slider is for someone who already knows the number they want. `null` = on the tiers
   const [custom, setCustom] = useSticky<number | null>(`t:${s0.id}:lev`, null)
   const [lo, hi] = customRange(s.maxLev), canCustom = hi > lo + 0.05
-  const L = custom != null && canCustom ? Math.min(hi, Math.max(lo, custom)) : s.tiers[tier]
+  // a copy opens on the copied wallet's own leverage, held inside what this venue lets a new loop take;
+  // any tier or the slider leaves it, and its tile brings it back
+  const { copyLev } = React.useContext(TicketCtx)
+  const copyL = copyLev && copyLev > 1.05 ? Math.round(Math.min(hi, Math.max(lo, copyLev)) * 100) / 100 : null
+  const [onCopy, setOnCopy] = React.useState(copyL != null)
+  const pickTier = (t: TierId) => { setOnCopy(false); setCustom(null); setTier(t) }
+  const L = onCopy && copyL != null ? copyL : custom != null && canCustom ? Math.min(hi, Math.max(lo, custom)) : s.tiers[tier]
   const E = amount * price, C = E * L, D = E * (L - 1)
   // a fixed-rate loop borrows for one term off the broker's card; `undefined` on a float loop
   const [termId, setTermId] = useSticky<string | null>(`t:${s0.id}:term`, null)
@@ -589,6 +633,17 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const tenor = tq?.tenor, offer = tq?.offer ?? null
   // each tenor's lenders set their own liquidation threshold (JLP/USDC: 95 % for a day, 90 % for longer)
   const liqLtv = offer?.lqt || s.liqLtv
+  // a rate the borrower sets (Liquity family, Flex): a NEW trove picks it here, off the live
+  // redemption queue (model/userSetRate.ts); a running trove keeps its own. The feed's `bor` is the
+  // queue's suggested pick, so a different pick shifts the borrow leg by the difference.
+  const picksRate = !!s.userSet && !holding
+  const [queueQ] = useLendingBooks(picksRate ? [s.marketShortUid] : [])
+  const queueBook = queueQ?.book ?? null
+  const urate = picksRate ? userSetOfBook(queueBook) ?? s.userSet! : null
+  const suggested = recommendedOf(urate)?.apr
+  const [rate0, setRate] = useSticky<number | null>(`t:${s0.id}:rate`, null)
+  const rate = urate ? clampRate(urate, rate0 ?? suggested ?? s.borSpot) : null
+  const rateShift = rate != null && suggested != null ? rate - suggested : 0
   // a dated book prices the debt at size: the levels this loan walks, for every maturity on offer
   const books = useLendingBooks(dates ? dates.map((d) => d.marketShortUid) : [])
   const debtTok = s.priceShort ? (E * (L - 1)) / s.priceShort : 0
@@ -597,7 +652,8 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const bookShort = !!s.dueAt && !!bookOf(s)?.book && bookApr == null
   const due = s.dueAt ? new Date(s.dueAt * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
   const dueDays = s.dueAt ? Math.max(0, Math.round((s.dueAt * 1000 - Date.now()) / 86400_000)) : 0
-  const borAt = useBorrowAt(s, term, offer?.apr ?? bookApr ?? undefined)
+  const borAt0 = useBorrowAt(s, term, offer?.apr ?? bookApr ?? undefined)
+  const borAt = (d: number) => borAt0(d) + rateShift
   const dep = s.depSpot, bor = borAt(D)
   const net = netAprAtLeverage(dep, bor, L), drop = liqBuffer(liqLtv, L), hf = healthAt(liqLtv, L)
   const netWorst = netAprAtLeverage(dep, bor + 2, L)
@@ -615,7 +671,9 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   // the VM's own signer, as the build below: a Solana loop quoted for the EVM address is quoted for nobody
   // the margin rides the preview too: a lender that checks health up front (Alchemix) cannot price a
   // loop with no collateral of its own, and every other lender's preview is more accurate with it
-  const q = useLoopQuote(s, E, L, actor, slip, term?.id, tenor, chosen && marginRaw ? { asset: chosen.address, raw: marginRaw } : undefined)
+  const { q: q0, settling } = useLoopQuote(s, E, L, actor, slip, term?.id, tenor, chosen && marginRaw ? { asset: chosen.address, raw: marginRaw } : undefined)
+  // while the slider or the amount is ahead of the debounce, the answer in hand is the last size's: it reads as quoting
+  const q = { data: settling ? undefined : q0.data, error: settling ? null : q0.error, isFetching: q0.isFetching || settling }
   // the swap routes the API found for the leverage leg, best first; another is picked by its aggregator's
   // name, so the build (a fresh call) runs the same one wherever it lands in that answer's order
   const routes = q.data?.data?.quotes ?? []
@@ -642,7 +700,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const fitLev = short?.fit.leverage ?? 0
   const fitTier = fitLev ? [...TIERS].reverse().find((t) => s.tiers[t.id] <= fitLev) : undefined
   const yearly = E * net / 100
-  const key = [s.id, holding?.accountId ?? '', marginRaw ?? '', L, term?.id ?? '', tenor?.id ?? '', chosen?.address ?? '', actor ?? '', slip, routeName ?? ''].join('|')
+  const key = [s.id, holding?.accountId ?? '', marginRaw ?? '', L, term?.id ?? '', tenor?.id ?? '', chosen?.address ?? '', actor ?? '', slip, routeName ?? '', rate ?? ''].join('|')
   const paper = usePaper()
   const { signTypedDataAsync } = useSignTypedData()
   // on paper, what the chain would refuse is refused too (tickets/0006): a quote with a route, the
@@ -658,6 +716,8 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
     const openParams = {
       collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!,
       payAsset: chosen?.address, payAmountRaw: marginRaw, termId: term?.id, tenor,
+      // a new user-set-rate trove opens at the picked rate (absent → the API's suggested pick)
+      ...(rate != null ? { interestRate: rateToWad(rate) } : {}),
       // into the position the after-figures below are computed for, not a fresh account beside it
       accountId: holding?.accountId, simulate: !!holding,
     }
@@ -711,15 +771,16 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
             <p style={{ margin: 0 }}>Repaying early costs nothing.</p></Info></span>
           <div className="seg terms" role="radiogroup" aria-label="Loan term">{tenorQs.map((x) => <button key={x.tenor.id} role="radio" aria-checked={x.tenor.id === tenor.id} aria-pressed={x.tenor.id === tenor.id} disabled={!x.offer && !x.pending} title={x.short ? x.short.message : !x.offer && !x.pending ? 'No lender offers this term at this size' : undefined} onClick={() => setTenorId(x.tenor.id)}>{tenorWord(x.tenor)}<span className="c">{x.offer ? pct(x.offer.apr) : x.pending ? '…' : '—'}</span></button>)}</div>
         </>}
+        {urate && rate != null && <RatePicker className="ratepick" u={urate} book={queueBook} rate={rate} onRate={setRate} debtSymbol={s.debt} price={s.priceShort} />}
         <span className="lbl" style={{ marginTop: 14 }}>How hard to push it <Info label="Leverage tiers">{TIERS.map((t) => <p key={t.id} style={{ margin: '0 0 6px' }}><b>{t.name}</b> · {t.blurb}</p>)}<p style={{ margin: '0 0 6px' }}>This venue allows up to {num(s.maxLev, 1)}×. At {num(L, 2)}× the collateral can fall <b>{pct(drop * 100, 1)}</b> against the debt before liquidation.</p>{canCustom && <p style={{ margin: 0 }}>The slider icon swaps the tiers for a leverage of your own, up to {num(hi, 2)}×.</p>}</Info>
-          {canCustom && <button type="button" className="levtoggle" aria-pressed={custom != null} aria-label={custom != null ? 'Back to the tiers' : 'Set my own leverage'} title={custom != null ? 'Back to the tiers' : 'Set my own leverage'} onClick={() => setCustom(custom != null ? null : L)}>
+          {canCustom && <button type="button" className="levtoggle" aria-pressed={custom != null && !onCopy} aria-label={custom != null && !onCopy ? 'Back to the tiers' : 'Set my own leverage'} title={custom != null && !onCopy ? 'Back to the tiers' : 'Set my own leverage'} onClick={() => { setOnCopy(false); setCustom(custom != null && !onCopy ? null : L) }}>
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" /><circle cx="15" cy="6" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="17" cy="18" r="2" /></svg>
           </button>}</span>
-        {custom != null && canCustom ? <>
-          <div className="levr"><input type="range" min={lo} max={hi} step={0.01} value={L} onChange={(e) => setCustom(parseFloat(e.target.value))} aria-label="Leverage" /><span className={`v ${drop < 0.05 ? 'bad' : drop < 0.1 ? 'warn' : ''}`}>{num(L, 2)}×</span></div>
-          <div className="snaps">{TIERS.map((t) => <button key={t.id} className={`pctb ${Math.abs(L - s.tiers[t.id]) < 0.02 ? 'on' : ''}`} onClick={() => setCustom(s.tiers[t.id])}>{t.name} {num(s.tiers[t.id], 1)}×</button>)}</div>
-        </> : <div className="tiers" role="radiogroup" aria-label="Leverage tier">{TIERS.map((t) => { const l = s.tiers[t.id]; const n = netAprAtLeverage(dep, borAt(E * (l - 1)), l); const d = liqBuffer(liqLtv, l); return (
-          <button key={t.id} className={`tier ${t.id}`} role="radio" aria-checked={tier === t.id} onClick={() => setTier(t.id)}>
+        {custom != null && canCustom && !onCopy ? <>
+          <div className="levr"><input type="range" min={lo} max={hi} step={0.01} value={L} onChange={(e) => setCustom(parseFloat(e.target.value))} aria-label="Leverage" /><LevInput value={L} min={lo} max={hi} onChange={setCustom} className={drop < 0.05 ? 'bad' : drop < 0.1 ? 'warn' : ''} /></div>
+          <div className="snaps">{copyL != null && <button className={`pctb ${Math.abs(L - copyL) < 0.02 ? 'on' : ''}`} onClick={() => setCustom(copyL)}>Theirs {num(copyL, 1)}×</button>}{TIERS.map((t) => <button key={t.id} className={`pctb ${Math.abs(L - s.tiers[t.id]) < 0.02 ? 'on' : ''}`} onClick={() => setCustom(s.tiers[t.id])}>{t.name} {num(s.tiers[t.id], 1)}×</button>)}</div>
+        </> : <div className="tiers" role="radiogroup" aria-label="Leverage tier">{copyL != null && <CopiedTier l={copyL} theirs={copyLev!} on={onCopy} n={netAprAtLeverage(dep, borAt(E * (copyL - 1)), copyL)} d={liqBuffer(liqLtv, copyL)} onPick={() => setOnCopy(true)} />}{TIERS.map((t) => { const l = s.tiers[t.id]; const n = netAprAtLeverage(dep, borAt(E * (l - 1)), l); const d = liqBuffer(liqLtv, l); return (
+          <button key={t.id} className={`tier ${t.id}`} role="radio" aria-checked={!onCopy && tier === t.id} onClick={() => pickTier(t.id)}>
             <span className="tn">{t.name}</span>
             <span className={`tr ${n >= 3 ? 'ok' : n < 0 ? 'bad' : ''}`}>{pct(n)}</span>
             <span className={`tl ${d < 0.05 ? 'bad' : d < 0.1 ? 'warn' : ''}`} title={`${num(l, 2)}× leverage · liquidated if the collateral falls ${pct(d * 100, 1)} against the debt`}>{num(l, 2)}× · −{pct(d * 100, d < 0.1 ? 1 : 0)}</span>
@@ -728,8 +789,8 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
           <b>Too big for one lender.</b> {short.message}
           {(fitAmount > 0 || fitTier || (fitLev > 1 && canCustom && fitLev >= lo)) && <div className="fixes">
             {fitAmount > 0 && <button type="button" className="pctb" onClick={() => setAmt(fromUnits(Math.floor(fitAmount * 100) / 100))}>Pay {num(fitAmount, 2)} {chosen?.symbol}</button>}
-            {fitTier ? <button type="button" className="pctb" onClick={() => { setCustom(null); setTier(fitTier.id) }}>{fitTier.name} {num(s.tiers[fitTier.id], 2)}×</button>
-              : fitLev > 1 && canCustom && fitLev >= lo && <button type="button" className="pctb" onClick={() => setCustom(fitLev)}>{num(fitLev, 2)}×</button>}
+            {fitTier ? <button type="button" className="pctb" onClick={() => pickTier(fitTier.id)}>{fitTier.name} {num(s.tiers[fitTier.id], 2)}×</button>
+              : fitLev > 1 && canCustom && fitLev >= lo && <button type="button" className="pctb" onClick={() => { setOnCopy(false); setCustom(fitLev) }}>{num(fitLev, 2)}×</button>}
           </div>}
         </div>}
         {econ && <>
@@ -771,6 +832,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
         </>}
       </div>
       {!term && !s.dueAt && <HistorySec s={s} L={L} now={net} />}
+      <FundingLock s={s} C={C} />
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">
         {overLiquidity && <li className="w"><i /><span>This borrows {usd(D)} of {s.debt}, more than the {usdShort(s.borrowLiquidityUsd)} the market has free: the rate is at the top of its curve and the transaction may not go through.</span></li>}
         {term ? <>
@@ -791,7 +853,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
         {s.rewardsLong + s.rewardsShort > 0.05 && <li><i /><span>Part of the rate is incentives that can stop without notice.</span></li>}
       </ul></div>
       {noRoute && <div className="err" style={{ margin: '0 0 10px' }}>{NO_ROUTE}</div>}
-      <Action ladder={ladder} label={`Open ${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={short ? 'Too big for one lender — see above' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} fee="loop" />
+      <Action ladder={ladder} label={`Open ${onCopy && copyL != null ? 'copied ' : custom != null && canCustom ? '' : `${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} `}loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={short ? 'Too big for one lender — see above' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} fee="loop" />
     </>
   )
 }
@@ -1018,7 +1080,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
           : <Info label="Managing a loop">Drag left to deleverage: collateral is sold into {debt} to repay debt, and at 1× everything is sold and the loop is closed.{s && !loan ? <> Drag right to borrow more {debt} and buy more {holds}.</> : ''} Either way it is one transaction.</Info>}</span>
         <LegsNote h={h} holds={holds} debt={debt} />
         {loans.length > 1 && <div className="seg" role="radiogroup" aria-label="Which loan" style={{ marginBottom: 10 }}>{loans.map((x) => <button key={x.id} role="radio" aria-checked={x.id === loan?.id} aria-pressed={x.id === loan?.id} onClick={() => { setLoanId(x.id); setL(Lnow) }}>Loan {x.id}<span className="c" style={{ marginLeft: 6 }}>{usdShort(x.debtUsd)}</span></button>)}</div>}
-        {maxL > minL && <div className="levr"><span className="t50 mono" style={{ fontSize: 11 }}>{putUp ? '1×' : minL <= 1 ? 'close' : 'repaid'}</span><input type="range" min={minL} max={maxL} step={0.01} value={L} onChange={(e) => setL(parseFloat(e.target.value))} aria-label="Target leverage" style={{ ['--now' as string]: `${((Lnow - minL) / (maxL - minL)) * 100}%` }} className="lev-now" /><span className="v">{closing ? 'closed' : `${num(L, 2)}×`}</span></div>}
+        {maxL > minL && <div className="levr"><span className="t50 mono" style={{ fontSize: 11 }}>{putUp ? '1×' : minL <= 1 ? 'close' : 'repaid'}</span><input type="range" min={minL} max={maxL} step={0.01} value={L} onChange={(e) => setL(parseFloat(e.target.value))} aria-label="Target leverage" style={{ ['--now' as string]: `${((Lnow - minL) / (maxL - minL)) * 100}%` }} className="lev-now" /><LevInput value={L} min={minL} max={maxL} onChange={setL} label="Target leverage" /></div>}
         <div className="snaps">{snaps.map((x) => <button key={x.t} className={`pctb ${Math.abs(L - x.l) < 0.02 ? 'on' : ''}`} onClick={() => setL(x.l)}>{x.t}{x.t !== 'Close' ? ` ${num(x.l, x.t === 'Now' ? 2 : 1)}×` : ''}</button>)}</div>
         {closing && !sameToken && !venueKeeps && <>
           <span className="lbl" style={{ marginTop: 12 }}>Receive <Info label="How a close pays out">In <b>{debt}</b>: all your {holds} is sold, the debt is repaid, and what is left of the sale comes to your wallet.<br />In <b>{holds}</b>: only enough {holds} is sold to repay the debt (with a 1% margin for the fill), and the rest of your {holds} is withdrawn to your wallet, with the small {debt} surplus of that margin.</Info></span>
@@ -1212,7 +1274,7 @@ function StepRow({ st, n, on, signing, chainId }: { st: Step; n: number; on: boo
   )
 }
 
-type Route = NonNullable<NonNullable<ReturnType<typeof useLoopQuote>['data']>['data']>['quotes'][number]
+type Route = NonNullable<NonNullable<ReturnType<typeof useLoopQuote>['q']['data']>['data']>['quotes'][number]
 /**
  * The loop's swap route: the one it runs on, in one row; the others the API found sit behind the
  * settings button next to it (`RouteChooser`), best first.

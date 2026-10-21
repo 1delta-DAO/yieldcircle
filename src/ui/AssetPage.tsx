@@ -342,8 +342,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
           </>)}
         </div>
         <aside ref={aside} className={ticketOpen ? '' : 'closed'} id="aside">
-          {sel && <Ticket key={sel.id + (route.m ?? '') + (route.h ?? '')} s={sel} idle={b.idlePerChain} holdings={heldAll(sel)} beside={sel.kind === 'loop' && b.account ? depositsAsLoops(sel, b.holdings).beside : undefined} pick={route.h} mode={route.m} copy={route.copy} talk={route.talk} socialInList={!phone} onClose={close} />}
-          {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '') + (route.h ?? '')} s={offSel} idle={b.idlePerChain} holdings={offMenu ? [offMenu] : heldAll(offSel)} pick={route.h} mode={route.m} copy={route.copy} talk={route.talk} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
+          {sel && <Ticket key={sel.id + (route.m ?? '') + (route.h ?? '')} s={sel} idle={b.idlePerChain} holdings={heldAll(sel)} beside={sel.kind === 'loop' && b.account ? depositsAsLoops(sel, b.holdings).beside : undefined} pick={route.h} mode={route.m} copy={route.copy} copyLev={route.lev} talk={route.talk} socialInList={!phone} onClose={close} />}
+          {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '') + (route.h ?? '')} s={offSel} idle={b.idlePerChain} holdings={offMenu ? [offMenu] : heldAll(offSel)} pick={route.h} mode={route.m} copy={route.copy} copyLev={route.lev} talk={route.talk} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
           {offMenu && !offSel && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
           {borrowSel && <BorrowTicket key={borrowSel.id + (route.m ?? '') + (route.h ?? '')} o={borrowSel} holdings={heldLoans.get(borrowSel.id) ?? (loanHolding ? [loanHolding] : [])} idle={b.idlePerChain} pick={route.h} mode={route.m}
             alternatives={bo.offers.filter((o) => o.chainId === borrowSel.chainId && o.asset === borrowSel.asset && o.debt.symbol === borrowSel.debt.symbol)}

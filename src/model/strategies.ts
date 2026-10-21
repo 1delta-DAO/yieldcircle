@@ -6,6 +6,7 @@
  * (`noteToken`), which positions and balances read.
  */
 import type { EarnCapability, EarnMarket, OptimizerRowRaw } from '../sdk/types'
+import { isUserSetRow, userSetOfRow, type UserSetRate } from './userSetRate'
 import { baseOfCollateral, baseOfSymbol, denomOf, deskOf, EXPOSURE_ASSETS, exposureOf, fiatOf, groupOf, isFiat, sameMoney, type GroupId } from './assets'
 import { creditDesk, deskKey, moneyOf, noteToken } from './desk'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
@@ -257,6 +258,12 @@ export interface LoopStrategy extends Base {
   dueAt?: number
   /** Every maturity of the same pair on the same venue, soonest first (this row among them, without their own `dates`) — the ticket's date picker. */
   dates?: LoopStrategy[]
+  /**
+   * Set when the borrower picks the debt's rate (Liquity family, Flex): the range and the
+   * redemption queue's picks. `bor` / `borSpot` are the suggested pick (+ amortised upfront fee);
+   * the ticket's rate picker shifts them. `model/userSetRate.ts`.
+   */
+  userSet?: UserSetRate
 }
 /** One fixed term: `apr` is effective (on `borrowAprShort`'s footing), `days` from the day it is opened. */
 export interface LoopTerm { id: string; days: number; apr: number }
@@ -753,6 +760,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     ...(terms.length ? { terms, borSpot: bor } : {}),
     ...(r.fixedTerm?.model === 'loopscale' ? { tenors: loopscaleTenors(r) } : {}),
     ...(dueAt ? { dueAt } : {}),
+    ...(isUserSetRow(r) ? (() => { const u = userSetOfRow(r); return u ? { userSet: u } : {} })() : {}),
   }
   return { s, hide: null, label, chainId: r.chainId }
 }

@@ -39,7 +39,7 @@ import { keyOfToken } from '../model/desk'
 import { groupOf } from '../model/assets'
 import { canonUid, pairKey, type ThreadRef } from '../model/uid'
 import { lendingAction, lendingDepositAndBorrow, lendingRange, lendingWithdrawAndRepay, nativeAsset } from '../sdk/api'
-import { chainLabel, useIrm } from '../sdk/queries'
+import { chainLabel, useIrm, useLendingBooks } from '../sdk/queries'
 import { useStrategyProofs } from '../index/queries'
 import { useProfiles } from '../social/queries'
 import { go, useApp, type Mode } from '../state/AppState'
@@ -48,6 +48,9 @@ import { useSticky, useStickyAmount } from '../state/sticky'
 import { Action, AmountBox, GetLine, TicketCtx, collateralOnFirst, sameToken } from './Ticket'
 import { GetAsset } from './GetAsset'
 import { IrmLink } from './Irm'
+import { BookLink } from './Book'
+import { RatePicker } from './RatePicker'
+import { clampRate, rateToWad, recommendedOf, userSetOfBook } from '../model/userSetRate'
 import { Thread } from './Thread'
 import { Who } from './social-bits'
 import { BorrowRewards, DecimalInput, Info, KindPill, RiskDot, SubAccountPill, Tok, Toks, num, pct, usd, usdShort } from './bits'
@@ -240,9 +243,18 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
   }, [typed, putSet, wantUnits]) // eslint-disable-line react-hooks/exhaustive-deps
   const totalDebt = owedUsd + take
   const drop = dropOf(collUsd, totalDebt, o.liqLtv), zone = zoneOf(drop, borders), hf = healthOf(collUsd, totalDebt, o.liqLtv)
+  // A rate the borrower sets (Liquity family, Flex): a NEW loan picks it here, off the live
+  // redemption queue; a running trove keeps its own. No curve: the rate does not move with size.
+  const picksRate = !!o.userSet && !h
+  const [queueQ] = useLendingBooks(picksRate ? [o.debt.uid] : [], 'borrow')
+  const queueBook = queueQ?.book ?? null
+  const u = picksRate ? userSetOfBook(queueBook) ?? o.userSet! : null
+  const suggested = recommendedOf(u)?.apr
+  const [rate0, setRate] = React.useState<number | null>(null)
+  const rate = u ? clampRate(u, rate0 ?? suggested ?? o.borrowApr) : null
   // the rate at THIS size, off the market's own curve: it visibly climbs as more is taken
-  const irm = useIrm(o.debt.uid)
-  const apr = irm.isPending ? o.borrowApr : borrowAtSize(o.borrowApr, o.borrowApr, take, irm.data)
+  const irm = useIrm(o.userSet ? '' : o.debt.uid)
+  const apr = rate != null ? rate : o.userSet ? o.borrowApr : irm.isPending ? o.borrowApr : borrowAtSize(o.borrowApr, o.borrowApr, take, irm.data)
   const monthly = monthlyCost(totalDebt, apr)
   const collUnits = heldUnits + put
   const liqPx = liquidationPrice(totalDebt, collUnits, o.liqLtv) * debtPrice
@@ -254,13 +266,13 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
   const build = (simulate: boolean) => {
     const base = { operator: actor!, accountId: h?.accountId, simulate }
     const pay = chosen.role === 'native' ? chosen.address : undefined
-    if (put > 0 && take > 0) return lendingDepositAndBorrow({ ...base, collateralMarketUid: o.collateral.uid, debtMarketUid: o.debt.uid, collateralRaw: putRaw, borrowRaw: toRaw(debtUnits, o.debt.decimals), payAsset: pay, modeId: o.modeId })
+    if (put > 0 && take > 0) return lendingDepositAndBorrow({ ...base, collateralMarketUid: o.collateral.uid, debtMarketUid: o.debt.uid, collateralRaw: putRaw, borrowRaw: toRaw(debtUnits, o.debt.decimals), payAsset: pay, modeId: o.modeId, ...(rate != null ? { interestRate: rateToWad(rate) } : {}) })
     if (put > 0) return lendingAction('deposit', { ...base, marketUid: o.collateral.uid, amountRaw: putRaw, payAsset: pay })
     return lendingAction('borrow', { ...base, marketUid: o.debt.uid, amountRaw: toRaw(debtUnits, o.debt.decimals) })
   }
-  const dKey = useDebounced([o.id, putRaw, Math.round(take * 100), chosen.role, actor ?? '', h?.accountId ?? ''].join('|'), 500)
+  const dKey = useDebounced([o.id, putRaw, Math.round(take * 100), chosen.role, actor ?? '', h?.accountId ?? '', rate ?? ''].join('|'), 500)
   const sim = useQuery({
-    enabled: !!actor && isConnected && !paper.active && (put > 0 || take > 0) && dKey === [o.id, putRaw, Math.round(take * 100), chosen.role, actor ?? '', h?.accountId ?? ''].join('|'),
+    enabled: !!actor && isConnected && !paper.active && (put > 0 || take > 0) && dKey === [o.id, putRaw, Math.round(take * 100), chosen.role, actor ?? '', h?.accountId ?? '', rate ?? ''].join('|'),
     queryKey: ['borrow-sim', dKey],
     queryFn: () => build(true),
     staleTime: 20_000, retry: false,
@@ -276,7 +288,7 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
     : (pre?.borrowCapacity ?? 0) > 0 || (pre?.balanceData?.collateral ?? 0) > 0)
   const simHf = simTrusted ? sim.data?.data?.simulation?.post?.healthFactor ?? undefined : undefined
   const effHf = simHf != null && simHf > 0 ? simHf : hf
-  const key = [o.id, h?.accountId ?? '', putRaw, Math.round(take * 100), chosen.role, actor ?? ''].join('|')
+  const key = [o.id, h?.accountId ?? '', putRaw, Math.round(take * 100), chosen.role, actor ?? '', rate ?? ''].join('|')
   const debtKey = keyOfToken({ chainId: o.chainId, address: o.debt.address, symbol: o.debt.symbol }) ?? o.debt.symbol
   // (a borrow on collateral already in whose flag is off switches it on first, or the borrow reverts: tickets/0015)
   const ladder = useTicketLadder(key, o.chainId, async () => [...(take > 0 ? await collateralOnFirst(h, actor!) : []), ...stepsFrom((await build(false)).actions, put > 0 && take > 0 ? 'Put up and borrow' : put > 0 ? 'Add collateral' : 'Borrow', o.chainId)],
@@ -348,11 +360,13 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
         </div>
       </div>
 
+      {u && rate != null && <RatePicker u={u} book={queueBook} rate={rate} onRate={setRate} debtSymbol={o.debt.symbol} price={debtPrice} />}
+
       {/* the sentence: the zone, what it costs in money, and the line in the asset's own price */}
       <div className="tsec bsum">
         <div className="bline"><span className={`zdot ${ZONES[zone].cls}`} aria-hidden /><b className={ZONES[zone].cls}>{ZONES[zone].word}</b>
           <span className="t70"> · {owedUsd > 0.005 ? 'the whole loan costs' : 'costs'} about <b>{usd(monthly)}</b> a month</span> <span className="t50">({pct(apr)} APR{Math.abs(apr - o.borrowApr) >= 0.05 ? ` at this size, ${pct(o.borrowApr)} now` : ''}<BorrowRewards apr={apr} rewards={o.rewards} sep=", " />)</span>
-          <IrmLink uid={o.debt.uid} side="borrow" label="rate curve" /></div>
+          {o.userSet ? <BookLink uid={o.debt.uid} side="borrow" size={0} symbol={o.debt.symbol} price={debtPrice} label="the queue" rate={rate ?? undefined} /> : <IrmLink uid={o.debt.uid} side="borrow" label="rate curve" />}</div>
         {totalDebt > 0 && (o.pegged
           ? <div className="bline t70">Both sides are dollars: only {o.collateral.symbol} losing its peg by {pct(drop * 100, 1)} can liquidate this.</div>
           : mixed ? <div className="bline t70">If what you have put up loses <b>{pct(drop * 100, 0)}</b> of its value{usdOut ? '' : ` against ${o.debt.symbol}`}, the lender sells some of it to repay. <span className="t50">(More than one token backs this account, so there is no single price to name.)</span></div>

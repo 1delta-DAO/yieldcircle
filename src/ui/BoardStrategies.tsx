@@ -15,7 +15,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type * as idx from '../index/api'
 import { earnersQuery, useMarket, useProtocols, useStrategyProofs, useVaultsAt } from '../index/queries'
 import { useCounts, useProfiles, useStrategyThreads } from '../social/queries'
-import { go, marketHref, walletHref } from '../state/AppState'
+import { go, levParam, marketHref, walletHref } from '../state/AppState'
 import { chainLabel } from '../sdk/queries'
 import { groupByStrategy, isNewStrategy } from '../model/boardGroups'
 import { bookKeyOf, parseLoopKey, protocolKeyOf, threadOfBookKey } from '../model/uid'
@@ -108,8 +108,8 @@ const talkTo = (st: Strategy | null, uid: string | undefined) => (e: React.Mouse
 /** Copy the strategy as `who` runs it — or, off the menu, open their page, whose Copy carries the warning. */
 function CopyOrOpen({ st, r }: { st: Strategy | null; r: idx.EarnerRow }) {
   return st
-    ? <button type="button" className="btn sm pri copyb" title={`Open ${st.kind === 'loop' ? 'this loop' : 'this deposit'} as a ticket${r.leverage && r.leverage > 1.05 ? ` — the best runs it at ${r.leverage.toFixed(1)}×, you choose your own` : ''}`}
-        onClick={() => go(st.group, { u: st.asset, s: st.id, k: st.kind, copy: r.account })}>Copy</button>
+    ? <button type="button" className="btn sm pri copyb" title={`Open ${st.kind === 'loop' ? 'this loop' : 'this deposit'} as a ticket${st.kind === 'loop' && r.leverage && r.leverage > 1.05 ? ` at their ${r.leverage.toFixed(1)}×, your own size` : ''}`}
+        onClick={() => go(st.group, { u: st.asset, s: st.id, k: st.kind, copy: r.account, lev: levParam(st, r.leverage) })}>Copy</button>
     : <a className="btn sm copyb off" href={walletHref(r.account)} title="Not in the menu: copy it from the best holder’s page, with its warning">Open</a>
 }
 

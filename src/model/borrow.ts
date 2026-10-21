@@ -18,6 +18,7 @@
  */
 import type { OptimizerRowRaw } from '../sdk/types'
 import type { Holding } from './positions'
+import { isUserSetRow, userSetOfRow, type UserSetRate } from './userSetRate'
 import { baseOfSymbol, groupOf, noteStock, stockInfo, type GroupId } from './assets'
 import { assetClassOf, type AssetClass } from './assetClass'
 import { keyOfToken, moneyOf } from './desk'
@@ -77,16 +78,20 @@ export interface BorrowOffer {
   modeId?: string
   /**
    * A venue that needs an input the ticket does not ask yet — a fixed term, a smart-debt leg,
-   * LlamaLend bands, Inverse's DBR, a Liquity trove (its own interest rate), an institutional
-   * (permissioned) market. Not offered in v1.
+   * LlamaLend bands, Inverse's DBR, a user-set-rate trove whose queue the row does not carry, an
+   * institutional (permissioned) market. Not offered in v1.
    */
   needsInput?: 'term' | 'smart' | 'bands' | 'dbr' | 'trove' | 'permissioned'
+  /**
+   * The borrower picks the rate (Liquity family, Flex) — `model/userSetRate.ts`. `borrowApr` is then
+   * the queue's recommended pick (+ the amortised upfront fee), the rate a new loan opens at unless
+   * the ticket's rate picker says otherwise.
+   */
+  userSet?: UserSetRate
 }
 
 const num = (v: string | number | null | undefined): number => { if (v == null || v === '') return 0; const n = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(n) ? n : 0 }
 const FIXED = new Set(['lista', 'loopscale', 'midnight', 'term', 'termmax', 'teller'])
-/** The Liquity family: a loan is a trove with an interest rate the borrower sets (Ticket.tsx `LIQUITY_FAMILY`). */
-const TROVES = /^(LIQUITY|FELIX|NERITE|QUILL|EBISU|SONETA|ENOSYS_LOANS)/
 
 /** The family a debt token pays out in: its money (dollars, ether, bitcoin), else a native coin of the `MORE` group; null for anything else. */
 export function outOf(t: { chainId: string; address: string; symbol?: string; desk?: unknown; props?: unknown }): Out | null {
@@ -117,14 +122,17 @@ export function offerFromRow(r: OptimizerRowRaw): BorrowOffer | null {
   const { risk, riskLabel } = riskOf(worst)
   const cls = (r.collateralAssetClass as AssetClass | null | undefined) ?? assetClassOf(L.props?.rwa)
   const model = r.fixedTerm?.model ?? ''
+  const userSet = isUserSetRow(r) ? userSetOfRow(r) : null
   const needsInput: BorrowOffer['needsInput'] = r.variableBorrowDisabledShort || FIXED.has(model) || r.debtTerms?.maturityKind === 'fixed-date' ? 'term'
     : r.isBasketLong ? 'smart'
     : /^(LLAMALEND|CURVE_LEND)/.test(r.lender) ? 'bands'
     : /^INVERSE/.test(r.lender) ? 'dbr'
-    : TROVES.test(r.lender) ? 'trove'
+    // a user-set rate is offered when the row carries the queue's picks: the ticket's picker needs them
+    : isUserSetRow(r) && !userSet?.picks.length ? 'trove'
     : /INSTITUTIONAL|PERMISSIONED|KYC/.test(r.lender) ? 'permissioned' : undefined
   const util = num(r.utilizationShort)
   return {
+    ...(userSet ? { userSet } : {}),
     id: `b:${r.marketLongUid}|${r.marketShortUid}`, chainId: r.chainId, lender: r.lender, venue: venueLabel(r.lender, r.curatorNameLong, r.marketNameLong),
     asset, group: groupOf(asset),
     collateral: { uid: r.marketLongUid, symbol: L.symbol, address: L.address, decimals: L.decimals ?? 18, logo: L.logoURI || undefined, price: r.underlyingInfoLong.prices?.priceUsd ?? undefined, group: L.assetGroup },

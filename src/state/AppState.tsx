@@ -64,6 +64,8 @@ export interface Route {
   x?: string
   /** who is being copied, when the ticket was opened from a feed card */
   copy?: string
+  /** the leverage they run it at, so a copied loop opens on it (`?lev=3.2`) */
+  lev?: number
   /** an off-menu row's narrowing token (`OffMenuRef.by`): `s=` names a row the catalogue does not hold */
   oa?: string
   /** #/w/<addr>?pos=<group key> — the position whose PnL history is open (pos-indexer tickets/0061) */
@@ -93,6 +95,7 @@ export function parseRoute(hash = location.hash): Route {
     by: p.get('by') ?? undefined,
     x: p.get('x') ?? undefined,
     copy: p.get('copy') ?? undefined,
+    lev: Number(p.get('lev')) > 1 ? Number(p.get('lev')) : undefined,
     oa: p.get('oa') ?? undefined,
     pos: p.get('pos') ?? undefined,
     talk: p.get('talk') === '1',
@@ -130,6 +133,8 @@ export function go(path: string, params: Record<string, string | undefined | nul
   const s = q.toString()
   location.hash = '#/' + path + (s ? '?' + s : '')
 }
+/** A copy link's `lev`: only a loop takes one, and only levered; two decimals is what the ticket shows. */
+export const levParam = (s: { kind: string }, lev: number | null | undefined) => (s.kind === 'loop' && lev && lev > 1.05 ? lev.toFixed(2) : undefined)
 /** A market uid carries colons and dots, so it is encoded — and its case is significant, never lowered. */
 export const marketHref = (uid: string) => `#/m/${encodeURIComponent(uid)}`
 export const walletHref = (a: string) => `#/w/${normAddr(a)}`

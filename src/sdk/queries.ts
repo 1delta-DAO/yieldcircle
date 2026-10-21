@@ -1,12 +1,13 @@
 import { keepPreviousData, useQueries, useQuery, type QueryClient, type QueryFunctionContext } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopDepthShort, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
+import { ApiError } from '../vendor/allocator/http'
+import { fetchBorosHedge, fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopDepthShort, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
 import { bookOpen, capPerAsset, classifyEarn, classifyPair, dedupe, FIXED_BOOK_PROTOCOLS, foldBookDates, foldDates, rowKey, type Candidate, type LoopStrategy, type LoopTenor, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { HIDES, hideDetail, softHide, type HideCode } from '../model/visibility'
 import { parseUid } from '../model/uid'
 import { EXPOSURE_ASSETS, FIAT_FLOOR, FIAT_REQUESTS, fiatOf } from '../model/assets'
 import { useSettings, type Settings } from '../state/Settings'
-import type { EarnPositionsResponse, LendingBook, OptimizerResponse, TokenBalance } from './types'
+import type { BorosHedgeData, EarnPositionsResponse, LendingBook, OptimizerResponse, TokenBalance } from './types'
 import { byOffer, offersFrom, type BorrowOffer, type Out } from '../model/borrow'
 import { indexBalances, syncHints, type SyncHintLeg } from '../index/api'
 import type { IndexBalanceItem } from '../index/types'
@@ -1020,12 +1021,17 @@ export function useRateHistory(rows: Strategy[], settled = true): HistoryGet {
 }
 
 function useDebounced<T>(v: T, ms: number): T { const [d, setD] = useState(v); useEffect(() => { const t = setTimeout(() => setD(v), ms); return () => clearTimeout(t) }, [v, ms]); return d }
-/** Quote-only loop (no account): the API's projected economics and simulated health for the ticket. */
+/**
+ * Quote-only loop (no account): the API's projected economics and simulated health for the ticket.
+ * `settling` is true while the live inputs are ahead of the debounced ones: the answer in hand is
+ * then for the PREVIOUS leverage or size, and the ticket must not show it as this one's.
+ */
 export function useLoopQuote(l: LoopStrategy | null, equityUsd: number, leverageLive: number, account?: string, slippageBp = 50, termId?: string, tenor?: LoopTenor, pay?: { asset: string; raw: string }) {
   const leverage = useDebounced(leverageLive, 500)
   const equity = useDebounced(equityUsd, 500)
   const margin = useDebounced(pay, 500)
-  return useQuery(loopQuoteOpts(l, equity, leverage, account, slippageBp, termId, tenor, margin))
+  const settling = leverage !== leverageLive || equity !== equityUsd || margin?.raw !== pay?.raw || margin?.asset !== pay?.asset
+  return { q: useQuery(loopQuoteOpts(l, equity, leverage, account, slippageBp, termId, tenor, margin)), settling }
 }
 function loopQuoteOpts(l: LoopStrategy | null, equity: number, leverage: number, account: string | undefined, slippageBp: number, termId?: string, tenor?: LoopTenor, pay?: { asset: string; raw: string }) {
   const debtUsd = equity * (leverage - 1)
@@ -1039,6 +1045,27 @@ function loopQuoteOpts(l: LoopStrategy | null, equity: number, leverage: number,
     // some lenders (LlamaLend) only quote with an account; passing it costs nothing — nothing is signed here
     queryFn: () => loopOpen({ collateralMarketUid: l!.marketLongUid, debtMarketUid: l!.marketShortUid, debtAmountRaw: toRaw(debtTokens, l!.decimalsShort), slippageBp, leverage, account, termId, tenor, payAsset: pay?.asset, payAmountRaw: pay?.raw }),
   }
+}
+/**
+ * The funding lock for a loop whose collateral earns perp funding (sUSDe, wstUSR): a Boros quote
+ * sized on the whole position. EVM loops only (the lock is an Arbitrum position). `null` data when
+ * the collateral earns no funding the API can lock — the ticket then shows nothing.
+ */
+const NO_LOCK = new Set(['NO_FUNDING_EXPOSURE', 'FIXED_RATE_COLLATERAL'])
+export function useFundingLock(l: LoopStrategy | null, positionUsdLive: number) {
+  const positionUsd = useDebounced(positionUsdLive, 500)
+  // $100 steps: the lock's rate barely moves with size, and every keystroke would refetch
+  const notional = Math.max(100, Math.round(positionUsd / 100) * 100)
+  return useQuery({
+    enabled: !!l && !isSvmChain(l.chainId) && positionUsd > 0,
+    queryKey: ['fundlock', l?.holds, notional],
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async (): Promise<BorosHedgeData | null> => {
+      try { return await fetchBorosHedge({ collateralSymbol: l!.holds, notionalUsd: notional }) }
+      catch (e) { if (e instanceof ApiError && e.code && NO_LOCK.has(e.code)) return null; throw e }
+    },
+  })
 }
 /**
  * The borrow books of dated markets (Midnight), one request per market — a pair has a handful of
@@ -1055,6 +1082,8 @@ export const bookDepth = (book: LendingBook | null): number => book?.levels.at(-
  * walks (marginal), or the level that covers it (uniform). `null` when the book cannot fill it.
  */
 export function bookAprAt(book: LendingBook | null, amount: number): number | null {
+  // a redemption queue fills nothing: its levels are debt that already exists (model/userSetRate.ts)
+  if (book?.pricing === 'queue') return null
   if (!book?.levels.length) return null
   if (!(amount > 0)) return book.levels[0].aprPct
   if (book.pricing === 'uniform') return book.levels.find((l) => l.cumulativeAssets >= amount)?.aprPct ?? null

@@ -16,7 +16,7 @@ import { useMenu, type Menu } from './useMenu'
 import { parseUid, uidOf } from '../model/uid'
 import { maturityClock, ptMaturityOf, termClock, type Strategy } from '../model/strategies'
 import { useAccount } from 'wagmi'
-import { go, marketHref, parseRoute, useApp, useRoute, walletHref } from '../state/AppState'
+import { go, levParam, marketHref, parseRoute, useApp, useRoute, walletHref } from '../state/AppState'
 import { PnlDrawer } from './PnlDrawer'
 import { WalletPnl } from './WalletPnl'
 import { WalletClosed } from './WalletClosed'
@@ -441,7 +441,7 @@ type Copyable = { st: Strategy } | { off: OffMenuRef } | null
 /** The Copy button for whatever `useCopyable` found: a menu row, or one asked for on the click. */
 function CopyCell({ c, who, lev }: { c: Copyable; who: string; lev?: number | null }) {
   if (!c) return null
-  return 'st' in c ? <CopyPositionButton st={c.st} who={who} lev={lev} /> : <CopyOffMenuButton r={c.off} who={who} />
+  return 'st' in c ? <CopyPositionButton st={c.st} who={who} lev={lev} /> : <CopyOffMenuButton r={c.off} who={who} lev={lev} />
 }
 
 /**
@@ -449,7 +449,7 @@ function CopyCell({ c, who, lev }: { c: Copyable; who: string; lev?: number | nu
  * then the ticket opens with a warning saying why it is off the menu; a shape
  * the ticket cannot build at all (a price bet, a basket) says so here instead.
  */
-function CopyOffMenuButton({ r, who }: { r: OffMenuRef; who: string }) {
+function CopyOffMenuButton({ r, who, lev }: { r: OffMenuRef; who: string; lev?: number | null }) {
   const qc = useQueryClient()
   const [state, setState] = React.useState<{ busy?: boolean; no?: { word: string; why: string } }>({})
   // say WHICH gate refused it in the cell; the full reason stays on hover
@@ -464,7 +464,7 @@ function CopyOffMenuButton({ r, who }: { r: OffMenuRef; who: string }) {
         e.stopPropagation()
         setState({ busy: true })
         const c = await qc.fetchQuery(offMenuQuery(r)).catch(() => null)
-        if (c?.s) go(c.s.group, { u: c.s.asset, s: c.s.id, k: c.s.kind, copy: who, oa: r.by })
+        if (c?.s) go(c.s.group, { u: c.s.asset, s: c.s.id, k: c.s.kind, copy: who, lev: levParam(c.s, lev), oa: r.by })
         else setState({ no: c?.hide ? HIDES[c.hide] : { word: 'no ticket', why: 'The API has no row for this market to build a ticket from.' } })
       }}
     >
@@ -479,10 +479,10 @@ function CopyPositionButton({ st, who, lev }: { st: Strategy; who: string; lev?:
     <button
       type="button"
       className="btn sm pri copyb"
-      title={`Open ${st.kind === 'loop' ? 'this loop' : 'this deposit'} as a ticket${lev && lev > 1.05 ? ` — they run it at ${lev.toFixed(1)}×, you choose your own` : ''}`}
+      title={`Open ${st.kind === 'loop' ? 'this loop' : 'this deposit'} as a ticket${st.kind === 'loop' && lev && lev > 1.05 ? ` at their ${lev.toFixed(1)}×, your own size` : ''}`}
       onClick={(e) => {
         e.stopPropagation()
-        go(st.group, { u: st.asset, s: st.id, k: st.kind, copy: who })
+        go(st.group, { u: st.asset, s: st.id, k: st.kind, copy: who, lev: levParam(st, lev) })
       }}
     >
       Copy

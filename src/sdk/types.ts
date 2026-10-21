@@ -135,6 +135,14 @@ export interface OptimizerRowRaw {
   intrinsicYieldLong?: string | number
   /** `maturityKind: 'fixed-date'` is a debt that falls due on one date (Midnight, Term, TermMax) */
   debtTerms?: { maturityKind?: string; canOpen?: boolean } | null
+  /**
+   * How the debt leg is priced: `userSet` = the borrower picks the rate (the Liquity family, Flex),
+   * and redemptions take the lowest rates first. `borrowAprShort` is then the redemption queue's
+   * RECOMMENDED pick (plus the amortised upfront fee), never the average and never 0.
+   */
+  rateModelShort?: string | null
+  /** the debt leg's user-set-rate descriptor, trimmed (rate range, cooldowns, the queue's picks) — one of the two */
+  liquityShort?: UserSetDescriptor | null; flexShort?: UserSetDescriptor | null
   underlyingInfoLong: UnderlyingInfo; underlyingInfoShort: UnderlyingInfo
   /** the credit desk of each leg, resolved by the API (docs/stablecoin-exposure.md); absent on an API without it */
   collateralDesk?: DeskRef | null; debtDesk?: DeskRef | null
@@ -232,8 +240,33 @@ export interface LendingRange { collateralModeId?: string; borrowCollateralFacto
  * fills against); `side: 'lend'` is the borrowers' offers (what a fixed-rate deposit takes).
  */
 export interface LendingBook {
-  lender: string; chainId: string; side: 'borrow' | 'lend'; pricing: 'marginal' | 'uniform'; maturity?: number
+  lender: string; chainId: string; side: 'borrow' | 'lend'
+  /**
+   * `'queue'` (Liquity family, Flex): the REDEMPTION QUEUE of a user-set-rate market. A level is
+   * debt that already exists at that rate, `cumulativeAssets` the debt redeemed before a trove just
+   * above it. Nothing fills — the borrower picks a rate and the book says who is ahead of it.
+   */
+  pricing: 'marginal' | 'uniform' | 'queue'; maturity?: number
   levels: { aprPct: number; assets: number; cumulativeAssets: number }[]
+  /** `'queue'` only */
+  range?: { min: number; max: number }; totalDebt?: number; picks?: RatePick[]; recommended?: RatePickId | null
+  pressure?: { driver: 'below-peg' | 'lender-liquidity'; signal: number | null; level: 'low' | 'elevated' | 'high' }
+}
+export type RatePickId = 'cheapest' | 'balanced' | 'protected'
+/** One pickable rate of a redemption queue: the lowest rate with `share` of the market's debt ahead of it. */
+export interface RatePick { id: RatePickId; apr: number; debtAhead: number; share: number; upfrontFeePct: number }
+/**
+ * `params.market.liquity` / `.flex` as pair rows carry it (yield-tracer trims addresses and the
+ * queue's levels). Liquity bounds are WAD strings, Flex's fractions — read them through
+ * `model/userSetRate.ts`, never here.
+ */
+export interface UserSetDescriptor {
+  minAnnualInterestRate?: string | number; maxAnnualInterestRate?: string | number
+  interestRateAdjCooldownSeconds?: string | number; interestRateAdjCooldown?: number
+  upfrontInterestPeriodSeconds?: string | number; upfrontInterestPeriod?: number
+  shutdown?: boolean
+  queue?: { min: number; max: number; totalDebt: number; picks: RatePick[]; recommended?: RatePickId; pressure?: LendingBook['pressure']; complete?: boolean } | null
+  [k: string]: unknown
 }
 
 // ---------------------------------------------------------------- balances
@@ -281,3 +314,28 @@ export interface IrmCurve {
   points: IrmPoint[]
 }
 export interface IrmResponse { count: number; items: IrmCurve[] }
+
+/**
+ * `/v1/actions/boros/hedge`: a Pendle Boros SHORT that swaps the floating perp funding a collateral
+ * earns (sUSDe, wstUSR) for a fixed rate until the market matures. Arbitrum only; rates in percent.
+ */
+export interface BorosHedgeLeg {
+  asset: string
+  weight: number
+  quote: {
+    marketId: number; symbol: string; venue: string; asset: string; maturity: number; daysToMaturity: number
+    collateral: { symbol: string; address: string; decimals: number; priceUsd: number }
+    notionalUsd: number; fixedAprPct: number; floatingAprPct: number; lockSpreadPct: number; fillRatio: number
+    costs: { takerFeeUsd: number; allInAprPct: number }
+    margin: { depositUsd: number; rateMoveToLiquidationPct: number | null }
+  }
+}
+export interface BorosHedgeData {
+  chainId: string
+  profile: { id: string; label: string; fundingShare?: string } | null
+  notionalUsd: number
+  legs: BorosHedgeLeg[]
+  /** notional-weighted; `lockSpreadPct` = fixed − floating, what locking gains (or gives up) at today's rates */
+  summary: { fixedAprPct: number | null; floatingAprPct: number | null; lockSpreadPct: number | null; allInCostAprPct: number | null; depositUsd: number; lockedUntil: number | null }
+  notes: string[]
+}

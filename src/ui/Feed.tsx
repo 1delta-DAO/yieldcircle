@@ -20,7 +20,7 @@
  */
 import React from "react";
 import { useApp } from "../state/AppState";
-import { go, marketHref, parseRoute } from "../state/AppState";
+import { go, levParam, marketHref, parseRoute } from "../state/AppState";
 import { feedHash, readFeedLink, sameFilters, type FeedFilters } from "../state/feedLink";
 import { useCuratorsByAccount, useFeedPage } from "../index/queries";
 import type { TxBundle, TxLeg, TxSubject } from "../index/types";
@@ -717,6 +717,14 @@ export function headlineUsd(t: TxBundle): { usd: number | null; debtUsd: number 
   const debtWord = debt.some((l) => l.kind === "borrow") ? "borrowed" : "repaid";
   return { usd: heldUsd, debtUsd: sum(debt), debtWord };
 }
+/**
+ * The leverage a loop OPEN in this bundle was put on at: what it holds over what it put in,
+ * held / (held − borrowed). Null on a repay, an unpriced leg, or a bundle without a debt leg.
+ */
+export function openedAt(t: TxBundle): number | null {
+  const h = headlineUsd(t);
+  return h.debtWord === "borrowed" && h.usd != null && h.debtUsd != null && h.usd > h.debtUsd ? h.usd / (h.usd - h.debtUsd) : null;
+}
 /** {@link headlineUsd} as the row's money cell, with the debt it leaves out in the hover */
 export function TxMoney({ t, l, short }: { t: TxBundle; l?: TxLeg; short?: boolean }) {
   const h = headlineUsd(t);
@@ -998,6 +1006,7 @@ function Card({
                   s: strategy.id,
                   k: strategy.kind,
                   copy: who,
+                  lev: levParam(strategy, openedAt(tx)),
                 })
               }
             >

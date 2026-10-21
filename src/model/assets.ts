@@ -375,9 +375,9 @@ export function denomOf(base: string): Denomination {
  * row each, and these are worth seeing small: the listing is asked for them separately below the
  * menu's floor (`useCatalog`), and `softHide` lets them through down to it.
  */
-export const FIAT: Record<string, { name: string; glyph: string }> = {
+export const FIAT: Record<string, { name: string; glyph: string; /** drawn over the colour instead of the glyph: the franc has no sign of its own (`₣` is the French franc), so its mark is the Swiss cross */ mark?: string }> = {
   EUR: { name: 'Euro', glyph: '€' },
-  CHF: { name: 'Swiss franc', glyph: 'Fr' },
+  CHF: { name: 'Swiss franc', glyph: 'Fr', mark: '<path fill="#fff" d="M13 6h6v7h7v6h-7v7h-6v-7H6v-6h7z"/>' },
   GBP: { name: 'British pound', glyph: '£' },
 }
 export const FIAT_FLOOR = 100_000
@@ -449,9 +449,9 @@ export const short = (sym: string) => FIAT[sym]?.glyph ?? sym.replace(/^PT-/, ''
  */
 import LOGOS from '../data/logos.json'
 export const assetLogo = (sym: string | undefined): string | undefined => (sym ? FIAT_MARK[sym] ?? (LOGOS as Record<string, string>)[sym.toUpperCase()] ?? STOCK_ROWS.get(sym)?.logo : undefined)
-/** A currency row's mark is its sign on its colour: no token's logo stands for the euro as a whole. */
+/** A currency row's mark is its sign (or `mark`) on its colour: no token's logo stands for the euro as a whole. */
 const FIAT_MARK: Record<string, string> = Object.fromEntries(Object.entries(FIAT).map(([k, f]) => [k, 'data:image/svg+xml,' + encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="${BASE[k].color}"/><text x="16" y="16" dy=".36em" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="700" font-size="${f.glyph.length > 1 ? 13 : 18}" fill="#fff">${f.glyph}</text></svg>`,
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="${BASE[k].color}"/>${f.mark ?? `<text x="16" y="16" dy=".36em" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="700" font-size="${f.glyph.length > 1 ? 13 : 18}" fill="#fff">${f.glyph}</text>`}</svg>`,
 )]))
 /** Unit a group's amounts are typed in: dollars for USD, the asset itself elsewhere (the group's coin for a desk known only by id, `SWELL:ETH`). */
 export const unitOf = (base: string) => (groupOf(base) === 'USD' ? '$' : base.includes(':') ? groupOf(base) : base)

@@ -116,7 +116,8 @@ function BookRow({ x, best, get, room }: { x: AssetBook; best: Strategy | undefi
   return (
     <tr onClick={() => go(x.group, { u: x.asset, k: best?.kind ?? (room >= 1 ? 'borrow' : undefined) })}>
       <td><div className="nm"><Tok sym={x.asset} logo={deskLogos(x.asset, best?.tokenLogo)} />{nameOf(x.asset)}<GroupTag gid={x.group} className="hide-m" /></div></td>
-      <td className="r">{amt(x.asset, (x.idle?.amount ?? 0) + (x.idle?.price ? x.atWorkUsd / x.idle.price : 0), x.totalUsd)}{x.atWorkUsd ? <small className="ok">{pct(x.blended)} on {Math.round(x.atWorkUsd / x.totalUsd * 100)}%</small> : <small className="t40">idle</small>}</td>
+      {/* no wallet balance = no price to turn the money at work into tokens: dollars then, never "0 CHF" for a $147 loan (as Positions' row) */}
+      <td className="r">{x.atWorkUsd && !x.idle?.price ? usd(x.totalUsd) : amt(x.asset, (x.idle?.amount ?? 0) + (x.idle?.price ? x.atWorkUsd / x.idle.price : 0), x.totalUsd)}{x.atWorkUsd ? <small className="ok">{pct(x.blended)} on {Math.round(x.atWorkUsd / x.totalUsd * 100)}%</small> : <small className="t40">idle</small>}</td>
       <td className="r upto">{best ? <><span className="t50">up to</span> <span className={best.rate >= 3 ? 'ok' : ''}>{pct(best.rate)}</span><small>{best.kind === 'loop' ? `${best.rec}× loop` : 'deposit'}<Avg30 s={best} get={get} prefix=" · 30d " />{room >= 1 && <span className="hide-m"> · or borrow up to {usdShort(room)}</span>}</small></> : room >= 1 ? <><span className="t50">borrow up to</span> <span>{usdShort(room)}</span><small>without selling</small></> : <span className="t40">—</span>}</td>
       <td className="r t40" style={{ width: 20 }}>›</td>
     </tr>

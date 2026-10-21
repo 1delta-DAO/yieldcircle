@@ -96,7 +96,9 @@ export interface EarnResponse { start: number; count: number; total: number; ite
 // ---------------------------------------------------------------- earn positions
 export interface EarnPositionAsset { address: string; symbol?: string; decimals?: number; priceUsd?: number; logoURI?: string; issuer?: IssuerRef | null; desk?: DeskRef | null; denomination?: string | null }
 /** `loanId`: the leg is ONE fixed-term loan (Lista's broker), also counted in the market's unbound leg — never add the two */
-export interface EarnPositionLeg { earnUid?: string; marketUid: string; loanId?: string; asset: EarnPositionAsset; side: 'supply' | 'borrow' | 'both' | 'none'; deposits: string; depositsUsd: number; debt: string; debtUsd: number }
+export interface EarnPositionLeg { earnUid?: string; marketUid: string; loanId?: string; asset: EarnPositionAsset; side: 'supply' | 'borrow' | 'both' | 'none'; deposits: string; depositsUsd: number; debt: string; debtUsd: number
+  /** the supply counts as collateral (Aave's `usageAsCollateralEnabled`; false on a Morpho loan-side supply) — absent from older answers */
+  collateralEnabled?: boolean }
 /** `apr` = market + rewards + intrinsic, each over NAV in percent (margin-fetcher `EarnAprBreakdown`); `rewards` can stop */
 export interface EarnAprBreakdown { market: number; rewards: number; intrinsic: number }
 export interface EarnPositionBase { positionUid: string; chainId: string; venue: string; venueKind: string; brand?: string; name?: string; logoURI?: string; suppliedUsd: number; borrowedUsd: number; netUsd: number; apr?: number; aprBreakdown?: EarnAprBreakdown }

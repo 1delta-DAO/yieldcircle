@@ -45,7 +45,7 @@ import { useProfiles } from '../social/queries'
 import { go, useApp, type Mode } from '../state/AppState'
 import { usePaper } from '../state/Paper'
 import { useSticky, useStickyAmount } from '../state/sticky'
-import { Action, AmountBox, GetLine, TicketCtx, sameToken } from './Ticket'
+import { Action, AmountBox, GetLine, TicketCtx, collateralOnFirst, sameToken } from './Ticket'
 import { GetAsset } from './GetAsset'
 import { IrmLink } from './Irm'
 import { Thread } from './Thread'
@@ -278,7 +278,8 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
   const effHf = simHf != null && simHf > 0 ? simHf : hf
   const key = [o.id, h?.accountId ?? '', putRaw, Math.round(take * 100), chosen.role, actor ?? ''].join('|')
   const debtKey = keyOfToken({ chainId: o.chainId, address: o.debt.address, symbol: o.debt.symbol }) ?? o.debt.symbol
-  const ladder = useTicketLadder(key, o.chainId, async () => stepsFrom((await build(false)).actions, put > 0 && take > 0 ? 'Put up and borrow' : put > 0 ? 'Add collateral' : 'Borrow', o.chainId),
+  // (a borrow on collateral already in whose flag is off switches it on first, or the borrow reverts: tickets/0015)
+  const ladder = useTicketLadder(key, o.chainId, async () => [...(take > 0 ? await collateralOnFirst(h, actor!) : []), ...stepsFrom((await build(false)).actions, put > 0 && take > 0 ? 'Put up and borrow' : put > 0 ? 'Add collateral' : 'Borrow', o.chainId)],
     [o.collateral.uid, o.debt.uid], [{ address: chosen.address, symbol: chosen.symbol }, { address: o.debt.address, symbol: o.debt.symbol }],
     borrowPlan({ offer: o, into: h, payToken: chosen.address, collUnits: put, debtUnits, borrowApr: apr }),
     // the build, unsigned, before a paper loan: what the API would refuse, paper refuses

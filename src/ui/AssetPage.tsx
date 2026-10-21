@@ -1,6 +1,7 @@
 import React from 'react'
 import { assetLogo, isFiat, nameOf, whatIs, type Group } from '../model/assets'
-import { exitTerms, loopRewards, markPicks, rewardsOf, type Strategy } from '../model/strategies'
+import { exitTerms, loopRewards, markPicks, rewardsOf, type LoopStrategy, type Strategy } from '../model/strategies'
+import { depositsAsLoops } from '../model/putUp'
 import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
 import { useBook } from './useBook'
@@ -28,6 +29,9 @@ import { canonUid } from '../model/uid'
 import { stockInfo } from '../model/assets'
 import { BorrowTicket } from './BorrowTicket'
 import { BorrowCats, BorrowList, borrowRoom, mineSummary } from './BorrowList'
+
+/** one market, however each side cased its uid (the positions route lower-cases EVM refs) */
+const sameUid = (a: string | undefined, b: string | undefined) => !!a && !!b && a.toLowerCase() === b.toLowerCase()
 
 /** One list, one number per row. The list decides which; the ticket decides how much and how levered. */
 export function AssetPage({ group, route }: { group: Group; route: Route }) {
@@ -126,10 +130,15 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   // a deposit that pays only the token's own yield is not putting an idle balance to work: the balance already earns it
   const bestSimpleFor = (a: string) => inGroup.filter((s) => s.asset === a && s.kind === 'simple' && !s.passthrough).sort((x, y) => y.rate - x.rate)[0]
   // a loop is identified by BOTH legs: several loops on one venue share the collateral market
-  const matches = (s: Strategy, h: Holding) => h.kind === s.kind && (s.kind === 'simple' ? h.earnUid === s.earnUid : h.earnUid === s.marketLongUid && (!h.debtUid || h.debtUid.toLowerCase() === s.marketShortUid.toLowerCase()))
+  // (on the collateral MARKET, not the catalogue's earn uid for it: the market is what both sides name)
+  const matches = (s: Strategy, h: Holding) => h.kind === s.kind && (s.kind === 'simple' ? h.earnUid === s.earnUid : sameUid(h.collateralUid ?? h.earnUid, s.marketLongUid) && (!h.debtUid || sameUid(h.debtUid, s.marketShortUid)))
   const held = (s: Strategy) => b.holdings.find((h) => matches(s, h))
+  // a deposit already in a loop's collateral market, with nothing borrowed: the loop can start from it (tickets/0015)
+  const putUpOf = (s: Strategy) => (s.kind === 'loop' && b.account ? depositsAsLoops(s, b.holdings).lever : [])
   // every position on it: an isolated-account venue can run the same strategy more than once, and the ticket picks one
-  const heldAll = (s: Strategy) => b.holdings.filter((h) => matches(s, h))
+  const heldAll = (s: Strategy) => [...b.holdings.filter((h) => matches(s, h)), ...putUpOf(s)]
+  /** the loop with the best rate that can start from this deposit — what its row's Lever opens */
+  const leverOf = (h: Holding) => (h.kind !== 'simple' || !h.marketUid || h.paper ? null : inGroup.filter((s): s is LoopStrategy => s.kind === 'loop' && sameUid(s.marketLongUid, h.marketUid) && s.chainId === h.chainId).filter((s) => putUpOf(s).some((x) => x.key === h.key)).sort((x, y) => y.rate - x.rate)[0] ?? null)
   // holdings in scope, each paired with the catalogue strategy it belongs to (none → not actionable here)
   // 💬 on every row in ONE request: the service takes up to 1000 subjects a call
   // the STRATEGY's thread (`threadOf`): a loop's own, not its collateral market's
@@ -154,6 +163,9 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
     const openOff = () => go(group.id, { u, h: h.key, k: h.kind, m: h.kind === 'loop' ? 'manage' : 'reduce' })
     const total = s && s.kind === 'simple' ? s.rate : h.apr
     const out = h.kind === 'loop' ? 'Manage' : 'Withdraw'
+    // a deposit some loop can start from: levering it where it sits is the other thing it can do
+    const lv = leverOf(h)
+    const lever = lv ? <button className="btn sm" title={`Borrow ${lv.debt} against it and buy more ${lv.holds}: ${pct(lv.rate)} at the ${lv.venue} loop`} onClick={() => go(group.id, { u, s: lv.id, k: 'loop', m: 'manage', h: h.key })}>Lever</button> : null
     return {
       on: s ? sel?.id === s.id : offMenu?.key === h.key,
       tap: s ? () => { open('add') } : can ? openOff : undefined,
@@ -165,8 +177,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
       rewards: h.rewards ?? (!s ? 0 : s.kind === 'loop' && h.leverage && h.leverage > 1 ? loopRewards(s, h.leverage) : rewardsOf(s)),
       cls: total != null && total >= 0 ? 'ok' : total != null ? 'bad' : '',
       ser: s ? seriesFor(s, get, withRewards, h.kind === 'loop' && h.leverage && h.leverage > 1 ? h.leverage : undefined) : null,
-      acts: s ? <span className="acts"><button className="btn sm" onClick={() => open('add')}>Add</button><button className="btn sm" onClick={() => open(h.kind === 'loop' ? 'manage' : 'reduce')}>{out}</button></span>
-        : can ? <span className="acts"><button className="btn sm" title="Not in the menu: this position can be reduced or closed here, not added to" onClick={openOff}>{out}</button></span>
+      acts: s ? <span className="acts"><button className="btn sm" onClick={() => open('add')}>Add</button><button className="btn sm" onClick={() => open(h.kind === 'loop' ? 'manage' : 'reduce')}>{out}</button>{lever}</span>
+        : can ? <span className="acts"><button className="btn sm" title="Not in the menu: this position can be reduced or closed here, not added to" onClick={openOff}>{out}</button>{lever}</span>
         : <span className="t40" style={{ fontSize: 12 }}>not in the menu</span>,
     }
   }
@@ -274,7 +286,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                and clipped most of it. A card gives each its own line. */
             <div className="scards">
               {b.isLoading && !list.length ? [0, 1, 2, 3].map((i) => <div key={i} className="scard"><Sk w={90} /><Sk w={60} /><Sk w={110} /></div>)
-                : list.map((s) => { const h = held(s); const pick = picks.has(s.id); const ser = seriesFor(s, get, withRewards); const n = commentsOn(s); return (
+                : list.map((s) => { const h = held(s); const pu = h ? undefined : putUpOf(s)[0]; const pick = picks.has(s.id); const ser = seriesFor(s, get, withRewards); const n = commentsOn(s); return (
                 <div key={s.id} className="scard" role="button" tabIndex={0} aria-selected={sel?.id === s.id} onClick={() => go(group.id, { u, s: s.id, k: s.kind })} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(group.id, { u, s: s.id, k: s.kind }) } }}>
                   <div className="sc-top">
                     {s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}
@@ -290,7 +302,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                   <span className="sc-meta"><RiskWord s={s} /></span>
                   <span className="sc-meta">{s.kind === 'simple' ? exitTerms(s).short : s.instrument ? `via ${s.instrument}` : ''}</span>
                   {(s.tvlUsd > 0 || s.kind === 'loop') && <span className="sc-meta"><Size s={s} /></span>}
-                  {(h || letIn(s) || !isSavings(s.nature)) && <span className="sc-pills">{h && <span className="pill run">running</span>}<NaturePill n={s.nature} /><WhyIn s={s} /></span>}
+                  {(h || pu || letIn(s) || !isSavings(s.nature)) && <span className="sc-pills">{h && <span className="pill run">running</span>}{pu && <span className="pill run" title={`Your ${num(pu.amount, 4)} ${pu.symbol} already sits in this market: the loop can start from it`}>{num(pu.amount, pu.amount >= 100 ? 0 : 2)} {pu.symbol} in</span>}<NaturePill n={s.nature} /><WhyIn s={s} /></span>}
                 </div>) })}
             </div>
           ) : <div className="card">
@@ -300,9 +312,9 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
               <table className="tbl strat-t">
                 <colgroup><col /><col className="c-rate" /><col className="c-tail" /></colgroup>
                 <thead><tr><th>{kind === 'loop' ? 'Loop' : 'Deposit'}</th><th className="r">{kind !== 'loop' ? 'APR' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier (Defensive for a market-exposure loop, whose price moves on its own): earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}<button className="rw-toggle" aria-pressed={withRewards} title={withRewards ? 'The 30-day line includes reward streams — click to show the rate without them' : 'The 30-day line excludes reward streams — click to include them'} onClick={() => setWithRewards(!withRewards)}>{withRewards ? '+rewards' : 'no rewards'}</button></th><th /></tr></thead>
-                <tbody>{list.map((s) => { const h = held(s); const pick = picks.has(s.id); const on = sel?.id === s.id; const uid = on ? uidOf(s) : null; return (<React.Fragment key={s.id}>
+                <tbody>{list.map((s) => { const h = held(s); const pu = h ? undefined : putUpOf(s)[0]; const pick = picks.has(s.id); const on = sel?.id === s.id; const uid = on ? uidOf(s) : null; return (<React.Fragment key={s.id}>
                   <tr aria-selected={on} onClick={() => go(group.id, { u, s: s.id, k: s.kind })}>
-                    <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}<NaturePill n={s.nature} /><WhyIn s={s} /></div>
+                    <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}{pu && <span className="pill run" title={`Your ${num(pu.amount, 4)} ${pu.symbol} already sits in this market: the loop can start from it`}>{num(pu.amount, pu.amount >= 100 ? 0 : 2)} {pu.symbol} in</span>}<NaturePill n={s.nature} /><WhyIn s={s} /></div>
                       {/* the qualifiers read as one sentence. Risk had a column of
                           its own where eight rows in nine said the same word; here it
                           sits second, so it is the part a narrow screen keeps rather
@@ -330,7 +342,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
           </>)}
         </div>
         <aside ref={aside} className={ticketOpen ? '' : 'closed'} id="aside">
-          {sel && <Ticket key={sel.id + (route.m ?? '') + (route.h ?? '')} s={sel} idle={b.idlePerChain} holdings={heldAll(sel)} pick={route.h} mode={route.m} copy={route.copy} talk={route.talk} socialInList={!phone} onClose={close} />}
+          {sel && <Ticket key={sel.id + (route.m ?? '') + (route.h ?? '')} s={sel} idle={b.idlePerChain} holdings={heldAll(sel)} beside={sel.kind === 'loop' && b.account ? depositsAsLoops(sel, b.holdings).beside : undefined} pick={route.h} mode={route.m} copy={route.copy} talk={route.talk} socialInList={!phone} onClose={close} />}
           {!sel && offSel && <Ticket key={offSel.id + (route.m ?? '') + (route.h ?? '')} s={offSel} idle={b.idlePerChain} holdings={offMenu ? [offMenu] : heldAll(offSel)} pick={route.h} mode={route.m} copy={route.copy} talk={route.talk} offMenu={offMenuWhy(offSel, st)} onClose={close} />}
           {offMenu && !offSel && <HoldingTicket key={offMenu.key} h={offMenu} onClose={close} />}
           {borrowSel && <BorrowTicket key={borrowSel.id + (route.m ?? '') + (route.h ?? '')} o={borrowSel} holdings={heldLoans.get(borrowSel.id) ?? (loanHolding ? [loanHolding] : [])} idle={b.idlePerChain} pick={route.h} mode={route.m}

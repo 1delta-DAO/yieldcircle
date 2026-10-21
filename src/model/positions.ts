@@ -85,7 +85,11 @@ export interface Holding {
    * borrow ticket on that market can lend against it with nothing new put up. Vault shares have none.
    */
   marketUid?: string
-  /** a deposit read by the borrow ticket as collateral with nothing owed yet (`depositsAsLoans`) — never a row of the positions list */
+  /** a lending deposit's collateral flag as the venue reports it (`EarnPositionLeg.collateralEnabled`): false = it backs nothing yet */
+  collateralEnabled?: boolean
+  /** a lending deposit's account (`positionUid:accountId`): the deposits beside it in one account share it */
+  accountKey?: string
+  /** a deposit read as collateral with nothing owed yet — by the borrow ticket (`depositsAsLoans`) or a loop's (`depositsAsLoops`, tickets/0015) — never a row of the positions list */
   putUp?: true
   /** a Pendle PT's maturity (unix s), from its symbol — the positions route carries no expiry — or a book loan's repayment date (`bookLoan`) */
   maturity?: number
@@ -132,7 +136,11 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
       // a leg with a `loanId` is one broker loan the market's unbound leg already counts: kept aside, never summed
       const own = a.legs.filter((l) => !l.loanId)
       const supply = own.filter((l) => l.depositsUsd > 0.5).sort((x, y) => y.depositsUsd - x.depositsUsd)
-      const debtOf = (ls: typeof own) => ls.filter((l) => l.debtUsd > 0.5).sort((x, y) => y.debtUsd - x.debtUsd)
+      // a debt is dust only when it is small against what backs it: $0.49 owed on $0.66 is a 3.8× loop
+      // at health 1.06, and reading it as a plain deposit hid the risk and offered to borrow on top
+      // (tickets/0015). Interest dust left after a close ($0.01 on a $10k deposit) still is not a loop
+      const suppliedUsd = supply.reduce((t, l) => t + l.depositsUsd, 0)
+      const debtOf = (ls: typeof own) => ls.filter((l) => l.debtUsd > 0.005 && (l.debtUsd > 0.5 || l.debtUsd >= 0.01 * suppliedUsd)).sort((x, y) => y.debtUsd - x.debtUsd)
       const debt = debtOf(own).length ? debtOf(own) : debtOf(a.legs)
       if (!supply.length) continue
       if (debt.length) {
@@ -168,7 +176,7 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
           // the label is the FAMILY, `venue` the market inside it: the two are printed together
           // (the asset page) and one under the other (the explorer), so neither may repeat the other
           out.push({ key: `${p.positionUid}:${a.accountId}:${l.marketUid}`, chainId: p.chainId, group: groupOf(asset), asset, kind: 'simple', label: `${l.asset.symbol} · Lend on ${protocol}`, venue: venueOf(l.asset.symbol), valueUsd: l.depositsUsd, apr: p.depositApr, earnUid: l.earnUid, logo: l.asset.logoURI,
-            amount: parseFloat(l.deposits) || 0, amountRaw: rawOf(l.deposits, l.asset.decimals), symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, assetAddress: normAddr(l.asset.address), marketUid: l.marketUid, accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender })
+            amount: parseFloat(l.deposits) || 0, amountRaw: rawOf(l.deposits, l.asset.decimals), symbol: l.asset.symbol ?? asset, decimals: l.asset.decimals ?? 18, assetAddress: normAddr(l.asset.address), marketUid: l.marketUid, collateralEnabled: l.collateralEnabled, accountKey: `${p.positionUid}:${a.accountId}`, accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender })
         }
       }
     }

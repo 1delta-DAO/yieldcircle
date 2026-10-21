@@ -239,16 +239,31 @@ export interface LoopOpenParams {
   tenor?: { duration: number; durationType: number }
   /** the position a leverage step adds to (Solana: with no `payAmount` the API adjusts THIS position to `leverage`) */
   accountId?: string
+  /**
+   * Read the account first (`data.simulation`). Sent on every build into an account that already
+   * holds something: without it an Aave-type build assumes eMode 0 and may switch the mode
+   * needlessly, or not switch it when it must (worker-api `leverage/open.ts:1465`, tickets/0015).
+   */
+  simulate?: boolean
 }
 export function loopOpen(p: LoopOpenParams) {
   return apiFetchEnvelope<LoopQuoteData, LoopActions>('/v1/actions/loop/leverage', {
     params: {
       marketUidIn: p.debtMarketUid,      // API: in = debt on OPEN
       marketUidOut: p.collateralMarketUid,
-      debtAmount: p.debtAmountRaw, slippage: p.slippageBp, leverage: p.leverage, account: p.account, payAsset: p.payAsset, payAmount: p.payAmountRaw, termId: p.termId, accountId: p.accountId,
+      debtAmount: p.debtAmountRaw, slippage: p.slippageBp, leverage: p.leverage, account: p.account, payAsset: p.payAsset, payAmount: p.payAmountRaw, termId: p.termId, accountId: p.accountId, simulate: p.simulate ? 'true' : undefined,
       duration: p.tenor?.duration, durationType: p.tenor?.durationType,
     },
   })
+}
+/**
+ * Switch a supplied token on as collateral (Aave V2/V3 `setUserUseReserveAsCollateral`, Compound V2
+ * `enterMarkets`). An Aave supply whose flag is off stays off through every later supply, so a loop
+ * or a borrow on it reverts until this is sent (tickets/0015). Euler, Venus and Aave V4 builds do it
+ * themselves; Morpho's flags are fixed (`needsCollateralOn`). `accountId` = a Gearbox credit account.
+ */
+export function enableCollateral(p: { marketUid: string; operator: string; accountId?: string }) {
+  return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/lending/enable-collateral', { params: { marketUid: p.marketUid, enabled: 'true', operator: p.operator, accountId: p.accountId } })
 }
 // ---------------------------------------------------------------- borrowing (tickets/0008)
 /**

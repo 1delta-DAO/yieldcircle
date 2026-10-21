@@ -1,6 +1,7 @@
 # 0015 — Lever a deposit that is already there
 
-- status: **plan, 2026-10-21.** Nothing built.
+- status: **built 2026-10-21** (§1–§4 and §5 for EVM; see "As built"). Not committed or deployed.
+  Nothing was signed. Solana / Kamino in place is left for later.
 - area: `src/model/positions.ts`, `src/model/strategies.ts` (or a new `model/putUp.ts`),
   `src/ui/AssetPage.tsx` (`matches`), `src/ui/Ticket.tsx` (`Ticket`, `LoopTicket`, `ManageLoop`),
   `src/ui/Positions.tsx`, `src/sdk/types.ts`, `src/sdk/api.ts`
@@ -8,6 +9,67 @@
   gaps (eMode read on a GET, and the Aave collateral flag) are worked around here; see §4.
 - follows: [0011](0011-borrow-tab-amounts-collateral.md) §4, which did the same for Borrow
   (`depositsAsLoans` in `model/borrow.ts`).
+
+## As built (2026-10-21)
+
+Where this differs from the plan below, this section is what the code does.
+
+- **The screenshot was not a plain deposit.** Read live, the xLend account owes **0.486 USDC
+  against 0.616 YOUSD**: a 3.8× loop at health 1.06. `holdingsFrom` dropped every debt leg under
+  $0.50 as dust, so the loop read as a 0 % deposit. Now a debt is dust only when it is also under
+  1 % of the account's supply (`positions.ts`). That account shows as `YOUSD / USDC loop · 3.8× ·
+  owes $0.49`, health 1.06, with Add / Manage. Test: `putUp.test.ts`, "holdingsFrom on a small loop".
+- **`model/putUp.ts`**:
+  - `depositsAsLoops(s, holdings)` returns `{ lever, beside }`.
+  - `cannotLeverInPlace` covers Solana, Gearbox, a Morpho or Lista supply with the flag off, and
+    Dolomite account 0 or `iso:` under 100. A Kamino Multiply sub-account goes in `beside` with
+    its own `unsupported` text.
+  - `needsCollateralOn` is true when the flag is false and the lender is not on the list of
+    venues that switch it themselves or have fixed flags.
+  - A deposit's neighbours in the same account (`Holding.accountKey`, with the flag on) become
+    `others`.
+- **AssetPage**:
+  - `matches` joins loops on `collateralUid` (case-insensitive) instead of `earnUid`.
+  - `heldAll(loop)` adds the put-up deposits.
+  - The deposit row gets **Lever**, which opens the best loop on that market on Manage.
+  - The loop card or row gets a "500 YOUSD in" pill. Like "running", it is hidden while a ticket
+    is open.
+  - `beside` goes to the ticket as one line ("stays a plain deposit: … This opens a new loop
+    beside it").
+- **Ticket**:
+  - A put-up holding opens on the second tab, labelled **Lever it**. The summary reads
+    "$533 · 500 YOUSD deposited".
+  - `ManageLoop` runs from 1× to max. There is no Close snap and no close at 1×. It starts on
+    the tier the open ticket would use, and the button reads `Lever to 3.25× · borrow … USDC`.
+  - The account's other collateral gets its own caution: the venue's health will be higher than
+    the pair's.
+  - With the flag off, a visible line says the first transaction switches it on.
+- **Builds**:
+  - `loopOpen` takes `simulate`. It is sent on every step-up (running loops too) and on an Add
+    into a held account.
+  - `enableCollateral` (`/lending/enable-collateral`) is prepended by `collateralOnFirst` on a
+    put-up lever, on a LoopTicket Add into one, and on a put-up borrow in `BorrowTicket`. 0011
+    had the same hole there.
+
+**Verified.**
+- `pnpm build` passes, and 124 tests pass (9 new).
+- Live API:
+  - xLend positions carry `collateralEnabled` per leg.
+  - The pair uid is the leg uid, lower-cased.
+  - The YOUSD/USDC pair is eMode 0.
+  - `enable-collateral` on the xLend YOUSD market answers one `setUserUseReserveAsCollateral` tx
+    (permissions `null`, handled).
+  - `loop/leverage` with no `payAmount` and `simulate=true` for a plain-USDC Aave Base wallet
+    (0x03a5…c467, USDC/GHO, 1000 GHO) answers one credit-delegation permission and 6 routes.
+    It returned no `simulation` block, so the venue's health is not cross-checked yet.
+- In the browser (`?as=0xbada…`, 1440 and 390 px):
+  - the real account as a loop at health 1.06;
+  - a mocked plain deposit (the same account with its debt removed, plus 0.1 WETH beside it,
+    flag on and off): the Lever button, the pill, the Lever it tab, the others caution, the
+    collateral line and the figures.
+
+**Not verified.** Nothing signed. No Euler, Fluid or Dolomite deposit was quoted live. Gearbox's
+quota on an existing account is still unconfirmed, so Gearbox is not levered in place.
 
 ## What happened
 

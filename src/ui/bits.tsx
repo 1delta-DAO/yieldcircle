@@ -388,3 +388,30 @@ export function TermNote({ end, days }: { end: number; days?: number | null }) {
   const c = termClock(end, days)
   return <> · <span className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span></>
 }
+
+/**
+ * A route picker as every action panel shows it: the chosen route in one row, the others the API
+ * found behind the settings button beside it — a popover of the same rows, best first. Picking one
+ * closes it. `rows` are the rendered bodies (`.rn` / `.rbar` / `.ro` spans), best first.
+ */
+export function RouteChooser({ rows, sel, label, onPick, ariaLabel = 'Route' }: { rows: { body: React.ReactNode; title?: string }[]; sel: number; label: React.ReactNode; onPick: (i: number) => void; ariaLabel?: string }) {
+  const wrap = React.useRef<HTMLDivElement>(null)
+  const [open, setOpen] = React.useState(false)
+  const cur = rows[Math.min(sel, rows.length - 1)]
+  return (
+    <div className="routes mini">
+      <span className="lbl">{label}</span>
+      <div className="route-one" ref={wrap}>
+        <div className="route" title={cur.title}>{cur.body}</div>
+        {rows.length > 1 && <button type="button" className="route-set" aria-label={`Choose another ${ariaLabel.toLowerCase()}`} aria-expanded={open} title={`Other ${ariaLabel.toLowerCase()}s`} onClick={() => setOpen((o) => !o)}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
+        </button>}
+      </div>
+      <Popover anchor={wrap} open={open} onClose={() => setOpen(false)} align="stretch">
+        <div className="routes mini route-pop" role="radiogroup" aria-label={ariaLabel}>
+          {rows.map((r, i) => <button key={i} type="button" role="radio" aria-checked={i === sel} className="route" title={r.title} onClick={() => { onPick(i); setOpen(false) }}>{r.body}</button>)}
+        </div>
+      </Popover>
+    </div>
+  )
+}

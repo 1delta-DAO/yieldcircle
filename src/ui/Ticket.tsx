@@ -13,7 +13,7 @@ import { useApp, type Mode } from '../state/AppState'
 import { useSticky, useStickyAmount } from '../state/sticky'
 import { slippageFor, useSettings } from '../state/Settings'
 import { SlippagePicker } from './SettingsPanel'
-import { AmountInput, Info, KindPill, Popover, LegsPill, SubAccountPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
+import { AmountInput, Info, KindPill, RouteChooser, LegsPill, SubAccountPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
 import { Who } from './social-bits'
 import { LossAck, ValueRow, cents, useValueCheck } from './ValueCheck'
 import { isSvmChain, normAddr } from '../model/address'
@@ -1186,38 +1186,21 @@ function StepRow({ st, n, on, signing, chainId }: { st: Step; n: number; on: boo
 type Route = NonNullable<NonNullable<ReturnType<typeof useLoopQuote>['data']>['data']>['quotes'][number]
 /**
  * The loop's swap route: the one it runs on, in one row; the others the API found sit behind the
- * settings button next to it, a popover of the same rows, best first. Picking one closes it.
+ * settings button next to it (`RouteChooser`), best first.
  */
 function RoutePick({ routes, sel, debt, holds, onPick }: { routes: Route[]; sel: number; debt: string; holds: string; onPick: (i: number, name: string) => void }) {
-  const wrap = React.useRef<HTMLDivElement>(null)
-  const [open, setOpen] = React.useState(false)
   const top = routes[0].deltas?.tradeOutput || 1
-  const row = (r: Route, i: number, pick?: () => void) => {
+  const rows = routes.map((r, i) => {
     const o = r.deltas?.tradeOutput ?? 0, inp = r.deltas?.tradeInput ?? 0, d = (o / top - 1) * 1e4, name = r.deltas?.aggregator ?? `route ${i + 1}`
-    const body = <>
-      <span className="rn"><b>{name}</b>{inp > 0 && <small>for {num(inp, inp > 100 ? 0 : 2)} {debt}</small>}</span>
-      <span className="rbar"><i style={{ width: `${Math.max(3, Math.min(100, (o / top) * 100))}%` }} /></span>
-      <span className="ro"><b>{num(o, o > 100 ? 0 : 4)} {holds}</b><small className={i === 0 ? 'ok' : d < -20 ? 'warn' : ''}>{i === 0 ? 'best' : `${d > 0 ? '+' : '−'}${Math.abs(d) >= 100 ? (Math.abs(d) / 100).toFixed(1) + '%' : Math.abs(d).toFixed(0) + ' bp'}`}</small></span>
-    </>
-    const title = `${name} swaps the ${num(inp, 2)} ${debt} the loop borrows into ${num(o, 2)} ${holds}${r.economics ? ` · entry cost ${usd(r.economics.entryCostUsd.total)}` : ''}`
-    return pick
-      ? <button key={i} type="button" role="radio" aria-checked={i === sel} className="route" onClick={pick} title={title}>{body}</button>
-      : <div className="route" title={title}>{body}</div>
-  }
-  return (
-    <div className="routes mini">
-      <span className="lbl">{routes.length === 1 ? 'Swap route · the one found' : `Swap route · ${routes.length} found`} <Info label="The swap inside the loop">The loop borrows {debt} and swaps it into {holds} inside the same transaction. The API asks every aggregator it knows and picks the one that returns the most {holds}; the button next to it lists the others, and the loop runs on the one you choose.</Info></span>
-      <div className="route-one" ref={wrap}>
-        {row(routes[sel], sel)}
-        {routes.length > 1 && <button type="button" className="route-set" aria-label="Choose another swap route" aria-expanded={open} title="Other routes" onClick={() => setOpen((o) => !o)}>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
-        </button>}
-      </div>
-      <Popover anchor={wrap} open={open} onClose={() => setOpen(false)} align="stretch">
-        <div className="routes mini route-pop" role="radiogroup" aria-label="Swap route">
-          {routes.map((r, i) => row(r, i, () => { onPick(i, r.deltas?.aggregator ?? `route ${i + 1}`); setOpen(false) }))}
-        </div>
-      </Popover>
-    </div>
-  )
+    return {
+      body: <>
+        <span className="rn"><b>{name}</b>{inp > 0 && <small>for {num(inp, inp > 100 ? 0 : 2)} {debt}</small>}</span>
+        <span className="rbar"><i style={{ width: `${Math.max(3, Math.min(100, (o / top) * 100))}%` }} /></span>
+        <span className="ro"><b>{num(o, o > 100 ? 0 : 4)} {holds}</b><small className={i === 0 ? 'ok' : d < -20 ? 'warn' : ''}>{i === 0 ? 'best' : `${d > 0 ? '+' : '−'}${Math.abs(d) >= 100 ? (Math.abs(d) / 100).toFixed(1) + '%' : Math.abs(d).toFixed(0) + ' bp'}`}</small></span>
+      </>,
+      title: `${name} swaps the ${num(inp, 2)} ${debt} the loop borrows into ${num(o, 2)} ${holds}${r.economics ? ` · entry cost ${usd(r.economics.entryCostUsd.total)}` : ''}`,
+    }
+  })
+  return <RouteChooser rows={rows} sel={sel} ariaLabel="Swap route" onPick={(i) => onPick(i, routes[i].deltas?.aggregator ?? `route ${i + 1}`)}
+    label={<>{routes.length === 1 ? 'Swap route · the one found' : `Swap route · ${routes.length} found`} <Info label="The swap inside the loop">The loop borrows {debt} and swaps it into {holds} inside the same transaction. The API asks every aggregator it knows and picks the one that returns the most {holds}; the button next to it lists the others, and the loop runs on the one you choose.</Info></>} />
 }

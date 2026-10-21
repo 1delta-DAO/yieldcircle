@@ -2435,3 +2435,16 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .wpnl-more{align-self:flex-start;margin-top:8px;font-size:12px}
 @media (max-width:600px){.wpnl{padding:12px}.wpnl-top{grid-template-columns:repeat(2,minmax(0,1fr))}.wpnl-fig b{font-size:20px}.wpnl-sh,.wpnl-srow{grid-template-columns:minmax(0,1fr) 80px 62px}.wpnl-sh > :nth-child(2),.wpnl-srow > :nth-child(2),.wpnl-sh > :nth-child(4),.wpnl-srow > :nth-child(4){display:none}}
 .wpnl-wait{font-size:12px}
+/* the swap drawer's amount: the share buttons under the box, subtle, the chosen one lit (tickets/0014) */
+.get .amt-sub{align-items:center;min-height:28px}
+.get .amt-sub .pcts{display:flex;gap:4px}
+.get .pctb{font-family:var(--sans);font-size:11.5px;font-weight:600;color:var(--tx50);min-height:26px;padding:0 8px;border-radius:8px;border:1px solid transparent;background:var(--b300);margin:0}
+.get .pctb:hover{color:var(--tx);background:var(--b400);border-color:transparent}
+.get .pctb.on{color:var(--primary);background:var(--pri-bg);border-color:var(--primary)}
+/* its route: the chosen one in a row, the others behind the button beside it — the loop ticket's setup */
+.get .routes.mini{margin-top:8px;gap:6px}
+.get .routes.mini .lbl{margin:0;font-size:11.5px}
+.get .routes.mini .route{min-height:48px;border-radius:14px;padding:0 12px;font-size:13px}
+.get .routes.mini .route .ro b{font-size:13px}
+.get .routes.mini .route .rbar{height:6px}
+.get .route-set{width:48px;border-radius:14px}

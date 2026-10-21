@@ -19,7 +19,7 @@ import { useSwitchTo } from '../wallet/useSwitchTo'
 import { base58Encode, isSolAddr, isSvmChain, normAddr } from '../model/address'
 import { isSvmTx, type AnyTx, type ApiTx } from '../sdk/types'
 import { solSignAndSend } from '../wallet/solana'
-import { AmountInput, Info, Tok, num, usd } from './bits'
+import { AmountInput, Info, RouteChooser, Tok, num, usd } from './bits'
 import { Drawer } from './Drawer'
 import { LossAck, ValueRow, useValueCheck } from './ValueCheck'
 
@@ -255,7 +255,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
           {src && (
             <>
               <div className="amt" style={{ marginTop: 10, minHeight: 42 }}><AmountInput value={amt} onChange={(a) => { setAmt(a); setSent(null) }} ariaLabel="Amount to pay" style={{ fontSize: 16 }} /><span className="u">{src.symbol}</span><button className="max" onClick={() => { setAmt(portion(src, 100, src.decimals)); setSent(null) }}>Max</button></div>
-              <div className="amt-sub"><span>{src.price > 0 ? `≈ ${usd(amount * src.price)}` : 'no price for it'}{amount > src.amount + 1e-9 && <span className="warn"> · more than you hold</span>}</span><span>{cross ? `bridge ${chainLabel(src.chainId)} → ${chainLabel(target.chainId)}` : 'swap on ' + chainLabel(src.chainId)}</span></div>
+              <div className="amt-sub"><span>{src.price > 0 ? `≈ ${usd(amount * src.price)}` : 'no price for it'}{amount > src.amount + 1e-9 && <span className="warn"> · more than you hold</span>}</span><span className="pcts" role="group" aria-label="Share of what you hold">{[25, 50, 75, 100].map((p) => <button key={p} type="button" className={`pctb${amt.pct === p ? ' on' : ''}`} aria-pressed={amt.pct === p} onClick={() => { setAmt(portion(src, p, src.decimals)); setSent(null) }}>{p}%</button>)}</span></div>
               {/* once sent the quote is gone (nothing to re-quote): the status line below takes its place */}
               {!sent && <div className="qline">
                 {quoting && !best ? <span className="t50"><Spin sm /> Finding routes…</span>
@@ -265,18 +265,20 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
               {!sent && cross && dstGas && askGas && askGas !== 'wait' && <div className="qnote">{gasMiss
                 ? <span className="warn">You hold no {dstGas.symbol} on {chainLabel(target.chainId)}, and no route here can bring some along. Get {dstGas.symbol} there separately — without it, nothing can be done on {chainLabel(target.chainId)}.</span>
                 : <span className="t70">You hold {(gasHeldUsd ?? 0) > 0 ? 'too little' : 'no'} {dstGas.symbol} on {chainLabel(target.chainId)} for network fees, so each route brings some along.</span>}</div>}
-              {/* every route the API found, the best first and picked: a swap terminal's table, in one column */}
-              {!sent && quotes.length > 0 && (
-                <div className="routes" role="radiogroup" aria-label="Route">
-                  <span className="lbl">{quotes.length === 1 ? 'Route' : `${quotes.length} routes`}{quoting ? <span className="t40"> · refreshing…</span> : null}</span>
-                  {quotes.map((q, i) => { const o = q.tradeOutput ?? 0; const top = quotes[0].tradeOutput || 1; const d = (o / top - 1) * 1e4; return (
-                    <button key={i} role="radio" aria-checked={i === sel} className="route" onClick={() => setSel(i)}>
-                      <span className="rn"><b>{q.bridge ?? q.aggregator ?? 'route'}</b><small>{Number(q.estimatedDuration) > 0 ? `~${Math.max(1, Math.round(Number(q.estimatedDuration) / 60))} min` : 'instant'}{cross && q.bridge && q.aggregator ? ` · via ${q.aggregator}` : ''}{cross && dstGas && askGas && askGas !== 'wait' && !gasMiss ? (q.destinationGas ? ` · +${num(Number(q.destinationGas.amount) / 10 ** q.destinationGas.decimals, 4)} ${dstGas.symbol}${q.destinationGas.paidFrom !== 'output' && q.destinationGas.cost?.usd != null ? ` for $${q.destinationGas.cost.usd.toFixed(2)}` : ''}` : ` · no ${dstGas.symbol}`) : ''}</small></span>
-                      <span className="rbar"><i style={{ width: `${Math.max(3, Math.min(100, (o / top) * 100))}%` }} /></span>
-                      <span className="ro"><b>{num(o, o > 100 ? 2 : 4)}</b><small className={i === 0 ? 'ok' : d < -20 ? 'warn' : ''}>{i === 0 ? 'best' : `${d > 0 ? '+' : '−'}${Math.abs(d) >= 100 ? (Math.abs(d) / 100).toFixed(1) + '%' : Math.abs(d).toFixed(0) + ' bp'}`}</small></span>
-                    </button>) })}
-                </div>
-              )}
+              {/* the route it runs on, in one row; every other one the API found sits behind the button beside it, best first */}
+              {!sent && quotes.length > 0 && (() => {
+                const top = quotes[0].tradeOutput || 1
+                const rows = quotes.map((q, i) => { const o = q.tradeOutput ?? 0; const d = (o / top - 1) * 1e4; const name = q.bridge ?? q.aggregator ?? 'route'; return {
+                  body: <>
+                    <span className="rn"><b>{name}</b><small>{Number(q.estimatedDuration) > 0 ? `~${Math.max(1, Math.round(Number(q.estimatedDuration) / 60))} min` : 'instant'}{cross && q.bridge && q.aggregator ? ` · via ${q.aggregator}` : ''}{cross && dstGas && askGas && askGas !== 'wait' && !gasMiss ? (q.destinationGas ? ` · +${num(Number(q.destinationGas.amount) / 10 ** q.destinationGas.decimals, 4)} ${dstGas.symbol}${q.destinationGas.paidFrom !== 'output' && q.destinationGas.cost?.usd != null ? ` for $${q.destinationGas.cost.usd.toFixed(2)}` : ''}` : ` · no ${dstGas.symbol}`) : ''}</small></span>
+                    <span className="rbar"><i style={{ width: `${Math.max(3, Math.min(100, (o / top) * 100))}%` }} /></span>
+                    <span className="ro"><b>{num(o, o > 100 ? 2 : 4)} {target.symbol}</b><small className={i === 0 ? 'ok' : d < -20 ? 'warn' : ''}>{i === 0 ? 'best' : `${d > 0 ? '+' : '−'}${Math.abs(d) >= 100 ? (Math.abs(d) / 100).toFixed(1) + '%' : Math.abs(d).toFixed(0) + ' bp'}`}</small></span>
+                  </>,
+                  title: `${name} ${cross ? 'bridges' : 'swaps'} ${num(amount, 6)} ${src.symbol} into ${num(o, 4)} ${target.symbol}`,
+                } })
+                return <RouteChooser rows={rows} sel={sel} onPick={setSel}
+                  label={<>{quotes.length === 1 ? 'Route · the one found' : `Route · ${quotes.length} found`} · <span className="t50">{cross ? `bridge ${chainLabel(src.chainId)} → ${chainLabel(target.chainId)}` : `swap on ${chainLabel(src.chainId)}`}</span>{quoting ? <span className="t40"> · refreshing…</span> : null}</>} />
+              })()}
               {best && !sent && <>
                 <ValueRow v={v} labels={['Pay', 'Receive', 'Price impact']} missing={v.inUsd > 0 ? target.symbol : src.symbol}
                   info={<>What you receive is worth this much more or less than what you pay, both at market prices. It includes the route's fees{cross ? ' and the bridge\'s' : ''}{bg ? <>, and the {dstGas?.symbol ?? 'gas'} it brings along for network fees on {chainLabel(target.chainId)}{gasPaidUsd > 0 ? ` (that costs $${gasPaidUsd.toFixed(2)} more, paid in ${knownOf(src!.chainId)?.native?.symbol ?? 'the gas coin'})` : ' (taken out of what arrives)'}</> : null}.</>} />
@@ -293,7 +295,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
               ) : (
                 <div className="actions" style={{ marginTop: 10 }}>
                   <button className={`btn pri ${paper.active ? 'paperbtn' : ''} ${v.severe ? 'risky' : ''}`} disabled={(!tx && !(paper.active && best)) || v.blocked || (busy && !remote) || switching || (!!pendingApprove && !approved) || amount > src.amount + 1e-9} onClick={busy ? () => openWallet(connector?.id) : go}>
-                    {switching ? 'Switching…' : busy && remote ? 'Open your wallet to confirm' : wrongChain ? `Switch wallet to ${chainLabel(src.chainId)}` : pendingApprove && !approved ? 'Approving…' : needsApprove ? `Approve ${src.symbol}` : busy ? (paper.active ? 'Applying on paper…' : 'Sending…') : `${paper.active ? 'Paper ' : ''}${cross ? (paper.active ? 'bridge' : 'Bridge') : (paper.active ? 'swap' : 'Swap')}${v.severe ? ' anyway' : ''} · ${num(amount, 4)} ${src.symbol}`}
+                    {switching ? 'Switching…' : busy && remote ? 'Open your wallet to confirm' : wrongChain ? `Switch wallet to ${chainLabel(src.chainId)}` : pendingApprove && !approved ? 'Approving…' : needsApprove ? `Approve ${src.symbol}` : busy ? (paper.active ? 'Applying on paper…' : 'Sending…') : `${paper.active ? 'Paper ' : ''}${cross ? (paper.active ? 'bridge' : 'Bridge') : (paper.active ? 'swap' : 'Swap')}${v.severe ? ' anyway' : ''} · ${num(amount, amount < 0.01 ? 6 : 4)} ${src.symbol}`}
                   </button>
                   <button className="btn" onClick={onClose}>Cancel</button>
                 </div>

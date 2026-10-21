@@ -74,3 +74,14 @@ export const toRaw = (amount: number, decimals: number): string => {
   const [i, f = ''] = Math.max(0, amount).toFixed(Math.min(decimals, 12)).split('.')
   return (BigInt(i) * 10n ** BigInt(decimals) + BigInt((f + '0'.repeat(decimals)).slice(0, decimals) || '0')).toString()
 }
+/**
+ * A FLOAT-born size (a slider's sell, a leverage step) as raw, capped at what is held. `toRaw` rounds
+ * half-up at 12 places, so a size worked out to "all of it" can come back a few wei above it. Amounts
+ * the reader enters go through `model/amount.ts` `payRaw` instead, which never sees a float.
+ */
+export const capRaw = (amount: number, decimals: number, have?: { amount: number; raw?: string } | null): string => {
+  const r = toRaw(amount, decimals)
+  if (!have?.raw) return r
+  if (amount >= have.amount) return have.raw
+  return BigInt(r) > BigInt(have.raw) ? have.raw : r
+}

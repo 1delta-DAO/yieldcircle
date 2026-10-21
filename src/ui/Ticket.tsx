@@ -1,6 +1,7 @@
 import React from 'react'
 import { nameOf, unitOf } from '../model/assets'
-import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '../model/leverage'
+import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, capRaw, toRaw, type TierId } from '../model/leverage'
+import { fromUnits, heldRaw, payRaw, portion, unitsOf, type Amount } from '../model/amount'
 import { dateOf, exitTerms, isBooked, loopRewards, isLoopscale, type LoopStrategy, type LoopTenor, type LoopTerm, type SimpleStrategy, type Strategy } from '../model/strategies'
 import { isSvmTx, type LoopActions, type LoopPayAsset } from '../sdk/types'
 import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
@@ -9,10 +10,10 @@ import { bookAprAt, bookDepth, chainLabel, quoteClose, SOL_POSITIONS_READY, useC
 import { seriesFor } from '../model/rateHistory'
 import { RateHistoryPanel, useSparkRewards } from './Spark'
 import { useApp, type Mode } from '../state/AppState'
-import { useSticky } from '../state/sticky'
+import { useSticky, useStickyAmount } from '../state/sticky'
 import { slippageFor, useSettings } from '../state/Settings'
 import { SlippagePicker } from './SettingsPanel'
-import { DecimalInput, Info, KindPill, Popover, LegsPill, SubAccountPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
+import { AmountInput, Info, KindPill, Popover, LegsPill, SubAccountPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
 import { Who } from './social-bits'
 import { LossAck, ValueRow, cents, useValueCheck } from './ValueCheck'
 import { isSvmChain, normAddr } from '../model/address'
@@ -251,16 +252,19 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
   const unit = unitOf(s.asset) === '$' ? '$' : chosen.symbol
   // the row rarely carries a price: any pay option's balance has it (the coin and its wrapper trade 1:1), else a same-asset balance as the estimate
   const price = s.priceUsd ?? opts.map((o) => balOf(o.address)?.price).find(Boolean) ?? allIdle.find((i) => i.asset === s.asset)?.price ?? (unit === '$' ? 1 : 0)
-  const [amount, setAmount] = useSticky<number>(`t:${s.id}:amount`, () => (unit === '$' ? 1000 : Math.min(idle?.amount ?? 1, 1)))
+  const [amt, setAmt] = useStickyAmount(`t:${s.id}:amount`, () => fromUnits(unit === '$' ? 1000 : Math.min(idle?.amount ?? 1, 1)))
+  const amount = unitsOf(amt)
+  // what is sent: Max resolved on the exact balance, a typed amount parsed from its text and capped at it
+  const sendRaw = payRaw(amt, chosen.decimals, idle)
   const amtUsd = amount * price
   const yearly = amtUsd * s.rate / 100
   // a PT is bought on its AMM: the API wants a bound on the fill, and a PT against its underlying is one money
   const st = useSettings().st
   const slip = s.booked ? slippageFor(st, isSavings(s.nature)) : undefined
-  const key = [s.id, into?.accountId ?? '', amount, chosen.role, actor ?? '', slip ?? ''].join('|')
+  const key = [s.id, into?.accountId ?? '', sendRaw, chosen.role, actor ?? '', slip ?? ''].join('|')
   const paper = usePaper()
   const ladder = useTicketLadder(key, s.chainId, async () => {
-    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, chosen.decimals), operator: actor!, payAsset: chosen.role === 'native' ? chosen.address : undefined, slippageBp: slip, accountId: into?.accountId })
+    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: sendRaw, operator: actor!, payAsset: chosen.role === 'native' ? chosen.address : undefined, slippageBp: slip, accountId: into?.accountId })
     if (chosen.role === 'native' && !paysNative(env.actions)) throw new Error(`${s.brand} does not take ${chosen.symbol} directly here. Pay with ${s.assetSymbol}.`)
     return stepsFrom(env.actions, s.via, s.chainId)
   }, [s.earnUid, s.marketUid], [chosen], depositPlan(s, { into, payToken: chosen.address, amount, price, feed: paper.price }),
@@ -290,7 +294,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
           <div className="seg" style={{ marginBottom: 10 }}>{opts.map((o) => <button key={o.role} aria-pressed={chosen.role === o.role} onClick={() => setRole(o.role)}><Tok sym={o.symbol} logo={o.role === 'token' ? s.logo : undefined} size={16} /> {o.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? num(balOf(o.address)?.amount ?? 0, 2) : ''}</span></button>)}</div>
         </>}
         <span className="lbl">Amount of {unit === '$' ? s.assetSymbol : chosen.symbol}</span>
-        <AmountBox unit={unit} value={amount} onChange={setAmount} onMax={idle ? () => setAmount(idle.amount) : undefined} />
+        <AmountBox unit={unit} value={amt} onChange={setAmt} onMax={idle ? () => setAmt(portion(idle, 100, chosen.decimals)) : undefined} />
         <div className="amt-sub"><span>{unit === '$' ? '' : `≈ ${usd(amtUsd)}`}</span><span>{account ? <>Idle: {idle ? `${num(idle.amount, 4)} ${idle.symbol}` : `0 ${chosen.symbol}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
         <GetLine account={account} short={!idle || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
         {/* every form the venue takes, the coin first (`payOptions` orders it): bought as the coin, the deposit needs no approval */}
@@ -344,7 +348,9 @@ function FixedTicket({ s: s0, idle: chainIdle, allIdle, into }: { s: SimpleStrat
   const idle = chainIdle.find((i) => sameToken(i.address, tok.address))
   const unit = unitOf(s.asset) === '$' ? '$' : tok.symbol
   const price = s.priceUsd ?? idle?.price ?? allIdle.find((i) => i.asset === s.asset)?.price ?? (unit === '$' ? 1 : 0)
-  const [amount, setAmount] = useSticky<number>(`t:${s0.id}:amount`, () => (unit === '$' ? 100 : Math.min(idle?.amount ?? 0.05, 0.05)))
+  const [amt, setAmt] = useStickyAmount(`t:${s0.id}:amount`, () => fromUnits(unit === '$' ? 100 : Math.min(idle?.amount ?? 0.05, 0.05)))
+  const amount = unitsOf(amt)
+  const sendRaw = payRaw(amt, tok.decimals, idle)
   // the lend side of every maturity's book: the picker quotes each at this size
   const books = useLendingBooks(dates.map((d) => d.marketUid ?? d.earnUid), 'lend')
   const bookOf = (d: SimpleStrategy) => books.find((b) => b.uid === (d.marketUid ?? d.earnUid))
@@ -358,9 +364,9 @@ function FixedTicket({ s: s0, idle: chainIdle, allIdle, into }: { s: SimpleStrat
   const face = amount * (1 + (lock / 100) * (days / 365))
   const amtUsd = amount * price
   const paper = usePaper()
-  const key = [s.id, into?.accountId ?? '', amount, account ?? ''].join('|')
+  const key = [s.id, into?.accountId ?? '', sendRaw, account ?? ''].join('|')
   const ladder = useTicketLadder(key, s.chainId, async () => {
-    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: toRaw(amount, tok.decimals), operator: account!, accountId: into?.accountId })
+    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: sendRaw, operator: account!, accountId: into?.accountId })
     return stepsFrom(env.actions, s.via, s.chainId)
   }, [s.earnUid, s.marketUid], [tok], depositPlan({ ...s, rate: lock }, { into, payToken: tok.address, amount, price, feed: paper.price }), true)
   const more = !!idle && amount > idle.amount
@@ -382,7 +388,7 @@ function FixedTicket({ s: s0, idle: chainIdle, allIdle, into }: { s: SimpleStrat
           <div className="seg terms" role="radiogroup" aria-label="Repaid on" style={{ marginBottom: 10 }}>{dates.map((d) => { const x = rateAt(d, amount); return <button key={d.id} role="radio" aria-checked={d.id === s.id} aria-pressed={d.id === s.id} onClick={() => setDateId(d.id)}>{dayMonth(d.maturity!)}<span className="c">{x == null ? 'full' : pct(x)}</span></button> })}</div>
         </>}
         <span className="lbl">Amount of {unit === '$' ? s.assetSymbol : tok.symbol}</span>
-        <AmountBox unit={unit} value={amount} onChange={setAmount} onMax={idle ? () => setAmount(depth > 0 ? Math.min(idle.amount, depth) : idle.amount) : undefined} />
+        <AmountBox unit={unit} value={amt} onChange={setAmt} onMax={idle ? () => setAmt(depth > 0 && depth < idle.amount ? fromUnits(depth) : portion(idle, 100, tok.decimals)) : undefined} />
         <div className="amt-sub"><span>{unit === '$' ? '' : `≈ ${usd(amtUsd)}`}{over && <span className="warn">{unit === '$' ? '' : ' · '}the book takes {money(depth)} now</span>}</span><span>{account ? <>Idle: {idle ? `${num(idle.amount, 4)} ${idle.symbol}` : `0 ${tok.symbol}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
         <GetLine account={account} short={!idle || more} symbol={tok.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
         {getOpen && <GetAsset targets={[{ chainId: s.chainId, address: tok.address, symbol: tok.symbol, decimals: tok.decimals, price, logo: s.tokenLogo, have: idle?.amount ?? 0 }]} want={amount} sources={allIdle} onClose={() => setGetOpen(false)} />}
@@ -418,10 +424,12 @@ function ManageFixed({ s, h, mode }: { s: SimpleStrategy; h: Holding; mode: Mode
   const sell = !matured && book.earlyExit
   const locked = !matured && !book.earlyExit
   const all = mode === 'close'
-  const [amount, setAmount] = useSticky<number>(`t:${h.key}:withdraw`, () => +h.amount.toFixed(6))
+  const [amt, setAmt] = useStickyAmount(`t:${h.key}:withdraw`, () => portion(heldRaw(h), 100, h.decimals))
+  const amount = unitsOf(amt)
   const eff = all ? h.amount : Math.min(amount, h.amount)
   const fullExit = all || (h.amount > 0 && eff / h.amount > 0.999)
-  const raw = fullExit && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals)
+  // Max and 100 % are the exact holding; a typed amount is parsed from its text and capped at it
+  const raw = fullExit && h.amountRaw ? h.amountRaw : all ? capRaw(eff, h.decimals, heldRaw(h)) : payRaw(amt, h.decimals, heldRaw(h))
   // what the sale fetches: the face, discounted at the lenders' rate for the days left
   const [sb] = useLendingBooks(sell ? [s.marketUid ?? s.earnUid] : [], 'borrow')
   const sellApr = sb?.book ? bookAprAt(sb.book, eff) : null
@@ -429,7 +437,7 @@ function ManageFixed({ s, h, mode }: { s: SimpleStrategy; h: Holding; mode: Mode
   const proceeds = sellApr != null ? eff / (1 + (sellApr / 100) * (daysLeft / 365)) : null
   const px = h.amount > 0 ? h.valueUsd / h.amount : 0
   const paper = usePaper()
-  const key = [s.id, h.accountId ?? '', mode, eff, account ?? ''].join('|')
+  const key = [s.id, h.accountId ?? '', mode, raw, account ?? ''].join('|')
   const ladder = useTicketLadder(key, h.chainId, async () => {
     if (locked) throw new Error(`Locked until ${dateOf(s.maturity!)}.`)
     const env = sell
@@ -447,8 +455,8 @@ function ManageFixed({ s, h, mode }: { s: SimpleStrategy; h: Holding; mode: Mode
       ) : (
         <div className="tsec">
           <span className="lbl">{sell ? 'Face to sell' : 'Amount to withdraw'} (of {num(h.amount, 4)} {h.symbol}) {sell && <Info label="Selling before the date">Your position is the {h.symbol} it is repaid on {dateOf(s.maturity!)}. Before then it can be sold to the lenders on this book, who pay that amount discounted at their rate for the days left — so if rates have risen since you lent, you get back less than you put in.</Info>}</span>
-          <div className="amt"><DecimalInput value={amount} onChange={setAmount} ariaLabel="Amount" /><span className="u">{h.symbol}</span><button className="max" onClick={() => setAmount(h.amount)}>Max</button></div>
-          <div className="amt-sub"><span>{amount > h.amount + 1e-9 && <span className="warn">more than you hold</span>}</span><span>{[25, 50, 75, 100].map((p) => <button key={p} className="pctb" onClick={() => setAmount(+(h.amount * p / 100).toFixed(6))}>{p}%</button>)}</span></div>
+          <div className="amt"><AmountInput value={amt} onChange={setAmt} ariaLabel="Amount" /><span className="u">{h.symbol}</span><button className="max" onClick={() => setAmt(portion(heldRaw(h), 100, h.decimals))}>Max</button></div>
+          <div className="amt-sub"><span>{amount > h.amount + 1e-9 && <span className="warn">more than you hold</span>}</span><span>{[25, 50, 75, 100].map((p) => <button key={p} className="pctb" onClick={() => setAmt(portion(heldRaw(h), p, h.decimals))}>{p}%</button>)}</span></div>
         </div>
       )}
       <div className="tsec"><div className="cells">
@@ -545,7 +553,10 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const chosen = opts.find((o) => !!payAddr && normAddr(o.address) === normAddr(payAddr)) ?? [...opts].sort((a, b) => (balOf(b.address, b.symbol)?.usd ?? 0) - (balOf(a.address, a.symbol)?.usd ?? 0))[0]
   const bal = chosen ? balOf(chosen.address, chosen.symbol) : undefined
   const price = chosen?.price || bal?.price || (unit === '$' ? 1 : 0)
-  const [amount, setAmount] = useSticky<number>(`t:${s0.id}:amount`, () => (unit === '$' ? 1000 : 1))
+  const [amt, setAmt] = useStickyAmount(`t:${s0.id}:amount`, () => fromUnits(unit === '$' ? 1000 : 1))
+  const amount = unitsOf(amt)
+  // the margin as sent: Max is the exact balance (a float Max overshot it by 166,624 wei and the loop reverted, tickets/0014)
+  const marginRaw = chosen && amount > 0 ? payRaw(amt, chosen.decimals, bal) : undefined
   const [tier, setTier] = useSticky<TierId>(`t:${s0.id}:tier`, isSavings(s.nature) ? DEFAULT_TIER : 'defensive')
   // a number of your own is behind the slider icon, never the default: the tiers are the advice,
   // the slider is for someone who already knows the number they want. `null` = on the tiers
@@ -591,7 +602,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   // the VM's own signer, as the build below: a Solana loop quoted for the EVM address is quoted for nobody
   // the margin rides the preview too: a lender that checks health up front (Alchemix) cannot price a
   // loop with no collateral of its own, and every other lender's preview is more accurate with it
-  const q = useLoopQuote(s, E, L, actor, slip, term?.id, tenor, chosen && amount > 0 ? { asset: chosen.address, raw: toRaw(amount, chosen.decimals) } : undefined)
+  const q = useLoopQuote(s, E, L, actor, slip, term?.id, tenor, chosen && marginRaw ? { asset: chosen.address, raw: marginRaw } : undefined)
   // the swap routes the API found for the leverage leg, best first; another is picked by its aggregator's
   // name, so the build (a fresh call) runs the same one wherever it lands in that answer's order
   const routes = q.data?.data?.quotes ?? []
@@ -618,7 +629,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const fitLev = short?.fit.leverage ?? 0
   const fitTier = fitLev ? [...TIERS].reverse().find((t) => s.tiers[t.id] <= fitLev) : undefined
   const yearly = E * net / 100
-  const key = [s.id, holding?.accountId ?? '', amount, L, term?.id ?? '', tenor?.id ?? '', chosen?.address ?? '', actor ?? '', slip, routeName ?? ''].join('|')
+  const key = [s.id, holding?.accountId ?? '', marginRaw ?? '', L, term?.id ?? '', tenor?.id ?? '', chosen?.address ?? '', actor ?? '', slip, routeName ?? ''].join('|')
   const paper = usePaper()
   const { signTypedDataAsync } = useSignTypedData()
   // on paper, what the chain would refuse is refused too (tickets/0006): a quote with a route, the
@@ -633,7 +644,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
     const debtTokens = s.priceShort ? D / s.priceShort : 0
     const openParams = {
       collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!,
-      payAsset: chosen?.address, payAmountRaw: chosen ? toRaw(amount, chosen.decimals) : undefined, termId: term?.id, tenor,
+      payAsset: chosen?.address, payAmountRaw: marginRaw, termId: term?.id, tenor,
       // into the position the after-figures below are computed for, not a fresh account beside it
       accountId: holding?.accountId,
     }
@@ -659,7 +670,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
       <div className="tsec">
         <span className="lbl">You pay with <Info label="Paying for a loop">The margin can be paid in {opts.map((o) => o.symbol).join(' or ')}: whatever the venue accepts. Paid in {s.debt}, it is swapped into {s.holds} inside the same transaction.</Info></span>
         <div className="seg" style={{ marginBottom: 10 }}>{opts.map((o) => <button key={o.address} aria-pressed={!!chosen && normAddr(chosen.address) === normAddr(o.address)} onClick={() => setPayAddr(o.address)}><Tok sym={o.symbol} logo={o.logo} size={16} /> {o.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? (balOf(o.address, o.symbol) ? num(balOf(o.address, o.symbol)!.amount, 2) : '0') : ''}</span></button>)}</div>
-        <AmountBox unit={chosen?.symbol ?? unit} value={amount} onChange={setAmount} onMax={bal ? () => setAmount(bal.amount) : undefined} />
+        <AmountBox unit={chosen?.symbol ?? unit} value={amt} onChange={setAmt} onMax={bal && chosen ? () => setAmt(portion(bal, 100, chosen.decimals)) : undefined} />
         <div className="amt-sub"><span>≈ {usd(E)} equity</span><span>{account ? <>Idle: {bal ? `${num(bal.amount, 4)} ${chosen?.symbol}` : `0 ${chosen?.symbol ?? ''}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
         {holding && <LegsNote h={holding} holds={s.holds} debt={s.debt} adding />}
         {chosen && <GetLine account={account} short={!bal || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />}
@@ -702,7 +713,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
         {short && <div className="caution depth">
           <b>Too big for one lender.</b> {short.message}
           {(fitAmount > 0 || fitTier || (fitLev > 1 && canCustom && fitLev >= lo)) && <div className="fixes">
-            {fitAmount > 0 && <button type="button" className="pctb" onClick={() => setAmount(Math.floor(fitAmount * 100) / 100)}>Pay {num(fitAmount, 2)} {chosen?.symbol}</button>}
+            {fitAmount > 0 && <button type="button" className="pctb" onClick={() => setAmt(fromUnits(Math.floor(fitAmount * 100) / 100))}>Pay {num(fitAmount, 2)} {chosen?.symbol}</button>}
             {fitTier ? <button type="button" className="pctb" onClick={() => { setCustom(null); setTier(fitTier.id) }}>{fitTier.name} {num(s.tiers[fitTier.id], 2)}×</button>
               : fitLev > 1 && canCustom && fitLev >= lo && <button type="button" className="pctb" onClick={() => setCustom(fitLev)}>{num(fitLev, 2)}×</button>}
           </div>}
@@ -776,7 +787,8 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const { account, isConnected, solSigner, actorOn } = useApp()
   const actor = actorOn(h.chainId)
   const all = mode === 'close'
-  const [amount, setAmount] = useSticky<number>(`t:${h.key}:withdraw`, () => +(h.amount / 2).toFixed(6))
+  const [amt, setAmt] = useStickyAmount(`t:${h.key}:withdraw`, () => portion(heldRaw(h), 50, h.decimals))
+  const amount = unitsOf(amt)
   const eff = all ? h.amount : Math.min(amount, h.amount)
   const share = h.amount > 0 ? eff / h.amount : 0
   // out of a wrapped-native row the gas coin is one tap away (`receiveAsset` = `nativeAsset`, unwrapped in the
@@ -796,7 +808,9 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const booked = s?.booked ?? isBooked(h.earnUid ?? '')
   const st = useSettings().st
   const slip = booked ? slippageFor(st, s ? isSavings(s.nature) : true) : undefined
-  const key = [s?.id ?? h.key, h.accountId ?? '', mode, eff, native ? 'native' : 'token', actor ?? '', slip ?? ''].join('|')
+  // Max and 100 % are the exact holding; a typed amount is parsed from its text and capped at it
+  const sendRaw = (all || (booked && fullExit)) && h.amountRaw ? h.amountRaw : all ? capRaw(eff, h.decimals, heldRaw(h)) : payRaw(amt, h.decimals, heldRaw(h))
+  const key = [s?.id ?? h.key, h.accountId ?? '', mode, sendRaw, native ? 'native' : 'token', actor ?? '', slip ?? ''].join('|')
   const paper = usePaper()
   // on paper (tickets/0006): an instant exit pays out only what can leave the market now; a queued
   // one (a cooldown, a request) lands after the venue's wait — a week where it publishes none
@@ -807,7 +821,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
   const paperRefuse = !paper.active || !instant || !s || s.liquidityUsd == null || eff * px <= s.liquidityUsd ? null
     : `Only ${usdShort(s.liquidityUsd)} can leave this market right now — withdraw less, or wait for borrowers to repay.`
   const ladder = useTicketLadder(key, h.chainId, async () => {
-    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: (all || (booked && fullExit)) && h.amountRaw ? h.amountRaw : toRaw(eff, h.decimals), operator: actor!, isAll: fullExit && !booked, receiveAsset: native ? nativeAsset(h.chainId) : undefined, slippageBp: slip, accountId: h.accountId })
+    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: sendRaw, operator: actor!, isAll: fullExit && !booked, receiveAsset: native ? nativeAsset(h.chainId) : undefined, slippageBp: slip, accountId: h.accountId })
     return stepsFrom(env.actions, 'Withdraw', h.chainId)
   }, [s?.earnUid, h.earnUid], [native ? { address: nativeAsset(h.chainId), symbol: coin } : { address: h.assetAddress ?? s?.assetAddress, symbol: h.symbol }],
     withdrawPlan({ ledger: paper.ledger, h, units: eff, all: fullExit, receiveToken: native ? nativeAsset(h.chainId) : (h.assetAddress ?? s?.assetAddress ?? ''), feed: paper.price, receiveName: native ? { symbol: coin, decimals: nativeDecimals(h.chainId) } : { symbol: h.symbol, decimals: h.decimals }, refuse: paperRefuse, queueSecs, queue: queueWord }))
@@ -819,8 +833,8 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
     <>
       <div className="tsec">
         <span className="lbl">Amount to withdraw (of {num(h.amount, 4)} {h.symbol})</span>
-        <div className="amt"><DecimalInput value={amount} onChange={setAmount} ariaLabel="Amount" /><span className="u">{h.symbol}</span><button className="max" onClick={() => setAmount(h.amount)}>Max</button></div>
-        <div className="amt-sub"><span>≈ {usd(eff * price)}{amount > h.amount + 1e-9 && <span className="warn"> · more than you hold</span>}</span><span>{[25, 50, 75, 100].map((p) => <button key={p} className="pctb" onClick={() => setAmount(+(h.amount * p / 100).toFixed(6))}>{p}%</button>)}</span></div>
+        <div className="amt"><AmountInput value={amt} onChange={setAmt} ariaLabel="Amount" /><span className="u">{h.symbol}</span><button className="max" onClick={() => setAmt(portion(heldRaw(h), 100, h.decimals))}>Max</button></div>
+        <div className="amt-sub"><span>≈ {usd(eff * price)}{amount > h.amount + 1e-9 && <span className="warn"> · more than you hold</span>}</span><span>{[25, 50, 75, 100].map((p) => <button key={p} className="pctb" onClick={() => setAmt(portion(heldRaw(h), p, h.decimals))}>{p}%</button>)}</span></div>
         {canNative && <>
           <span className="lbl" style={{ marginTop: 14 }}>Paid out as <Info label="Getting the native coin back">Paid out as {coin}, the {h.symbol} is unwrapped for you. That costs one more signature on most venues: an approval for their gateway the first time, or an unwrap step of its own. If that unwrap step fails, the withdrawal has still gone through and the funds sit in your wallet as {h.symbol}.</Info></span>
           <div className="seg">{[false, true].map((n) => <button key={String(n)} aria-pressed={native === n} disabled={n && maxRounds} onClick={() => setAsNative(n)}><Tok sym={n ? coin : h.symbol} logo={n ? undefined : h.logo} size={16} /> {n ? coin : h.symbol}</button>)}</div>
@@ -950,7 +964,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
     ? reducePlan({ ledger: paper.ledger, h, closing, keep, sellUsd, costUsd: sale?.exitCostUsd != null ? sale.exitCostUsd * (keep && keepOk ? sellKeep! / h.amount : 1) : C * slip / 10_000, feed: paper.price })
     : down || !s
     ? async () => {
-      const q = await quoteClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: toRaw(sellTok, h.decimals), accountId: h.accountId, loanId: loan?.id }, slip, false).catch(() => null)
+      const q = await quoteClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: capRaw(sellTok, h.decimals, heldRaw(h)), accountId: h.accountId, loanId: loan?.id }, slip, false).catch(() => null)
       if (!q) throw new Error(NO_ROUTE)
       // what the sale loses against the position's own valuation, at the quote's fill
       const cost = q.exitCostUsd != null && q.exitCostUsd > 0 ? q.exitCostUsd : Math.max(0, sellUsd - q.output * pDebt)
@@ -964,7 +978,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
     }
   const ladder = useTicketLadder(key, h.chainId, async () => {
     if (down || !s) {
-      const amountRaw = closing && !keep ? allRaw : toRaw(closing ? sellKeep! : sellTok, h.decimals)
+      const amountRaw = closing && !keep ? allRaw : capRaw(closing ? sellKeep! : sellTok, h.decimals, heldRaw(h))
       const closeParams = { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: slip, isAll: closing, account: actor!, accountId: h.accountId, loanId: loan?.id }
       const env = await withSignature(await loopClose(closeParams), paperSign)
       if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
@@ -1076,9 +1090,9 @@ export function GetLine({ account, short, symbol, open, onOpen }: { account?: st
     </button>
   )
 }
-export function AmountBox({ unit, value, onChange, onMax }: { unit: string; value: number; onChange: (v: number) => void; onMax?: () => void }) {
+export function AmountBox({ unit, value, onChange, onMax }: { unit: string; value: Amount; onChange: (a: Amount) => void; onMax?: () => void }) {
   return (
-    <div className="amt">{unit === '$' && <span className="u">$</span>}<DecimalInput value={value} onChange={onChange} ariaLabel="Amount" />{unit !== '$' && <span className="u">{unit}</span>}{onMax && <button className="max" onClick={onMax}>Max</button>}</div>
+    <div className="amt">{unit === '$' && <span className="u">$</span>}<AmountInput value={value} onChange={onChange} ariaLabel="Amount" />{unit !== '$' && <span className="u">{unit}</span>}{onMax && <button className="max" onClick={onMax}>Max</button>}</div>
   )
 }
 

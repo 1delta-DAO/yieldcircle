@@ -1,4 +1,5 @@
 import React from 'react'
+import { asAmount, type Amount } from '../model/amount'
 
 /**
  * `useState` that outlives the component: the value is kept in sessionStorage
@@ -21,6 +22,12 @@ export function useSticky<T>(key: string, init: T | (() => T), seed?: { value: T
     try { sessionStorage.setItem(PREFIX + key, JSON.stringify(v)) } catch { /* quota, private mode */ }
   }, [key, v])
   return [v, setV]
+}
+
+/** a ticket's amount box, kept as its TEXT (tickets/0014): a reload cannot bring back a rounded float. A number kept by an older build reads as typed text. */
+export function useStickyAmount(key: string, init: () => Amount): [Amount, (a: Amount) => void] {
+  const [v, setV] = useSticky<Amount>(key, init)
+  return [asAmount(v), setV]
 }
 
 /**

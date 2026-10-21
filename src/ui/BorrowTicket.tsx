@@ -31,7 +31,8 @@ import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { nameOf } from '../model/assets'
 import { CRYPTO_BORDERS, MIN_HEALTH, ZONES, bordersFor, collateralFor, collateralOf, defaultBorrow, dropOf, healthOf, isPutUp, liquidationPrice, maxBorrowUsd, monthlyCost, owedOf, usMarket, zoneAmounts, zoneOf, type BorrowOffer, type Zone } from '../model/borrow'
-import { borrowAtSize, toRaw } from '../model/leverage'
+import { borrowAtSize, capRaw, toRaw } from '../model/leverage'
+import { fromUnits, heldRaw, payRaw, portion, unitsOf, type Amount } from '../model/amount'
 import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
 import { isSvmChain, normAddr } from '../model/address'
 import { keyOfToken } from '../model/desk'
@@ -43,7 +44,7 @@ import { useStrategyProofs } from '../index/queries'
 import { useProfiles } from '../social/queries'
 import { go, useApp, type Mode } from '../state/AppState'
 import { usePaper } from '../state/Paper'
-import { useSticky } from '../state/sticky'
+import { useSticky, useStickyAmount } from '../state/sticky'
 import { Action, AmountBox, GetLine, TicketCtx, sameToken } from './Ticket'
 import { GetAsset } from './GetAsset'
 import { IrmLink } from './Irm'
@@ -182,10 +183,13 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
   const heldUsd = h ? (h.collateralUsd ?? heldUnits * price) + otherUsd : 0
   const owedUsd = h ? Math.max(0, heldUsd - h.valueUsd) : 0
   const owedUnits = h?.debtAmount ?? owedUsd / debtPrice
-  const [put, setPut0] = useSticky<number>(`b:${o.id}:put`, () => (h ? 0 : bal ? floor6(bal.amount) : price > 0 ? +(1000 / price).toPrecision(2) : 1))
+  const [putAmt, setPut0] = useStickyAmount(`b:${o.id}:put`, () => (h ? fromUnits(0) : bal ? portion(bal, 100, chosen.decimals) : fromUnits(price > 0 ? +(1000 / price).toPrecision(2) : 1)))
+  const put = unitsOf(putAmt)
+  // what is put up, as sent: Max is the exact balance, a typed amount its text capped at it (tickets/0014)
+  const putRaw = payRaw(putAmt, chosen.decimals, bal)
   // the reader set the Put up box themselves: "by amount" stops filling it
   const [putSet, setPutSet] = useSticky<boolean>(`b:${o.id}:putset`, false)
-  const setPut = (v: number) => { setPut0(v); setPutSet(true) }
+  const setPut = (a: Amount) => { setPut0(a); setPutSet(true) }
   const putUsd = put * price
   const collUsd = heldUsd + putUsd
   const borders = bordersFor(o)
@@ -232,7 +236,7 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
   const wantUnits = typed ? ceil6(Math.max(safeUnits, floorUnits * 1.001)) : 0
   React.useEffect(() => {
     // the Put up box follows a typed sum until the reader sets it; a running loan adds only what is missing
-    if (typed && !putSet && price > 0 && Math.abs(wantUnits - put) > 1e-6) setPut0(wantUnits)
+    if (typed && !putSet && price > 0 && Math.abs(wantUnits - put) > 1e-6) setPut0(fromUnits(wantUnits))
   }, [typed, putSet, wantUnits]) // eslint-disable-line react-hooks/exhaustive-deps
   const totalDebt = owedUsd + take
   const drop = dropOf(collUsd, totalDebt, o.liqLtv), zone = zoneOf(drop, borders), hf = healthOf(collUsd, totalDebt, o.liqLtv)
@@ -250,13 +254,13 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
   const build = (simulate: boolean) => {
     const base = { operator: actor!, accountId: h?.accountId, simulate }
     const pay = chosen.role === 'native' ? chosen.address : undefined
-    if (put > 0 && take > 0) return lendingDepositAndBorrow({ ...base, collateralMarketUid: o.collateral.uid, debtMarketUid: o.debt.uid, collateralRaw: toRaw(put, chosen.decimals), borrowRaw: toRaw(debtUnits, o.debt.decimals), payAsset: pay, modeId: o.modeId })
-    if (put > 0) return lendingAction('deposit', { ...base, marketUid: o.collateral.uid, amountRaw: toRaw(put, chosen.decimals), payAsset: pay })
+    if (put > 0 && take > 0) return lendingDepositAndBorrow({ ...base, collateralMarketUid: o.collateral.uid, debtMarketUid: o.debt.uid, collateralRaw: putRaw, borrowRaw: toRaw(debtUnits, o.debt.decimals), payAsset: pay, modeId: o.modeId })
+    if (put > 0) return lendingAction('deposit', { ...base, marketUid: o.collateral.uid, amountRaw: putRaw, payAsset: pay })
     return lendingAction('borrow', { ...base, marketUid: o.debt.uid, amountRaw: toRaw(debtUnits, o.debt.decimals) })
   }
-  const dKey = useDebounced([o.id, put, Math.round(take * 100), chosen.role, actor ?? '', h?.accountId ?? ''].join('|'), 500)
+  const dKey = useDebounced([o.id, putRaw, Math.round(take * 100), chosen.role, actor ?? '', h?.accountId ?? ''].join('|'), 500)
   const sim = useQuery({
-    enabled: !!actor && isConnected && !paper.active && (put > 0 || take > 0) && dKey === [o.id, put, Math.round(take * 100), chosen.role, actor ?? '', h?.accountId ?? ''].join('|'),
+    enabled: !!actor && isConnected && !paper.active && (put > 0 || take > 0) && dKey === [o.id, putRaw, Math.round(take * 100), chosen.role, actor ?? '', h?.accountId ?? ''].join('|'),
     queryKey: ['borrow-sim', dKey],
     queryFn: () => build(true),
     staleTime: 20_000, retry: false,
@@ -272,7 +276,7 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
     : (pre?.borrowCapacity ?? 0) > 0 || (pre?.balanceData?.collateral ?? 0) > 0)
   const simHf = simTrusted ? sim.data?.data?.simulation?.post?.healthFactor ?? undefined : undefined
   const effHf = simHf != null && simHf > 0 ? simHf : hf
-  const key = [o.id, h?.accountId ?? '', put, Math.round(take * 100), chosen.role, actor ?? ''].join('|')
+  const key = [o.id, h?.accountId ?? '', putRaw, Math.round(take * 100), chosen.role, actor ?? ''].join('|')
   const debtKey = keyOfToken({ chainId: o.chainId, address: o.debt.address, symbol: o.debt.symbol }) ?? o.debt.symbol
   const ladder = useTicketLadder(key, o.chainId, async () => stepsFrom((await build(false)).actions, put > 0 && take > 0 ? 'Put up and borrow' : put > 0 ? 'Add collateral' : 'Borrow', o.chainId),
     [o.collateral.uid, o.debt.uid], [{ address: chosen.address, symbol: chosen.symbol }, { address: o.debt.address, symbol: o.debt.symbol }],
@@ -306,7 +310,7 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
           <div className="seg" style={{ marginBottom: 10 }}>{opts.map((x) => <button key={x.role} aria-pressed={chosen.role === x.role} onClick={() => setRole(x.role)}><Tok sym={x.symbol} logo={x.role === 'token' ? o.collateral.logo : undefined} size={16} /> {x.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? num(balOf(x.address)?.amount ?? 0, 3) : ''}</span></button>)}</div>
         </>}
         <span className="lbl">{h ? 'Add collateral' : 'Put up'} <span className="t50">· {chosen.symbol}{h ? ' · optional' : ''}</span></span>
-        <AmountBox unit={chosen.symbol} value={put} onChange={setPut} onMax={bal ? () => setPut(floor6(bal.amount)) : undefined} />
+        <AmountBox unit={chosen.symbol} value={putAmt} onChange={setPut} onMax={bal ? () => setPut(portion(bal, 100, chosen.decimals)) : undefined} />
         <div className="amt-sub"><span>{price > 0 ? `≈ ${usd(putUsd)}` : 'no price for it right now'}{h ? <> · {num(heldUnits, 4)} {h.symbol} in already</> : null}</span><span>{account ? <>In your wallet: {bal ? `${num(bal.amount, 4)} ${bal.symbol}` : `0 ${chosen.symbol}`}{short && <span className="warn"> · not enough</span>}</> : 'connect to see your balance'}</span></div>
         <GetLine account={account} short={short} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
         {getOpen && <GetAsset targets={opts.map((x) => ({ chainId: o.chainId, address: x.address, symbol: x.symbol, decimals: x.decimals, price, logo: x.role === 'token' ? o.collateral.logo : undefined, have: balOf(x.address)?.amount ?? 0 }))} want={put} sources={idle} onTarget={(t) => setRole(opts.find((x) => x.address === t.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}
@@ -338,7 +342,7 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
           {over && take > 0
             ? <span className="warn">{cap > 0 ? `most here: ${outAmt(cap)}` : 'put something up first'}{cap > 0 && o.liquidityUsd > 0 && cap >= o.liquidityUsd - 1 ? ' · all the market has free' : ''}</span>
             : typed && put + 1e-9 < wantUnits && price > 0
-              ? <button type="button" className="lnk" onClick={() => setPut(wantUnits)}>put up {sig4(wantUnits)} {chosen.symbol} to start Safe ›</button>
+              ? <button type="button" className="lnk" onClick={() => setPut(fromUnits(wantUnits))}>put up {sig4(wantUnits)} {chosen.symbol} to start Safe ›</button>
               : typed && floorUnits > 0 ? <span>{o.venue} asks at least {sig4(Math.max(0, floorUnits))} {o.collateral.symbol}</span> : <span />}
         </div>
       </div>
@@ -403,11 +407,16 @@ function RepayPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] })
   const otherDebtUsd = (h.others ?? []).reduce((a, x) => a + (x.side === 'debt' ? x.usd : 0), 0)
   const debtPrice = owed > 0 && owedUsd - otherDebtUsd > 0 ? (owedUsd - otherDebtUsd) / owed : o.debt.price || 1
   const debtBal = idle.find((i) => i.chainId === o.chainId && sameToken(i.address, normAddr(o.debt.address)))
-  const [repay, setRepay] = useSticky<number>(`b:${h.key}:repay`, () => +owed.toFixed(6))
-  const [out, setOut] = useSticky<number>(`b:${h.key}:out`, () => 0)
+  const [repayAmt, setRepay] = useStickyAmount(`b:${h.key}:repay`, () => fromUnits(owed))
+  const [outAmt, setOut] = useStickyAmount(`b:${h.key}:out`, () => fromUnits(0))
+  const repay = unitsOf(repayAmt), out = unitsOf(outAmt)
   const repayAll = owed > 0 && repay >= owed * 0.9999
   const outAll = held > 0 && out >= held * 0.9999
   const r = Math.min(repay, owed), w = Math.min(out, held)
+  // as sent (tickets/0014): a repay never pulls more than the wallet holds, a withdrawal never asks more than is put up.
+  // All of the debt is sized on chain (`isAll` / `repayMax`), so only its float is capped
+  const repayRaw = repayAll ? capRaw(r, o.debt.decimals, debtBal) : payRaw(repayAmt, o.debt.decimals, debtBal)
+  const outRaw = outAll ? h.amountRaw ?? capRaw(w, o.collateral.decimals, heldRaw(h)) : payRaw(outAmt, o.collateral.decimals, heldRaw(h))
   const debtAfter = (repayAll ? 0 : (owed - r) * debtPrice) + otherDebtUsd
   const collAfter = (outAll ? 0 : (held - w) * price) + otherUsd
   const liq = h.health && owedUsd > 0 && collUsd + otherUsd > 0 ? (h.health * owedUsd) / (collUsd + otherUsd) : o.liqLtv
@@ -422,12 +431,12 @@ function RepayPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] })
     const base = { operator: actor!, accountId: h.accountId }
     const receiveAsset = native ? nativeAsset(o.chainId) : undefined
     const env = r > 0 && w > 0
-      ? await lendingWithdrawAndRepay({ ...base, collateralMarketUid: o.collateral.uid, debtMarketUid: o.debt.uid, repayRaw: toRaw(r, o.debt.decimals), withdrawRaw: outAll && h.amountRaw ? h.amountRaw : toRaw(w, o.collateral.decimals), repayMax: repayAll, withdrawMax: repayAll && outAll, receiveAsset })
-      : r > 0 ? await lendingAction('repay', { ...base, marketUid: o.debt.uid, amountRaw: toRaw(r, o.debt.decimals), isAll: repayAll })
-      : await lendingAction('withdraw', { ...base, marketUid: o.collateral.uid, amountRaw: outAll && h.amountRaw ? h.amountRaw : toRaw(w, o.collateral.decimals), isAll: outAll, receiveAsset })
+      ? await lendingWithdrawAndRepay({ ...base, collateralMarketUid: o.collateral.uid, debtMarketUid: o.debt.uid, repayRaw, withdrawRaw: outRaw, repayMax: repayAll, withdrawMax: repayAll && outAll, receiveAsset })
+      : r > 0 ? await lendingAction('repay', { ...base, marketUid: o.debt.uid, amountRaw: repayRaw, isAll: repayAll })
+      : await lendingAction('withdraw', { ...base, marketUid: o.collateral.uid, amountRaw: outRaw, isAll: outAll, receiveAsset })
     return stepsFrom(env.actions, r > 0 && w > 0 ? 'Pay back and take out' : r > 0 ? 'Pay back' : 'Take collateral out', o.chainId)
   }
-  const key = [h.key, Math.round(r * 1e6), Math.round(w * 1e6), native ? 'n' : 't', actor ?? ''].join('|')
+  const key = [h.key, repayRaw, outRaw, native ? 'n' : 't', actor ?? ''].join('|')
   const ladder = useTicketLadder(key, o.chainId, build, [o.collateral.uid, o.debt.uid],
     [{ address: o.debt.address, symbol: o.debt.symbol }, native ? { address: nativeAsset(o.chainId), symbol: coin } : { address: o.collateral.address, symbol: o.collateral.symbol }],
     repayPlan({ ledger: paper.ledger, h, repayUnits: r, repayAll, withdrawUnits: w, withdrawAll: outAll }))
@@ -443,11 +452,11 @@ function RepayPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] })
     <>
       <div className="tsec">
         <span className="lbl">Pay back <span className="t50">· {o.debt.symbol} (of {num(owed, 2)} owed)</span></span>
-        <AmountBox unit={o.debt.symbol} value={repay} onChange={setRepay} onMax={() => setRepay(+owed.toFixed(6))} />
+        <AmountBox unit={o.debt.symbol} value={repayAmt} onChange={setRepay} onMax={() => setRepay(fromUnits(owed))} />
         <div className="amt-sub"><span>≈ {usd(r * debtPrice)}</span><span>{account ? <>Wallet: {num(debtBal?.amount ?? 0, 2)} {o.debt.symbol}{shortDebt && <span className="warn"> · short</span>}</> : ''}</span></div>
         {repayAll && <div className="foot" style={{ marginTop: 4 }}>Paying back all of it: the amount is sized on chain when it lands, interest to that block included, so nothing is left behind. Keep a little more {o.debt.symbol} than shown.</div>}
         <span className="lbl" style={{ marginTop: 14 }}>Take out <span className="t50">· {o.collateral.symbol} (of {num(held, 4)} put up)</span></span>
-        <AmountBox unit={o.collateral.symbol} value={out} onChange={setOut} onMax={() => setOut(repayAll && otherDebtUsd <= 0.5 ? held : floor6(maxOut))} />
+        <AmountBox unit={o.collateral.symbol} value={outAmt} onChange={setOut} onMax={() => setOut(repayAll && otherDebtUsd <= 0.5 ? portion(heldRaw(h), 100, o.collateral.decimals) : fromUnits(floor6(maxOut)))} />
         <div className="amt-sub"><span>≈ {usd(w * price)}</span><span>{debtAfter > 0 ? `at most ${num(maxOut, 4)} while ${usd(debtAfter)} is owed` : 'all of it, once repaid'}</span></div>
         {canNative && <div className="seg" style={{ marginTop: 8 }}>{[false, true].map((n) => <button key={String(n)} aria-pressed={native === n} onClick={() => setAsNative(n)}><Tok sym={n ? coin : o.collateral.symbol} logo={n ? undefined : o.collateral.logo} size={16} /> as {n ? coin : o.collateral.symbol}</button>)}</div>}
       </div>

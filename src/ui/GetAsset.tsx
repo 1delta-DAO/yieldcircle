@@ -1,7 +1,7 @@
 import React from 'react'
 import { useAccount, useSendTransaction } from 'wagmi'
 import type { Idle } from '../model/positions'
-import { toRaw } from '../model/leverage'
+import { fromUnits, payRaw, portion, unitsOf, type Amount } from '../model/amount'
 import { useQuery } from '@tanstack/react-query'
 import { fetchTokenBalances, spotSwapQuote, xchainSwapQuote, ZERO, type DestinationGas, type SwapQuoteActions, type SwapQuoteData } from '../sdk/api'
 import { CHAINS, chainLabel, useBalances } from '../sdk/queries'
@@ -19,7 +19,7 @@ import { useSwitchTo } from '../wallet/useSwitchTo'
 import { base58Encode, isSolAddr, isSvmChain, normAddr } from '../model/address'
 import { isSvmTx, type AnyTx, type ApiTx } from '../sdk/types'
 import { solSignAndSend } from '../wallet/solana'
-import { DecimalInput, Info, Tok, num, usd } from './bits'
+import { AmountInput, Info, Tok, num, usd } from './bits'
 import { Drawer } from './Drawer'
 import { LossAck, ValueRow, useValueCheck } from './ValueCheck'
 
@@ -60,11 +60,14 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
   const src = pick ?? opts[0] ?? null
   const choose = (i: Idle | null) => { setPick(i); setSent(null); setPendingApprove(undefined) }
   // amount in the source token, prefilled with what covers the shortfall (plus 1 % for the route), capped at the balance
-  const [amount, setAmount] = React.useState<number>(0)
+  const [amt, setAmt] = React.useState<Amount>({ text: '0' })
+  const amount = unitsOf(amt)
+  // what is sent: Max is the exact balance, a typed amount its text capped at it (tickets/0014)
+  const payR = src ? payRaw(amt, src.decimals, src) : '0'
   // with no price for either side there is nothing to work backwards from (no oracle for a reverse
   // quote): the amount starts empty, you say what to spend, and the forward quote says what it buys
   // (and 5 cents: a small buy — gas for a chain — loses more than 1 % to the route's fixed fees)
-  React.useEffect(() => { if (src) setAmount(src.price > 0 && target.price > 0 ? Math.min(src.amount, +((need * target.price * 1.01 + 0.05) / src.price).toFixed(6)) : 0) }, [src?.address, src?.chainId, need])
+  React.useEffect(() => { if (src) { const want = src.price > 0 && target.price > 0 ? (need * target.price * 1.01 + 0.05) / src.price : 0; setAmt(want >= src.amount ? portion(src, 100, src.decimals) : fromUnits(+want.toFixed(6))) } }, [src?.address, src?.chainId, need])
   const [quote, setQuote] = React.useState<ApiEnvelope<SwapQuoteData, SwapQuoteActions> | null>(null)
   const [quoting, setQuoting] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
@@ -97,7 +100,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
     const t = setTimeout(async () => {
       setQuoting(true); setErr(null)
       try {
-        const raw = toRaw(amount, src.decimals)
+        const raw = payR
         // a paper wallet holds nothing on Solana, and Solana-origin bridges (Mayan, NEAR Intents, Relay) build by reading
         // the sender on chain — they drop every route for an empty one. Paper needs only the quote: ask it without a sender
         // (tickets/0007; measured 2026-10-11: no sender answers what a funded wallet would)
@@ -111,7 +114,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
       } catch (e) { if (id === reqId.current) { setQuote(null); setErr(shortErr((e as Error).message)) } } finally { if (id === reqId.current) setQuoting(false) }
     }, 600)
     return () => clearTimeout(t)
-  }, [src?.address, src?.chainId, amount, target.address, target.chainId, account, solSigner, sent, paper.active, askGas])
+  }, [src?.address, src?.chainId, payR, target.address, target.chainId, account, solSigner, sent, paper.active, askGas])
   // the route: the API's best by default; every other one it found is listed under it, picked in a tap
   const [sel, setSel] = React.useState(0)
   React.useEffect(() => { setSel(0) }, [quote])
@@ -251,7 +254,7 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
             onCancel={() => { setOtherOpen(false); if (custom && src === custom) choose(null); setCustom(null) }} />}
           {src && (
             <>
-              <div className="amt" style={{ marginTop: 10, minHeight: 42 }}><DecimalInput value={amount} onChange={(v) => { setAmount(v); setSent(null) }} ariaLabel="Amount to pay" style={{ fontSize: 16 }} /><span className="u">{src.symbol}</span><button className="max" onClick={() => setAmount(src.amount)}>Max</button></div>
+              <div className="amt" style={{ marginTop: 10, minHeight: 42 }}><AmountInput value={amt} onChange={(a) => { setAmt(a); setSent(null) }} ariaLabel="Amount to pay" style={{ fontSize: 16 }} /><span className="u">{src.symbol}</span><button className="max" onClick={() => { setAmt(portion(src, 100, src.decimals)); setSent(null) }}>Max</button></div>
               <div className="amt-sub"><span>{src.price > 0 ? `≈ ${usd(amount * src.price)}` : 'no price for it'}{amount > src.amount + 1e-9 && <span className="warn"> · more than you hold</span>}</span><span>{cross ? `bridge ${chainLabel(src.chainId)} → ${chainLabel(target.chainId)}` : 'swap on ' + chainLabel(src.chainId)}</span></div>
               {/* once sent the quote is gone (nothing to re-quote): the status line below takes its place */}
               {!sent && <div className="qline">
@@ -338,7 +341,7 @@ function CustomToken({ walletOn, chainId0, onUse, onCancel }: { walletOn: (chain
   React.useEffect(() => {
     if (!found) return
     const amount = parseFloat(found.balance) || 0, price = found.priceUSD ?? 0
-    onUse({ asset: found.symbol, symbol: found.symbol, amount, usd: found.balanceUSD ?? amount * price, address: addr, decimals: found.decimals, price, chainId })
+    onUse({ asset: found.symbol, symbol: found.symbol, amount, usd: found.balanceUSD ?? amount * price, address: addr, decimals: found.decimals, price, chainId, raw: found.balanceRaw })
   }, [found?.symbol, found?.balanceRaw, chainId, addr])
   return (
     <div className="custom-tok">

@@ -193,7 +193,19 @@ export function subAccountLabel(lender: string, id: string): string {
 }
 
 /** One idle balance: one TOKEN on one chain (native ETH and WETH are two entries with the same base `asset`). */
-export interface Idle { asset: string; symbol: string; amount: number; usd: number; address: string; decimals: number; price: number; chainId: string }
+export interface Idle { asset: string; symbol: string; amount: number; usd: number; address: string; decimals: number; price: number; chainId: string
+  /** the exact wallet balance in base units, for ONE token on ONE chain — absent on a merged (group) row. `amount` is a float and cannot be sent back as-is (`payRaw`) */
+  raw?: string }
+/**
+ * The group view: the same base asset summed across tokens and chains (native ETH + WETH, all chains),
+ * named after its biggest part. A merged row has no `raw`: its parts sit on different chains, so no
+ * one transfer can send their sum — Max on it falls back to the float, and nothing pays from it.
+ */
+export function mergeIdle(idle: Idle[]): Idle[] {
+  const out: Idle[] = []
+  for (const i of idle) { const cur = out.find((x) => x.asset === i.asset); if (cur) { cur.amount += i.amount; cur.usd += i.usd; cur.raw = undefined; if (i.usd > cur.usd - i.usd) { cur.address = i.address; cur.decimals = i.decimals; cur.chainId = i.chainId } } else out.push({ ...i }) }
+  return out
+}
 /** Solana's balances route spells the native row's address as the System Program id since 2026-10 (`native` before; both accepted). */
 export const isNativeAddress = (a: string) => /^0x0{40}$/i.test(a) || /^0xe{40}$/i.test(a) || a === 'native' || a === '11111111111111111111111111111111'
 /**
@@ -299,7 +311,7 @@ export function idleFrom(items: TokenBalance[], chainId: string): Idle[] {
     // wei of WETH behind (docs/native-routes.md). Only a PRICED balance is judged — unpriced stays
     if (b.priceUSD && usd < DUST_USD) continue
     // native keeps the spelling its chain's routes use: the zero address on EVM, `native` on Solana
-    out.push({ asset, symbol, amount, usd, address: native && !gasToken && !isSvmChain(chainId) ? '0x0000000000000000000000000000000000000000' : normAddr(b.address), decimals: b.decimals, price: b.priceUSD ?? (amount ? usd / amount : 0), chainId })
+    out.push({ asset, symbol, amount, usd, address: native && !gasToken && !isSvmChain(chainId) ? '0x0000000000000000000000000000000000000000' : normAddr(b.address), decimals: b.decimals, price: b.priceUSD ?? (amount ? usd / amount : 0), chainId, raw: b.balanceRaw })
   }
   return out
 }

@@ -712,10 +712,14 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const venuePays = /^RESUPPLY/.test(r.lender) && num(r.depositAprLong) > 0
   const collateralYields = venuePays || !!(p.lst || p.savings || p.pendle || p.spectra || p.exponent || p.rwa || (L.intrinsicYield ?? 0) > 0)
   // the at-size legs (quoted at $10k of collateral) when the venue has a depth grid, else the sticker
-  // incentives on BOTH legs: the API nets `rewardAprShort` into `borrowAprShort` but leaves `rewardAprLong` out of
-  // `depositAprLong`, so the collateral's is added here — the headline counts both, `loopRewards` says how much
+  // incentives on BOTH legs are already inside the sticker: `depositAprLong` = `depositRateLongLeg` +
+  // intrinsic + `rewardAprLong`, and `borrowAprShort` has `rewardAprShort` netted off (the origin's
+  // `aprTotal` is exactly `depositAprLong·L − borrowAprShort·(L−1)`, measured over every venue on
+  // 2026-10-21). Nothing is added here — adding `rewardAprLong` again quoted a Resupply loop at
+  // 101 % where its holders earn 46 %. `rewardsLong` / `rewardsShort` only say how much of the
+  // headline is incentives (`loopRewards`).
   const rL = num(r.rewardAprLong)
-  const dep = (num(r.depositAprAtAmount) || num(r.depositAprLong)) + rL, maxLev = num(r.maxLeverage)
+  const dep = num(r.depositAprAtAmount) || num(r.depositAprLong), maxLev = num(r.maxLeverage)
   const bor = terms.length ? Math.min(...terms.map((t) => t.apr)) : num(r.borrowAprAtAmount) || num(r.borrowAprShort)
   // no leverage and no collateral value are the two the ticket cannot build around;
   // a collateral paying nothing simply lands in the negative-carry bucket below
@@ -744,7 +748,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     lender: r.lender, debt: S.symbol, marketLongUid: r.marketLongUid, marketShortUid: r.marketShortUid,
     collateralAddress: L.address, debtAddress: S.address, decimalsLong: L.decimals ?? 18, decimalsShort: S.decimals ?? 18,
     priceLong: r.underlyingInfoLong.prices?.priceUsd, priceShort: r.underlyingInfoShort.prices?.priceUsd, logoLong: L.logoURI, logoShort: S.logoURI,
-    dep, bor, depSpot: num(r.depositAprLong) ? num(r.depositAprLong) + rL : dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: rL, rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields, intrinsicLong: num(r.intrinsicYieldLong) || undefined,
+    dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: rL, rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields, intrinsicLong: num(r.intrinsicYieldLong) || undefined,
     expiry, instrument,
     ...(terms.length ? { terms, borSpot: bor } : {}),
     ...(r.fixedTerm?.model === 'loopscale' ? { tenors: loopscaleTenors(r) } : {}),

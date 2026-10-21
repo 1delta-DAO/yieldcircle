@@ -19,6 +19,7 @@ import { useAccount } from 'wagmi'
 import { go, marketHref, parseRoute, useApp, useRoute, walletHref } from '../state/AppState'
 import { PnlDrawer } from './PnlDrawer'
 import { WalletPnl } from './WalletPnl'
+import { WalletClosed } from './WalletClosed'
 import type { AccountSyncReport } from '../index/api'
 import { useAccountFlows, useAccountSync, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '../index/queries'
 import { useFollowers, useProfile, useProfiles, useWalletLinks } from '../social/queries'
@@ -285,6 +286,9 @@ export function Wallet({ addr }: { addr: string }) {
         </>}
         <PnlDrawer account={addr} posKey={route.pos} onClose={closePnl} />
       </section>
+
+      {/* what it made on the positions it has closed (pos-indexer docs/pnl-series.md "Closed positions") */}
+      {!paperEvm && isAddr(addr) && !hidden && !syncing && <WalletClosed addr={addr} />}
 
       {paperEvm ? <section className="sec">
         <div className="sec-h"><h2>Moves</h2><span className="sub"><span className="pill paper">paper</span> every action this paper account signed, as the paper ledger applied it — nothing on chain</span></div>

@@ -412,6 +412,33 @@ export interface PositionSeries {
   gaps?: number
   unanchored: { marketUid: string; side: string; rows: number }[]
 }
+/**
+ * The positions a wallet held in the ledger and holds nothing of now (pos-indexer
+ * `GET /accounts/:account/closed`, docs/pnl-series.md "Closed positions"): the keys
+ * `positionSeries` draws a CLOSED position by. The series answers 404 for one whose
+ * history the index cannot prove complete (opened before its floor, or still open
+ * and unread). EVM only; an index before the route answers null.
+ */
+export interface ClosedPositionKey {
+  key: string
+  chainId: string
+  posId: string
+  riskKey: string
+  lenderKey: string
+  marketUids: string[]
+  rows: number
+  firstAt: string
+  lastAt: string
+  /** the first day the index's line can start on for this chain */
+  lineFrom?: string
+}
+export async function closedPositions(account: string, signal?: AbortSignal): Promise<ClosedPositionKey[] | null> {
+  const r = await fetch(`${INDEX_BASE_URL}/accounts/${account}/closed`, { signal })
+  if (r.status === 404) return null
+  const j = (await r.json().catch(() => ({}))) as { positions?: ClosedPositionKey[]; error?: string }
+  if (!r.ok) throw new Error(j.error || `/accounts/${account}/closed → ${r.status}`)
+  return j.positions ?? []
+}
 export const positionSeries = (account: string, key: string, unit?: string) =>
   get<PositionSeries>(`/accounts/${account}/series`, { key, ...(unit && unit !== 'USD' ? { unit } : {}) }, undefined, indexForAddr(account))
 

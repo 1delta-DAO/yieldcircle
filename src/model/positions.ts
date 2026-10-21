@@ -27,6 +27,8 @@ export interface Holding {
   venue: string
   valueUsd: number
   apr?: number
+  /** how much of `apr` is incentives, over equity — the positions route's own breakdown, at THIS position's leverage */
+  rewards?: number
   health?: number | null
   leverage?: number
   earnUid?: string
@@ -158,7 +160,7 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
           ...debt.slice(1).map((l) => ({ side: 'debt' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.debt) || 0, usd: l.debtUsd }))]
         const loans = a.legs.filter((l) => l.loanId && l.marketUid === d.marketUid && l.debtUsd > 0.005)
           .map((l) => ({ id: l.loanId!, debt: parseFloat(l.debt) || 0, debtUsd: l.debtUsd })).sort((x, y) => y.debtUsd - x.debtUsd)
-        out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: loan ? 'borrow' : 'loop', label: loan ? `${coll.asset.symbol} → ${d.asset.symbol} loan` : `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
+        out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: loan ? 'borrow' : 'loop', label: loan ? `${coll.asset.symbol} → ${d.asset.symbol} loan` : `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, rewards: p.aprBreakdown?.rewards, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
           amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtDecimals: d.asset.decimals, collateralAddress: normAddr(coll.asset.address), debtAddress: normAddr(d.asset.address), debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
       } else {
         for (const l of supply) {

@@ -19,6 +19,16 @@ is a nominal, simple APR in percent, so legs add: base + rewards + intrinsic,
 and a loop's net is `dep·L − bor·(L−1)`. APYs would not add. Label every rate
 "APR" (or "net yield"); never "APY", and never compound one for display.
 
+**A pair row's legs are already whole.** `depositAprLong` = `depositRateLongLeg` +
+`intrinsicYieldLong` + `rewardAprLong`, and `borrowAprShort` has `rewardAprShort`
+netted off; the origin's `aprTotal` is exactly `depositAprLong·maxLev −
+borrowAprShort·(maxLev−1)` and `aprBase` strips the two reward fields (measured over
+every venue 2026-10-21). Never add `rewardAprLong` to `depositAprLong` — that quoted a
+Resupply loop at 101 % whose holders earn 46 %. The reward fields only say how much of
+the headline is incentives. The convention is shared by credx, allocator, the frontend
+and worker-api's own `loopEconomics`, so it is not the backend's to change. A held
+position's share comes from the positions route's `aprBreakdown`, at its own leverage.
+
 ## The layering (keep it)
 
 ```

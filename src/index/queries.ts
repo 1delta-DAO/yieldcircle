@@ -51,6 +51,16 @@ export function useAccountFlows(account: string | undefined, days = 30, chainId?
   })
 }
 /** One position's PnL record (`api.positionSeries`); `key` = a `groups[].key`, `unit` = the money it is valued in. */
+/** A wallet's closed positions (EVM only — the Solana index has no such route). */
+export function useClosedPositions(account: string | undefined) {
+  return useQuery({
+    enabled: isEvmAddr(account),
+    queryKey: ['closed-positions', account?.toLowerCase()],
+    queryFn: ({ signal }) => api.closedPositions(account!.toLowerCase(), signal),
+    staleTime: 5 * MIN,
+    retry: 1,
+  })
+}
 export function usePositionSeries(account: string | undefined, key: string | undefined, unit = 'USD') {
   return useQuery({
     enabled: !!account && !!key,

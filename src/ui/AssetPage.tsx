@@ -1,6 +1,6 @@
 import React from 'react'
 import { assetLogo, isFiat, nameOf, whatIs, type Group } from '../model/assets'
-import { exitTerms, markPicks, rewardsOf, type Strategy } from '../model/strategies'
+import { exitTerms, loopRewards, markPicks, rewardsOf, type Strategy } from '../model/strategies'
 import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '../model/positions'
 import { useBook } from './useBook'
@@ -161,7 +161,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
       meta: `${chainLabel(h.chainId)}${h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}${h.kind === 'loop' && h.debtSymbol ? ` · owes ${amt(h.debtSymbol, h.debtAmount ?? 0)}` : ''}`,
       unit: h.kind === 'loop' ? 'equity' : num(h.amount, h.amount >= 100 ? 0 : 3),
       total,
-      rewards: s ? rewardsOf(s) : 0,
+      // the API's own share where it gives one; else the catalogue's at this loop's leverage, not the Balanced tier's
+      rewards: h.rewards ?? (!s ? 0 : s.kind === 'loop' && h.leverage && h.leverage > 1 ? loopRewards(s, h.leverage) : rewardsOf(s)),
       cls: total != null && total >= 0 ? 'ok' : total != null ? 'bad' : '',
       ser: s ? seriesFor(s, get, withRewards, h.kind === 'loop' && h.leverage && h.leverage > 1 ? h.leverage : undefined) : null,
       acts: s ? <span className="acts"><button className="btn sm" onClick={() => open('add')}>Add</button><button className="btn sm" onClick={() => open(h.kind === 'loop' ? 'manage' : 'reduce')}>{out}</button></span>

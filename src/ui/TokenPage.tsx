@@ -24,7 +24,8 @@ import { chainLabel, useAssetStrategies, useCatalog, type StructuralCount } from
 import { useSettings } from '../state/Settings'
 import { HIDES, hideDetail, letIn, softHide, type HideCode } from '../model/visibility'
 import { canonGroup, isSolGroup, spellingsOf } from '../model/assetGroup'
-import type { Strategy } from '../model/strategies'
+import { riskOf, type Strategy } from '../model/strategies'
+import { assetRiskAcross, categoryWord, scoreWord, sourceWord } from '../model/assetRisk'
 import { loadAssetNotes, noteOf } from '../model/assetNotes'
 import { countsSolana } from '../index/assetMerge'
 import { normAddr } from '../model/address'
@@ -38,7 +39,7 @@ import { Rate } from './Rate'
 import { Thread } from './Thread'
 import { Flows, primaryLeg } from './Feed'
 import { Ago, Comments, ImpairedNote, Money, Who, describeBundle } from './social-bits'
-import { KindPill, ProtocolLogo, RewardsIncl, Sk, StratMark, Tok, Toks, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
+import { Info, KindPill, ProtocolLogo, RewardsIncl, RiskDot, Sk, StratMark, Tok, Toks, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
 
 const chainName = (id: string) => indexChainLabel(id, chainLabel)
 /** utilization arrives as 0..1; a figure already in percent is passed through rather than shown ×100 */
@@ -104,6 +105,32 @@ function strategyHref(s: Strategy) {
   const q = new URLSearchParams({ u: s.asset, s: s.id, oa: s.kind === 'loop' ? s.collateralAddress : s.assetSymbol })
   if (s.kind === 'loop') q.set('k', 'loop')
   return `#/${s.group}?${q}`
+}
+
+/**
+ * The token's OWN risk score (`model/assetRisk.ts`): what it is, apart from any
+ * market — the same reading the loops fold into their dot. Read off the loops
+ * the page already asks for (`useAssetStrategies`, one cached query), so an asset
+ * no loop prices says so rather than wearing a market's score.
+ */
+function AssetRiskStat({ group, sym, members, loading }: { group: string; sym: string; members?: { chainId: string; address: string }[]; loading: boolean }) {
+  const { chainIds, allChains } = useApp()
+  const key = canonGroup(group)
+  const own = useAssetStrategies(key, members, allChains ? undefined : chainIds)
+  const x = assetRiskAcross(own.rows, key)
+  const busy = (loading || own.isLoading) && !x
+  const r = x ? riskOf(x.risk.score) : null
+  return (
+    <div className="cstat cstat-risk">
+      <span className="k">Asset risk <Info label="How the asset is scored">
+        <b>What you hold, not where you lend it.</b> The token itself is scored 1–5 (lower is safer; a 6 is compromised — its backing gone) from what backs it, who issues it and how it has held its price; wrappers and principal tokens inherit from what they hold, upward only. A market that takes it has its own score on top: USDC is a 1 wherever it sits, a market lending it can still be a 4. The strategies below fold both into their dot.
+      </Info></span>
+      <span className="v">{busy ? <Sk w={70} h={18} /> : x && r ? <RiskDot r={r.risk} label={`${scoreWord(x.risk.score)} · ${Math.min(x.risk.score, 5)}/5`} /> : '—'}</span>
+      <span className="n">{busy ? ' ' : x
+        ? [categoryWord(x.risk.category), sourceWord(x.risk.source), x.spread ? `worst of ${x.chains} chains` : null].filter(Boolean).join(' · ')
+        : `no loop prices ${sym} yet, so it has no score here`}</span>
+    </div>
+  )
 }
 
 /**
@@ -344,6 +371,7 @@ export function TokenPage({ group }: { group: string }) {
           <span className="v">{d?.intrinsicApr != null ? <span className="ok">{pct(d.intrinsicApr)}</span> : '—'}</span>
           <span className="n">{d?.intrinsicApr != null ? 'what the token earns by itself, before any market' : 'nobody publishes a yield for this token'}</span>
         </div>
+        <AssetRiskStat group={group} sym={sym} members={d?.members} loading={a.isLoading} />
         <div className="cstat">
           <span className="k">Deposited in lending</span>
           <span className="v">{t ? usdShort(t.depositsUsd) : a.isLoading ? <Sk w={70} h={18} /> : '—'}</span>

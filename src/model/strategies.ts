@@ -6,6 +6,7 @@
  * (`noteToken`), which positions and balances read.
  */
 import type { EarnCapability, EarnMarket, OptimizerRowRaw } from '../sdk/types'
+import { assetRiskOf, type AssetRisk } from './assetRisk'
 import { isUserSetRow, userSetOfRow, type UserSetRate } from './userSetRate'
 import { baseOfCollateral, baseOfSymbol, denomOf, deskOf, EXPOSURE_ASSETS, exposureOf, fiatOf, groupOf, isFiat, sameMoney, type GroupId } from './assets'
 import { creditDesk, deskKey, moneyOf, noteToken } from './desk'
@@ -208,6 +209,8 @@ export interface LoopStrategy extends Base {
   priceShort?: number
   logoLong?: string
   logoShort?: string
+  /** the token list's own score of each leg (`model/assetRisk.ts`): what the token IS, apart from any market */
+  tokenRisk?: { long: AssetRisk | null; short: AssetRisk | null }
   /** the legs quoted at $10k of collateral — what the LIST ranks and floors on */
   dep: number
   bor: number
@@ -755,6 +758,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     lender: r.lender, debt: S.symbol, marketLongUid: r.marketLongUid, marketShortUid: r.marketShortUid,
     collateralAddress: L.address, debtAddress: S.address, decimalsLong: L.decimals ?? 18, decimalsShort: S.decimals ?? 18,
     priceLong: r.underlyingInfoLong.prices?.priceUsd, priceShort: r.underlyingInfoShort.prices?.priceUsd, logoLong: L.logoURI, logoShort: S.logoURI,
+    tokenRisk: { long: assetRiskOf(p.risk), short: assetRiskOf(S.props?.risk) },
     dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: rL, rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields, intrinsicLong: num(r.intrinsicYieldLong) || undefined,
     expiry, instrument,
     ...(terms.length ? { terms, borSpot: bor } : {}),

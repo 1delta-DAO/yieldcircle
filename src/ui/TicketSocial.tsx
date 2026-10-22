@@ -106,14 +106,12 @@ export function WhoIsIn({ uid, s, wide }: { uid: string; s: Strategy; wide?: boo
   const { profile } = useProfiles(rows.map((h) => h.account))
   const total = rows.reduce((a, h) => a + (h.amountUsd ?? 0), 0)
   const key = bookKeyOf(s)
+  const what = s.kind === 'loop' ? 'loop' : 'market'
   return (
     <div className={`whoin${wide ? ' wide' : ''}`}>
       <div className="ts-h">
-        <span className="lbl">Who else is in {wide ? `this ${s.kind === 'loop' ? 'loop' : 'market'}` : 'it'}</span>
-        {wide && rows.length > 0 && <span className="t50 whoin-n">top {rows.length} hold <Money usd={total} short /></span>}
-        <span className="sp" />
-        {key && <a className="t50" href={`#/board?s=${encodeURIComponent(key)}`} title={`Everyone who runs this ${s.kind === 'loop' ? 'loop' : 'strategy'}, ranked by what it pays them`}>Everyone ›</a>}
-        <a className="t50" href={marketHref(uid)}>Market page ›</a>
+        <span className="lbl">Who else is in {wide ? `this ${what}` : 'it'}</span>
+        {rows.length > 0 && <span className="t50 whoin-n">top {rows.length} hold <Money usd={total} short /></span>}
       </div>
       {holders.isLoading && (wide
         ? <div className="ts-holders" aria-busy="true" aria-label="reading the index">{[0, 1, 2, 3].map((i) => <span key={i} className="ts-holder sk"><Sk w={24} h={24} /><Sk w={70 + i * 12} h={12} /><Sk w={32} h={12} /></span>)}</div>
@@ -130,6 +128,11 @@ export function WhoIsIn({ uid, s, wide }: { uid: string; s: Strategy; wide?: boo
           ))}
         </div>
       )}
+      {/* the doors out sit under the pills on their own line: in the header they wrapped against the count */}
+      <div className="whoin-links">
+        {key && <a href={`#/board?s=${encodeURIComponent(key)}`} title={`Everyone who runs this ${s.kind === 'loop' ? 'loop' : 'strategy'}, ranked by what it pays them`}>Everyone who runs it ›</a>}
+        <a href={marketHref(uid)}>Market page ›</a>
+      </div>
     </div>
   )
 }

@@ -1265,6 +1265,13 @@ i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-sty
 .cstat .k{font-size:11px;color:var(--tx40);text-transform:uppercase;letter-spacing:.04em}
 .cstat .v{font:600 19px/1.2 var(--mono)}
 .cstat .n{font-size:11px;color:var(--tx40);line-height:1.4}
+.cstat-risk .k{display:flex;align-items:center;gap:6px}
+.cstat-risk .k .info{text-transform:none;letter-spacing:0}
+.cstat-risk .v .risk{font:600 17px/1.2 var(--mono);color:var(--tx);gap:8px}
+.cstat-risk .v .risk i{width:10px;height:10px}
+.cstat-risk .v .risk.r1{color:var(--success)}
+.cstat-risk .v .risk.r2{color:var(--warning)}
+.cstat-risk .v .risk.r3{color:var(--error)}
 .cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px}
 .alloc{display:flex;flex-direction:column;gap:5px;min-width:0}
 .alloc-h{display:flex;align-items:baseline;gap:8px;font-weight:600;font-size:13px;margin-bottom:2px}
@@ -2096,7 +2103,12 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .tbl.strat-t tr.xp + tr td{border-top:1px solid var(--line-soft)}
 .whoin{display:flex;flex-direction:column;gap:8px}
 .whoin .foot{margin:0}
-.whoin-n{font-size:12px}
+.whoin-n{font-size:12px;white-space:nowrap;flex:none;margin-left:auto}
+.whoin .ts-h .lbl{white-space:nowrap}
+.whoin-links{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;line-height:1.3}
+.whoin-links a{color:var(--tx50);min-height:28px;display:inline-flex;align-items:center;white-space:nowrap}
+.whoin-links a:hover{color:var(--primary)}
+.whoin-links a:first-child{color:var(--tx70)}
 .whoin.wide .ts-h{padding-top:2px}
 .whoin.wide .ts-holders{display:flex;flex-direction:row;flex-wrap:wrap;gap:8px}
 .whoin.wide .ts-holder{min-height:38px;padding:0 12px 0 6px;border:0;border-radius:999px;background:rgba(255,255,255,.06);color:var(--tx);font-family:var(--sans);font-size:12.5px;gap:8px}

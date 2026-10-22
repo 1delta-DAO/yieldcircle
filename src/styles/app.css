@@ -2470,3 +2470,62 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .book-t tr.ahead td{opacity:.95}
 .book-t tr.ahead .bar i{filter:saturate(.4) brightness(1.3)}
 .book-t tr.you td{border-top:2px solid currentColor;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase}
+/* the facet picker (ui/FacetPicker.tsx): a short row, More, and the whole list behind it — searchable, in sections */
+.frow{align-items:center}
+.frow .fmine{width:5px;height:5px;border-radius:50%;background:var(--primary);flex:none;margin-left:-2px}
+.frow .more svg{margin-left:2px;opacity:.7}
+.frow .chip.more[aria-expanded="true"],.frow .pchip.more[aria-expanded="true"]{color:var(--tx);border-color:var(--tx50)}
+.fpick{display:flex;flex-direction:column;gap:6px;padding:8px}
+.fp-q{width:100%;min-height:34px;padding:0 10px;border:1px solid var(--line2);border-radius:var(--r);background:var(--bg);color:var(--tx);font-size:13px}
+.fp-q:focus{outline:none;border-color:var(--primary)}
+.fp-order{display:flex;align-items:center;gap:8px;font-size:11.5px;flex-wrap:wrap}
+.fp-list{display:flex;flex-direction:column;gap:1px;max-height:min(56vh,460px);overflow-y:auto;margin:0 -4px;padding:0 4px}
+.fp-h{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx40);font-weight:600;padding:8px 8px 3px}
+.fp-row{display:flex;align-items:center;gap:8px;min-height:34px;padding:0 8px;border-radius:var(--r);color:var(--tx70);font-size:13px;text-align:left}
+.fp-row:hover{background:var(--b200);color:var(--tx)}
+.fp-row[aria-checked="true"]{color:var(--tx)}
+.fp-row .cm-tick{width:12px;flex:none;color:var(--primary);font-size:11px}
+.fp-row img,.fp-row .plogo{width:16px;height:16px;border-radius:50%;flex:none;object-fit:cover;background:#111}
+.fp-row .plogo{display:grid;place-items:center;font:600 8px/1 var(--mono);font-style:normal;color:var(--tx50);background:var(--b400)}
+.fp-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fp-n .pv{margin-left:6px;font-size:10.5px;color:var(--tx40)}
+.fp-c{font-family:var(--mono);font-size:11px;color:var(--tx40);flex:none}
+.fp-none{padding:10px 8px;font-size:12.5px}
+/* the feed's Filters button and what it has on (ui/FilterSheet.tsx) */
+.filterbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.hot-top > .filterbar{margin-bottom:8px}
+.pchip.fbtn{color:var(--tx70)}
+.pchip.fbtn.on,.pchip.fbtn[aria-expanded="true"]{color:var(--tx);border-color:var(--tx50)}
+.pchip.fbtn.on .pc{color:var(--primary)}
+.pchip.applied{border-color:var(--primary);color:var(--tx);background:#062830;max-width:220px}
+.pchip.applied .x{color:var(--tx50);font-size:14px;line-height:1;margin-left:2px}
+.pchip.applied:hover .x{color:var(--tx)}
+.filterbar .fclear{font-size:12px}
+.fs-tabs{padding:8px 8px 0}
+.fs-tabs .seg{display:flex}
+.fs-tabs .seg button{flex:1}
+/* the loop ticket (docs/simplify-selections.md §4): the safety word beside the net, the entry in one
+   line, and three folds, each a question with the numbers that answer it */
+.cells .c.hero.duo .hf .v{font-family:var(--sans);font-size:19px;font-weight:600;line-height:1.35}
+.cells .c.hero.duo .hf .s{font-size:10.5px;color:var(--tx40);white-space:nowrap}
+.entryline{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin-top:10px;padding:8px 12px;border:1px solid var(--line2);border-radius:var(--r);background:var(--b200);font-size:12.5px;color:var(--tx70)}
+.entryline b{font-family:var(--mono);font-weight:500;color:var(--tx)}
+.entryline .qe{margin-left:auto;display:inline-flex;align-items:center;gap:4px}
+.entryline .qe b.ok{color:var(--success)}.entryline .qe b.warn{color:var(--warning)}.entryline .qe b.bad{color:var(--error)}
+.entryline.warn{border-color:#4a3a1a}
+.entryline.bad{border-color:#5a2626;background:#120a0a}
+.entryline.unk .t50{margin-left:auto}
+.folds{display:flex;flex-direction:column;margin-top:10px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.fold + .fold{border-top:1px solid var(--line)}
+.fold-h{width:100%;display:flex;align-items:center;gap:8px;min-height:38px;padding:0 12px;background:var(--b200);font-size:12.5px;color:var(--tx70);text-align:left;cursor:pointer}
+.fold-h:hover{color:var(--tx);background:var(--b300)}
+.fold-h .fold-t{flex:none;font-weight:500}
+.fold-h .t40{flex:1;min-width:0;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fold-h .chev{margin-left:auto;transition:transform .15s}
+.fold-h[aria-expanded="true"]{color:var(--tx)}
+.fold-h[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.fold-b{display:flex;flex-direction:column;gap:10px;padding:10px 12px 12px;background:var(--bg)}
+.fold-b .plain{font-size:12.5px;color:var(--tx70);line-height:1.5}
+.fold-b .plain b{color:var(--tx);font-weight:500}
+.fold-b .liqbar{margin-top:0}
+.fold-b .routes.mini{padding:0}

@@ -503,11 +503,35 @@ function BookedSlippage({ pegged, what, sell }: { pegged: boolean; what: string;
  * the ticket's own leverage, so it moves with the tier and the slider. Absent
  * (no section at all) when the history has nothing for the row.
  */
-function HistorySec({ s, L, now }: { s: Strategy; L?: number; now: number }) {
+function HistorySec({ s, L, now, bare }: { s: Strategy; L?: number; now: number; /** inside a fold, not a section of its own */ bare?: boolean }) {
   const get = useRateHistory(React.useMemo(() => [s], [s.id]))
   const [withRewards] = useSparkRewards()
   if (!seriesFor(s, get, withRewards, L)) return null
-  return <div className="tsec"><RateHistoryPanel s={s} get={get} L={L} now={now} /></div>
+  const panel = <RateHistoryPanel s={s} get={get} L={L} now={now} />
+  return bare ? panel : <div className="tsec">{panel}</div>
+}
+
+/**
+ * How far from the line, in a word — the same bands as the tier cards' colours (red under 5 %,
+ * amber under 10 %), so the hero and the card it came from never disagree.
+ */
+export const safetyOf = (drop: number): { word: string; cls: 'bad' | 'warn' | 'ok' } =>
+  drop < 0.05 ? { word: 'Tight', cls: 'bad' } : drop < 0.1 ? { word: 'Narrow', cls: 'warn' } : drop < 0.2 ? { word: 'Comfortable', cls: 'ok' } : { word: 'Wide', cls: 'ok' }
+
+/**
+ * One of the loop ticket's folds: a question as its header, the numbers that answer it inside.
+ * Each remembers its own state for the tab, so whoever always opens Risk finds it open.
+ */
+function Fold({ id, title, hint, children }: { id: string; title: string; hint: string; children: React.ReactNode }) {
+  const [open, setOpen] = useSticky<boolean>(`t:fold:${id}`, false)
+  return (
+    <div className="fold">
+      <button type="button" className="fold-h" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="fold-t">{title}</span><span className="t40">{open ? '' : hint}</span><span className="chev" aria-hidden>▾</span>
+      </button>
+      {open && <div className="fold-b">{children}</div>}
+    </div>
+  )
 }
 
 /**
@@ -597,6 +621,8 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
     const list = pay.data ? pay.data.payAssets.map((a) => a.role === 'collateral' ? own(coll, a) : a.role === 'debt' ? own(debt, a) : { ...(a.wrapsRole === 'debt' ? debt : coll), role: 'native' as const, address: nativeAsset(s.chainId), symbol: a.symbol || 'ETH', logo: a.logoURI }) : [coll, debt]
     return list
   }, [pay.data, s.id])
+  // a venue that takes no margin with the open (the server lists none): say so rather than a dead button
+  const noPay = !!pay.data && pay.data.payAssets.length === 0
   // the pay-with chips read the exact token: native is the zero address in the balances (and the API), wrapped is its own entry
   const balOf = (address: string, _symbol: string) => idle.find((i) => sameToken(i.address, normAddr(address)))
   // chosen by ADDRESS: two pay rows can share a role (see `own` above)
@@ -737,13 +763,17 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   // the open at market prices: your equity right after it is what you put in less the entry cost (`ValueCheck.tsx`)
   const vc = useValueCheck(E, econ && E > 0 ? E - cost : 0, `${key}|${cost}`)
   const more = !!bal && amount > bal.amount
-  // the numbers block: net yield and health always, the rest on a click (kept for the tab, across tickets)
-  const [details, setDetails] = useSticky<boolean>('t:details', false)
+  // the hero's two answers: the net, and how far from the line — in a word, the distance and the health factor
+  const hfShown = simHf ?? hf, safe = safetyOf(drop)
+  const rewardsNow = loopRewards(s, L)
+  const fixedNote = term ? `fixed to ${ends}` : tenor ? `fixed for ${tenorWord(tenor)}` : s.dueAt ? `fixed to ${due}` : ''
+  const entryWhy = econ ? `Entry cost ${usd(cost)}: swap slippage ${usd(econ.entryCostUsd.slippage)}, fees ${usd(econ.entryCostUsd.fees)}, network ${econ.entryCostUsd.gas == null ? 'not priced' : usd(econ.entryCostUsd.gas)} (max slippage ${slip / 100}%), on the whole ${num(L, 2)}× position. ${payback == null ? `At ${pct(net)} the loop earns nothing, so the entry is never earned back.` : `At ${pct(net)} on ${usd(E)} it earns ${usd(E * net / 100 / 365)} a day, so the entry is earned back in ${daysWord(payback)}${clockDays != null ? ` — ${payback > clockDays ? 'after' : 'before'} ${clockWord}` : ''}.`} Closing costs about as much again.` : ''
   return (
     <>
       <div className="tsec">
         <span className="lbl">You pay with <Info label="Paying for a loop">The margin can be paid in {opts.map((o) => o.symbol).join(' or ')}: whatever the venue accepts. Paid in {s.debt}, it is swapped into {s.holds} inside the same transaction.</Info></span>
-        <div className="seg" style={{ marginBottom: 10 }}>{opts.map((o) => <button key={o.address} aria-pressed={!!chosen && normAddr(chosen.address) === normAddr(o.address)} onClick={() => setPayAddr(o.address)}><Tok sym={o.symbol} logo={o.logo} size={16} /> {o.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? (balOf(o.address, o.symbol) ? num(balOf(o.address, o.symbol)!.amount, 2) : '0') : ''}</span></button>)}</div>
+        <div className="seg" style={{ marginBottom: 10 }}>{opts.map((o) => <button key={o.address} aria-pressed={!!chosen && normAddr(chosen.address) === normAddr(o.address)} onClick={() => setPayAddr(o.address)}><Tok sym={o.symbol} logo={o.logo} size={16} /> {o.symbol}</button>)}</div>
+        {noPay && <div className="err" style={{ margin: '0 0 10px' }}>{pay.data!.notes[0] ?? 'This venue takes no margin with the loop.'}</div>}
         <AmountBox unit={chosen?.symbol ?? unit} value={amt} onChange={setAmt} onMax={bal && chosen ? () => setAmt(portion(bal, 100, chosen.decimals)) : undefined} />
         <div className="amt-sub"><span>≈ {usd(E)} equity</span><span>{account ? <>Idle: {bal ? `${num(bal.amount, 4)} ${chosen?.symbol}` : `0 ${chosen?.symbol ?? ''}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
         {holding && <LegsNote h={holding} holds={s.holds} debt={s.debt} adding />}
@@ -783,7 +813,10 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
           <button key={t.id} className={`tier ${t.id}`} role="radio" aria-checked={!onCopy && tier === t.id} onClick={() => pickTier(t.id)}>
             <span className="tn">{t.name}</span>
             <span className={`tr ${n >= 3 ? 'ok' : n < 0 ? 'bad' : ''}`}>{pct(n)}</span>
-            <span className={`tl ${d < 0.05 ? 'bad' : d < 0.1 ? 'warn' : ''}`} title={`${num(l, 2)}× leverage · liquidated if the collateral falls ${pct(d * 100, 1)} against the debt`}>{num(l, 2)}× · −{pct(d * 100, d < 0.1 ? 1 : 0)}</span>
+            {/* leverage and the drop each on a line of their own: on one line a 16.92× venue cut the drop
+                off, and the drop is the number the three cards are compared by */}
+            <span className="tl" title={`${num(l, 2)}× leverage`}>{num(l, 2)}×</span>
+            <span className={`tl ${d < 0.05 ? 'bad' : d < 0.1 ? 'warn' : ''}`} title={`liquidated if the collateral falls ${pct(d * 100, 1)} against the debt`}>−{pct(d * 100, d < 0.1 ? 1 : 0)} to liq.</span>
           </button>) })}</div>}
         {short && <div className="caution depth">
           <b>Too big for one lender.</b> {short.message}
@@ -793,45 +826,58 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
               : fitLev > 1 && canCustom && fitLev >= lo && <button type="button" className="pctb" onClick={() => { setOnCopy(false); setCustom(fitLev) }}>{num(fitLev, 2)}×</button>}
           </div>}
         </div>}
-        {econ && <>
-          <ValueRow v={vc} labels={['You put in', 'Equity after', 'Break-even']} missing={chosen?.symbol}
-            third={{
-              value: payback == null ? 'never' : daysWord(payback),
-              cls: payback == null ? 'bad' : clockDays != null && payback > clockDays ? 'warn' : 'ok',
-              title: `Entry cost ${usd(cost)}: swap slippage ${usd(econ.entryCostUsd.slippage)}, fees ${usd(econ.entryCostUsd.fees)}, network ${econ.entryCostUsd.gas == null ? 'not priced' : usd(econ.entryCostUsd.gas)} (max slippage ${slip / 100}%). ${payback == null ? `At ${pct(net)} the loop earns nothing, so the entry is never earned back.` : `At ${pct(net)} on ${usd(E)} it earns ${usd(E * net / 100 / 365)} a day, so the entry is earned back in ${daysWord(payback)}${clockDays != null ? ` — ${payback > clockDays ? 'after' : 'before'} ${clockWord}` : ''}. Closing costs about as much again.`}`,
-            }}
-            info={<>Your equity right after the open, at market prices: what you put in less the entry cost — the swap's slippage on the whole {num(L, 2)}× position, fees and the network fee ({usd(cost)}: slippage {usd(econ.entryCostUsd.slippage)}, fees {usd(econ.entryCostUsd.fees)}, network {econ.entryCostUsd.gas == null ? 'not priced' : usd(econ.entryCostUsd.gas)}). Break-even is how long the loop takes to earn that back at {pct(net)}{payback != null && clockDays != null ? <> — {payback > clockDays ? 'after' : 'before'} {clockWord}</> : null}.</>} />
-          {routes.length > 0 && <RoutePick routes={routes} sel={routeSel} debt={s.debt} holds={s.holds} onPick={(i, name) => setRouteName(i === 0 ? null : name)} />}
-          <LossAck v={vc} what="Opening this loop" advice="Lower the leverage or the amount: the swap is sized on the whole position, not on what you put in." />
-        </>}
+        {/* what it costs to get in, in one line: the cost, what is left, how long until it is earned
+            back. The route it runs on is under "How it's executed" — named here only when it is not the best */}
+        {econ ? <div className={`entryline ${vc.sev}`} title={entryWhy}>
+          <span>Entry <b>{cents(cost)}</b></span>
+          {vc.outUsd > 0 && <span className="t50">→ <b>{cents(vc.outUsd)}</b> equity</span>}
+          {routeSel > 0 && <span className="t50">via {routes[routeSel].deltas?.aggregator}</span>}
+          <span className="qe">break-even <b className={payback == null ? 'bad' : clockDays != null && payback > clockDays ? 'warn' : 'ok'}>{payback == null ? 'never' : daysWord(payback)}</b> <Info label="About the entry">{entryWhy} Over {pct(1, 0)} lost it turns amber; over {pct(3, 0)} you confirm the loss before signing.</Info></span>
+        </div> : amount > 0 && <div className="entryline unk"><span>Entry</span><span className="t50">{noRoute ? 'no route at this size' : short ? 'too big for one lender' : q.error && !q.isFetching ? 'no quote at this size' : <Sk w={90} h={12} />}</span></div>}
+        {econ && <LossAck v={vc} what="Opening this loop" advice="Lower the leverage or the amount: the swap is sized on the whole position, not on what you put in." />}
       </div>
-      {/* the two numbers that decide it stay up; the rest folds, so the button below never covers them */}
+      {/* the three answers stay up — what it earns, how far from liquidation, what it costs to
+          get in (above) — and everything else folds under the question it explains
+          (docs/simplify-selections.md §4) */}
       <div className="tsec"><div className="cells">
-        <div className="c hero duo"><div><span className="k">Net yield</span><span className={`v ${net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{pct(net)}</span><span className="s">earn {pct(dep)} on {num(L, 1)}× · pay {pct(bor)} on {num(L - 1, 1)}×{term ? ` fixed to ${ends}` : tenor ? ` fixed for ${tenorWord(tenor)}` : s.dueAt ? ` fixed to ${due}` : Math.abs(bor - s.borSpot) >= 0.05 ? ` (${pct(s.borSpot)} now)` : ''}{loopRewards(s, L) > 0.05 ? ` · incl. ${pct(loopRewards(s, L))} rewards` : ''}</span></div>
-          <div className="hf" title={simHf ? 'Simulated by the API' : 'From the liquidation threshold'}><span className="k">Health</span><span className={`v ${(simHf ?? hf) < 1.1 ? 'bad' : (simHf ?? hf) < 1.25 ? 'warn' : 'ok'}`}>{(simHf ?? hf).toFixed(2)}</span></div></div>
-        <button type="button" className="c more" aria-expanded={details} onClick={() => setDetails(!details)}>{details ? 'Hide details' : 'Details'}<span className="t40">{details ? '' : 'per year · hold and owe · liquidation'}</span><span className="chev" aria-hidden>▾</span></button>
-        {details && <>
-        {Eh > 0 && <div className="c"><span className="k">Your loop after</span><span className={`v ${netC >= 3 ? 'ok' : netC < 0 ? 'bad' : ''}`}>{pct(netC)}</span><span className="s">{num(Lh, 2)}× → {num(Lc, 2)}× · health {hfC.toFixed(2)}</span></div>}
-        <div className="c"><span className="k">Per year</span><span className="v">{usd(yearly)}</span><span className="s">vs {usd(E * dep / 100)} unlevered</span></div>
-        {term ? <div className="c"><span className="k">After {ends}</span><span className={`v ${netAfter == null ? '' : netAfter < 0 ? 'bad' : netAfter < 1 ? 'warn' : ''}`}>{pct(netAfter)}</span><span className="s">{after != null ? `if not re-fixed · variable ${pct(after)} now` : 'if not re-fixed · variable rate'}</span></div>
-          : <div className="c"><span className="k">If borrow +2%</span><span className={`v ${netWorst < 0 ? 'bad' : netWorst < 1 ? 'warn' : ''}`}>{pct(netWorst)}</span><span className="s">rate sensitivity</span></div>}
-        {/* a loop is two markets, so it gets two curves: the one that pays you
-            and the one that charges you. The borrow leg is the one that ends
-            loops — the "If borrow +2%" cell above says how much it would hurt,
-            the curve says how close the market is to doing it. */}
-        <div className="c"><span className="k">You hold</span><span className="v">{usd(C)}</span><span className="s">{s.holds} on {s.venue}</span><IrmLink uid={s.marketLongUid} side="supply" label="supply curve" rewards={s.rewardsLong} /></div>
-        <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · {term ? `fixed ${pct(term.apr)} for ${term.days} days` : tenor ? `fixed ${pct(bor)} for ${tenorWord(tenor)}` : s.dueAt ? `fixed ${pct(bor)}, due ${due}` : 'floating'} · {usdShort(s.borrowLiquidityUsd)} to borrow</span>{s.dueAt ? <BookLink uid={s.marketShortUid} side="borrow" size={debtTok} symbol={s.debt} price={s.priceShort} act="Borrowing" /> : <IrmLink uid={s.marketShortUid} side="borrow" label={term ? 'rate after the term' : 'borrow curve'} rewards={s.rewardsShort} />}</div>
-        {!econ && <div className="c"><span className="k">Entry</span><span className="v">{q.isFetching ? <Sk w={60} h={14} /> : '—'}</span><span className="s">{noRoute ? 'no route at this size' : short ? 'too big for one lender' : q.error ? 'no quote at this size' : 'quoting the route…'}</span></div>}
-        </>}
+        <div className="c hero duo"><div><span className="k">Net yield</span><span className={`v ${net >= 3 ? 'ok' : net < 0 ? 'bad' : ''}`}>{pct(net)}</span>{fixedNote || rewardsNow > 0.05 ? <span className="s">{fixedNote}{fixedNote && rewardsNow > 0.05 ? ' · ' : ''}{rewardsNow > 0.05 ? `incl. ${pct(rewardsNow)} rewards` : ''}</span> : null}</div>
+          <div className="hf" title={`Health factor ${hfShown.toFixed(2)} ${simHf ? '(simulated by the API)' : '(from the liquidation threshold)'} — liquidation at 1.00`}><span className="k">Safety</span><span className={`v ${safe.cls}`}>{safe.word}</span><span className="s">−{pct(drop * 100, drop < 0.1 ? 1 : 0)} to liq. · HF {hfShown.toFixed(2)}</span></div></div>
       </div>
-        {details && <>
-        <span className="lbl" style={{ marginTop: 14 }}>Liquidation</span>
-        <div className="plain">Liquidated if <b>{s.holds}</b> falls <b>{pct(drop * 100, 1)}</b> against <b>{s.debt}</b>.</div>
-        <div className="liqbar"><i style={{ ['--x' as string]: `${Math.min(98, Math.max(2, drop / 0.25 * 100))}%` }} /></div>
-        <div className="liqcap"><span>0% buffer</span><span>{drop < 0.03 ? 'very tight' : drop < 0.06 ? 'tight' : drop < 0.12 ? 'comfortable' : 'wide'}</span><span>25%</span></div>
-        </>}
+      <div className="folds">
+        <Fold id="yield" title="Where the yield comes from" hint="per year · if rates move · 30 days">
+          <div className="plain">Earn <b>{pct(dep)}</b> on {num(L, 2)}× the money, pay <b>{pct(bor)}</b> on {num(L - 1, 2)}× of it{term ? `, fixed to ${ends}` : tenor ? `, fixed for ${tenorWord(tenor)}` : s.dueAt ? `, fixed to ${due}` : Math.abs(bor - s.borSpot) >= 0.05 ? ` (${pct(s.borSpot)} now; more at this size)` : ''}{rewardsNow > 0.05 ? `; ${pct(rewardsNow)} of it is rewards` : ''}.</div>
+          <div className="cells">
+            {Eh > 0 && <div className="c"><span className="k">Your loop after</span><span className={`v ${netC >= 3 ? 'ok' : netC < 0 ? 'bad' : ''}`}>{pct(netC)}</span><span className="s">{num(Lh, 2)}× → {num(Lc, 2)}× · health {hfC.toFixed(2)}</span></div>}
+            <div className="c"><span className="k">Per year</span><span className="v">{usd(yearly)}</span><span className="s">vs {usd(E * dep / 100)} unlevered</span></div>
+            {term ? <div className="c"><span className="k">After {ends}</span><span className={`v ${netAfter == null ? '' : netAfter < 0 ? 'bad' : netAfter < 1 ? 'warn' : ''}`}>{pct(netAfter)}</span><span className="s">{after != null ? `if not re-fixed · variable ${pct(after)} now` : 'if not re-fixed · variable rate'}</span></div>
+              : <div className="c"><span className="k">If borrow +2%</span><span className={`v ${netWorst < 0 ? 'bad' : netWorst < 1 ? 'warn' : ''}`}>{pct(netWorst)}</span><span className="s">rate sensitivity</span></div>}
+            {/* a loop is two markets, so it gets two curves: the one that pays you and the one that
+                charges you. The borrow leg is the one that ends loops */}
+            <div className="c"><span className="k">You hold</span><span className="v">{usd(C)}</span><span className="s">{s.holds} on {s.venue}</span><IrmLink uid={s.marketLongUid} side="supply" label="supply curve" rewards={s.rewardsLong} /></div>
+            <div className="c"><span className="k">You owe</span><span className="v">{usd(D)}</span><span className="s">{s.debt} · {term ? `fixed ${pct(term.apr)} for ${term.days} days` : tenor ? `fixed ${pct(bor)} for ${tenorWord(tenor)}` : s.dueAt ? `fixed ${pct(bor)}, due ${due}` : 'floating'}</span>{s.dueAt ? <BookLink uid={s.marketShortUid} side="borrow" size={debtTok} symbol={s.debt} price={s.priceShort} act="Borrowing" /> : <IrmLink uid={s.marketShortUid} side="borrow" label={term ? 'rate after the term' : 'borrow curve'} rewards={s.rewardsShort} />}</div>
+          </div>
+          {!term && !s.dueAt && <HistorySec s={s} L={L} now={net} bare />}
+        </Fold>
+        <Fold id="risk" title="Risk and liquidation" hint="health · loan-to-value · the line">
+          <div className="plain">Liquidated if <b>{s.holds}</b> falls <b>{pct(drop * 100, 1)}</b> against <b>{s.debt}</b>.</div>
+          <div className="liqbar"><i style={{ ['--x' as string]: `${Math.min(98, Math.max(2, drop / 0.25 * 100))}%` }} /></div>
+          <div className="liqcap"><span>0% buffer</span><span>{safe.word.toLowerCase()}</span><span>25%</span></div>
+          <div className="cells">
+            <div className="c"><span className="k">Health factor</span><span className={`v ${hfShown < 1.1 ? 'bad' : hfShown < 1.25 ? 'warn' : 'ok'}`}>{hfShown.toFixed(2)}</span><span className="s">{simHf ? 'simulated by the API' : 'from the threshold'} · liq. at 1.00</span></div>
+            <div className="c"><span className="k">Loan-to-value</span><span className="v">{pct((L - 1) / L * 100, 0)}</span><span className="s">liquidated at {pct(liqLtv * 100, 0)}</span></div>
+            <div className="c"><span className="k">Free to borrow</span><span className={`v ${overLiquidity ? 'bad' : ''}`}>{usdShort(s.borrowLiquidityUsd)}</span><span className="s">{s.debt} left in the market</span></div>
+            <div className="c"><span className="k">Venue max</span><span className="v">{num(s.maxLev, 1)}×</span><span className="s">{onCopy && copyL != null ? 'copied' : custom != null && canCustom ? 'your own' : TIERS.find((t) => t.id === tier)!.name.toLowerCase()} is {num(L, 2)}×</span></div>
+          </div>
+        </Fold>
+        <Fold id="exec" title="How it's executed" hint="swap route · fees · slippage">
+          {routes.length > 0 ? <RoutePick routes={routes} sel={routeSel} debt={s.debt} holds={s.holds} onPick={(i, name) => setRouteName(i === 0 ? null : name)} /> : <div className="plain t50">{q.isFetching ? 'Quoting the route…' : noRoute ? 'No route at this size.' : 'No quote yet.'}</div>}
+          <div className="cells">
+            <div className="c"><span className="k">Entry cost</span><span className="v">{econ ? cents(cost) : '—'}</span><span className="s">{econ ? `swap ${cents(econ.entryCostUsd.slippage)} · fees ${cents(econ.entryCostUsd.fees)} · network ${econ.entryCostUsd.gas == null ? 'n/a' : cents(econ.entryCostUsd.gas)}` : 'once quoted'}</span></div>
+            <div className="c"><span className="k">Max slippage</span><span className="v">{num(slip / 100, 2)}%</span><span className="s">set in Settings</span></div>
+          </div>
+        </Fold>
       </div>
-      {!term && !s.dueAt && <HistorySec s={s} L={L} now={net} />}
+      </div>
       <FundingLock s={s} C={C} />
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">
         {overLiquidity && <li className="w"><i /><span>This borrows {usd(D)} of {s.debt}, more than the {usdShort(s.borrowLiquidityUsd)} the market has free: the rate is at the top of its curve and the transaction may not go through.</span></li>}
@@ -853,7 +899,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
         {s.rewardsLong + s.rewardsShort > 0.05 && <li><i /><span>Part of the rate is incentives that can stop without notice.</span></li>}
       </ul></div>
       {noRoute && <div className="err" style={{ margin: '0 0 10px' }}>{NO_ROUTE}</div>}
-      <Action ladder={ladder} label={`Open ${onCopy && copyL != null ? 'copied ' : custom != null && canCustom ? '' : `${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} `}loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={short ? 'Too big for one lender — see above' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} fee="loop" />
+      <Action ladder={ladder} label={`Open ${onCopy && copyL != null ? 'copied ' : custom != null && canCustom ? '' : `${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} `}loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={noPay ? 'This venue takes no margin with the loop — see above' : short ? 'Too big for one lender — see above' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} fee="loop" />
     </>
   )
 }

@@ -22,7 +22,6 @@ import { useApp } from '../state/AppState'
 import { useProtocols } from '../index/queries'
 import type { ProtocolFacet } from '../index/api'
 import { useSticky } from '../state/sticky'
-import { ProtocolLogo, protocolIconUrls } from './bits'
 
 /**
  * Names that beat the index's. `MetaMorpho` is a contract, not a product anyone
@@ -108,35 +107,3 @@ export function useProtocolFilter(window: '1h' | '6h' | '24h' | '7d' = '7d', sco
   }
 }
 export type ProtocolFilterState = ReturnType<typeof useProtocolFilter>
-
-export function ProtocolChips({ f, max = 10 }: { f: ProtocolFilterState; max?: number }) {
-  const [showAll, setShowAll] = React.useState(false)
-  // first visit, nothing kept yet: hold the row's height so the list below does not jump when it lands
-  if (f.isLoading && !f.protocols.length) return <ChipSkeleton className="pchips" n={9} />
-  if (!f.protocols.length) return null
-  const shown = showAll ? f.protocols : f.protocols.slice(0, max)
-  const hidden = f.protocols.length - shown.length
-  const toggle = (k: string) =>
-    f.setPicked(f.picked.includes(k) ? f.picked.filter((x) => x !== k) : [...f.picked, k])
-  return (
-    <div className="pchips" role="group" aria-label="Protocols">
-      <button className="pchip all" aria-pressed={f.picked.length === 0} onClick={() => f.setPicked([])}>All</button>
-      {shown.map((p) => (
-        <button key={p.protocol} className="pchip" aria-pressed={f.picked.includes(p.protocol)}
-          onClick={(e) => (e.altKey ? f.setPicked([p.protocol]) : toggle(p.protocol))}
-          title={`${protocolName(p)} — ${p.rows} rows, ${p.wallets} wallets, ${p.markets} markets · alt-click for only this one`}>
-          <ProtocolLogo urls={protocolIconUrls(p.protocol, p.logoUri)} name={protocolName(p)} />
-          <span className="pn">{protocolName(p)}</span>
-          <span className="pc">{compact(p.rows)}</span>
-        </button>
-      ))}
-      {hidden > 0 && <button className="pchip more" onClick={() => setShowAll(true)}>+{hidden}</button>}
-      {showAll && f.protocols.length > max && <button className="pchip more" onClick={() => setShowAll(false)}>less</button>}
-    </div>
-  )
-}
-
-/** Grey chips the size of real ones, for the one load that has nothing kept to show. */
-export function ChipSkeleton({ className, n = 6 }: { className: string; n?: number }) {
-  return <div className={`${className} chips-sk`} aria-hidden="true">{Array.from({ length: n }, (_, i) => <span key={i} className="pchip sk" style={{ width: [44, 96, 90, 80, 118, 104][i % 6] }} />)}</div>
-}

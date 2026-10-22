@@ -1,5 +1,6 @@
 import React from 'react'
-import { assetLogo, isFiat, nameOf, whatIs, type Group } from '../model/assets'
+import { assetLogo, deskOf, isFiat, nameOf, whatIs, type Group, type GroupId } from '../model/assets'
+import { FacetPicker, type FacetOption } from './FacetPicker'
 import { exitTerms, loopRewards, markPicks, rewardsOf, type LoopStrategy, type Strategy } from '../model/strategies'
 import { depositsAsLoops } from '../model/putUp'
 import { go, type Route, useApp } from '../state/AppState'
@@ -58,6 +59,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const inGroup = stocks ? b.earnAll.filter((s, i, a) => !!lendsTo(s) && softHide(s, st) == null && a.findIndex((x) => x.id === s.id) === i) : b.all.filter((s) => s.group === group.id)
   const assets = [...new Set([...(stocks ? groupOffers.map((o) => o.asset) : inGroup.map((s) => s.asset)), ...b.books.filter((x) => x.group === group.id).map((x) => x.asset)])]
   const u = assets.includes(route.u) ? route.u : 'all'
+  const heldAssets = React.useMemo(() => new Set(b.books.filter((x) => x.group === group.id).map((x) => x.asset)), [b.books, group.id])
   // a floor hides a row from the list, never from the wallet that is in it: the held-back rows are whole strategies
   // a row the menu's per-asset cap dropped still opens: a profile's Copy can name one
   // a Fixed rate book (tickets/0013) is its own request: the lead row of each book first (it carries the dates), then any maturity
@@ -91,13 +93,13 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const borrowSel: BorrowOffer | null = route.s?.startsWith('b:') ? bo.offers.find((o) => o.id === route.s) ?? (loanHolding ? offerOf(loanHolding) : null) : loanHolding ? offerOf(loanHolding) : null
   const borrowOff = !!borrowSel && !bo.offers.some((o) => o.id === borrowSel.id)
   const outQ = out === 'USD' ? undefined : out
-  const openLoan = (o: BorrowOffer, h?: Holding, m?: 'add' | 'reduce') => go(group.id, { u, k: 'borrow', s: o.id, h: h?.key, m, out: o.out === 'USD' ? undefined : o.out, hold: route.hold })
+  const openLoan = (o: BorrowOffer, h?: Holding, m?: 'add' | 'reduce') => go(group.id, { u, k: 'borrow', s: o.id, h: h?.key, m, out: o.out === 'USD' ? undefined : o.out, hold: route.hold, debt: route.debt })
   const nOffers = offersHere.filter((o) => o.out === out).length
   // "Against what you hold": the same list, filtered to what the wallet has (tickets/0011) — on by
   // default when it holds something lent against here, and kept as it moves between shelves
   const yours = React.useMemo(() => yoursOf(offersHere.filter((o) => o.out === out), b.idlePerChain, heldLoans), [offersHere, out, b.idlePerChain, heldLoans])
   const mineOn = !!b.account && (route.hold === '1' || (route.hold !== '0' && yours.size > 0))
-  const setMine = (on: boolean) => go(group.id, { u, k: 'borrow', out: outQ, hold: on ? '1' : '0', s: route.s, h: route.h, m: route.m })
+  const setMine = (on: boolean) => go(group.id, { u, k: 'borrow', out: outQ, hold: on ? '1' : '0', debt: route.debt, s: route.s, h: route.h, m: route.m })
   // savings or market exposure: offered only where the scope has both — a page of lending rows
   // gets no switch with nothing behind it
   const [nat, setNat] = useSticky<NatureFilter>(`nature:${group.id}`, 'all')
@@ -198,7 +200,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
       acts: o ? <span className="acts"><button className="btn sm" onClick={() => openLoan(o, h, 'add')}>Borrow</button><button className="btn sm" onClick={() => openLoan(o, h, 'reduce')}>Pay back</button></span> : <span className="t40" style={{ fontSize: 12 }}>manage at {h.venue}</span>,
     }
   }
-  const close = () => go(group.id, { u, k: kind, out: kind === 'borrow' ? outQ : undefined, hold: kind === 'borrow' ? route.hold : undefined })
+  const close = () => go(group.id, { u, k: kind, out: kind === 'borrow' ? outQ : undefined, hold: kind === 'borrow' ? route.hold : undefined, debt: kind === 'borrow' ? route.debt : undefined })
   const aside = useAsideTop(ticketOpen)
   const outWord = out === 'USD' ? 'dollars' : OUTS.find((f) => f.id === out)!.name.toLowerCase()
   return (
@@ -209,7 +211,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
         <div className="main">
           <div className="hdr">
             <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} logo={markOf(u, inGroup)} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {nameOf(u)}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div>{u !== 'all' && <TokenLinks rows={inGroup.filter((s) => s.asset === u)} />}</div></div>
-            <AssetChips group={group} route={route} assets={assets} u={u} all={inGroup} offers={stocks ? groupOffers : undefined} />
+            <AssetChips group={group} route={route} assets={assets} u={u} all={inGroup} held={heldAssets} offers={stocks ? groupOffers : undefined} />
           </div>
           {idle.length > 0 && (
             /* a pill per idle balance, not a bar: the nudge sits beside the page, it does not lead it */
@@ -277,8 +279,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
             <span className="hint">{kind === 'fixed' ? 'Lend at a rate fixed to a date: the deposit fills a borrower’s offer, and is repaid at face on the day. These books are small — the ticket says how much each can take.' : kind === 'borrow' ? `Take ${outWord} out against ${u === 'all' ? (stocks ? 'tokenized stocks' : 'what you hold') : nameOf(u)} without selling it. You pay the rate; if the price falls past the line, the lender sells part of it.` : stocks && kind === 'simple' ? 'Lend dollars into the markets where people borrow against stocks. Their stocks back your loan; the rate is what they pay.' : kind === 'simple' ? (list.length && !list.some((s) => isSavings(s.nature)) ? 'Hold one token. No debt, nothing to liquidate — but its price moves with a market.' : 'Hold one token that grows. No debt, nothing to liquidate.') : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
           </div>
           {kind === 'borrow' ? (<>
-            <BorrowCats offers={bo.offers} current={group.id} keep={{ out: outQ, hold: route.hold }} mine={b.account ? { on: mineOn, ...mineSummary(offersHere, yours), set: setMine, busy: b.positionsLoading || bo.isLoading } : undefined} />
-            <BorrowList key={`${out}:${mineOn}`} offers={offersHere} loading={bo.isLoading} groupId={group.id} u={u} selId={borrowSel?.id} held={heldLoans} mine={{ on: mineOn, yours, set: setMine }} out={out} onOut={(f) => go(group.id, { u, k: 'borrow', out: f === 'USD' ? undefined : f, hold: route.hold })} onPick={(o) => openLoan(o)} />
+            <BorrowCats offers={bo.offers} current={group.id} keep={{ out: outQ, hold: route.hold, debt: route.debt }} mine={b.account ? { on: mineOn, ...mineSummary(offersHere, yours), set: setMine, busy: b.positionsLoading || bo.isLoading } : undefined} />
+            <BorrowList key={`${out}:${mineOn}`} offers={offersHere} loading={bo.isLoading} groupId={group.id} u={u} selId={borrowSel?.id} held={heldLoans} mine={{ on: mineOn, yours, set: setMine }} out={out} onOut={(f) => go(group.id, { u, k: 'borrow', out: f === 'USD' ? undefined : f, hold: route.hold })} debt={route.debt} onDebt={(d) => go(group.id, { u, k: 'borrow', out: outQ, hold: route.hold, debt: d })} onPick={(o) => openLoan(o)} />
           </>) : (<>
           {phone && (list.length || b.isLoading) ? (
             /* a phone gets cards, two abreast: a table row at 357px had to fit
@@ -380,40 +382,57 @@ function refOfHolding(h: Holding): OffMenuRef | null {
  *
  * It was a horizontal scroller with its own scrollbar hidden, which meant that
  * with the ticket open eighteen chips lived in a 756px box and twelve of them
- * were simply gone — no fade, no arrow, nothing on screen admitting they
- * existed. It wraps now, ranked by how much each asset actually has to offer,
- * and the tail folds behind a count that says how many are folded.
+ * were simply gone. Then it wrapped, with the tail behind a `+N` that poured
+ * thirty dollar desks (eighty tickers on Stocks) into the row at once. Now it is
+ * a `FacetPicker`: the top few in a row, the rest behind More — searchable, in
+ * the sections the registry already knows (issued dollars and yield dollars,
+ * stocks and ETFs), the wallet's own first (docs/simplify-selections.md).
+ *
+ * The row's ORDER is the reader's: the page's ranking (how much each asset has
+ * to offer) by default, or largest, yours first, A–Z.
  *
  * Except the currencies (`FIAT`): the euro, franc and pound are a few rows each, and ranked by
  * count against BNB and SOL they would always be in the fold. They close the row instead.
  */
-function AssetChips({ group, route, assets, u, all, max = 6, offers }: { group: Group; route: Route; assets: string[]; u: string; all: Strategy[]; max?: number; /** the Stocks shelf counts its loans, and ranks its tickers by what is put up against them */ offers?: BorrowOffer[] }) {
-  const [open, setOpen] = React.useState(false)
+function AssetChips({ group, route, assets, u, all, held, offers }: { group: Group; route: Route; assets: string[]; u: string; all: Strategy[]; /** what the wallet holds in this group */ held: Set<string>; /** the Stocks shelf counts its loans, and ranks its tickers by what is put up against them */ offers?: BorrowOffer[] }) {
   const countOf = React.useCallback((a: string) => (offers ? offers.filter((o) => o.asset === a).length : all.filter((s) => s.asset === a).length), [all, offers])
   const sizeOf = React.useCallback((a: string) => (offers ? offers.filter((o) => o.asset === a).reduce((t, o) => t + o.collateralUsd, 0) : countOf(a)), [offers, countOf])
-  const ranked = React.useMemo(
-    () => [...assets].sort((x, y) => sizeOf(y) - sizeOf(x) || countOf(y) - countOf(x) || x.localeCompare(y)),
-    [assets, countOf, sizeOf],
-  )
-  const pinned = ranked.filter((a) => isFiat(a))
-  const head = open ? ranked : [...ranked.filter((a) => !isFiat(a)).slice(0, Math.max(1, max - pinned.length)), ...pinned]
-  // the asset you are filtered by never hides behind the +N
-  const shown = u === 'all' || head.includes(u) ? head : [...head, u]
-  const hidden = ranked.length - shown.length
+  const tvlOf = React.useCallback((a: string) => all.filter((s) => s.asset === a).reduce((t, s) => t + (s.tvlUsd || 0), 0), [all])
+  const options = React.useMemo((): FacetOption[] => [...assets]
+    .sort((x, y) => sizeOf(y) - sizeOf(x) || countOf(y) - countOf(x) || x.localeCompare(y))
+    .map((a) => ({
+      key: a, text: nameOf(a), count: countOf(a), mine: held.has(a), pin: isFiat(a), section: sectionOf(group.id, a),
+      icon: <Tok sym={a} logo={markOf(a, all)} size={16} />,
+      // the Stocks shelf already ranks by size (what is put up); elsewhere "Largest" is what is deposited
+      size: offers ? undefined : tvlOf(a),
+      title: offers ? undefined : `${nameOf(a)} · ${countOf(a)} strateg${countOf(a) === 1 ? 'y' : 'ies'} · ${usdShort(tvlOf(a))} deposited`,
+    })), [assets, sizeOf, countOf, tvlOf, held, offers, all, group.id])
   return (
-    <div className="chips" role="group" aria-label="Assets">
-      <button className="chip" aria-pressed={u === 'all'} onClick={() => go(group.id, { s: route.s, k: route.k })}>
-        All <span className="c">{offers ? offers.length : all.length}</span>
-      </button>
-      {shown.map((a) => (
-        <button key={a} className="chip" aria-pressed={u === a} onClick={() => go(group.id, { u: a, s: route.s, k: route.k })}>
-          <Tok sym={a} logo={markOf(a, all)} size={16} />{nameOf(a)} <span className="c">{countOf(a)}</span>
-        </button>
-      ))}
-      {hidden > 0 && <button className="chip more" onClick={() => setOpen(true)}>+{hidden}</button>}
-      {open && ranked.length > max && <button className="chip more" onClick={() => setOpen(false)}>less</button>}
-    </div>
+    <FacetPicker ariaLabel="Assets" noun={group.id === 'USD' ? 'dollars' : group.id === 'STOCKS' ? 'tickers' : 'assets'}
+      options={options} selected={u === 'all' ? [] : [u]} sections={SECTIONS[group.id]} orderKey={`assets:${group.id}`} defaultOrder={offers ? 'Most put up' : 'Most strategies'}
+      all={{ label: 'All', count: offers ? offers.length : all.length, onClick: () => go(group.id, { s: route.s, k: route.k }) }}
+      onPick={(a) => go(group.id, { u: a === u ? undefined : a, s: route.s, k: route.k })} />
   )
+}
+
+/** The picker's sections per shelf, in reading order. */
+const SECTIONS: Record<GroupId, string[]> = {
+  USD: ['Issued dollars', 'Yield dollars', 'Currencies', 'Other'],
+  ETH: ['Ether', 'Staking protocols', 'Issued by a company', 'Other'],
+  BTC: ['Custodied', 'Protocols', 'Other'],
+  STOCKS: ['Stocks', 'ETFs', 'Pre-IPO', 'Funds', 'Credit', 'Commodities'],
+  MORE: ['Coins', 'Currencies', 'Gold'],
+}
+const CLASS_SECTION: Record<string, string> = { stock: 'Stocks', etf: 'ETFs', 'pre-ipo': 'Pre-IPO', fund: 'Funds', credit: 'Credit', commodity: 'Commodities' }
+/** Which section an asset sits in: the desk's kind, the ticker's class, the currencies and gold. */
+function sectionOf(g: GroupId, a: string): string {
+  if (isFiat(a)) return 'Currencies'
+  if (g === 'STOCKS') return CLASS_SECTION[stockInfo(a)?.cls ?? ''] ?? 'Stocks'
+  if (g === 'MORE') return a === 'XAUt' || a === 'PAXG' ? 'Gold' : 'Coins'
+  const k = deskOf(a)?.kind
+  if (g === 'USD') return k === 'issued' ? 'Issued dollars' : k === 'yield' ? 'Yield dollars' : 'Other'
+  if (g === 'ETH') return k === 'plain' ? 'Ether' : k === 'yield' ? 'Staking protocols' : k === 'issued' ? 'Issued by a company' : 'Other'
+  return k === 'issued' ? 'Custodied' : k === 'yield' ? 'Protocols' : 'Other'
 }
 
 /**

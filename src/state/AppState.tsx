@@ -74,6 +74,8 @@ export interface Route {
   talk?: boolean
   /** what a borrow list takes out when it is not dollars: `ETH`, `BTC` or `MORE` (tickets/0011) */
   out?: 'ETH' | 'BTC' | 'MORE'
+  /** one token out of that family (`?debt=USDT`); absent = any of them */
+  debt?: string
   /** a borrow list's "Against what you hold" pill, set by hand (`1` on, `0` off); unset, it is on when the wallet holds something the list lends against */
   hold?: '1' | '0'
 }
@@ -100,6 +102,7 @@ export function parseRoute(hash = location.hash): Route {
     pos: p.get('pos') ?? undefined,
     talk: p.get('talk') === '1',
     out: (['ETH', 'BTC', 'MORE'] as const).find((x) => x === p.get('out')),
+    debt: p.get('debt') ?? undefined,
     hold: (['1', '0'] as const).find((x) => x === p.get('hold')),
   }
   const head = seg[0]

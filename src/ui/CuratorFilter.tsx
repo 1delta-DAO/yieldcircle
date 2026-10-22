@@ -52,48 +52,6 @@ export function useCuratorFilter(scope = 'page', seed?: { value: string | undefi
 export type CuratorFilterState = ReturnType<typeof useCuratorFilter>
 
 /**
- * Only desks the index can say something about get a chip — a desk with no
- * read AUM is a page, not a filter, because filtering by it would promise
- * rows that are not there.
- */
-export function CuratorChips({ f, max = 6 }: { f: CuratorFilterState; max?: number }) {
-  const [showAll, setShowAll] = React.useState(false)
-  const offer = f.curators.filter((c) => (c.aumUsd ?? 0) > 0 || (c.nMoves ?? 0) > 0)
-  if (!offer.length) return null
-  const shown = showAll ? offer : offer.slice(0, max)
-  const hidden = offer.length - shown.length
-  const title = (c: CuratorRow) =>
-    `${curatorLabel(c)} — ${c.nVaults ?? 0} vaults, ${usdShort(c.aumUsd ?? 0)} read` +
-    (c.verified ? ', listed in a curator registry we read' : ', not in any curator registry we read') +
-    ' · click again to clear'
-  return (
-    <div className="ichips" role="group" aria-label="Curators">
-      {/*
-        NOT "all desks": the issuer row above already owns that phrase for
-        whose CREDIT a row carries, and two chip rows that begin with the same
-        word are two filters a reader cannot tell apart.
-      */}
-      <button className="pchip all" aria-pressed={!f.picked} onClick={() => f.setPicked(undefined)}>All curators</button>
-      {shown.map((c) => (
-        <button
-          key={c.curatorId}
-          className="pchip"
-          aria-pressed={f.picked === c.curatorId}
-          title={title(c)}
-          onClick={() => f.setPicked(f.picked === c.curatorId ? undefined : c.curatorId)}
-        >
-          <ProtocolLogo urls={curatorIconUrls(c.curatorId, c.logoUri)} name={curatorLabel(c)} />
-          <span className="pn">{curatorLabel(c)}</span>
-          <span className="pc">{c.nVaults ?? 0}</span>
-        </button>
-      ))}
-      {hidden > 0 && <button className="pchip more" onClick={() => setShowAll(true)}>+{hidden}</button>}
-      {showAll && offer.length > max && <button className="pchip more" onClick={() => setShowAll(false)}>less</button>}
-    </div>
-  )
-}
-
-/**
  * The desk behind a row. The dot is the ARM that established it, because a
  * name match is not a proof and must not read like one:
  *

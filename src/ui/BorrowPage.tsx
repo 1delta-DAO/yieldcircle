@@ -38,7 +38,7 @@ export function BorrowPage({ route }: { route: Route }) {
   const yours = React.useMemo(() => yoursOf(offers.filter((o) => o.out === out), b.idlePerChain, held), [offers, out, b.idlePerChain, held])
   const sum = mineSummary(offers, yours)
   const mineOn = !!b.account && (route.hold === '1' || (route.hold !== '0' && yours.size > 0))
-  const keep = { out: outQ, hold: route.hold }
+  const keep = { out: outQ, hold: route.hold, debt: route.debt }
   const setMine = (on: boolean) => go('borrow', { ...keep, hold: on ? '1' : '0', u: route.u, s: route.s, h: route.h, m: route.m })
   // ---- running loans
   const loans = b.holdings.filter((h) => h.kind === 'borrow')
@@ -80,7 +80,7 @@ export function BorrowPage({ route }: { route: Route }) {
             <BorrowCats offers={offers} current="all" keep={keep} mine={b.account ? { on: mineOn, ...sum, set: setMine, busy: b.positionsLoading || bo.isLoading } : undefined} />
             <p className="t70 bp-intro hide-m">{mineOn ? 'Where what you hold can be put up, and what it could take there, held to the Safe zone.' : 'Every place that lends against what people hold.'} You keep everything it does and pay interest on what you take; if its price falls far enough, the lender sells part of it to repay.</p>
             <BorrowList key={`${out}:${mineOn}`} offers={offers} loading={bo.isLoading} groupId="all" u="all" selId={sel?.id} held={held} mine={{ on: mineOn, yours, set: setMine }} out={out}
-              onOut={(f) => go('borrow', { ...keep, out: f === 'USD' ? undefined : f })} onPick={(o) => open(o)} />
+              onOut={(f) => go('borrow', { ...keep, out: f === 'USD' ? undefined : f, debt: undefined })} debt={route.debt} onDebt={(d) => go('borrow', { ...keep, debt: d })} onPick={(o) => open(o)} />
           </section>
         </div>
         <aside ref={aside} className={ticketOpen ? '' : 'closed'} id="aside">

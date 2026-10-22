@@ -36,10 +36,11 @@ import type { Message } from "../social/types";
 import { positionKey } from "../social/api";
 import { useSocialWrite } from "../social/sign";
 import { useMenu } from "./useMenu";
-import { ProtocolChips, protocolName, useProtocolFilter } from "./ProtocolFilter";
-import { DeskMark, IssuerChips, useIssuerFilter } from "./IssuerFilter";
+import { protocolName, useProtocolFilter } from "./ProtocolFilter";
+import { FilterBar } from "./FilterSheet";
+import { DeskMark, useIssuerFilter } from "./IssuerFilter";
 import { AssetClassChips, ClassChip, ClassStaleNote, useAssetClassFilter } from "./AssetClassFilter";
-import { CuratorChips, CuratorMark, useCuratorFilter } from "./CuratorFilter";
+import { CuratorMark, useCuratorFilter } from "./CuratorFilter";
 import { RateMark } from "./Rate";
 import { parseUid, protocolKeyOf, uidOf } from "../model/uid";
 import { HIDES, isSoft, relaxFor, type HideCode } from "../model/visibility";
@@ -418,12 +419,12 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
       </div>
       <LinkChainsToast />
 
-      <ProtocolChips f={pf} />
-      {/* whose credit and which desk are facts about a ledger row; a comment has neither */}
-      {tab !== "talk" && <IssuerChips f={inf} />}
+      {/* protocol, issuer and curator behind one button, with what is on spelled out beside it
+          (docs/simplify-selections.md §2); whose credit and which desk are facts about a
+          ledger row, and a comment has neither */}
+      <FilterBar pf={pf} inf={tab !== "talk" ? inf : undefined} cf={tab !== "talk" ? cf : undefined} />
       {tab !== "talk" && <AssetClassChips f={acf} />}
       {tab !== "talk" && acf.param && <ClassStaleNote on={feed.data?.classStale} />}
-      {tab !== "talk" && <CuratorChips f={cf} />}
       {tab !== "talk" && cf.param && (
         <div className="note sm">
           Only what{" "}

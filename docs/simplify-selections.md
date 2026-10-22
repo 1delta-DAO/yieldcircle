@@ -277,17 +277,46 @@ opens Risk keeps it open.
 5. **The Nature segment, limited to ETH and BTC.** Small, but check first how
    often it is used.
 
-## Decisions for the owner
+## Decisions (owner, 2026-10-22)
 
-- **Safety word or health number in the hero?** The research consensus is the
-  word with a bar; DeFi natives know the health factor. Proposal: the word in
-  the hero, the number under *Risk*.
-- **Tier cards without × and drop.** That loses side-by-side risk comparison
-  across the tiers. The tint plus the one line for the selected tier is meant
-  to cover it; if not, keep the drop on each card and drop only the ×.
-- **"Yours" first in the asset row.** On a fresh wallet this changes nothing.
-  On a funded one, the row reorders per wallet. Should the order instead be
-  stable, with a dot marking what you hold?
+- **Hero: the safety word AND the health factor**, the number quieter. The
+  hero's right side reads `Safety · Narrow` with `−8.2 % to liq. · HF 1.12`
+  under it. The word comes from the same bands as the tier cards' colours
+  (Tight under 5 %, Narrow under 10 %, Comfortable under 20 %, else Wide), so
+  the hero and the card it came from never disagree (`safetyOf` in `Ticket.tsx`).
+- **Tier cards stay fully comparable.** Each keeps net, × and the drop to
+  liquidation. The × and the drop now sit on separate lines, because on one
+  line a 16.92× venue cut the drop off at 400 px.
+- **The asset row's order is the reader's**, and the default is the existing
+  ranking (most strategies; most put up on Stocks). The picker's *Order* switch
+  offers Largest (deposited TVL), Yours first and A–Z. The choice is kept per
+  shelf in localStorage (`yieldcircle.order.assets:<group>`). Held assets get a
+  dot in the row and a "Yours" section in the picker, whatever the order.
+
+## What shipped
+
+- `ui/FacetPicker.tsx`: the row (6 chips on desktop, 4 on a phone, the selected
+  always shown, More only when 2 or more are folded) and the searchable,
+  sectioned list behind it. Used by the asset chips on every category page and
+  by Borrow's "Take out", which was a native `<select>` and now keeps the token
+  in the URL (`debt=`).
+- `ui/FilterSheet.tsx`: the Feed and Hot get a single **Filters** button
+  (Protocol · Issuer · Curator tabs) and a removable summary of what is on. The
+  four chip-row components are gone; the asset-class chips stay out in the open.
+- Loop ticket:
+  - net yield and safety stay up;
+  - the entry is one line (cost → equity after, break-even), naming the route
+    only when it is not the best;
+  - three folds replace Details: *Where the yield comes from*, *Risk and
+    liquidation* and *How it's executed*. Risk adds LTV against the liquidation
+    threshold, free borrow liquidity and the venue max. Execution shows the fee
+    breakdown and max slippage as text, where before they were only in a
+    tooltip.
+  - The pay chips no longer repeat the balance; the idle line says it once.
+- **Not done:** limiting the Nature segment to ETH and BTC (step 5). It waits
+  on usage data.
+- **Not met:** on a 390 px phone the hero still sits below the first screen of
+  the sheet, under the pay chips, amount and three tiers.
 
 ## Alternatives considered
 

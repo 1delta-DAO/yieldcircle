@@ -84,6 +84,8 @@ const BASE: Record<string, { sym: string; group: GroupId; what: string; color: s
   // Plume's dollar, and the money every Nest RWA market there lends and borrows in. Without it
   // Plume answered 12 of its 17 earn rows and both of its RWA loops, and every one was `unmapped`.
   PUSD: { sym: 'pUSD', group: 'USD', what: 'Plume USD · USDC-backed stablecoin', color: '#e8ff5a', desk: 'nest' },
+  // Without it ftUSD was `MORE` / its own money, so a sUSDe loop borrowing ftUSD read as cross-denom.
+  FTUSD: { sym: 'ftUSD', group: 'USD', what: 'Flying Tulip stablecoin', color: '#e8467c', desk: 'flying-tulip' },
   ETH: { sym: 'ETH', group: 'ETH', what: 'Ether', color: '#8fa6ff', desk: 'plain:ETH' },
   WETH: { sym: 'ETH', group: 'ETH', what: 'Ether', color: '#8fa6ff', desk: 'plain:ETH' },
   WBTC: { sym: 'WBTC', group: 'BTC', what: 'Wrapped bitcoin (BitGo)', color: '#f09242', desk: 'bitgo' },
@@ -221,6 +223,7 @@ const DESK: Record<DeskGroup, Record<string, Entry>> = {
     elixir: { sym: 'deUSD', name: 'Elixir', what: 'deUSD, sdeUSD', color: '#343a40', kind: 'yield' },
     nest: { sym: 'pUSD', name: 'Nest', what: 'pUSD · Plume’s dollar, USDC-backed', color: '#e8ff5a', kind: 'issued' },
     liquity: { sym: 'BOLD', name: 'Liquity', what: 'BOLD · immutable CDP stablecoin', color: '#405aff', kind: 'yield' },
+    'flying-tulip': { sym: 'ftUSD', name: 'Flying Tulip', what: 'ftUSD · Flying Tulip’s dollar', color: '#e8467c', kind: 'yield' },
     onre: { sym: 'ONyc', name: 'OnRe', what: 'ONyc · reinsurance premiums, paid as a rising NAV', color: '#f5b301', kind: 'yield' },
   },
   ETH: {

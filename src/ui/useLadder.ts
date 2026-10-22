@@ -76,9 +76,12 @@ export function stepsFrom(a: LoopActions | null | undefined, routeLabel: string,
     ...(a.permissions ?? []).map((tx) => ({ kind: 'permission' as const, tx, label: tx.description ? readableKeys(tx.description) : 'Approve', moves: 'none' as const })),
     ...(a.transactions ?? []).map(step),
   ]
+  // with `alternatives`, `transactions` are PRE-steps (a Flying Tulip margin deposit, a Term native wrap)
+  // and the chosen route still runs after them — skipping it whenever pre-steps existed sent the margin
+  // and never opened the loop. No answer carries its main action in both slots.
   const alts = a.alternatives ?? []
   const alt = alts[Math.min(Math.max(0, route), alts.length - 1)]
-  if (alt && !(a.transactions ?? []).length) steps.push({ kind: 'route', tx: alt, label: `${routeLabel}${alt.description ? ` · ${alt.description}` : ''}` })
+  if (alt) steps.push({ kind: 'route', tx: alt, label: `${routeLabel}${alt.description ? ` · ${alt.description}` : ''}` })
   steps.push(...(a.postTransactions ?? []).map(step))
   // one step waits for the positions to show it; any other pre-step only moves balances
   let main = -1

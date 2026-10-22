@@ -19,6 +19,7 @@ import type { Holding, Idle } from '../model/positions'
 import { chainLabel } from '../sdk/queries'
 import { go } from '../state/AppState'
 import { useViewport } from './useViewport'
+import { FacetPicker, type FacetOption } from './FacetPicker'
 import { BorrowRewards, GroupIcon, Sk, Toks, amt, pct, usdShort } from './bits'
 
 /** What a list row says about how far a market lends: `up to 73 %`, and its room in the zone's words. */
@@ -27,7 +28,7 @@ const lendsWord = (o: BorrowOffer) => `up to ${Math.round(o.maxLtv * 100)}%`
 /** Rows shown before "Show more": the Borrow tab's whole list runs to a thousand. */
 const PAGE = 60
 
-export function BorrowList({ offers, loading, groupId, u, selId, held, mine, out, onOut, onPick }: {
+export function BorrowList({ offers, loading, groupId, u, selId, held, mine, out, onOut, debt: debt0, onDebt, onPick }: {
   offers: BorrowOffer[]; loading: boolean; groupId: GroupId | 'all'; u: string; selId?: string
   /** the wallet's running loans on these pairs — and collateral already put up there — by offer id */
   held: Map<string, Holding[]>
@@ -35,6 +36,8 @@ export function BorrowList({ offers, loading, groupId, u, selId, held, mine, out
   mine?: { on: boolean; yours: Map<string, Yours>; set: (on: boolean) => void }
   /** what comes out, and how to move it (the route's `out=`: a family not yet asked is fetched then) */
   out: Out; onOut: (o: Out) => void
+  /** one token of that family (the route's `debt=`), and how to move it; undefined = any */
+  debt?: string; onDebt: (sym: string | undefined) => void
   onPick: (o: BorrowOffer) => void
 }) {
   const phone = useViewport() === 'phone'
@@ -44,7 +47,8 @@ export function BorrowList({ offers, loading, groupId, u, selId, held, mine, out
     for (const o of offers) { const c = n.get(o.debt.symbol); n.set(o.debt.symbol, { out: o.out, n: (c?.n ?? 0) + 1 }) }
     return [...n].sort((a, b) => b[1].n - a[1].n)
   }, [offers])
-  const [debt, setDebt] = React.useState<string>('all')
+  // a token the list does not lend (any more, or not in this family) is no filter
+  const debt = debt0 && debts.some(([sym, d]) => sym === debt0 && d.out === out) ? debt0 : 'all'
   const list = offers.filter((o) => o.out === out && (debt === 'all' || o.debt.symbol === debt) && (!mine?.on || mine.yours.has(o.id)))
   const [shown, setShown] = React.useState(PAGE)
   const rows = list.slice(0, shown)
@@ -53,13 +57,17 @@ export function BorrowList({ offers, loading, groupId, u, selId, held, mine, out
   return (
     <>
       <div className="dpick">
-        <label htmlFor="bl-out" className="t50">Take out</label>
-        <select id="bl-out" className="dsel" value={`${out}:${debt}`} onChange={(e) => { const [f, sym] = e.target.value.split(':') as [Out, string]; setDebt(sym); if (f !== out) onOut(f) }}>
-          {OUTS.map((f) => <optgroup key={f.id} label={f.name}>
-            <option value={`${f.id}:all`}>{f.any}</option>
-            {debts.filter(([, d]) => d.out === f.id).slice(0, 8).map(([sym]) => <option key={sym} value={`${f.id}:${sym}`}>{sym}</option>)}
-          </optgroup>)}
-        </select>
+        <span className="t50">Take out</span>
+        {/* the family's "any" first, then its tokens by how many markets lend them, the other
+            families closing the row; every token of every family asked so far is behind More */}
+        <FacetPicker ariaLabel="Take out" noun="tokens" max={7} maxPhone={5} selected={[`${out}:${debt}`]} sections={OUTS.map((f) => f.name)} defaultOrder="Most lent"
+          options={[
+            ...OUTS.filter((f) => f.id === out).map((f): FacetOption => ({ key: `${f.id}:all`, text: f.any, section: f.name })),
+            ...debts.filter(([, d]) => d.out === out).map(([sym, d]): FacetOption => ({ key: `${out}:${sym}`, text: sym, count: d.n, section: fam.name })),
+            ...debts.filter(([, d]) => d.out !== out).map(([sym, d]): FacetOption => ({ key: `${d.out}:${sym}`, text: sym, count: d.n, section: OUTS.find((f) => f.id === d.out)!.name })),
+            ...OUTS.filter((f) => f.id !== out).map((f): FacetOption => ({ key: `${f.id}:all`, text: f.any, section: f.name, pin: true })),
+          ]}
+          onPick={(k) => { const [f, sym] = k.split(':') as [Out, string]; if (f !== out) onOut(f); else onDebt(sym === 'all' ? undefined : sym) }} />
         {out !== 'USD' && <span className="t50 hide-m">{loading && !list.length ? `asking which markets lend ${word}…` : 'the cost is still shown in dollars'}</span>}
       </div>
       {loading && !list.length ? (

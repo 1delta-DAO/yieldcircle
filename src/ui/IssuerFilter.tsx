@@ -26,12 +26,10 @@
 import React from 'react'
 import { useApp } from '../state/AppState'
 import { useIssuers } from '../index/queries'
-import type { IssuerFacet, IssuerMatch } from '../index/api'
+import type { IssuerMatch } from '../index/api'
 import { useSticky } from '../state/sticky'
-import { ProtocolLogo, Tip, issuerIconUrls } from './bits'
-import { ChipSkeleton } from './ProtocolFilter'
+import { Tip } from './bits'
 
-const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n))
 
 export function useIssuerFilter(window: '1h' | '6h' | '24h' | '7d' = '7d', scope = 'page', seed?: { issuers: string[]; match: IssuerMatch }) {
   const { chainIds, allChains } = useApp()
@@ -62,51 +60,12 @@ export function useIssuerFilter(window: '1h' | '6h' | '24h' | '7d' = '7d', scope
 }
 export type IssuerFilterState = ReturnType<typeof useIssuerFilter>
 
-const MATCHES: { k: IssuerMatch; label: string; title: string }[] = [
+/** the match mode, in the words the sheet and the summary use */
+export const ISSUER_MATCHES: { k: IssuerMatch; label: string; title: string }[] = [
   { k: 'any', label: 'any', title: "the token's own desk OR the credit behind it — a union, so the three modes do not add up" },
   { k: 'direct', label: 'issued by', title: 'only rows whose token IS this desk’s contract' },
   { k: 'exposure', label: 'exposed to', title: 'only rows that reach this desk through what backs them — the token it wraps, the collateral, the vault’s allocation' },
 ]
-
-export function IssuerChips({ f, max = 8 }: { f: IssuerFilterState; max?: number }) {
-  const [showAll, setShowAll] = React.useState(false)
-  // first visit, nothing kept yet: hold the row's height so the list below does not jump when it lands
-  if (f.isLoading && !f.issuers.length) return <ChipSkeleton className="ichips" />
-  if (!f.issuers.length) return null
-  const shown = showAll ? f.issuers : f.issuers.slice(0, max)
-  const hidden = f.issuers.length - shown.length
-  const toggle = (k: string) =>
-    f.setPicked(f.picked.includes(k) ? f.picked.filter((x) => x !== k) : [...f.picked, k])
-  const title = (i: IssuerFacet) =>
-    `${i.name} — ${i.rows} rows, ${i.wallets} wallets, ${i.markets} markets` +
-    (i.via ? `; ${i.via} of them reach it only through what backs them` : '') +
-    ' · alt-click for only this one'
-  return (
-    <div className="ichips" role="group" aria-label="Issuers">
-      <button className="pchip all" aria-pressed={f.picked.length === 0} onClick={() => f.setPicked([])}>All desks</button>
-      {shown.map((i) => (
-        <button key={i.issuer} className="pchip" aria-pressed={f.picked.includes(i.issuer)}
-          onClick={(e) => (e.altKey ? f.setPicked([i.issuer]) : toggle(i.issuer))}
-          title={title(i)}>
-          <ProtocolLogo urls={issuerIconUrls(i.issuer)} name={i.name} />
-          <span className="pn">{i.name}</span>
-          <span className="pc">{compact(i.rows)}</span>
-          {i.via === i.rows && <span className="pv" title="every row here reaches this desk indirectly">via</span>}
-        </button>
-      ))}
-      {hidden > 0 && <button className="pchip more" onClick={() => setShowAll(true)}>+{hidden}</button>}
-      {showAll && f.issuers.length > max && <button className="pchip more" onClick={() => setShowAll(false)}>less</button>}
-      {/* the mode only means anything once a desk is picked, so it appears with one */}
-      {f.picked.length > 0 && (
-        <span className="seg sm imatch">
-          {MATCHES.map((m) => (
-            <button key={m.k} aria-pressed={f.match === m.k} title={m.title} onClick={() => f.setMatch(m.k)}>{m.label}</button>
-          ))}
-        </span>
-      )}
-    </div>
-  )
-}
 
 /**
  * The desk chips on a row: the instrument first, then the credit behind it,

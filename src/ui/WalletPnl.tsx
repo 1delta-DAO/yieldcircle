@@ -77,7 +77,12 @@ function Book({ b, addr }: { b: AccountPnlBook; addr: string }) {
         <Fig k="Total PnL" v={signed(t.pnlUsd)} c={t.pnlUsd < 0 ? 'bad' : 'ok'} s={`${pct(t.pnlAprPct)} lifetime APR`} tip="every gain and loss since each position opened, price moves included" />
         <Fig k="Yield" v={signed(t.yieldUsd)} c={t.yieldUsd < 0 ? 'bad' : 'ok'} s={`${pct(t.yieldAprPct)} APR`} tip="the PnL without each position’s money moving against the dollar: what farming made, not what holding ETH or BTC made" />
         <Fig k="Price move" v={signed(t.directionalUsd)} c="" s="the money vs the dollar" tip="Total PnL − Yield: the part that came from the held money’s own price" />
-        <Fig k="Capital" v={usdShort(t.capitalDays / Math.max(1, longest(b)))} c="" s={`avg over ${Math.round(longest(b))} days`} tip="the average capital the APR is over: Σ capital-days ÷ the longest position’s span" />
+        {(() => {
+          const d = spanDays(b)
+          return d == null
+            ? <Fig k="Capital" v="—" c="" s="span not known yet" tip="the average capital the APR is over needs the positions’ open span, which this index does not state yet" />
+            : <Fig k="Capital" v={usdShort(t.capitalDays / d)} c="" s={`avg over ${Math.round(d)} day${Math.round(d) === 1 ? '' : 's'}`} tip="the average capital the APR is over: Σ capital-days ÷ the longest position’s span" />
+        })()}
       </div>
       {b.series.length < 2 && <div className="t50 wpnl-wait">The day-by-day line is still being drawn — the index redraws each position’s record in the background, biggest first.</div>}
       {b.series.length > 1 && b.coverage.withLine != null && b.coverage.withLine < b.coverage.withPnl && (
@@ -101,9 +106,11 @@ function Book({ b, addr }: { b: AccountPnlBook; addr: string }) {
   )
 }
 
-const longest = (b: AccountPnlBook) => {
-  const first = b.series[0]?.t
-  return first ? Math.max(1, (Date.now() - Date.parse(first)) / 86_400_000) : 1
+/** The longest open span (days): the index's own figure, else the drawn line's; null when neither exists. */
+const spanDays = (b: AccountPnlBook): number | null => {
+  if (b.total.openDays != null && b.total.openDays > 0) return Math.max(1, b.total.openDays)
+  const first = b.series.length > 1 ? b.series[0].t : null
+  return first ? Math.max(1, (Date.now() - Date.parse(first)) / 86_400_000) : null
 }
 
 function Fig({ k, v, s, c, tip }: { k: string; v: string; s: string; c: string; tip: string }) {

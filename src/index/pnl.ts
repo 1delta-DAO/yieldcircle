@@ -23,6 +23,8 @@ export interface PnlBookFigure {
   pnlAprPct: number | null
   yieldAprPct: number | null
   capitalDays: number
+  /** the longest open span among the positions (days); absent on an older index */
+  openDays?: number | null
   positions: number
 }
 export interface PnlBookStrategy extends PnlBookFigure {

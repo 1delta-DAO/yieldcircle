@@ -22,7 +22,7 @@ import { FollowButton, Money, Who } from './social-bits'
 import { Sk } from './bits'
 import { Thread } from './Thread'
 import type { Strategy } from '../model/strategies'
-import type { ThreadRef } from '../model/uid'
+import { bookKeyOf, type ThreadRef } from '../model/uid'
 
 export function TicketSocial({ uid, thread, s, focus }: {
   /** the market the strategy sits in (a loop's collateral leg): whose holders these are */
@@ -92,7 +92,10 @@ export function RowSocial({ uid, thread, s, focus }: { uid: string | null; threa
 /**
  * Who else is in it: the market's biggest holders, each a door to their
  * wallet. `wide` is the strip's layout (pills in a row); the ticket's foot
- * stacks them.
+ * stacks them. "Everyone" opens the board's page for the strategy
+ * (`#/board?s=<book key>`): the whole ranked list of who runs exactly this —
+ * for a loop, the wallets that lever it, not every depositor in its
+ * collateral market as the pills here are.
  */
 export function WhoIsIn({ uid, s, wide }: { uid: string; s: Strategy; wide?: boolean }) {
   // NOT filtered to `supply`: a vault market's holders sit on the `share`
@@ -102,12 +105,14 @@ export function WhoIsIn({ uid, s, wide }: { uid: string; s: Strategy; wide?: boo
   const rows = holders.data?.holders ?? []
   const { profile } = useProfiles(rows.map((h) => h.account))
   const total = rows.reduce((a, h) => a + (h.amountUsd ?? 0), 0)
+  const key = bookKeyOf(s)
   return (
     <div className={`whoin${wide ? ' wide' : ''}`}>
       <div className="ts-h">
         <span className="lbl">Who else is in {wide ? `this ${s.kind === 'loop' ? 'loop' : 'market'}` : 'it'}</span>
         {wide && rows.length > 0 && <span className="t50 whoin-n">top {rows.length} hold <Money usd={total} short /></span>}
         <span className="sp" />
+        {key && <a className="t50" href={`#/board?s=${encodeURIComponent(key)}`} title={`Everyone who runs this ${s.kind === 'loop' ? 'loop' : 'strategy'}, ranked by what it pays them`}>Everyone ›</a>}
         <a className="t50" href={marketHref(uid)}>Market page ›</a>
       </div>
       {holders.isLoading && (wide

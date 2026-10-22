@@ -2541,3 +2541,19 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .fold-b .plain b{color:var(--tx);font-weight:500}
 .fold-b .liqbar{margin-top:0}
 .fold-b .routes.mini{padding:0}
+/* destination gas card (GetAsset) */
+.get .gas-card{margin-top:8px;padding:8px 10px;border-radius:14px;background:var(--b300);font-size:12.5px;line-height:1.45}
+.get .gas-card.miss{background:var(--warn-bg)}
+.get .gas-card.miss .actions{margin-top:6px!important}
+.get .gas-row{display:flex;align-items:center;gap:8px}
+.get .gas-sw{display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;color:var(--tx);flex:1;min-width:0}
+.get .gas-sw input{accent-color:var(--primary);width:15px;height:15px;margin:0}
+.get .gas-amt{font-family:var(--mono);font-size:12px;color:var(--tx);white-space:nowrap}
+.get .gas-amt small{color:var(--tx50);font-family:var(--sans)}
+.get .gas-set{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:var(--tx50);flex:none}
+.get .gas-set:hover{background:var(--b400);color:var(--tx)}
+.get .gas-sub{margin-top:2px;font-size:12px}
+.gas-pop p{margin:6px 0 0}
+.gas-pop .seg{margin-top:8px}
+.gas-pop .gas-usd{display:flex;align-items:center;gap:6px;margin-top:8px}
+.gas-pop .gas-usd input{width:72px;padding:4px 6px;border-radius:8px;border:1px solid var(--line2);background:var(--b300);color:var(--tx);font-family:var(--mono)}

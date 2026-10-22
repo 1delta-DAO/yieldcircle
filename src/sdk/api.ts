@@ -354,8 +354,10 @@ export const nativeAsset = (chainId: string): string => (isSvmChain(chainId) ? S
  * (`transaction`, NEAR Intents / Gas.zip) the wallet sends right after the route. `cost.amount` is in
  * the SOURCE gas coin's base units.
  */
-export interface DestinationGas { amount: string; decimals: number; mode: 'native-drop' | 'batch'; paidFrom: 'output' | 'value' | 'gas-leg'; bridge?: string; cost?: { amount?: string; decimals?: number; usd?: number }; transaction?: AnyTx }
-export interface SwapRouteQuote { bridge?: string; aggregator?: string; tradeInput: number; tradeOutput: number; estimatedDuration?: number; approvalTarget?: string; approvalRequired?: boolean; destinationGas?: DestinationGas }
+export interface DestinationGas { amount: string; decimals: number; mode: 'native-drop' | 'batch'; paidFrom: 'output' | 'value' | 'gas-leg'; bridge?: string; cost?: { amount?: string; decimals?: number; usd?: number }; transaction?: AnyTx; /** the leg is INSIDE the route's own transaction (a composer route, a Solana source): one signature, no `transaction` */ bundled?: boolean }
+/** Native the route's own transaction charges ON TOP of `tradeInput` (Squid's Axelar gas, LayerZero fees), source gas coin base units. */
+export interface NativeFee { amount: string; decimals: number; usd?: number }
+export interface SwapRouteQuote { bridge?: string; aggregator?: string; tradeInput: number; tradeOutput: number; estimatedDuration?: number; approvalTarget?: string; approvalRequired?: boolean; destinationGas?: DestinationGas; nativeFee?: NativeFee; /** `tradeOutput` less the gas and native fee paid on top, at current prices — what the ranking sorts by */ tradeOutputNetOfGas?: number }
 export interface SwapQuoteData { fallback?: string; quotes?: SwapRouteQuote[] }
 export interface SwapQuoteActions { alternatives?: ApiTx[]; permissions?: (ApiTx & { spender?: string })[] }
 /** Same-chain meta-aggregator swap. One tx per route in `actions.alternatives`, positionally matched to `data.quotes`. */

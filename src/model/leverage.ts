@@ -9,11 +9,18 @@ export const netAprAtLeverage = (dep: number, bor: number, L: number) => dep * L
  * fees) is kept. Without a curve the $10k quote is the honest fallback — it is
  * what the list ranked on. `null` curve fields read as "no curve".
  */
-type Curve = { points: { utilization: number; borrowRate: number }[]; currentUtilization: number; totalDepositsUsd?: string; totalDebtUsd?: string }
+type Curve = { points: { utilization: number; borrowRate: number }[]; currentUtilization: number; totalDepositsUsd?: string; totalDebtUsd?: string; totalLiquidityUsd?: string }
 export function borrowAtSize(spot: number, atTenK: number, extraDebtUsd: number, curve: Curve | null | undefined): number {
-  const dep = curve ? parseFloat(curve.totalDepositsUsd ?? '') : NaN, debt = curve ? parseFloat(curve.totalDebtUsd ?? '') : NaN
-  if (!curve || !(curve.points.length >= 2) || !(dep > 0) || !Number.isFinite(debt)) return atTenK
-  return spot + curveAt(curve, (debt + extraDebtUsd) / dep) - curveAt(curve, curve.currentUtilization)
+  if (!curve || !(curve.points.length >= 2)) return atTenK
+  // the pool the curve's utilisation is measured on. On Aave V4 the market's deposits are only its
+  // spoke's own supply ($1.5k against $3.6m of debt on AVAX Correlated WAVAX) while the debt is lent
+  // out of the hub: (debt + extra) / deposits read 2400 % utilisation, the curve's top rate (149 %), and
+  // every tier at −2000 %. The free liquidity and the curve's own utilisation are the hub's, so
+  // free / (1 − u₀) is the pool; on a plain market that is the deposits again (the larger stands)
+  const u0 = curve.currentUtilization, free = parseFloat(curve.totalLiquidityUsd ?? ''), dep = parseFloat(curve.totalDepositsUsd ?? '')
+  const pool = Math.max(dep > 0 ? dep : 0, free > 0 && u0 < 1 ? free / (1 - u0) : 0)
+  if (!(pool > 0) || !Number.isFinite(u0)) return atTenK
+  return spot + curveAt(curve, u0 + extraDebtUsd / pool) - curveAt(curve, u0)
 }
 const curveAt = (curve: Curve, u: number) => {
   const ps = curve.points, x = Math.min(1, Math.max(0, u))

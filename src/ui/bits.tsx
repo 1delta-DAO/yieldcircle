@@ -1,7 +1,7 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
-import { assetLogo, colorOf, deskById, deskOf, short, unitOf } from '../model/assets'
+import { assetLogo, colorOf, deskById, deskLogo, deskOf, short, subscribeWideLogos, unitOf, wideLogosReady } from '../model/assets'
 import { ChainMark, addressUrl, chainInfo, txUrl } from './ChainMark'
 import { maturityClock, rewardsOf, termClock, type Risk, type Strategy } from '../model/strategies'
 import { PROTOCOL_ICONS } from '../model/vaultDesk'
@@ -177,7 +177,8 @@ export function BorrowRewards({ apr, rewards, sep = '' }: { apr: number; rewards
 export function Tok({ sym, logo, size = 22 }: { sym: string; logo?: string | (string | undefined)[]; size?: number }) {
   // a strategy passes its own picture (the vault, the LST, the venue token) — or several, tried in order; a bare
   // symbol gets the base-asset mark from the token list — and so does a passed picture that fails to load
-  const urls = React.useMemo(() => [...new Set([...[logo].flat(), assetLogo(sym)].filter(liveLogo))], [String(logo), sym])
+  const wide = React.useSyncExternalStore(subscribeWideLogos, wideLogosReady)
+  const urls = React.useMemo(() => [...new Set([...[logo].flat(), assetLogo(sym)].filter(liveLogo))], [String(logo), sym, wide])
   const [i, setI] = React.useState(0)
   React.useEffect(() => setI(0), [urls.join()])
   if (i < urls.length) return <img className="tok" src={urls[i]} alt="" width={size} height={size} style={{ width: size, height: size }} onError={() => setI((n) => n + 1)} title={sym} />
@@ -246,12 +247,14 @@ const deskIcon = (id: string) => iconUrl(DESK_ICON[id] ?? id.toLowerCase().repla
 export function deskLogos(key: string, fallback?: string): (string | undefined)[] {
   const d = deskOf(key)
   const brand = d && d.kind !== 'issued' && d.kind !== 'plain' && !d.id.startsWith('sym:') ? deskIcon(d.id) : undefined
-  return [brand, assetLogo(key), fallback]
+  // a desk learned from the API is keyed by its id (`ONDO`), not a ticker: its flagship token's mark, not the ticker's
+  const learned = d && !d.id.startsWith('sym:') && !d.color
+  return learned ? [brand, deskLogo(d.id), fallback, assetLogo(key)] : [brand, assetLogo(key), d && deskLogo(d.id), fallback]
 }
 /** An issuer facet's mark (the feed's desk chips): the brand, then its flagship token where the desk is registered. */
 export function issuerIconUrls(id: string): string[] {
   const d = deskById(id) ?? deskById(id, 'ETH') ?? deskById(id, 'BTC')
-  return [...new Set([d?.kind === 'issued' ? undefined : deskIcon(id), d && assetLogo(d.sym), d?.kind === 'issued' ? deskIcon(id) : undefined].filter(liveLogo))]
+  return [...new Set([d?.kind === 'issued' ? undefined : deskIcon(id), d && assetLogo(d.sym), deskLogo(id), d?.kind === 'issued' ? deskIcon(id) : undefined].filter(liveLogo))]
 }
 /** The first of `urls` that loads; the name's first letter when none does. */
 export function ProtocolLogo({ urls, name }: { urls: string[]; name: string }) {
@@ -369,14 +372,20 @@ export function GroupIcon({ id, color, size = 20 }: { id: string; color: string;
 
 /** ` · matures 17 Dec 2026 · 75d` on a held PT's meta line; amber once it is due or past (it then earns nothing). */
 /**
- * A loop's health factor as a word first and the number second: `healthy 1.82`,
- * `watch 1.12`, `at risk 1.04`. Liquidation is at 1.00; the bands match the
- * asset page's colours (amber under 1.25, red under 1.10).
+ * A loop's health factor as an icon and the number: a shield with a tick (healthy),
+ * a shield with a bang (watch, amber under 1.25) or a warning triangle (at risk,
+ * red under 1.10). Liquidation is at 1.00; the word lives in the title and label.
  */
+const HP_ICON = {
+  ok: <path d="M8 1.8 13 3.6v4.1c0 3.1-2.1 5.4-5 6.5-2.9-1.1-5-3.4-5-6.5V3.6zM5.7 8l1.6 1.6 3-3.1" />,
+  warn: <path d="M8 1.8 13 3.6v4.1c0 3.1-2.1 5.4-5 6.5-2.9-1.1-5-3.4-5-6.5V3.6zM8 5v3.3M8 10.6v.1" />,
+  bad: <path d="M8 2.2 14.3 13H1.7zM8 6.4v3M8 11.2v.1" />,
+}
 export function HealthPill({ h }: { h: number }) {
   const cls = h < 1.1 ? 'bad' : h < 1.25 ? 'warn' : 'ok'
   const word = cls === 'bad' ? 'at risk' : cls === 'warn' ? 'watch' : 'healthy'
-  return <span className={`hp ${cls}`} title={`Health factor ${h.toFixed(2)} — liquidation at 1.00`}>{word} <b>{h.toFixed(2)}</b></span>
+  const tip = `${word[0].toUpperCase()}${word.slice(1)} · health factor ${h.toFixed(2)} — liquidation at 1.00`
+  return <span className={`hp ${cls}`} title={tip} aria-label={tip}><svg viewBox="0 0 16 16" aria-hidden>{HP_ICON[cls]}</svg><b>{h >= 100 ? '99+' : h.toFixed(2)}</b></span>
 }
 
 export function MaturityNote({ t, book }: { t: number; /** a book loan's repayment date, not a PT's (`Holding.bookLoan`) */ book?: boolean }) {

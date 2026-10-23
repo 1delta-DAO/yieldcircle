@@ -121,8 +121,12 @@ for (const [chainId, sym] of natives) {
   const nc = nativeCurrencies[chainId]
   const at = (addr) => Object.entries(list).find(([a]) => a.toLowerCase() === addr.toLowerCase())?.[1]
   const row = nc?.address ? at(nc.address) : Object.entries(list).find(([a]) => /^0x0+$/i.test(a))?.[1]
-  // Solana's group (`Wrapped SOL::SOL::solana`) has no entry in the group index: the row's own icon is the coin's
-  const uri = (row?.assetGroup ? byGroup[row.assetGroup] : undefined) ?? row?.logoURI
+  // The row's own icon wins when it is 1delta's curated mark (asset-icons `native/`): Solana's gas
+  // row moved into group `SOL` upstream, whose winner is the Wormhole-bridged SOL picture.
+  // (only when the file is there: Stable's row names a `native/usdt0.webp` that does not exist)
+  const curated = row?.logoURI && /1delta-DAO\/asset-icons\//.test(row.logoURI) ? row.logoURI : undefined
+  const own = curated && (await fetch(curated, { method: 'HEAD' }).then((r) => r.ok, () => false)) ? curated : undefined
+  const uri = own ?? (row?.assetGroup ? byGroup[row.assetGroup] : undefined) ?? row?.logoURI
   if (uri && uri !== index[sym]) nativeIcon[sym] = uri
   const wrappedRow = nc?.wrapped ? at(nc.wrapped) : undefined
   for (const [w, base] of Object.entries(wrapped)) {
@@ -164,6 +168,57 @@ if (missing.length) {
   // token-lists (the asset has no `logoURI` on any chain), not in a hand-written override here.
   console.warn(`no icon for ${missing.join(', ')}`)
   if (missing.some((s) => bases.includes(s) || deskSyms.includes(s))) process.exitCode = 1
+}
+
+// ---------------------------------------------------------------------------------------------
+// Everything else the app can show: `logos.json` above is the eager, curated subset; a token
+// outside BASE/DESK/WRAPPER (ZCHF, USDY, an Ondo ETF) used to fall to initials even though
+// token-lists has its icon. Two derived tables close that, with nothing listed by hand:
+//
+// - src/data/desk-logos.json (eager, small): desk id → its flagship token's icon, for issuers
+//   protocol-icons has no brand mark for (Ondo). The flagship is the desk's non-equity token on
+//   the most offered chains (Ondo → USDY), its own chain list's `logoURI` first.
+// - src/data/token-icons.json (loaded lazily by model/assets.ts): ticker → the index's winner, for
+//   every token on an offered chain that names an issuer, carries `rwa`/`lst`/`savings`, or is in
+//   desks.json. The CoinGecko prefix is folded to `cg:` to keep the chunk small.
+// ---------------------------------------------------------------------------------------------
+{
+  const q = readFileSync(new URL('../src/sdk/queries.ts', import.meta.url), 'utf8')
+  const cs = q.slice(q.indexOf('export const CHAINS'), q.indexOf('\n]', q.indexOf('export const CHAINS')))
+  const offered = [...cs.matchAll(/id:\s*'([^']+)'/g)].map((m) => m[1])
+  const nrm = (a) => (/^0x[0-9a-fA-F]*$/.test(a) ? a.toLowerCase() : a)
+  let desks = { tokens: {}, eth: {}, btc: {} }
+  try { desks = JSON.parse(readFileSync(new URL('../src/data/desks.json', import.meta.url), 'utf8')) } catch { console.warn('no src/data/desks.json — run scripts/desks.mjs first') }
+  const inDesks = new Set([...Object.keys(desks.tokens), ...Object.keys(desks.eth), ...Object.keys(desks.btc)])
+  const wide = {}
+  const flag = {} // desk id → symbol → { chains, logo }
+  for (const chain of offered) {
+    let list
+    try { list = JSON.parse(readFileSync(join(root, `${chain}.json`), 'utf8')).list } catch { continue }
+    for (const [addr, t] of Object.entries(list)) {
+      const p = t.props ?? {}
+      const sym = String(t.symbol ?? '').toUpperCase()
+      if (!sym || !(inDesks.has(`${chain}:${nrm(addr)}`) || p.issuer || p.rwa || p.lst || p.savings)) continue
+      const uri = index[sym] ?? t.logoURI
+      if (uri && !out[sym]) wide[sym] ??= uri
+      const id = p.issuer?.id
+      if (id && t.logoURI && p.rwa?.type !== 'equity' && p.rwa?.subType !== 'etf' && !p.pendle && !p.spectra && !p.exponent) {
+        const f = ((flag[id] ??= {})[sym] ??= { chains: 0, logo: t.logoURI })
+        f.chains++
+      }
+    }
+  }
+  const deskLogos = {}
+  for (const [id, syms] of Object.entries(flag)) {
+    const [, best] = Object.entries(syms).sort(([a, x], [b, y]) => y.chains - x.chains || (a < b ? -1 : 1))[0]
+    deskLogos[id] = best.logo
+  }
+  const sorted = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1)))
+  const CG = 'https://assets.coingecko.com/coins/images/'
+  const packed = Object.fromEntries(Object.entries(sorted(wide)).map(([k, v]) => [k, v.startsWith(CG) ? 'cg:' + v.slice(CG.length) : v]))
+  writeFileSync(new URL('../src/data/desk-logos.json', import.meta.url), JSON.stringify(sorted(deskLogos)) + '\n')
+  writeFileSync(new URL('../src/data/token-icons.json', import.meta.url), JSON.stringify(packed) + '\n')
+  console.log(`${Object.keys(deskLogos).length} desk marks, ${Object.keys(packed).length} wide token icons written`)
 }
 
 // ---------------------------------------------------------------------------------------------

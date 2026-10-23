@@ -451,7 +451,29 @@ export const short = (sym: string) => FIAT[sym]?.glyph ?? sym.replace(/^PT-/, ''
  * so it is never used for an asset mark.
  */
 import LOGOS from '../data/logos.json'
-export const assetLogo = (sym: string | undefined): string | undefined => (sym ? FIAT_MARK[sym] ?? (LOGOS as Record<string, string>)[sym.toUpperCase()] ?? STOCK_ROWS.get(sym)?.logo : undefined)
+import DESK_LOGOS from '../data/desk-logos.json'
+/**
+ * Every other ticker the token lists know on an offered chain (issued, RWA, LST, savings, or in
+ * desks.json): `src/data/token-icons.json`, also from `scripts/logos.mjs`. Too big for the main
+ * bundle, so it is loaded once on first use; until it lands a mark falls through to initials.
+ */
+let WIDE: Record<string, string> | undefined
+let wideLoad: Promise<void> | undefined
+const wideListeners = new Set<() => void>()
+const CG = 'https://assets.coingecko.com/coins/images/'
+function loadWideLogos(): Promise<void> {
+  return (wideLoad ??= import('../data/token-icons.json').then(
+    (m) => { WIDE = m.default as Record<string, string>; wideListeners.forEach((f) => f()) },
+    () => { wideLoad = undefined },
+  ))
+}
+/** `useSyncExternalStore` pair: a mark re-renders once the wide table is in. */
+export const subscribeWideLogos = (f: () => void) => { wideListeners.add(f); void loadWideLogos(); return () => { wideListeners.delete(f) } }
+export const wideLogosReady = () => !!WIDE
+const wideLogo = (sym: string): string | undefined => { const u = WIDE?.[sym.toUpperCase()]; return u?.startsWith('cg:') ? CG + u.slice(3) : u }
+export const assetLogo = (sym: string | undefined): string | undefined => (sym ? FIAT_MARK[sym] ?? (LOGOS as Record<string, string>)[sym.toUpperCase()] ?? STOCK_ROWS.get(sym)?.logo ?? wideLogo(sym) : undefined)
+/** A desk's flagship token icon (Ondo → USDY), for issuers the protocol-icons set has no brand mark for. */
+export const deskLogo = (id: string | undefined): string | undefined => (id ? (DESK_LOGOS as Record<string, string>)[id] : undefined)
 /** A currency row's mark is its sign (or `mark`) on its colour: no token's logo stands for the euro as a whole. */
 const FIAT_MARK: Record<string, string> = Object.fromEntries(Object.entries(FIAT).map(([k, f]) => [k, 'data:image/svg+xml,' + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="${BASE[k].color}"/>${f.mark ?? `<text x="16" y="16" dy=".36em" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="700" font-size="${f.glyph.length > 1 ? 13 : 18}" fill="#fff">${f.glyph}</text>`}</svg>`,

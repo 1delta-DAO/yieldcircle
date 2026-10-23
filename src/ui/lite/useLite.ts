@@ -18,13 +18,14 @@ export function useLiteMenu() {
   const b = useBook()
   const get = useRateHistory(b.all, !b.isFetching)
   const rank = React.useCallback((s: Strategy) => steadyRate(s, get), [get])
-  const runs = (h: Holding) => b.all.find((s) => holdingMatches(s, h))
+  // the strategy a position is, wherever the catalogue holds it: on the menu, below a floor, or past a desk's cap
+  const runs = (h: Holding) => b.all.find((s) => holdingMatches(s, h)) ?? b.hidden.find((s) => holdingMatches(s, h)) ?? b.overflow.find((s) => holdingMatches(s, h))
   const heldIds = new Set(b.holdings.map((h) => runs(h)?.id).filter((x): x is string => !!x))
   const rows: LiteRow[] = liteMenu(b.all, rank, heldIds)
   const keys = [...new Set(rows.map((r) => bookKeyOf(r.s)).filter((k): k is string => !!k))].sort()
   const proofs = useStrategyProofs(keys)
   const proof = (s: Strategy) => proofOf(s, proofs.data)
-  return { b, get, rank, rows, proof, book: proofs.data, proofsHeld: proofs.current, runs, holdingsOf: (s: Strategy) => b.holdings.filter((h) => holdingMatches(s, h)) }
+  return { b, get, rank, rows, proof, book: proofs.data, proofsHeld: proofs.current, runs, holdingsOf: (s: Strategy) => b.holdings.filter((h) => holdingMatches(s, h) && !h.putUp) }
 }
 export type LiteMenu = ReturnType<typeof useLiteMenu>
 

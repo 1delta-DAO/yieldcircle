@@ -337,7 +337,18 @@ Changes against the plan above, and why:
     frame has no bell.
 12. **Share is a link plus text**, and the link is a Copy link: it opens the
     strategy with the sharer as the wallet copied. An image card is not built.
-13. **The landing needed no change.** Its CTAs open the app root, which opens the
+13. **Every position is managed in Lite** (2026-10-23, after the first review).
+    The first build sent any position outside Lite's menu to Pro, which was most
+    real ones: a ×21 loop under the buffer floor, loans, a deposit below a floor.
+    You now opens each on its own Lite ticket (`#/lite/you?h=…`,
+    `LiteHoldingTicket`, `LiteLoanTicket`). A loop gets Add (only when Lite offers
+    it, at the position's own leverage capped at Balanced), Lower risk (the
+    leverage that leaves 5 %, 10 % or 20 % to liquidation, `saferTargets`) and
+    Close. A deposit gets Add and Withdraw (25 %, 50 %, all). A loan gets Pay back
+    all, which returns the collateral, and Pay back some. A position within 10 %
+    of liquidation opens on Lower risk, and its row says how far it is. Only a
+    price bet still opens in Pro.
+14. **The landing needed no change.** Its CTAs open the app root, which opens the
     saved mode, so Lite for a first visit.
 
 Not built, and why:

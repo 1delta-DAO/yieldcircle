@@ -30,7 +30,7 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { nameOf } from '../model/assets'
-import { CRYPTO_BORDERS, MIN_HEALTH, ZONES, bordersFor, collateralFor, collateralOf, defaultBorrow, dropOf, healthOf, isPutUp, liquidationPrice, maxBorrowUsd, monthlyCost, owedOf, usMarket, zoneAmounts, zoneOf, type BorrowOffer, type Zone } from '../model/borrow'
+import { offerFromHolding, CRYPTO_BORDERS, MIN_HEALTH, ZONES, bordersFor, collateralFor, collateralOf, defaultBorrow, dropOf, healthOf, isPutUp, liquidationPrice, maxBorrowUsd, monthlyCost, owedOf, usMarket, zoneAmounts, zoneOf, type BorrowOffer, type Zone } from '../model/borrow'
 import { borrowAtSize, capRaw, toRaw } from '../model/leverage'
 import { fromUnits, heldRaw, payRaw, portion, unitsOf, type Amount } from '../model/amount'
 import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '../model/positions'
@@ -56,6 +56,9 @@ import { Who } from './social-bits'
 import { BorrowRewards, DecimalInput, Info, KindPill, RiskDot, SubAccountPill, Tok, Toks, num, pct, usd, usdShort } from './bits'
 import { stepsFrom, useTicketLadder } from './useLadder'
 import { borrowPlan, paperPos, repayPlan } from './paperPlans'
+import { bufferOfHealth, holdingLine, moneyWord } from '../model/lite'
+import { LiteDetails, LitePresets } from './lite/LiteTicketBits'
+import { proHref } from '../state/AppState'
 
 /** a balance as an amount to send: rounded DOWN, never a hair over what is held */
 const floor6 = (x: number) => Math.floor(x * 1e6) / 1e6
@@ -406,8 +409,39 @@ function Landed({ o, take, what, line, debtKey }: { o: BorrowOffer; take: number
   )
 }
 
+// ----------------------------------------------------------------- Lite
+/**
+ * A loan on Lite's You page (docs/lite.md): Lite opens no loans, but a reader who holds one must be
+ * able to end it. Two plain actions — pay it all back and take the collateral home, or pay part of
+ * it back to move away from liquidation — on Pro's own repay build. Borrowing more is Pro's.
+ */
+export function LiteLoanTicket({ h, idle, onClose }: { h: Holding; idle: Idle[]; onClose: () => void }) {
+  const o = React.useMemo(() => offerFromHolding(h), [h])
+  const [pane, setPane] = React.useState<'all' | 'some'>((bufferOfHealth(h.health) ?? 1) < 0.1 ? 'some' : 'all')
+  const line = holdingLine(h)
+  const details = proHref(`#/${h.group}?${new URLSearchParams({ k: 'borrow', h: h.key, m: 'reduce' })}`)
+  return (
+    <TicketCtx.Provider value={{ uid: o ? canonUid(o.collateral.uid) : null, lite: true }}>
+    <div className="ticket lite-ticket">
+      <div className="grab" />
+      <div className="th"><Toks a={h.symbol} b={h.debtSymbol} logoA={h.logo} />
+        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{moneyWord(h.asset, h.group)} loan</div><div className={`s ${line.tone}`}>owes {usd(owedOf(h))} · {line.text.replace(/^A loan · /, '')}</div></div>
+        <button className="x" onClick={onClose} aria-label="Close">✕</button></div>
+      {!o ? <div className="tsec"><div className="caution">This loan can’t be read well enough to pay back here. Open it in Details.</div></div> : <>
+        <div className="tsec"><div className="modes" role="tablist" aria-label="Pay back">
+          <button role="tab" aria-selected={pane === 'all'} onClick={() => setPane('all')}>Pay back all</button>
+          <button role="tab" aria-selected={pane === 'some'} onClick={() => setPane('some')}>Pay back some</button>
+        </div></div>
+        <RepayPane key={h.key + pane} o={o} h={h} idle={idle} lite={pane} />
+      </>}
+      <LiteDetails href={details} what="Borrow more, or take collateral out" />
+    </div>
+    </TicketCtx.Provider>
+  )
+}
+
 // ----------------------------------------------------------------- Pay back
-function RepayPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] }) {
+function RepayPane({ o, h, idle, lite }: { o: BorrowOffer; h: Holding; idle: Idle[]; /** Lite: all of it back and the collateral home, or part of the debt only */ lite?: 'all' | 'some' }) {
   const { account, isConnected, solSigner, actorOn } = useApp()
   const actor = actorOn(o.chainId)
   const paper = usePaper()
@@ -422,8 +456,10 @@ function RepayPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] })
   const otherDebtUsd = (h.others ?? []).reduce((a, x) => a + (x.side === 'debt' ? x.usd : 0), 0)
   const debtPrice = owed > 0 && owedUsd - otherDebtUsd > 0 ? (owedUsd - otherDebtUsd) / owed : o.debt.price || 1
   const debtBal = idle.find((i) => i.chainId === o.chainId && sameToken(i.address, normAddr(o.debt.address)))
-  const [repayAmt, setRepay] = useStickyAmount(`b:${h.key}:repay`, () => fromUnits(owed))
-  const [outAmt, setOut] = useStickyAmount(`b:${h.key}:out`, () => fromUnits(0))
+  const [repayAmt0, setRepay] = useStickyAmount(`b:${h.key}:repay${lite ? ':lite' : ''}`, () => fromUnits(lite === 'some' ? floor6(owed / 2) : owed))
+  const [outAmt0, setOut] = useStickyAmount(`b:${h.key}:out`, () => fromUnits(0))
+  const repayAmt = lite === 'all' ? fromUnits(owed) : repayAmt0
+  const outAmt = lite === 'all' ? portion(heldRaw(h), 100, o.collateral.decimals) : lite ? fromUnits(0) : outAmt0
   const repay = unitsOf(repayAmt), out = unitsOf(outAmt)
   const repayAll = owed > 0 && repay >= owed * 0.9999
   const outAll = held > 0 && out >= held * 0.9999
@@ -463,6 +499,26 @@ function RepayPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] })
     : debtAfter > 0 && hfAfter < MIN_HEALTH ? 'Too close to liquidation — take less out'
     : null
   const zone = debtAfter > 0 ? zoneOf(dropOf(collAfter, debtAfter, liq), bordersFor(o)) : 'safe'
+  // all of it back takes the collateral with it only when nothing else on the account still needs it
+  const liteBlocked = lite === 'all' && otherDebtUsd > 0.5 ? 'Another debt on this account still needs the collateral — pay part back here, the rest in Details' : blocked
+  if (lite) return (
+    <>
+      <div className="tsec">
+        {lite === 'some' && <>
+          <span className="lbl">How much to pay back <span className="t50">· of {usd(owedUsd - otherDebtUsd)}</span></span>
+          <AmountBox unit={o.debt.symbol} value={repayAmt} onChange={setRepay} onMax={() => setRepay(fromUnits(owed))} />
+          <LitePresets onPick={(p) => setRepay(fromUnits(p === 100 ? owed : floor6(owed * p / 100)))} />
+        </>}
+        {lite === 'all' && <div className="plain">You pay back the {usd(owedUsd - otherDebtUsd)} you owe, interest to the block included, and your {num(held, 4)} {o.collateral.symbol} comes back to your wallet.</div>}
+        <div className="amt-sub"><span>{account ? <>You have {num(debtBal?.amount ?? 0, 2)} {o.debt.symbol}{shortDebt && <span className="warn"> · not enough</span>}</> : ''}</span></div>
+        {shortDebt && <GetLine account={account} short symbol={o.debt.symbol} open={false} onOpen={() => { location.hash = proHref(`#/${h.group}?${new URLSearchParams({ k: 'borrow', h: h.key, m: 'reduce' })}`) }} />}
+      </div>
+      <div className="tsec"><div className="cells">
+        <div className="c hero"><span className="k">{lite === 'all' ? 'Back to you' : 'Owed after'}</span><span className="v">{lite === 'all' ? usd(w * price) : usd(debtAfter)}</span><span className="s">{lite === 'all' ? `${num(w, 4)} ${o.collateral.symbol}` : debtAfter > 0 ? `${pct(dropOf(collAfter, debtAfter, liq) * 100, 0)} from liquidation after` : 'nothing owed'}</span></div>
+      </div></div>
+      <Action ladder={ladder} label={lite === 'all' ? `Pay back ${usd(r * debtPrice)} and take it home` : `Pay back ${usd(r * debtPrice)}`} account={account} isConnected={isConnected} disabled={!!liteBlocked} blockedNote={liteBlocked ?? undefined} chainId={o.chainId} fee="repay" />
+    </>
+  )
   return (
     <>
       <div className="tsec">

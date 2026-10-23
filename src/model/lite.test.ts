@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dayKey, depositLines, liteEligible, liteMenu, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
+import { bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 
@@ -52,6 +52,8 @@ describe('names in words', () => {
     expect(moneyWord('okx:BTC', 'BTC')).toBe('Bitcoin via OKX')
     // a custodian the API names at runtime is keyed by issuer, never shown as that key
     expect(moneyWord(learnDesk({ id: 'ava-labs', name: 'Ava Labs', kind: 'cex' }, 'BTC'), 'BTC')).toBe('Bitcoin via Ava Labs')
+    expect(moneyWord(learnDesk({ id: 'superstate', name: 'Superstate', kind: 'institution' }), 'USD')).toBe('Dollars via Superstate')
+    expect(moneyWord(learnDesk({ id: 'superstate-2', name: 'SUPERSTATE', kind: 'institution' }), 'USD')).toBe('Dollars via Superstate 2')
   })
   it('a row never names a venue or a chain', () => {
     const n = plainName(loop('x'))
@@ -126,5 +128,23 @@ describe('streak and points', () => {
     let log: DayMark[] = []
     for (let i = 1; i <= 9; i++) log = noteDay(log, day(i), 1000)
     expect(pointsOf(log)).toBe(9 * 10 + 2 * 5)
+  })
+})
+
+describe('managing a position', () => {
+  it('reads how far from liquidation off the health factor', () => {
+    expect(bufferOfHealth(1.25)).toBeCloseTo(0.2)
+    expect(bufferOfHealth(null)).toBeNull()
+  })
+  it('offers lower-risk targets only below today’s leverage', () => {
+    // a 21× wstETH loop at a 95 % threshold: 5 % → 10.25×, 10 % → 6.89×, 20 % → 4.16×
+    const t = saferTargets(21, 0.95)
+    expect(t.map((x) => x.L)).toEqual([10.25, 6.89, 4.16])
+    expect(saferTargets(5, 0.95).map((x) => x.word)).toEqual(['Much safer'])
+    expect(saferTargets(21, null)).toEqual([])
+  })
+  it('says a risky loop in words, with its tone', () => {
+    expect(holdingLine({ kind: 'loop', leverage: 21, health: 1.01 })).toEqual({ text: 'Levered ×21 · 1.0% from liquidation', tone: 'bad' })
+    expect(holdingLine({ kind: 'borrow', health: 2 }).text).toBe('A loan · 50% from liquidation')
   })
 })

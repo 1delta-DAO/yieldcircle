@@ -49,6 +49,9 @@ export function moneyWord(asset: string, group: GroupId = groupOf(asset)): strin
   if (family && asset.includes(':')) return `${family} via ${d?.name && !d.name.includes(':') ? d.name : issuerWords(asset.split(':')[0])}`
   if (!family || !d) return nameOf(asset)
   if (d.kind === 'plain') return family
+  // a desk the API named at runtime (`learnDesk`, keyed by its id, no colour of its own): a token
+  // nobody is named for keeps its ticker; one with an issuer says whose it is, never the id
+  if (!d.color) return d.kind === 'unknown' ? d.sym.replace(/\?$/, '') : `${family} via ${d.name && d.name.toUpperCase() !== d.name ? d.name : issuerWords(d.id)}`
   // an issued coin is known by its ticker (USDC, cbBTC); a yield coin by whose it is
   if (d.kind === 'issued') return d.sym
   return `${family} via ${d.name}`
@@ -245,4 +248,42 @@ export function holdingMatches(s: Strategy, h: Holding): boolean {
   if (h.kind !== s.kind) return false
   if (s.kind === 'simple') return h.earnUid === s.earnUid
   return sameUid(h.collateralUid ?? h.earnUid, s.marketLongUid) && (!h.debtUid || sameUid(h.debtUid, s.marketShortUid))
+}
+
+// ---------------------------------------------------------------- managing a position
+
+/**
+ * How far a position's price can fall before it is liquidated, from the health the venue reports:
+ * HF = collateral · threshold / debt, so the line is crossed after a fall of 1 − 1/HF. The same for
+ * a loop and a loan. Null when nothing is owed or the venue reports no health.
+ */
+export const bufferOfHealth = (health: number | null | undefined): number | null => (health != null && Number.isFinite(health) && health > 0 ? Math.max(0, 1 - 1 / health) : null)
+
+/** Lite's "Lower risk" targets: the leverage that leaves 5 %, 10 % and 20 % to liquidation, where that is below today's. */
+export const SAFER_STEPS = [
+  { buffer: 0.05, word: 'A little safer' },
+  { buffer: 0.1, word: 'Safer' },
+  { buffer: 0.2, word: 'Much safer' },
+] as const
+export function saferTargets(Lnow: number, liqLtv: number | null | undefined, minL = 1): { L: number; buffer: number; word: string }[] {
+  if (!liqLtv || !(liqLtv > 0) || !(Lnow > 1.05)) return []
+  const out: { L: number; buffer: number; word: string }[] = []
+  for (const st of SAFER_STEPS) {
+    // liqBuffer(lt, L) = 1 − ((L−1)/L)/lt ≥ b  ⇔  L ≤ 1 / (1 − (1−b)·lt)
+    const den = 1 - (1 - st.buffer) * liqLtv
+    const L = den > 0 ? Math.floor((1 / den) * 100) / 100 : Infinity
+    if (L < Lnow - 0.05 && L >= Math.max(1.05, minL)) out.push({ L, buffer: st.buffer, word: st.word })
+  }
+  return out
+}
+
+/** A position's second line on You, in words: what it is and how far from the line. */
+export function holdingLine(h: Pick<Holding, 'kind' | 'leverage' | 'health' | 'directional'>): { text: string; tone: Tone } {
+  const b = bufferOfHealth(h.health)
+  const line = b == null ? '' : ` · ${pct(b * 100, b < 0.1 ? 1 : 0)} from liquidation`
+  const tone: Tone = b == null ? '' : b < 0.05 ? 'bad' : b < 0.1 ? 'warn' : ''
+  if (h.directional) return { text: `A price bet${line}`, tone }
+  if (h.kind === 'borrow') return { text: `A loan${line}`, tone }
+  if (h.kind === 'loop') return { text: `Levered ${leverTag(h.leverage ?? 1)}${line}`, tone }
+  return { text: 'Earning', tone: '' }
 }

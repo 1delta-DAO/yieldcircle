@@ -103,3 +103,15 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .lite-details small{font-size:11.5px;color:var(--tx50)}
 .lite-showall{justify-content:center;min-height:48px;color:var(--tx70);font-size:13px;background:transparent;border:1px dashed var(--line2)}
 .lite-showall:hover{color:var(--tx);background:var(--b200)}
+
+/* ---------------------------------------------------------------- managing a position */
+.lite-you.noticket{max-width:880px;margin:0 auto}
+.lite-safer{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.lite-safer button{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;align-items:center;padding:10px 12px;border-radius:var(--r);background:var(--b300);text-align:left;color:var(--tx);border:1px solid transparent}
+.lite-safer button:hover{background:var(--b400)}
+.lite-safer button.on{border-color:var(--primary);background:var(--pri-bg)}
+.lite-safer b{font-size:14px}
+.lite-safer span{grid-column:1;font-size:12px;color:var(--tx70)}
+.lite-safer small{grid-column:2;grid-row:1 / span 2;font-size:13px;font-weight:600}
+.lite-ticket .th .s.bad,.lrow-n small.bad{color:var(--error)}
+.lite-ticket .th .s.warn,.lrow-n small.warn{color:var(--warning)}

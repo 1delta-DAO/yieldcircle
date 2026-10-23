@@ -32,9 +32,9 @@ export function LitePresets({ onPick }: { onPick: (pct: number) => void }) {
 }
 
 /** The way into Pro for this one strategy: the same ticket, every number and choice, the same amount. */
-export function LiteDetails({ what }: { what: string }) {
+export function LiteDetails({ what, href }: { what: string; /** where Pro shows it; the page being read, in Pro, by default */ href?: string }) {
   return (
-    <a className="lite-details" href={proHref()}>
+    <a className="lite-details" href={href ?? proHref()}>
       <span><b>Details</b><small>{what}</small></span>
       <span aria-hidden>›</span>
     </a>

@@ -10,7 +10,7 @@ import { boardPositions, boardStrategies, boardWallets, type BoardSort, type Boa
 import { GROUPS } from '../../model/assets'
 import { Face } from '../social-bits'
 import { FollowButton, Who } from '../social-bits'
-import { Sk, pct, usd, usdShort } from '../bits'
+import { Sk, Tok, pct, usd, usdShort } from '../bits'
 import { useLiteMenu } from './useLite'
 import { openRow } from './LiteBits'
 
@@ -124,15 +124,15 @@ function WalletPositions({ account, liteByKey, me }: { account: string; liteByKe
   )
 }
 
-/** The title and the Wallets · Strategies switch, shared by both views. */
+/** The title and the Strategies · Wallets switch, shared by both views; strategies are the default (what is run, before who runs it). */
 function BoardHead({ by, sort }: { by: 'wallet' | 'strategy'; sort: BoardSort }) {
   const t = sort === 'apr' ? undefined : sort
   return (
     <div className="feed-h">
       <h1>Leaderboard</h1>
       <div className="seg" role="tablist" aria-label="Wallets or strategies">
-        <button role="tab" aria-selected={by === 'wallet'} aria-pressed={by === 'wallet'} onClick={() => go('board', { t })}>Wallets</button>
-        <button role="tab" aria-selected={by === 'strategy'} aria-pressed={by === 'strategy'} onClick={() => go('board', { by: 'strategy', t })}>Strategies</button>
+        <button role="tab" aria-selected={by === 'strategy'} aria-pressed={by === 'strategy'} onClick={() => go('board', { t })}>Strategies</button>
+        <button role="tab" aria-selected={by === 'wallet'} aria-pressed={by === 'wallet'} onClick={() => go('board', { by: 'wallet', t })}>Wallets</button>
       </div>
       <span className="sp" /><span className="t50 hide-m">real wallets, read off the chain</span>
     </div>
@@ -141,7 +141,7 @@ function BoardHead({ by, sort }: { by: 'wallet' | 'strategy'; sort: BoardSort })
 function SortSeg({ by, sort }: { by: 'wallet' | 'strategy'; sort: BoardSort }) {
   return (
     <div className="seg" role="tablist" aria-label="Rank by">
-      {SORTS.map((x) => <button key={x.id} role="tab" aria-selected={sort === x.id} aria-pressed={sort === x.id} onClick={() => go('board', { by: by === 'strategy' ? 'strategy' : undefined, t: x.id === 'apr' ? undefined : x.id })}>{x.word}</button>)}
+      {SORTS.map((x) => <button key={x.id} role="tab" aria-selected={sort === x.id} aria-pressed={sort === x.id} onClick={() => go('board', { by: by === 'wallet' ? 'wallet' : undefined, t: x.id === 'apr' ? undefined : x.id })}>{x.word}</button>)}
     </div>
   )
 }
@@ -168,7 +168,9 @@ function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<strin
   const colorOf = (g: string) => GROUPS.find((x) => x.id === g)?.color ?? '#8fa6ff'
   const rows = React.useMemo(() => boardStrategies(q.data?.rows ?? [], sort, (k) => {
     const r = liteByKey.get(k.toLowerCase())
-    return r ? { title: r.title, sub: r.sub, color: colorOf(r.s.group) } : null
+    if (!r) return null
+    const s = r.s
+    return { title: r.title, sub: r.sub, color: colorOf(s.group), held: s.kind === 'loop' ? { symbol: s.holds, logo: s.logoLong } : { symbol: s.assetSymbol, logo: s.tokenLogo ?? s.logo }, debt: s.kind === 'loop' ? { symbol: s.debt, logo: s.logoShort } : null }
   }), [q.data, sort, liteByKey]) // eslint-disable-line react-hooks/exhaustive-deps
   const top = rows[0]
   const fmt = (v: number) => (sort === 'apr' ? pct(v, 1) : usdShort(v))
@@ -188,7 +190,7 @@ function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<strin
             <section className="ls-hero" style={{ '--gc': top.color ?? undefined } as React.CSSProperties} aria-label="The top strategy">
               <div>
                 <div className="ls-k">#1 · {sort === 'apr' ? 'best rate' : 'most a day'}</div>
-                <h2>{top.title}</h2>
+                <h2><Marks s={top} size={34} />{top.title}</h2>
                 <div className="ls-sub">{top.sub}{top.levRange && !top.sub.includes('×') ? ` · ${top.levRange}` : ''}</div>
               </div>
               <div className="ls-rate"><b>{fmt(top.value)}</b><small>{unit} · everyone in it together</small></div>
@@ -202,9 +204,9 @@ function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<strin
               <div key={s.key} className="ls-row" style={{ '--gc': s.color ?? undefined, '--w': `${Math.max(4, Math.min(100, (s.value / top.value) * 100))}%` } as React.CSSProperties}>
                 <span className="ls-bar" aria-hidden />
                 <span className={`lb-rank${i + 2 <= 3 ? ` top ${MEDAL[i + 1]}` : ''}`}>{i + 2}</span>
-                <span className="ls-face"><Faces faces={s.faces.slice(0, 2)} size={26} /></span>
+                <span className="ls-mark"><Marks s={s} size={26} /></span>
                 <span className="ls-n"><b>{s.title}</b><small>{s.sub} · {s.wallets} {s.wallets === 1 ? 'person' : 'people'} · {usdShort(s.equityUsd)}</small></span>
-                <span className="ls-v"><b>{fmt(s.value)}</b>{canCopy(s) ? <button type="button" className="btn sm pri" onClick={() => copy(s)}>Copy</button> : s.best ? <a className="btn sm" href={walletHref(s.best.account)}>Who</a> : null}</span>
+                <span className="ls-v"><span className="ls-face"><Faces faces={s.faces.slice(0, 2)} size={22} /></span><b>{fmt(s.value)}</b>{canCopy(s) ? <button type="button" className="btn sm pri" onClick={() => copy(s)}>Copy</button> : s.best ? <a className="btn sm" href={walletHref(s.best.account)}>Who</a> : null}</span>
               </div>
             ))}
           </div>
@@ -217,4 +219,11 @@ function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<strin
 function Faces({ faces, size }: { faces: string[]; size: number }) {
   if (!faces.length) return null
   return <span className="ls-faces">{faces.slice(0, 3).map((a) => <Face key={a} account={a} size={size} />)}</span>
+}
+
+/** What the strategy holds (and borrows): the tokens' own marks, a loop's two side by side. */
+function Marks({ s, size }: { s: BoardStrategy; size: number }) {
+  return s.debt
+    ? <span className="ls-toks toks"><Tok sym={s.held.symbol} logo={s.held.logo} size={size} /><Tok sym={s.debt.symbol} logo={s.debt.logo} size={size} /></span>
+    : <Tok sym={s.held.symbol} logo={s.held.logo} size={size} />
 }

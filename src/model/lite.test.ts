@@ -181,9 +181,10 @@ describe('the strategy board', () => {
   })
   it('ranks by the holders’ rate or their dollars a day, and names what Lite carries in its words', () => {
     const rows = [g('loop:a|b', 12, 300), g('loop:c|d', 27.6, 90), g('dep:e', null, 50)]
-    const out = boardStrategies(rows, 'apr', (k) => (k === 'loop:c|d' ? { title: 'Dollars via Nest', sub: 'Levered ×4.0 · borrows dollars', color: '#3fbf7f' } : null))
+    const out = boardStrategies(rows, 'apr', (k) => (k === 'loop:c|d' ? { title: 'Dollars via Nest', sub: 'Levered ×4.0 · borrows dollars', color: '#3fbf7f', held: { symbol: 'nOPAL' }, debt: { symbol: 'USDC' } } : null))
     expect(out.map((s) => [s.title, s.value])).toEqual([['Dollars via Nest', 27.6], ['nOPAL', 12]])
     expect(out[1].sub).toBe('Levered · borrows USDC')
+    expect(out[1].held.symbol).toBe('nOPAL')
     expect(out[0].levRange).toBe('×4.0')
     expect(boardStrategies(rows, 'perDay', () => null).map((s) => s.key)).toEqual(['loop:a|b', 'loop:c|d', 'dep:e'])
   })

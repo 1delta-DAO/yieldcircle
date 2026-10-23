@@ -30,7 +30,7 @@ export default function App() {
   if (r.lite) return (
     <Shell>
       {r.view === 'you' ? <LiteYou />
-        : r.view === 'board' ? <LiteBoard sort={r.t === 'perDay' ? 'perDay' : 'apr'} by={r.by === 'strategy' ? 'strategy' : 'wallet'} />
+        : r.view === 'board' ? <LiteBoard sort={r.t === 'perDay' ? 'perDay' : 'apr'} by={r.by === 'wallet' ? 'wallet' : 'strategy'} />
         : group ? <LiteList key={group.id} group={group} route={r} />
         : r.view === 'earn' ? <LiteEarn />
         : <LiteHome />}

@@ -368,6 +368,8 @@ Changes against the plan above, and why:
     every row below carries a bar against it. A strategy one wallet alone runs is
     left out (`BOARD_MIN_WALLETS`). Copy opens Lite's ticket at the best holder's
     leverage where Lite carries the strategy; otherwise "Who" opens that holder.
+    Strategies is the board's default view (`#/lite/board`; `?by=wallet` for
+    wallets), and every row carries the tokens' own marks.
 17. **The landing needed no change.** Its CTAs open the app root, which opens the
     saved mode, so Lite for a first visit.
 

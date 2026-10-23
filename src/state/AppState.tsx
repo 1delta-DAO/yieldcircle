@@ -5,6 +5,7 @@ import { canonGroup } from '../model/assetGroup'
 import { useSolWallet } from '../wallet/solana'
 import { CHAINS } from '../sdk/queries'
 import { readFeedLink, readLinkChains } from './feedLink'
+import { readMode, writeMode, type AppMode } from './mode'
 
 /**
  * Route = the hash. The catalogue's routes are unchanged; the social ones are
@@ -35,11 +36,24 @@ import { readFeedLink, readLinkChains } from './feedLink'
  * Old heads are still read, so links already out in the world land: `#/start`
  * is the home, a bare `#/?t=…` (the feed, when it was the home) is `#/feed`,
  * and `#/explore` is `#/earn`.
+ *
+ * Lite and Pro (docs/lite.md): any route may lead with `lite/` or `pro/`. Lite has four pages —
+ * the home (`#/lite/`), Earn (`#/lite/earn`), a category's list with its ticket
+ * (`#/lite/USD?s=…`; USD, ETH, BTC and MORE, no Stocks, no Borrow, no fixed-rate books) and You
+ * (`#/lite/you`). A route with no prefix opens in the saved mode (`state/mode.ts`) when Lite has
+ * that page, so a shared link lands a first visitor in Lite; every other page is Pro's, whatever
+ * the prefix says.
  */
 export type Mode = 'add' | 'reduce' | 'close' | 'manage'
-export type View = 'home' | 'feed' | 'earn' | 'borrow' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'join'
+export type View = 'home' | 'feed' | 'earn' | 'borrow' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'join' | 'you'
 export interface Route {
   view: View
+  /** the page opens in Lite (docs/lite.md): asked for, or saved, and a page Lite has */
+  lite: boolean
+  /** the frame around it: the mode asked for, else the saved one — a Lite reader on a page only Pro has keeps Lite's tabs */
+  shell: AppMode
+  /** the mode the address names (`#/lite/…`, `#/pro/…`), when it names one */
+  asked?: AppMode
   group?: string
   u: string
   s?: string
@@ -86,6 +100,26 @@ export function parseRoute(hash = location.hash): Route {
   const [path, q] = h.split('?')
   const p = new URLSearchParams(q ?? '')
   const seg = path.split('/').filter(Boolean).map(decodeURIComponent)
+  const asked = seg[0] === 'lite' || seg[0] === 'pro' ? (seg.shift() as AppMode) : undefined
+  const r = parsePage(seg, p, hash)
+  const shell = asked ?? readMode()
+  const lite = shell === 'lite' && liteHas(r)
+  // You is Lite's page: in Pro the same address is the home
+  return { ...r, lite, shell, asked, view: !lite && r.view === 'you' ? 'home' : r.view }
+}
+
+/** The pages Lite has: its home, Earn, You, and a dollar / ether / bitcoin / more list on its deposits or loops. */
+export function liteHas(r: Page): boolean {
+  if (r.view === 'home') return !r.t
+  if (r.view === 'earn' || r.view === 'you') return true
+  if (r.view !== 'group' || !r.group || !LITE_GROUPS.has(r.group)) return false
+  // a running position named alone (`h=` with no row) is managed in Pro, where the off-menu tickets live
+  return (r.k == null || r.k === 'simple' || r.k === 'loop') && !(r.h && !r.s)
+}
+const LITE_GROUPS = new Set(['USD', 'ETH', 'BTC', 'MORE'])
+
+type Page = Omit<Route, 'lite' | 'shell' | 'asked'>
+function parsePage(seg: string[], p: URLSearchParams, hash: string): Page {
   const m = p.get('m')
   const base = {
     u: p.get('u') ?? 'all',
@@ -117,6 +151,7 @@ export function parseRoute(hash = location.hash): Route {
   if (head === 'board') return { view: 'board', ...base }
   if (head === 'me') return { view: 'me', ...base }
   if (head === 'alerts') return { view: 'alerts', ...base }
+  if (head === 'you') return { view: 'you', ...base }
   // hex is canonically lower; a base58 wallet keeps its case — it IS the address
   if (head === 'w' && seg[1] && isAddr(seg[1])) return { view: 'wallet', addr: normAddr(seg[1]), ...base }
   if (head === 'm' && seg[1]) return { view: 'market', uid: seg.slice(1).join('/'), ...base }
@@ -134,7 +169,39 @@ export function go(path: string, params: Record<string, string | undefined | nul
   // (without it, "Lend to them" there bounced straight back to Borrow)
   for (const [k, v] of Object.entries(params)) if (v != null && v !== '' && v !== 'all' && !(k === 'k' && v === 'simple' && path !== 'STOCKS')) q.set(k, v)
   const s = q.toString()
-  location.hash = '#/' + path + (s ? '?' + s : '')
+  location.hash = hrefIn(path + (s ? '?' + s : ''))
+}
+
+/**
+ * A page's address in the mode the reader is in. From a Lite page, a page Lite has stays Lite
+ * (`#/lite/USD?…`). From a page opened in Pro on purpose (`#/pro/…`: a Lite ticket's Details) it
+ * stays Pro — said out loud only when the saved mode is Lite, since an address with no prefix would
+ * open there. From a page that is Pro's only because Lite has none (a wallet, the board), the
+ * saved mode decides: a Lite reader's Copy on a wallet page opens Lite's ticket. A page Lite does
+ * not have needs no prefix: it is Pro's anyway.
+ */
+export function hrefIn(rest: string, from: Route = parseRoute()): string {
+  const bare = rest.replace(/^#?\/?/, '').replace(/^(lite|pro)(\/|$)/, '')
+  const canLite = parseRoute('#/lite/' + bare).lite
+  const pre = !canLite ? '' : from.lite ? 'lite/' : from.asked === 'pro' && readMode() === 'lite' ? 'pro/' : ''
+  return '#/' + pre + bare
+}
+/** A Lite page's address, for Lite's own links: `liteHref('earn')` → `#/lite/earn`. */
+export const liteHref = (rest = '') => '#/lite/' + rest.replace(/^#?\/?/, '')
+/** The same page in Pro, for a Lite page's Details: a visit, so the saved mode stays. */
+export const proHref = (hash = location.hash) => '#/pro/' + hash.replace(/^#\/?/, '').replace(/^(lite|pro)(\/|$)/, '')
+
+/**
+ * Switch for good: save the mode and open the page being read in it — or, from a page Lite does
+ * not have, Lite's home. You (Lite's page) opens Pro's home.
+ */
+export function goMode(m: AppMode) {
+  writeMode(m)
+  const rest = location.hash.replace(/^#\/?/, '').replace(/^(lite|pro)(\/|$)/, '')
+  const target = `#/${m}/${rest}`
+  const next = m === 'lite' && !parseRoute(target).lite ? '#/lite/' : target
+  if (next === location.hash) dispatchEvent(new HashChangeEvent('hashchange'))
+  else location.hash = next
 }
 /** A copy link's `lev`: only a loop takes one, and only levered; two decimals is what the ticket shows. */
 export const levParam = (s: { kind: string }, lev: number | null | undefined) => (s.kind === 'loop' && lev && lev > 1.05 ? lev.toFixed(2) : undefined)

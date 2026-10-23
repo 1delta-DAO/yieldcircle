@@ -32,7 +32,7 @@ import React from 'react'
 import { normAddr } from '../model/address'
 import { Logo } from '@yieldcircle/design'
 import { ConnectButton } from '../wallet/ConnectButton'
-import { useApp, useRoute, type Route, type View } from '../state/AppState'
+import { hrefIn, liteHref, useApp, useRoute, type Route, type View } from '../state/AppState'
 import { Character } from '../identity/character'
 import { useProfile } from '../social/queries'
 import { useUnseen } from './Alerts'
@@ -64,13 +64,31 @@ const TABS: { id: string; label: string; href: string; on: (r: Route) => boolean
   { id: 'board', label: 'Board', href: '#/board', on: (r) => r.view === 'board', icon: <svg {...ic}><path d="M6.5 3.5h7v4.2a3.5 3.5 0 0 1-7 0zM6.5 5H3.8v.9a2.8 2.8 0 0 0 2.9 2.8M13.5 5h2.7v.9a2.8 2.8 0 0 1-2.9 2.8M10 11.2v2.6M7 16.5h6M8.2 13.8h3.6" /></svg> },
 ]
 const ROOTS: View[] = ['home', 'feed', 'earn', 'borrow', 'board']
+/**
+ * Lite's three tabs (docs/lite.md): the home (cards to copy), Earn (four categories, one list
+ * each) and You (positions, streak, points, rank, alerts). Borrow, the board and the feed are Pro's.
+ */
+const youIcon = <svg {...ic}><circle cx="10" cy="7" r="3.2" /><path d="M3.8 17c.9-3.2 3.3-4.8 6.2-4.8s5.3 1.6 6.2 4.8" /></svg>
+const LITE_TABS: typeof TABS = [
+  { ...TABS[0], href: liteHref() },
+  { ...TABS[2], href: liteHref('earn'), on: (r) => r.view === 'earn' || r.view === 'group' },
+  { id: 'you', label: 'You', href: liteHref('you'), on: (r) => r.view === 'you', icon: youIcon },
+]
+const LITE_ROOTS: View[] = ['home', 'earn', 'you']
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const r = useRoute()
   const { back } = useBack()
+  // the frame's mode on the body, so Lite's styles (styles/lite.css) scope under it and Pro's are
+  // untouched. A Lite reader on a page only Pro has (a wallet, the board) keeps Lite's frame
+  const lite = r.shell === 'lite'
+  React.useEffect(() => { document.body.dataset.mode = lite ? 'lite' : 'pro' }, [lite])
+  // Pro's tabs keep the reader in Pro: said out loud when the saved mode is Lite (`hrefIn`)
+  const tabList = lite ? LITE_TABS : TABS.map((t) => ({ ...t, href: hrefIn(t.href, r) }))
+  const roots = lite ? LITE_ROOTS : ROOTS
   const tabs = (cls: string) => (
     <nav className={cls} aria-label="Main">
-      {TABS.map((t) => (
+      {tabList.map((t) => (
         <a key={t.id} href={t.href} aria-current={t.on(r) ? 'page' : undefined}>{t.icon}<span>{t.label}</span></a>
       ))}
     </nav>
@@ -79,14 +97,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <>
       <header className="top"><div className="inner">
         {/* one step back to the page you came from — its inputs are kept (useSticky), so a click away is never a loss */}
-        {!ROOTS.includes(r.view) && <button className="back" onClick={back} aria-label="Back" title="Back">
+        {!roots.includes(r.view) && <button className="back" onClick={back} aria-label="Back" title="Back">
           <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>}
         <Me />
-        <span className="brand"><Logo height={28} href="#/" /></span>
+        <span className="brand"><Logo height={28} href={lite ? liteHref() : hrefIn('', r)} /></span>
         {tabs('tabs-top')}
-        <Search />
-        <Yours />
+        {lite ? <span className="sp" /> : <Search />}
+        {lite ? <LiteYours /> : <Yours />}
       </div></header>
       <main className="wrap"><Waitlist />{children}</main>
       {tabs('tabbar')}
@@ -155,6 +173,23 @@ function Yours() {
         <Positions b={b} />
       </Drawer>
     </>
+  )
+}
+
+/**
+ * Lite's top-right: one balance, which opens You — where Lite keeps positions — rather than Pro's
+ * sheet with its Borrow and Put-to-work links. Connect before there is a wallet.
+ */
+function LiteYours() {
+  const { account } = useApp()
+  const b = useBook()
+  if (!account) return <ConnectButton compact />
+  const t = totalsOf(b)
+  const loading = b.positionsLoading && !b.books.length
+  return (
+    <a className={`moneychip${b.paper ? ' paper' : ''}`} href={liteHref('you')} aria-label={`You${loading ? '' : `, ${usd(t.tot)}`}`}>
+      {loading ? <Sk w={64} /> : <><b>{usdShort(t.tot)}</b>{t.yearly > 0 ? <small>{b.paper ? 'paper · ' : ''}+{usdShort(t.yearly / 365)}/day</small> : b.paper ? <small>paper</small> : null}</>}
+    </a>
   )
 }
 

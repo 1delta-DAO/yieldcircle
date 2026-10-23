@@ -14,6 +14,10 @@ import { Start } from './ui/Start'
 import { BorrowPage } from './ui/BorrowPage'
 import { useRoute } from './state/AppState'
 import { GROUPS } from './model/assets'
+import { LiteHome } from './ui/lite/LiteHome'
+import { LiteEarn } from './ui/lite/LiteEarn'
+import { LiteList } from './ui/lite/LiteList'
+import { LiteYou } from './ui/lite/LiteYou'
 
 export default function App() {
   const r = useRoute()
@@ -21,6 +25,15 @@ export default function App() {
   // only real trading stays behind the waitlist (`realTradingGated`). The join page is `#/join` only
   if (r.view === 'join') return <Join />
   const group = GROUPS.find((g) => g.id === r.group)
+  // Lite (docs/lite.md): four pages over the same catalogue, book and tickets
+  if (r.lite) return (
+    <Shell>
+      {r.view === 'you' ? <LiteYou />
+        : group ? <LiteList key={group.id} group={group} route={r} />
+        : r.view === 'earn' ? <LiteEarn />
+        : <LiteHome />}
+    </Shell>
+  )
   return (
     <Shell>
       {r.view === 'wallet' && r.addr ? <Wallet key={r.addr} addr={r.addr} />

@@ -41,6 +41,8 @@ import { NATURES, isSavings } from '../model/nature'
 import { SayWhy } from './SayWhy'
 import { TicketSocial } from './TicketSocial'
 import { AssetLink } from './TokenPage'
+import { brandOf, debtWord, depositLines, leverTag, loopLines, moneyWord, plainName, trustKind } from '../model/lite'
+import { LiteDetails, LiteLines, LitePresets } from './lite/LiteTicketBits'
 
 /**
  * What the ticket is about, for the pieces too deep to thread props through:
@@ -48,7 +50,7 @@ import { AssetLink } from './TokenPage'
  * (`threadOf`), and the wallet being copied when the ticket was opened from a
  * feed card.
  */
-export const TicketCtx = React.createContext<{ uid: string | null; thread?: ThreadRef | null; copy?: string; copyLev?: number }>({ uid: null })
+export const TicketCtx = React.createContext<{ uid: string | null; thread?: ThreadRef | null; copy?: string; copyLev?: number; /** Lite's ticket (docs/lite.md §5): three lines, no pickers, Details opens this one in Pro */ lite?: boolean }>({ uid: null })
 
 /** The ticket: what you do in plain words, amount (+ leverage), the numbers, what can go wrong, one button. */
 /**
@@ -57,7 +59,7 @@ export const TicketCtx = React.createContext<{ uid: string | null; thread?: Thre
  * never summed: each has its own health, and every action names one (`accountId`), so the ticket
  * shows a picker and works on the picked one. `pick`: the `Holding.key` to start on.
  */
-export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, copyLev, offMenu, talk, socialInList, onClose }: { s: Strategy; idle: Idle[]; holdings: Holding[]; /** deposits in this loop's collateral market that a venue rule keeps it from levering in place (`depositsAsLoops`) */ beside?: { h: Holding; why: string }[]; pick?: string; mode?: Mode; copy?: string; /** the leverage `copy` runs this loop at, offered as its own tile */ copyLev?: number; offMenu?: string; talk?: boolean; /** the list shows the thread and who is in it under the picked row, so the ticket need not */ socialInList?: boolean; onClose: () => void }) {
+export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, copyLev, offMenu, talk, socialInList, lite, onClose }: { s: Strategy; idle: Idle[]; holdings: Holding[]; /** Lite's ticket: the same engine, three lines and one button */ lite?: boolean; /** deposits in this loop's collateral market that a venue rule keeps it from levering in place (`depositsAsLoops`) */ beside?: { h: Holding; why: string }[]; pick?: string; mode?: Mode; copy?: string; /** the leverage `copy` runs this loop at, offered as its own tile */ copyLev?: number; offMenu?: string; talk?: boolean; /** the list shows the thread and who is in it under the picked row, so the ticket need not */ socialInList?: boolean; onClose: () => void }) {
   const [hk, setHk] = React.useState(pick)
   const holding = holdings.find((h) => h.key === hk) ?? holdings[0] ?? null
   // what an Add builds on: the picked position, unless the API cannot build for its account — then a new one, never figures for a book it will not touch
@@ -66,6 +68,11 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
   const [mode, setMode] = React.useState<Mode>(holding ? mode0 ?? (holding.putUp ? 'manage' : 'add') : 'add')
   const uid = uidOf(s)
   const thread = useThreadOf()(s)
+  if (lite) return (
+    <TicketCtx.Provider value={{ uid, thread, copy, copyLev, lite }}>
+      <LiteTicket s={s} idle={idle} holdings={holdings} holding={holding} into={into} mode={mode === 'add' ? 'add' : 'close'} setMode={setMode} copy={copy} copyLev={copyLev} onClose={onClose} />
+    </TicketCtx.Provider>
+  )
   return (
     <TicketCtx.Provider value={{ uid, thread, copy, copyLev }}>
     <div className="ticket">
@@ -101,6 +108,39 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
       {!socialInList && <TicketSocial uid={uid} thread={thread} s={s} focus={talk} />}
     </div>
     </TicketCtx.Provider>
+  )
+}
+
+/**
+ * Lite's ticket (docs/lite.md §5): what it is in words, where the money sits as one trust line,
+ * then Add (the open, at the Balanced tier or the copied leverage) or Withdraw all — never a tier,
+ * a slider, a route or a sub-account. Everything those decide is one tap away in Details, which
+ * opens this same strategy in Pro with the same amount.
+ */
+function LiteTicket({ s, idle, holdings, holding, into, mode, setMode, copy, copyLev, onClose }: { s: Strategy; idle: Idle[]; holdings: Holding[]; holding: Holding | null; into: Holding | null; mode: 'add' | 'close'; setMode: (m: Mode) => void; copy?: string; copyLev?: number; onClose: () => void }) {
+  const n = plainName(s)
+  const chainIdle = idle.filter((i) => i.chainId === s.chainId)
+  return (
+    <div className="ticket lite-ticket">
+      <div className="grab" />
+      <div className="th">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <Tok sym={s.assetSymbol} logo={[s.tokenLogo, s.logo]} size={26} />}
+        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{n.title}</div><div className="s">{n.sub}</div></div>
+        {s.kind === 'loop' && <span className="pill lever">{leverTag(copyLev && copyLev > 1.05 ? copyLev : s.tiers.balanced)}</span>}
+        <button className="x" onClick={onClose} aria-label="Close">✕</button></div>
+      {holding && (
+        <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
+          <button role="tab" aria-selected={mode === 'add'} onClick={() => setMode('add')}>Add</button>
+          <button role="tab" aria-selected={mode !== 'add'} onClick={() => setMode('close')}>{s.kind === 'loop' ? 'Close' : 'Withdraw all'}</button>
+          <span className="sp" /><span className="sum">{usd(holding.valueUsd)} yours{holdings.length > 1 ? ` · 1 of ${holdings.length}` : ''}</span>
+        </div></div>
+      )}
+      {copy && <CopyBanner who={copy} s={s} lev={copyLev} />}
+      {holding && mode !== 'add'
+        ? (holding.subAccount?.unsupported ? <CannotManage h={holding} /> : s.kind === 'loop' ? <ManageLoop key={holding.key} s={s} h={holding} closeFirst /> : <ManageTicket key={holding.key} s={s} h={holding} mode="close" />)
+        : s.kind === 'simple' ? <SimpleTicket key={into?.key} s={s} idle={chainIdle} allIdle={idle} into={into} /> : <LoopTicket key={into?.key} s={s} idle={chainIdle} allIdle={idle} holding={into} />}
+      <div className="tsec lite-trust"><span>{trustKind(s)} · {usdShort(s.tvlUsd)} in it</span><span className="sp" /><span className="t50">{brandOf(s)}</span></div>
+      <LiteDetails what={s.kind === 'loop' ? 'Other leverage, the route, every number' : 'Every number, the venue, the history'} />
+    </div>
   )
 }
 
@@ -292,6 +332,22 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
   // sentence describes, and the figure to check it against is right there
   const tight = s.utilization != null && s.utilization >= 0.9
   const exit = exitTerms(s)
+  const { lite } = React.useContext(TicketCtx)
+  if (lite) return (
+    <>
+      <div className="tsec">
+        <span className="lbl">How much</span>
+        <AmountBox unit={unit} value={amt} onChange={setAmt} onMax={idle ? () => setAmt(portion(idle, 100, chosen.decimals)) : undefined} />
+        {idle && idle.amount > 0 && <LitePresets onPick={(p) => setAmt(portion(idle, p, chosen.decimals))} />}
+        <div className="amt-sub"><span>{unit === '$' ? '' : `≈ ${usd(amtUsd)}`}</span><span>{account ? <>You have {idle ? `${num(idle.amount, 4)} ${idle.symbol}` : `no ${chosen.symbol}`} here{more && <span className="warn"> · more than you have</span>}</> : ''}</span></div>
+        <GetLine account={account} short={!idle || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
+        {getOpen && <GetAsset targets={opts.map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price, logo: o.role === 'token' ? s.logo : undefined, have: balOf(o.address)?.amount ?? 0 }))} want={amount} sources={allIdle}
+          onTarget={(t) => setRole(opts.find((o) => o.address === t.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}
+      </div>
+      <LiteLines l={depositLines({ rate: s.rate, amountUsd: amtUsd, exitWord: exit.word, exitWhen: exit.when, tight, maturity: s.maturity, booked: !!s.booked, rewards: s.rewards })} />
+      <Action ladder={ladder} label={`Put ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`} to work`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} fee="deposit" />
+    </>
+  )
   const risks = [
     ...(!isSavings(s.nature) ? [`Not a saving (${NATURES[s.nature].word}). ${NATURES[s.nature].why}`] : []),
     ...(s.passthrough ? [`The market pays nothing of its own: the ${pct(s.rate)} is ${s.holds}’s own yield, which ${s.holds} held in the wallet earns too. Here it sits as collateral, where the ${s.holds} loops borrow against it — and carries the market’s risk on top.`] : []),
@@ -627,7 +683,9 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const balOf = (address: string, _symbol: string) => idle.find((i) => sameToken(i.address, normAddr(address)))
   // chosen by ADDRESS: two pay rows can share a role (see `own` above)
   const [payAddr, setPayAddr] = useSticky<string | null>(`t:${s0.id}:payaddr`, null)
-  const chosen = opts.find((o) => !!payAddr && normAddr(o.address) === normAddr(payAddr)) ?? [...opts].sort((a, b) => (balOf(b.address, b.symbol)?.usd ?? 0) - (balOf(a.address, a.symbol)?.usd ?? 0))[0]
+  // with nothing held, Lite asks for the plain money (the debt: dollars, ether), never a PT's or a share's name
+  const liteTicket = React.useContext(TicketCtx).lite
+  const chosen = opts.find((o) => !!payAddr && normAddr(o.address) === normAddr(payAddr)) ?? [...opts].sort((a, b) => (balOf(b.address, b.symbol)?.usd ?? 0) - (balOf(a.address, a.symbol)?.usd ?? 0) || (liteTicket ? Number(b.role === 'debt') - Number(a.role === 'debt') : 0))[0]
   const bal = chosen ? balOf(chosen.address, chosen.symbol) : undefined
   const price = chosen?.price || bal?.price || (unit === '$' ? 1 : 0)
   const [amt, setAmt] = useStickyAmount(`t:${s0.id}:amount`, () => fromUnits(unit === '$' ? 1000 : 1))
@@ -641,11 +699,14 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const [lo, hi] = customRange(s.maxLev), canCustom = hi > lo + 0.05
   // a copy opens on the copied wallet's own leverage, held inside what this venue lets a new loop take;
   // any tier or the slider leaves it, and its tile brings it back
-  const { copyLev } = React.useContext(TicketCtx)
+  const { copyLev, lite } = React.useContext(TicketCtx)
   const copyL = copyLev && copyLev > 1.05 ? Math.round(Math.min(hi, Math.max(lo, copyLev)) * 100) / 100 : null
   const [onCopy, setOnCopy] = React.useState(copyL != null)
   const pickTier = (t: TierId) => { setOnCopy(false); setCustom(null); setTier(t) }
-  const L = onCopy && copyL != null ? copyL : custom != null && canCustom ? Math.min(hi, Math.max(lo, custom)) : s.tiers[tier]
+  // Lite picks for the reader: the copied leverage on a copy, the Balanced tier otherwise — and
+  // leaves the tier it used behind, so Details opens Pro's ticket on the same number
+  React.useEffect(() => { if (lite) { setCustom(null); setTier(DEFAULT_TIER) } }, [lite]) // eslint-disable-line react-hooks/exhaustive-deps
+  const L = lite ? copyL ?? s.tiers[DEFAULT_TIER] : onCopy && copyL != null ? copyL : custom != null && canCustom ? Math.min(hi, Math.max(lo, custom)) : s.tiers[tier]
   const E = amount * price, C = E * L, D = E * (L - 1)
   // a fixed-rate loop borrows for one term off the broker's card; `undefined` on a float loop
   const [termId, setTermId] = useSticky<string | null>(`t:${s0.id}:term`, null)
@@ -767,6 +828,25 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const hfShown = simHf ?? hf, safe = safetyOf(drop)
   const rewardsNow = loopRewards(s, L)
   const fixedNote = term ? `fixed to ${ends}` : tenor ? `fixed for ${tenorWord(tenor)}` : s.dueAt ? `fixed to ${due}` : ''
+  if (lite) return (
+    <>
+      <div className="tsec">
+        <span className="lbl">How much</span>
+        {noPay && <div className="err" style={{ margin: '0 0 10px' }}>{pay.data!.notes[0] ?? 'This venue takes no margin with the loop.'}</div>}
+        <AmountBox unit={chosen?.symbol ?? unit} value={amt} onChange={setAmt} onMax={bal && chosen ? () => setAmt(portion(bal, 100, chosen.decimals)) : undefined} />
+        {bal && chosen && bal.amount > 0 && <LitePresets onPick={(p) => setAmt(portion(bal, p, chosen.decimals))} />}
+        <div className="amt-sub"><span>≈ {usd(E)}</span><span>{account ? <>You have {bal ? `${num(bal.amount, 4)} ${chosen?.symbol}` : `no ${chosen?.symbol ?? ''}`} here{more && <span className="warn"> · more than you have</span>}</> : ''}</span></div>
+        {chosen && <GetLine account={account} short={!bal || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />}
+        {getOpen && chosen && <GetAsset targets={getForms(opts, chosen, s.chainId).map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price: o.price || price || 0, logo: o.logo, have: balOf(o.address, o.symbol)?.amount ?? 0 }))} want={amount} sources={allIdle}
+          onTarget={(t) => setPayAddr(opts.find((o) => normAddr(o.address) === normAddr(t.address))?.address ?? null)} onClose={() => setGetOpen(false)} />}
+        {short && <div className="caution depth"><b>Too big for one lender.</b> {short.message}</div>}
+      </div>
+      <LiteLines l={loopLines({ net, amountUsd: E, lev: L, drop, holds: moneyWord(s.asset, s.group), debt: debtWord(s), dollarDebt: s.group === 'USD', expiry: s.expiry, cost: econ ? cost : null, payback, quoting: q.isFetching && amount > 0 })} />
+      {econ && <div className="tsec" style={{ paddingTop: 0 }}><LossAck v={vc} what="Opening this loop" advice="Lower the amount, or open Details for a lower leverage: the swap is sized on the whole position." /></div>}
+      {noRoute && <div className="err" style={{ margin: '0 0 10px' }}>{NO_ROUTE}</div>}
+      <Action ladder={ladder} label={`Open ${leverTag(L)} loop · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={noPay ? 'This venue takes no margin with the loop' : short ? 'Too big for one lender — lower the amount' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} fee="loop" />
+    </>
+  )
   const entryWhy = econ ? `Entry cost ${usd(cost)}: swap slippage ${usd(econ.entryCostUsd.slippage)}, fees ${usd(econ.entryCostUsd.fees)}, network ${econ.entryCostUsd.gas == null ? 'not priced' : usd(econ.entryCostUsd.gas)} (max slippage ${slip / 100}%), on the whole ${num(L, 2)}× position. ${payback == null ? `At ${pct(net)} the loop earns nothing, so the entry is never earned back.` : `At ${pct(net)} on ${usd(E)} it earns ${usd(E * net / 100 / 365)} a day, so the entry is earned back in ${daysWord(payback)}${clockDays != null ? ` — ${payback > clockDays ? 'after' : 'before'} ${clockWord}` : ''}.`} Closing costs about as much again.` : ''
   return (
     <>
@@ -951,6 +1031,17 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
     // the venue's own site — a paper account has nowhere else to go, so it is never locked in
   const price = h.amount > 0 ? h.valueUsd / h.amount : 0
   const exit = s && exitTerms(s)
+  const { lite } = React.useContext(TicketCtx)
+  if (lite) return (
+    <>
+      <div className="tsec"><div className="cells">
+        <div className="c hero"><span className="k">You get back</span><span className="v">{usd(eff * price)}</span><span className="s">{num(eff, 4)} {outSym} to your wallet</span></div>
+        {exit && <div className="c"><span className="k">When</span><span className="v" style={{ fontSize: 14 }}>{exit.word}</span><span className="s">{exit.when}</span></div>}
+      </div></div>
+      {paper.active && queueSecs > 0 && <div className="tsec plain t70" style={{ fontSize: 12.5 }}><span className="pill paper">paper</span> This exit is queued: the {h.symbol} lands in your bank after the venue's wait.</div>}
+      <Action ladder={ladder} label={`Withdraw all · ${usd(eff * price)}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} fee="withdraw" />
+    </>
+  )
   return (
     <>
       <div className="tsec">
@@ -1055,7 +1146,9 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   // margin), sells only the collateral that takes and hands the rest back (`isAll` drops `amount`).
   // So it always pays out in the collateral — the debt-token option would promise what it cannot do
   const venueKeeps = isLoopscale(h.lender ?? s?.lender)
-  const keep = closing && !sameToken && (venueKeeps || recv === 'collateral')
+  // Lite closes one way: everything sold, the debt repaid, the rest back in the debt coin
+  const { lite } = React.useContext(TicketCtx)
+  const keep = closing && !sameToken && (venueKeeps || (!lite && recv === 'collateral'))
   const owed = loan ? loan.debt : h.debtAmount ?? (pD ? D / pD : 0)
   const pDebt = pD || (owed > 0 ? D / owed : 0)
   // the exact balance: a float-sized amount can overshoot it by a few wei and the swap reverts
@@ -1118,6 +1211,24 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     return [...pre, ...stepsFrom(env.actions, putUp ? `Lever to ${num(L, 2)}×` : `Increase to ${num(L, 2)}×`, h.chainId)]
   }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid], [{ address: h.collateralAddress ?? s?.collateralAddress, symbol: holds }, { address: h.debtAddress ?? s?.debtAddress, symbol: debt }], paperPlan)
+  if (lite) return (
+    <>
+      <div className="tsec">
+        <LegsNote h={h} holds={holds} debt={debt} />
+        <div className="plain">{closeBlock === 'pricing' ? <span className="t50">Pricing the sale…</span>
+          : closeBlock === 'no-route' ? <span className="t50">No way to sell it right now. Try again shortly, or close it in Details.</span>
+          : closeBlock ? <>The sale would not cover what you owe right now. Open Details to see why and what to do.</>
+          : <>Everything is sold, the {debt} you owe is repaid, and the rest comes back to your wallet.</>}</div>
+        {tight && !closeBlock && <div className="plain warn" style={{ marginTop: 6 }}>Tight: the close may revert at the worst fill (only gas is lost).</div>}
+        {valued && <LossAck v={vc} what="Closing now" advice={`It can be worth waiting for ${holds} to trade closer to its price on the venue.`} />}
+      </div>
+      <div className="tsec"><div className="cells">
+        <div className="c hero"><span className="k">You get back</span><span className={`v ${closeBlock === 'short' ? 'bad' : ''}`}>{cq.isPending ? <Sk w={60} h={14} /> : backUsd != null && backUsd > 0 ? usd(backUsd) : '—'}</span><span className="s">{backDebt != null && !keep ? `≈ ${num(backDebt, 4)} ${debt}` : keep && backColl != null ? `≈ ${num(backColl, 4)} ${holds}` : ''}</span></div>
+        <div className="c"><span className="k">Costs</span><span className="v">{sale?.exitCostUsd != null ? usd(sale.exitCostUsd) : '—'}</span><span className="s">the sale's slippage and fees</span></div>
+      </div></div>
+      <Action ladder={ladder} label="Close and withdraw" account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} fee="reduce" />
+    </>
+  )
   const snaps: { l: number; t: string }[] = [...(putUp ? [] : minL <= 1 ? [{ l: 1, t: 'Close' }] : [{ l: minL, t: 'Repay loan' }]), ...(s ? TIERS.map((t) => ({ l: Math.min(maxL, s.tiers[t.id]), t: t.name })).filter((x) => x.l >= minL) : []), { l: +Lnow.toFixed(2), t: 'Now' }]
   return (
     <>

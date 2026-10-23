@@ -20,6 +20,7 @@
     "whitelist": "node scripts/whitelist.mjs",
     "logos": "node scripts/logos.mjs",
     "notes": "node scripts/notes.mjs",
+    "lagoon": "node scripts/lagoon.mjs",
     "rpcs": "node scripts/rpcs.mjs",
     "menu-seed": "node scripts/menu-seed.mjs",
     "prewarm-check": "node scripts/prewarm-check.mjs",

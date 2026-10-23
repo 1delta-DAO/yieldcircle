@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../vendor/allocator/http'
 import { fetchBorosHedge, fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopDepthShort, loopOpen, type LoopCloseParams, type OptimizerQuery } from './api'
 import { bookOpen, capPerAsset, classifyEarn, classifyPair, dedupe, FIXED_BOOK_PROTOCOLS, foldBookDates, foldDates, rowKey, type Candidate, type LoopStrategy, type LoopTenor, type SimpleStrategy, type Strategy } from '../model/strategies'
-import { HIDES, hideDetail, softHide, type HideCode } from '../model/visibility'
+import { capOf, HIDES, hideDetail, softHide, type HideCode } from '../model/visibility'
 import { parseUid } from '../model/uid'
 import { EXPOSURE_ASSETS, FIAT_FLOOR, FIAT_REQUESTS, fiatOf } from '../model/assets'
 import { useSettings, type Settings } from '../state/Settings'
@@ -279,7 +279,7 @@ function mergeStructural(parts: { structural: Sorted<Strategy>['structural']; ki
  * The STOCK request is also the catalogue's (`useCatalog`): every stock token it names is noted
  * as a stock (`noteStock`) and its address joins the balance read, so a wallet's TSLAx shows up.
  */
-const STOCK_BORROW: Omit<OptimizerQuery, 'chainIds'> = { collateralAssetClasses: ['stocks'], debtTags: ['stablecoin'], sortBy: 'totalDepositsUsdLong', sortDir: 'DESC', minBorrowLiquidityUsd: 0, maxConfigRiskScore: 5 }
+const STOCK_BORROW: Omit<OptimizerQuery, 'chainIds'> = { collateralAssetClasses: ['stocks'], debtTags: ['stablecoin'], sortBy: 'totalDepositsUsdLong', sortDir: 'DESC', minBorrowLiquidityUsd: 0 }
 const CRYPTO_BORROW: { key: string; q: Omit<OptimizerQuery, 'chainIds'> }[] = [
   { key: 'native', q: { collateralTags: ['wnative'], debtTags: ['stablecoin'] } },
   { key: 'btc', q: { collateralTags: ['btc'], debtTags: ['stablecoin'] } },
@@ -406,7 +406,7 @@ export function useCatalog(chainIds: string[]) {
   const earn = useQueries({
     queries: buckets.map((ids) => ({
       queryKey: ['earn-rows', ids.join(','), st.minTvlUsd, st.showCollateral],
-      queryFn: async () => (await fetchEarn({ chainIds: ids, count: 1000, maxRiskScore: 5, minTvlUsd: st.minTvlUsd, passthrough: st.showCollateral })).items,
+      queryFn: async () => (await fetchEarn({ chainIds: ids, count: 1000, minTvlUsd: st.minTvlUsd, passthrough: st.showCollateral })).items,
       staleTime: 10 * 60_000,
     })),
   })
@@ -429,7 +429,7 @@ export function useCatalog(chainIds: string[]) {
     queries: exposed.flatMap((e) => [
       {
         queryKey: ['exposure-earn', e.chainId, e.sym, st.minTvlUsd],
-        queryFn: async () => sortOut((await fetchEarn({ chainIds: [e.chainId], count: 1000, maxRiskScore: 5, minTvlUsd: st.minTvlUsd, assetSymbol: e.sym, passthrough: true })).items.map(classifyEarn), 'simple') as Sorted<Strategy>,
+        queryFn: async () => sortOut((await fetchEarn({ chainIds: [e.chainId], count: 1000, minTvlUsd: st.minTvlUsd, assetSymbol: e.sym, passthrough: true })).items.map(classifyEarn), 'simple') as Sorted<Strategy>,
         staleTime: 10 * 60_000,
       },
       {
@@ -472,7 +472,7 @@ export function useCatalog(chainIds: string[]) {
     queries: fiatReqs.map((q) => ({
       queryKey: ['fiat-earn', chainIds.join(','), q.key, st.minTvlUsd, st.showCollateral],
       queryFn: async () => {
-        const r = await fetchEarn({ chainIds, count: 1000, maxPages: 1, maxRiskScore: 5, minTvlUsd: FIAT_FLOOR, issuers: q.issuers, issuerMatch: q.issuerMatch, assetSymbol: q.assetSymbol, passthrough: st.showCollateral })
+        const r = await fetchEarn({ chainIds, count: 1000, maxPages: 1, minTvlUsd: FIAT_FLOOR, issuers: q.issuers, issuerMatch: q.issuerMatch, assetSymbol: q.assetSymbol, passthrough: st.showCollateral })
         return sortOut(r.items.filter((m) => fiatOf(m.asset.denomination) && (m.tvl?.usd ?? 0) < st.minTvlUsd).map(classifyEarn), 'simple') as Sorted<Strategy>
       },
       staleTime: 10 * 60_000,
@@ -586,14 +586,14 @@ export function useFixedRateCatalog(chainIds: string[]) {
   const q = useQuery({
     enabled: ids.length > 0,
     queryKey: ['fixed-rows', ids.join(',')],
-    queryFn: async () => (await fetchEarn({ chainIds: ids, count: 500, maxPages: 2, maxRiskScore: 5, minTvlUsd: 0, includeFixedTerm: true, protocols: FIXED_BOOK_PROTOCOLS })).items
+    queryFn: async () => (await fetchEarn({ chainIds: ids, count: 500, maxPages: 2, minTvlUsd: 0, includeFixedTerm: true, protocols: FIXED_BOOK_PROTOCOLS })).items
       .map(classifyEarn).flatMap((c) => (c.s?.book ? [c.s] : [])),
     staleTime: 10 * 60_000,
   })
   return useMemo(() => {
     const all = q.data ?? []
     const open = all.filter((s) => bookOpen(s))
-    const { rows, rest } = foldBookDates(open.filter((s) => s.riskScore <= st.maxRisk))
+    const { rows, rest } = foldBookDates(open.filter((s) => s.riskScore <= capOf(st)))
     // a book is idle when it still runs but none of its maturities has an offer: counted once per market name, not per date
     const now = Date.now() / 1000
     const idle = new Set(all.filter((s) => (s.maturity ?? 0) > now && !bookOpen(s) && !open.some((o) => o.chainId === s.chainId && o.market === s.market)).map((s) => `${s.chainId}|${s.market}`)).size
@@ -612,7 +612,7 @@ export function useFixedRateCatalog(chainIds: string[]) {
  *     deposits, the ones paying only its own yield included;
  *   - one `/v1/data/earn?shareGroup=<group>` — the vaults that mint it (Nest's savings vault
  *     for nOPAL), by the `shareToken` the API stamps from the token lists;
- *   - one `pairs/optimize?collaterals=<its addresses>&includeIlliquid=true&maxConfigRiskScore=5`
+ *   - one `pairs/optimize?collaterals=<its addresses>&includeIlliquid=true&maxConfigRiskScore=6`
  *     per chain — every loop with it as collateral, tagged or not, any debt, an empty one and a
  *     score-5 one too (`classifyPair` still refuses a price bet; `softHide` marks the empty one
  *     `thin-borrow` and the score-5 one `risky`; the API's default ceiling is 4).
@@ -634,7 +634,7 @@ export function useAssetStrategies(group: string | undefined, members: { chainId
   const earn = useQuery({
     enabled: !!group && earnChains.length > 0,
     queryKey: ['asset-earn', group, earnChains.join(',')],
-    queryFn: async () => sortOut((await fetchEarn({ chainIds: earnChains, count: 1000, maxRiskScore: 5, minTvlUsd: 0, assetGroup: group, passthrough: true })).items.map(classifyEarn), 'simple'),
+    queryFn: async () => sortOut((await fetchEarn({ chainIds: earnChains, count: 1000, minTvlUsd: 0, assetGroup: group, passthrough: true })).items.map(classifyEarn), 'simple'),
     staleTime: 10 * 60_000,
   })
   // the vaults that MINT it: deposit USDC, hold nOPAL. Every chain in scope, not only the token's
@@ -644,14 +644,14 @@ export function useAssetStrategies(group: string | undefined, members: { chainId
   const minted = useQuery({
     enabled: !!group,
     queryKey: ['asset-minted', group, scope?.join(',') ?? 'all'],
-    queryFn: async () => sortOut((await fetchEarn({ chainIds: CHAINS.map((c) => c.id).filter(inScope), count: 200, maxPages: 1, maxRiskScore: 5, minTvlUsd: 0, shareGroup: group }))
+    queryFn: async () => sortOut((await fetchEarn({ chainIds: CHAINS.map((c) => c.id).filter(inScope), count: 200, maxPages: 1, minTvlUsd: 0, shareGroup: group }))
       .items.filter((m) => m.shareToken?.assetGroup === group).map(classifyEarn), 'simple'),
     staleTime: 10 * 60_000,
   })
   const loops = useQueries({
     queries: chains.map((chainId) => ({
       queryKey: ['asset-loops', chainId, [...byChain[chainId]].sort().join(',')],
-      queryFn: async ({ client }: QueryFunctionContext) => sortOut((await optimizerPages(client, { chainIds: [chainId], collaterals: byChain[chainId], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, includeIlliquid: true, maxConfigRiskScore: 5 })).map(classifyPair), 'loop'),
+      queryFn: async ({ client }: QueryFunctionContext) => sortOut((await optimizerPages(client, { chainIds: [chainId], collaterals: byChain[chainId], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, includeIlliquid: true })).map(classifyPair), 'loop'),
       staleTime: 10 * 60_000,
     })),
   })
@@ -967,14 +967,14 @@ export async function fetchOffMenu({ id, by }: OffMenuRef): Promise<OffMenuRow> 
     // one named pair, so no floor may cut it: the API's own default config-risk ceiling is 4 and
     // drops every score-5 market (Morpho PT-apxUSD-5NOV2026 / apxUSD at 94.5 % LLTV answered
     // nothing, 2026-10-12); the ticket's off-menu warning and `softHide` carry the risk instead
-    const r = await fetchOptimizerPairs({ chainIds: [chainId], collaterals: [by], minBorrowLiquidityUsd: 0, maxConfigRiskScore: 5, includeIlliquid: true, includeExpired: true, count: 100 })
+    const r = await fetchOptimizerPairs({ chainIds: [chainId], collaterals: [by], minBorrowLiquidityUsd: 0, includeIlliquid: true, includeExpired: true, count: 100 })
     const row = r.items.find((x) => sameUid(x.marketLongUid, long) && sameUid(x.marketShortUid, short))
     return row ? classifyPair(row) : null
   }
   const earnUid = id.slice(2)
   const chainId = parseUid(earnUid)?.chainId
   if (!chainId) return null
-  const r = await fetchEarn({ chainIds: [chainId], count: 500, maxRiskScore: 5, minTvlUsd: 0, assetSymbol: by, passthrough: true })
+  const r = await fetchEarn({ chainIds: [chainId], count: 500, minTvlUsd: 0, assetSymbol: by, passthrough: true })
   // a profile names the MARKET uid, a reloaded ticket its own id (`s:<earnUid>`): either finds it
   const m = r.items.find((x) => sameUid(x.earnUid, earnUid) || (!!x.refs?.marketUid && sameUid(x.refs.marketUid, earnUid)))
   return m ? classifyEarn(m) : null

@@ -51,9 +51,19 @@ const LISTING_TIMEOUT_MS = 25_000
 // `includeFixedTerm` + `protocol` are the fixed-rate shelf's request only (tickets/0013): the origin
 // lists book loans (Midnight, Term) only when asked, and the default request must stay byte-identical
 // for the pre-warm, so both are sent only when set.
+/**
+ * The risk ceiling every listing request sends: everything the API serves, up to 6
+ * (`compromised`). What is SHOWN is the client's call (`softHide` against
+ * `Settings.maxRisk`), so a row over the user's cap is still counted in the
+ * "held back" bar, and raising the cap needs no new request. Without it the
+ * pairs route applies its own default (`maxConfigRiskScore` 4) and every
+ * score-5 loop is gone before the app sees it — Flying Tulip on Ethereum,
+ * 2026-10-23, all eleven rows. Worker-api's `prewarmListings` sends the same.
+ */
+export const API_RISK_CEILING = 6
 export async function fetchEarn(p: { chainIds: string[]; count?: number; maxRiskScore?: number; minTvlUsd?: number; assetSymbol?: string; assetGroup?: string; shareGroup?: string; issuers?: string[]; issuerMatch?: 'credit'; passthrough?: boolean; maxPages?: number; includeFixedTerm?: boolean; protocols?: string[] }): Promise<EarnResponse> {
   const count = p.count ?? 500
-  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, assetGroup: p.assetGroup, shareGroup: p.shareGroup, issuers: p.issuers?.join(','), issuerMatch: p.issuerMatch, passthrough: p.passthrough ? 'include' : undefined, includeFixedTerm: p.includeFixedTerm ? 'true' : undefined, protocol: p.protocols?.join(',') }
+  const params: ApiParams = { chainIds: p.chainIds.join(','), count, sort: 'tvl', maxRiskScore: p.maxRiskScore ?? API_RISK_CEILING, minTvlUsd: p.minTvlUsd, terms: 'digest', assetSymbol: p.assetSymbol, assetGroup: p.assetGroup, shareGroup: p.shareGroup, issuers: p.issuers?.join(','), issuerMatch: p.issuerMatch, passthrough: p.passthrough ? 'include' : undefined, includeFixedTerm: p.includeFixedTerm ? 'true' : undefined, protocol: p.protocols?.join(',') }
   const served = (r: EarnResponse) => r.items.length + (r.excluded?.unrealizable ?? 0)
   const first = await apiFetchLoose<EarnResponse>('/v1/data/earn', { params, timeoutMs: LISTING_TIMEOUT_MS })
   const items = [...first.items]
@@ -153,7 +163,7 @@ const csv = (v?: string[]) => (v && v.length ? v.join(',') : undefined)
 export function fetchOptimizerPairs(q: OptimizerQuery): Promise<OptimizerResponse> {
   const params: ApiParams = {
     ...(q.chainIds.length === 1 ? { chainId: q.chainIds[0] } : { chainIds: q.chainIds.join(',') }), collateralTags: csv(q.collateralTags), collaterals: csv(q.collaterals), debtTags: csv(q.debtTags), collateralAmountUsd: q.collateralAmountUsd,
-    maxConfigRiskScore: q.maxConfigRiskScore, maxTokenRiskScore: q.maxTokenRiskScore, minBorrowLiquidityUsd: q.minBorrowLiquidityUsd,
+    maxConfigRiskScore: q.maxConfigRiskScore ?? API_RISK_CEILING, maxTokenRiskScore: q.maxTokenRiskScore, minBorrowLiquidityUsd: q.minBorrowLiquidityUsd,
     includeExpired: q.includeExpired, includeIlliquid: q.includeIlliquid || undefined, collateralAssetClasses: csv(q.collateralAssetClasses), sortBy: q.sortBy ?? 'aprTotal', sortDir: q.sortDir ?? 'DESC', start: q.start, count: q.count ?? 100,
   }
   return apiFetchLoose<OptimizerResponse>('/v1/data/lending/pairs/optimize', { params, timeoutMs: LISTING_TIMEOUT_MS })

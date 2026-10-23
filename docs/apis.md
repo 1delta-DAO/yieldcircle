@@ -13,6 +13,16 @@ has **no backend of its own**; it reads three services:
 All base URLs are resolved in `src/config/backend.ts`. Vite bakes them in at
 **build** time.
 
+**Lagoon strategy text is a build-time snapshot, not a call.** Lagoon publishes no
+allocation, so a `vault.lagoon:*` market page shows the manager's own description
+(`ui/Market.tsx` `Strategy`). It comes from Lagoon's **undocumented** web-app routes
+(`app.lagoon.finance/api/vaults?pageSize=500`, `/api/vault?chainId=&address=`), which
+send no CORS header — so `node scripts/lagoon.mjs` writes `src/data/lagoon.json`
+(keyed `chainId:address`, lazy-loaded by `model/lagoon.ts`) and the browser never
+calls Lagoon. Re-run it to pick up new vaults; it refuses to overwrite on a thin read.
+It is the manager's pitch, not a reading of the money: never feed it into
+"Whose credit" or a nature.
+
 **Rates are APR, and the UI says APR.** Every backend rate (`depositApr*`,
 `borrowApr*`, `rewardApr*`, `aprTotal`, `intrinsicYield`, the index's `apr*`)
 is a nominal, simple APR in percent, so legs add: base + rewards + intrinsic,

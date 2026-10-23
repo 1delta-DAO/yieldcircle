@@ -319,7 +319,7 @@ const num = (v: string | number | null | undefined): number => { if (v == null |
  * label, is read, because the earn listing mixes in colour words that disagree
  * with it (`2 yellow`, `4 red`). An unrated row wears the medium dot, never low.
  * 6 is risk-data's `compromised` (drained, backing gone): the listings ask for
- * `maxRiskScore: 5` so it should never arrive, and if one does it says so.
+ * everything up to 6 (`API_RISK_CEILING`), `Any` shows it, and it says so.
  */
 export const riskOf = (score: number | undefined, _label?: string): { risk: Risk; riskLabel: string } => {
   if (!score) return { risk: 2, riskLabel: 'Unrated' }

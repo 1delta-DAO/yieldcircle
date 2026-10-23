@@ -12,9 +12,9 @@
  *   holding the pool's coins, so the value moves with SOL, ETH, BTC.
  * - `managed`: a manager trades the money and reports what it is worth (Lagoon, Hyperliquid user
  *   vaults). Even denominated in dollars the share can fall: the rate is a past result, not
- *   interest. The API carries no strategy tag that would tell a Lagoon lending vault from a
- *   Lagoon trading desk, so the whole platform is read as managed — the honest default for a NAV
- *   that someone else reports.
+ *   interest. The 1delta API carries no strategy tag; Lagoon's own (`data/lagoon.json`) does,
+ *   but even its "Fixed Income" vaults are a NAV the manager reports, so the whole platform stays
+ *   managed — the honest default for a NAV that someone else reports.
  * - `marked`: the share is priced off a market rather than accrued — the API's
  *   `yieldProfile: 'volatile'` (Yield Basis' leveraged BTC / ETH pools, Saturn's USDat). The rate
  *   is a trailing result, and it can be negative.

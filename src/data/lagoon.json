@@ -1,0 +1,959 @@
+{
+ "at": "2026-10-23",
+ "vaults": {
+  "1:0x01f461a0bbb218bc1943aa027c5bbc424391e541": {
+   "name": "DeltaUSD HyperLiquid USDN Funding Arb",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Everything",
+     "url": "https://everything.inc/"
+    }
+   ],
+   "short": "Delta-neutral funding arbitrage & on-chain yield strategies targeting 15–20% annual returns",
+   "description": "This vault combines multiple market-neutral strategies designed to generate attractive USDT-denominated returns while minimizing directional market exposure.\n\nThe core strategy arbitrages funding rate discrepancies between SMARDEX Perpetuals and Hyperliquid. When SMARDEX's funding rate is more attractive than Hyperliquid's, the vault opens a delta-neutral position by going long on one venue and short on the other. Positions are dynamically rebalanced as funding conditions evolve.\n\nIn addition, the vault allocates a portion of its capital to carefully selected Everything.inc Earn opportunities, allowing idle liquidity to generate additional on-chain yield through decentralized lending and liquidity markets.\n\nBy combining funding arbitrage with diversified on-chain yield generation, the vault seeks to deliver 15–20% annual returns with controlled risk and minimal exposure to market direction.\n\nQuestions? Reach out on x.com/every_thing",
+   "transparencyUrl": "https://everything.inc/",
+   "inception": 1755208463
+  },
+  "1:0x03d1ec0d01b659b89a87eabb56e4af5cb6e14bfc": {
+   "name": "9Summits Flagship USDC",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "Get the best risk adjusted yield on USDC denominated strategies across a diversified set of DeFi protocols.",
+   "description": "Get the best risk adjusted yield on USDC denominated strategies across a diversified set of DeFi protocols. Strategies include LP on DEXes, lend assets on money markets, leverage fixed income protocols either to LP or get fixed rate, buy depegged stablecoins and use redemption.",
+   "transparencyUrl": null,
+   "inception": 1734600623,
+   "insurance": [
+    {
+     "name": "Nexus Mutual",
+     "link": "https://app.nexusmutual.io/cover/product/345",
+     "note": "Get coverage for 9SUSDC on Nexus Mutual (3.22% annual)"
+    }
+   ]
+  },
+  "1:0x07ed467acd4ffd13023046968b0859781cb90d9b": {
+   "name": "9Summits Flagship ETH",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "This vault aims to capture the best risk adjusted yield on ETH denominated strategies across a diversified set of DeFi protocols.",
+   "description": "Strategies on ETH correlated assets include LP on DEXes, lend assets on money markets, leverage fixed income protocols either to LP or get fixed rate, buy depegged asset and use redemption for LRT/LST, farm airdrop points and governance tokens.",
+   "transparencyUrl": null,
+   "inception": 1731060827,
+   "insurance": [
+    {
+     "name": "Nexus Mutual",
+     "link": "https://app.nexusmutual.io/cover/product/344",
+     "note": "Get coverage for 9SETH on Nexus Mutual (3.14% annual)"
+    }
+   ]
+  },
+  "1:0x09252d2c4afca9b1479efdd39faa53de9ff23114": {
+   "name": "Coinshift USPC High Yield",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Gami",
+     "url": "https://gamilabs.io/"
+    }
+   ],
+   "short": "Gami's Coinshift Leveraged USPC Vault targets 12%+ net annualized returns by applying fixed-rate leverage across the Coinshift ecosystem, including liquidity pools, yield monetization, and money market supply. Built on top of USPC, the vault benefits from a strong institutional-grade foundation, with USPC fully backed by a diversified portfolio of institutional-grade assets including BlackRock ICS USD Liquidity, Fidelity ILF USD, and Apollo ACRED.",
+   "description": "USPC is an institutional-grade ERC-4626 wrapper for iUSPC, actively managed across money markets (TermMax), LP venues (Curve, StakeDAO), and fixed income (Spectra, Pendle), coordinating veBoost mechanics and vote incentives. This vault amplifies yield by applying leverage across idle USPC positions, Curve LP positions staked in StakeDAO via Morpho, and Principal Tokens. LTV is actively monitored and managed to preserve capital efficiency while limiting liquidation risk.\n\nIn Phase-1, the underlying USPC backing is anchored by a diversified portfolio of institutional-grade assets, with 80% allocated to daily liquid money market funds (BlackRock ICS USD Liquidity and Fidelity ILF USD) and 20% to Apollo ACRED, a tokenized private credit fund with quarterly liquidity. This structure is designed to maintain strong day-to-day liquidity while enhancing yield through institutional private credit exposure.\n\nMaterial changes: 14–30d.",
+   "transparencyUrl": null,
+   "inception": 1777563047
+  },
+  "1:0x1b2cb79a4564206f53ba80b4d780f251b4ae6765": {
+   "name": "Syntropia USDC Core",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Syntropia",
+     "url": "https://syntropia.ai/"
+    }
+   ],
+   "short": "Earn the best risk-adjusted yields on USDC with Syntropia’s diversified DeFi strategies.",
+   "description": "We combine multiple approaches: liquidity provision on DEXs, lending on money markets, yield-bearing and fixed-income assets, arbitrage opportunities, and farming points, airdrops, and governance incentives. All of this is powered by advanced risk management and circuit breakers developed by the Syntropia team.",
+   "transparencyUrl": null,
+   "inception": 1760030543
+  },
+  "1:0x2031eceec018549a2c729cacd6c0bfc4be2524ed": {
+   "name": "Gami ETH",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Gami",
+     "url": "https://gamilabs.io/"
+    }
+   ],
+   "short": "Gami’s compounding vault optimizes ETH yields across DeFi by combining money market, liquidity providing, and fixed income strategies. It maximizes risk-adjusted returns through dynamic allocation and additional incentive capture.",
+   "description": "Gami ETH is an actively managed, compounding ETH vault designed to deliver the best risk-adjusted yields in DeFi. It allocates capital across leading money markets (Morpho, Aave, Silo...), fixed-income protocols (Pendle, Spectra), and liquidity pools (Curve, Balancer, StakeDAO...) to optimize performance. The strategy also leverages ecosystem reward programs, pre-TGE tokens, and governance incentives to boost returns.",
+   "transparencyUrl": null,
+   "inception": 1769245583
+  },
+  "1:0x2746f31096f23670caf4043f8b30d8d02405a257": {
+   "name": "stETH Redemption Carry",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "σ-Labs",
+     "url": "https://www.sigmalabs.fi"
+    },
+    {
+     "name": "Ellen Capital",
+     "url": "https://www.ellen.capital"
+    }
+   ],
+   "short": "This is a typical carry strategy on ETH, buying stETH at a discount on Curve and redeems it at par through the Lido withdrawal queue, capturing the spread. Capital not deployed in the carry is parked in sigmaETH, so today the vault's realized return is essentially the Morpho idle yield while it waits for the carry to clear.",
+   "description": "This is a typical carry strategy on ETH, buying stETH at a discount on Curve and redeems it at par through the Lido withdrawal queue, capturing the spread. Capital not deployed in the carry is parked in sigmaETH, so today the vault's realized return is essentially the Morpho idle yield while it waits for the carry to clear.",
+   "transparencyUrl": null,
+   "inception": 1781136000
+  },
+  "1:0x28663161f9fa2963eb6102b88a741e195e974df6": {
+   "name": "Mt Pelerin – USD strategy pool",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Mt Pelerin",
+     "url": "https://www.mtpelerin.com"
+    }
+   ],
+   "short": "Our USDC vault provides access to curated DeFi opportunities through a non-custodial infrastructure, with a focus on security, risk analysis, and disciplined allocation.",
+   "description": "This USDC vault provides streamlined access to selected DeFi opportunities through a non-custodial, on-chain infrastructure.\nIts automated strategy allocates assets across selected protocols according to predefined rules, combining diversification with delta-neutral and hedging techniques where relevant. Designed for disciplined execution, the vault applies its allocation framework automatically, without requiring users to manage each underlying position.",
+   "transparencyUrl": null,
+   "inception": 1768389503
+  },
+  "1:0x2927c6d7f89b5ffdf5ad293b4aa6519d495cb341": {
+   "name": "Mt Pelerin – USD Senior Strategies",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Mt Pelerin",
+     "url": "https://www.mtpelerin.com"
+    }
+   ],
+   "short": "A portfolio of senior and first-loss-protected yield products",
+   "description": "A portfolio of senior and first-loss-protected yield products. The vault is not itself a tranche: it invests in senior positions where a junior layer absorbs losses first. These include senior tranches issued by tranching protocols such as Royco and Strata, and the senior yield tokens of stablecoin issuers with a built-in junior layer, such as Avant's savUSD. Exposure is taken directly, through Pendle PT and LP on these assets, or by lending on Morpho against them as collateral.\n\nMain risks: losses exceeding the junior buffer, smart-contract risk of each protocol and of Pendle and Morpho, oracle and valuation risk on the underlying assets, and exit delays set by the underlying protocols.",
+   "transparencyUrl": null,
+   "inception": 1790698871
+  },
+  "1:0x2a676c2744421b4fae65ce86b47adacb620047d4": {
+   "name": "Gami hemiBTC",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Gami",
+     "url": "https://gamilabs.io/"
+    },
+    {
+     "name": "Hemi",
+     "url": "https://hemi.xyz/"
+    }
+   ],
+   "short": "Co-curated by Hemi and Gami, the hemiBTC vault is designed to unlock sustainable, compliant yield for your Bitcoin. This institutional-grade strategy leverages deep DeFi expertise to generate competitive returns while preserving the integrity of your BTC.",
+   "description": "This vault employs a dynamic, two-phase strategy to generate sustainable BTC-denominated yield. Initially, the strategy focuses on providing liquidity to the Curve tripool-hemiBTC while enhancing yield through leveraged positions on premier money markets. Once sufficient liquidity is established, the vault will deploy capital into YieldBasis, allocating between yield-bearing and staked hemiBTC to maximize risk-adjusted returns. Capital is actively managed by Gami and Hemi to adapt to market conditions and capture the best available yield opportunities across the DeFi ecosystem.",
+   "transparencyUrl": null,
+   "inception": 1768500179
+  },
+  "1:0x3c63f3ce75dc83735745cf4e86b63414d95ee355": {
+   "name": "DAMM Ethereum Fund",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "DAMM Capital",
+     "url": "https://dammcap.finance/"
+    }
+   ],
+   "short": "This vault is an ETH-denominated fund designed to deliver market-neutral returns on ETH by implementing a diversified set of DeFi-native strategies across trusted protocols.",
+   "description": "DAMMeth is a market-neutral ETH-denominated fund designed to deliver risk-adjusted returns by combining decentralized market-making models with diversified strategies across battle-tested DeFi infrastructure on different blockchains. The strategy actively allocates capital across a range of yield optimization techniques, aiming to maximize nominal returns on Ether while maintaining zero historical drawdowns on the fund’s price per share. Investors also benefit from T+1 liquidity, if needed. DAMMeth deploys capital through a diversified set of strategies, including: Algorithmic liquidity provision using LSTs and LRTs on correlated pairs via DEXes like Uniswap, powered by proprietary models, Overcollateralized lending on trusted onchain credit markets, Fixed-income strategies using zero-coupon bonds and fixed-rate protocols, LST/LRT arbitrage and redemption-based opportunities, Liquid staking for additional ETH-native yield. The result is a transparent, partially algorithmic, and discretionary capital allocation model—built to preserve Ether as a long-term store of value while compounding sustainable, onchain-native yield across blue-chip DeFi ecosystems.",
+   "transparencyUrl": null,
+   "inception": 1759964663
+  },
+  "1:0x401550bc1ce4fb0ffdd86015f49142bbaad29ad8": {
+   "name": "VOLTA90 MULTI ASSET STRATEGY",
+   "category": "directional",
+   "categoryLabel": "Directional",
+   "curators": [
+    {
+     "name": "VOLTA90",
+     "url": "https://volta90.trade/"
+    }
+   ],
+   "short": "A multi-asset strategy, one vault. Directional exposure to traditional and crypto markets, actively managed. Transparent and verifiable.",
+   "description": "VOLTA90 is a multi-asset strategy. Directional exposure to traditional and crypto markets, actively managed: equities, commodities, indices, ETFs and crypto. Algorithms, screeners and alerts detect opportunities continuously. We place them back in context and decide.\n\nWeights shift with market conditions and our convictions, within the concentration limits. Exposure is tracked continuously and adjusted as market context changes. Positions are trimmed or hedged when markets turn. Risk and drawdown are part of the strategy; we know how to manage them.\n\nWithin the concentration limits, sector conviction stays discretionary. Taking a position or not stays our decision. Execution and risk control are automated. The detailed methodology stays confidential.",
+   "transparencyUrl": "https://volta90.trade/app/transparency",
+   "inception": 1788532823
+  },
+  "1:0x4cb280e63251b9ab24a54def74bf5995d82ff398": {
+   "name": "Rho X Liquidity Provider",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Rho X",
+     "url": "https://www.rho.trading"
+    }
+   ],
+   "short": "A multi-strategy vault generating yield from liquidity provision and market making within Rho products.",
+   "description": "Liquidity is supplied across Rho products to support trading and price discovery. The Vault earns trading fees, spreads, and additional yield sources. Positions are managed under defined risk parameters, with exposure diversified across markets.",
+   "transparencyUrl": null,
+   "inception": 1766771891
+  },
+  "1:0x4ef75e307f7edbf0462c679192c1ff7e911c389a": {
+   "name": "f(x) Protocol - Leveraged ecosystem vault",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "Leveraged fxSAVE yield on Morpho. Deposit USDC; the vault loops fxSAVE against USDC borrowing to amplify f(x) Protocol's savings yield, with leverage actively managed for risk-adjusted returns",
+   "description": "**Strategy**\nfxLOOP runs a leveraged USDC carry trade on f(x) Protocol yield. The vault supplies collateral on Morpho, borrows USDC against it and loops it back into collateral up to the target leverage. It earns the spread between the collateral yield and the USDC borrow rate, multiplied by the leverage. Two collateral legs, allocated to whichever offers the better carry:\n- **fxSAVE**: f(x) Protocol's auto-compounding savings token backed by the fxUSD stability pool, earning a variable yield.\n- **PT-fxSAVE**: the Pendle principal token of fxSAVE, locking in a fixed yield until maturity.\n\n**Risk management**\nLeverage is not fixed. The leverage is adjusted depending on the live spread between fxSAVE yield and Morpho USDC borrow rates. It adds leverage when the carry is wide and deleverages when borrow rates rise or the spread compresses. This is a high leverage vault. Any sustained fxUSD depeg could lead to liquidations.\n\n**Key risks**\n- Liquidation risk: a drop in fxSAVE's value or an oracle deviation can trigger liquidation of the Morpho position.\n- Rate risk: if USDC borrow rates rise above fxSAVE yield, the carry turns negative until the position is deleveraged.\n- Liquidity risk: unwinding depends on Morpho market liquidity and fxSAVE redemption, which can delay withdrawals.\n- Smart contract risk across f(x) Protocol and Morpho",
+   "transparencyUrl": null,
+   "inception": 1791812783
+  },
+  "1:0x56105f694e9549cebd0d509f1de71b22abe8f1d8": {
+   "name": "DeltaETH HyperLiquid USDN EVERYTHING Funding Arb",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Everything",
+     "url": "https://everything.inc/"
+    }
+   ],
+   "short": "The vault executes arbitrage strategies across SmarDex perps, Hyperliquid funding rates, EVERYTHING LP, and USDN, targeting a 6–12% annualized yield on ETH.",
+   "description": "This vault aims to arbitrage between SMARDEX's perpetuals and Hyperliquid's funding rates. When SMARDEX's rate is lower than Hyperliquid's, we go long on SMARDEX's perp and short on Hyperliquid. When the opposite occurs, we close the positions and mint USDN to maximize the capture of SMARDEX's funding rates. Additionally, we optimize returns by arbitraging USDN yield and LP positions on EVERYTHING.inc, while maintaining a delta-neutral exposure to Ethereum.\n\nQuestions ? DM us on x.com/every_thing",
+   "transparencyUrl": null,
+   "inception": 1775773295
+  },
+  "1:0x5f9efcc03b95609346798596494cf9dbaf176312": {
+   "name": "Flint EUR",
+   "category": "fixed_income",
+   "categoryLabel": "Fixed Income",
+   "curators": [
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "Flint EUR (flEUR) is a EURC vault on Ethereum, allocating into EURO-backed real estate debt. Fully on-chain, non-custodial, targeting stable yield uncorrelated from crypto markets.",
+   "description": "Flint EUR deploys EURC into tokenized real estate bonds and private credit backed by euro-denominated operations. Allocations target ~10% gross APR with an average duration of ~18 months, yield distributed weekly on-chain. Every position goes through a credit, liquidity, and smart-contract risk framework before inclusion. Non-custodial, deposits and withdrawals happen directly on-chain, no intermediary touches the capital.",
+   "transparencyUrl": null,
+   "inception": 1791986399
+  },
+  "1:0x60a2612996ddfb1aa1c53e7bfbf179ccc1fcd734": {
+   "name": "CEX Automated Funding Rate Arbitrage",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Everything",
+     "url": "https://everything.inc/"
+    }
+   ],
+   "short": "A fully automated delta-neutral funding rate arbitrage strategy operating 24/7 across major centralized exchanges. The vault captures inefficiencies between spot and perpetual futures markets using proprietary high-frequency market making infrastructure. Fully denominated in cbBTC, targeting 10%+ APR on top of native BTC appreciation.",
+   "description": "A proprietary, fully automated funding rate arbitrage strategy running 24/7 across the leading centralized exchanges (CEX). The vault systematically captures pricing inefficiencies between spot and perpetual futures markets through high-frequency market making algorithms, engineered to harvest funding rate differentials in both market directions.\n\nThe infrastructure is built on ultra-optimized execution engines paired with advanced market making strategies, designed to minimize transaction costs and reduce slippage on every rotation. The vault is fully denominated in cbBTC, meaning exposure stays 100% Bitcoin with no stablecoin dilution.\n\nThe target is to generate 10%+ APR on top of native BTC appreciation, by capitalizing on the structural persistence of positive funding rates in bull markets while remaining delta-neutral during consolidation phases.\n\nQuestions ? DM us on x.com/every_thing",
+   "transparencyUrl": "https://everything.inc/",
+   "inception": 1779634139
+  },
+  "1:0x6a39fe461278376f61acbbb6759550e24a78a7b2": {
+   "name": "9Summits Short Duration Institutional Credit — Powered by Rekord",
+   "category": "private_credit",
+   "categoryLabel": "Private Credit",
+   "curators": [
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "This vault gives depositors access to short-duration institutional credit. It earns from real-world lending that generates steady, predictable cash flows not tied to crypto market. Backed by Rekord, the Provable Finance platform that brings institutional credit onchain.",
+   "description": "## Strategy\n\n9Summits allocates vault capital to short-duration institutional credit. The strategy targets steady, contracted cash flows rather than market-driven returns.\n\n[Rekord](https://www.rekord.io/)'s platform provides the infrastructure behind the strategy: risk analysis measured against industry standards and a versioned, append-only record of collateral, cash-flow and strategy data anchored on Rekord's trust layer. Depositors see the same proof surface the curator works from. That's why we call it Provable Finance.\n\n## How it works\n\n1. Users deposit USDC into the Lagoon vault and receive vault shares.\n2. 9Summits, as curator, moves capital from the vault Safe to the whitelisted settlement address, where it is deployed under a fixed-term, fixed-payment structure.\n3. Scheduled payments return to the vault in USDC.\n4. The Valuation Manager updates the vault NAV on Lagoon at each valuation update using data anchored on Rekord's trust layer.\n5. Deposits and redemptions are asynchronous and settled at each valuation update.\n\n## Roles and security\n\n| Role | Address |\n|---|---|\n| Owner / Curator / Security Council / Super Operator | 3/6 Safe [0x2ec0f23b52f60ce3c6406cf3fd72fb9e28016eff](https://app.safe.global/home?safe=eth:0x2ec0f23b52f60ce3c6406cf3fd72fb9e28016eff) |\n| Whitelisted settlement address | Fordefi [0xC5a8b7C688aeb508cD19894c12d2f9Ef3ae753D3](https://etherscan.io/address/0xC5a8b7C688aeb508cD19894c12d2f9Ef3ae753D3) |\n\n**Role permissions.** The 3/6 Safe runs a Zodiac Roles Modifier that restricts what the operator can execute. The role is scoped to Lagoon vault curation functions and transferring USDC from the Safe to the whitelisted settlement address only; no other targets, tokens or functions are allowed.\n\nPermissions are public and can be inspected here: [Zodiac Roles on the vault Safe](https://app.safe.global/apps/open?safe=eth:0x2ec0f23b52f60ce3c6406cf3fd72fb9e28016eff&appUrl=https%3A%2F%2Fzodiac.gnosisguild.org%2F)\n\n## Risks\n\n- **Credit risk**: returns depend on offchain borrowers meeting their scheduled payments. Collateral reduces but does not eliminate loss risk.\n- **Custody and counterparty risk**: capital is held and deployed outside the vault contract once it leaves the Safe.\n- **Liquidity**: underlying positions are short duration but not instantly liquid. Redemptions are processed asynchronously at valuation updates.\n- **Valuation**: NAV relies on portfolio data anchored on Rekord's trust layer.\n\n## Redemptions and withdrawals\n\nRedemptions are asynchronous: users submit a redemption request on Lagoon and receive USDC once the request is settled by the curator. Settlement time depends on the size of the request:\n\n- **standard redemptions** require Rekord to unwind underlying credit positions and can take up to 3 weeks to settle.\n- **Large redemptions** may, in extreme market conditions, take up to 3 months to be fully settled, as short-duration receivables and loans run to maturity.",
+   "transparencyUrl": null,
+   "inception": 1789122035
+  },
+  "1:0x6abf7b760a40c4f015803cba3cd8b430e41fba7f": {
+   "name": "Mt Pelerin – HL Carry Strategies",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Mt Pelerin",
+     "url": "https://www.mtpelerin.com"
+    }
+   ],
+   "short": "Delta-neutral carry on Hyperliquid, measured in USD",
+   "description": "Delta-neutral carry on Hyperliquid, measured in USD. The vault holds HYPE (and potentially BTC) spot and shorts the matching perpetual in equal quantity, so price moves cancel out and the return comes from the funding paid by perp longs. The position runs on a Hyperliquid portfolio margin account: USDC is borrowed against the spot collateral to scale the trade, and a rebalancing keeps leverage within a set range as prices move. One venue, one structure, held for the long run.\n\nMain risks: negative funding periods, Hyperliquid venue and smart-contract risk, USDC borrow availability and rates, liquidation if rebalancing fails in a sharp move.",
+   "transparencyUrl": null,
+   "inception": 1790703035
+  },
+  "1:0x6fd4a2bd1e879803a0e083360dddf764d0bbd2df": {
+   "name": "Mt Pelerin – USD Funding Strategies",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Mt Pelerin",
+     "url": "https://www.mtpelerin.com"
+    }
+   ],
+   "short": "Opportunistic capture of funding rates and basis across crypto venues, measured in USD",
+   "description": "Opportunistic capture of funding rates and basis across crypto venues, measured in USD. The vault takes market-neutral positions wherever the spread between spot and perpetuals, or between two perpetuals, pays enough: short the expensive leg, long the cheap one. The long leg can be held as spot, perpetuals or a synthetic long built with options, whichever carries the trade most efficiently. Positions rotate as opportunities appear and fade, across several assets and venues, and may use leverage.\n\nVenues: Hyperliquid, Lighter and Aster for perpetuals, Derive v3 for options, with more to be added over time.\n\nMain risks: funding reversals, spread widening before convergence, execution and liquidity on the spot and options legs, roll cost at option expiry, counterparty risk on each venue used, and liquidation on leveraged legs.",
+   "transparencyUrl": null,
+   "inception": 1790699315
+  },
+  "1:0x7a12d4b719f5aa479ecd60defed909fb2a37e428": {
+   "name": "RockSolid Looped ETH Vault",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Tulipa Capital",
+     "url": "https://tulipa.capital"
+    }
+   ],
+   "short": "The RockSolid Looped ETH Vault is a blue chip looping strategy vault managed by RockSolid and incorporating a dedicated Lido v3 deployment supported by Pier Two's non-custodial validator infrastructure.",
+   "description": "The vault is a blue-chip leveraged staking strategy. ETH is deployed to Pier Two validators via Lido v3 to mint stETH, which is supplied to lending markets (e.g. Aave, Spark, Morpho) to borrow ETH and redeploy it. When validator entry queues are short, ETH is routed to Pier Two; when long it may route to Lido v2 or EtherFi. This loop runs at conservative leverage (~5 - 6x) to enhance yield above standard staking while maintaining blue-chip protocol exposure.",
+   "transparencyUrl": null,
+   "inception": 1766366615
+  },
+  "1:0x7d2c2f54792ad72cb834d298f542145b06b703cb": {
+   "name": "Murmurr USDC One",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Murmurr",
+     "url": "https://murmurr.xyz/"
+    }
+   ],
+   "short": "USDC only, no other stablecoins. Morpho lending only. Capital stays in Murmurr-curated USDC Morpho Vault V2 sleeves on Ethereum, Base, HyperEVM, and Monad, with Circle CCTP as the only bridge.",
+   "description": "Murmurr USDC One is built around a fixed mandate: USDC only, Morpho only, CCTP only.\n\nDeposit USDC and hold a single share while Murmurr allocates into its own Morpho Vault V2 sleeves on Ethereum, Base, HyperEVM, and Monad. Capital stays in Morpho USDC lending. No other loan assets. No directional market bets.\n\nAllocation is policy-bound. Hard rules cap look-through collateral concentration (including tighter limits on non blue-chip names), keep sleeve and chain exposure diversified, and force exits when liquidity or utilization breaches thresholds. Automated safeguards filter thin, impaired, or overheated markets before capital is placed.\n\nMarkets are ranked with a risk-adjusted score that blends expected yield with collateral quality, so higher APY alone does not win. Within that framework, the allocator rotates USDC across sleeves as lending conditions shift.\n\nWhen capital moves between chains, it moves with Circle CCTP only. No other bridges.",
+   "transparencyUrl": "https://app.murmurr.xyz/transparency",
+   "inception": 1770752747
+  },
+  "1:0x7d798ce99ee2adc183a865d76b112810d5395ea2": {
+   "name": "722 Capital USDC",
+   "category": null,
+   "categoryLabel": null,
+   "curators": [
+    {
+     "name": "722 Capital",
+     "url": "https://722.capital/"
+    }
+   ],
+   "short": null,
+   "description": null,
+   "transparencyUrl": null,
+   "inception": 1785178295
+  },
+  "1:0x7ededf832b5c9d8afa8f7365936100581a6db756": {
+   "name": "DAMM Bitcoin Fund",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "DAMM Capital",
+     "url": "https://dammcap.finance/"
+    }
+   ],
+   "short": "A WBTC-denominated discretionary fund designed to deliver market-neutral returns on BTC. Capital is allocated across DAMM-managed strategies, starting with the DAMM BTC Algo concentrated-liquidity engine.",
+   "description": "This vault is a WBTC-denominated fund designed to deliver market-neutral returns on BTC through a deliberately constrained set of DeFi-native strategies. DAMM Capital acts as discretionary allocator: capital is deployed only into strategies that have passed DAMM's internal risk framework, with no directional BTC exposure.\nAt launch, the fund's sole allocation target is the DAMM BTC Algo Fund . As the fund scales, the mandate will extend to carry-trade strategies against highly liquid, conservative assets on blue-chip protocols.",
+   "transparencyUrl": "https://debank.com/profile/0xf9be6c20aef39379a1ac1291e3bc98a562b40e3c",
+   "inception": 1785872855
+  },
+  "1:0x8245fd9ae99a482dfe76576dd4298f799c041d61": {
+   "name": "Usual Invested USD0++ in USCC & USTB",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "This USD0++ invested vault aims to maximize your earning potential by reinvesting into Superstate protocol, enabling users to accumulate both USUAL yield and Superstate yield.",
+   "description": "Strategy overview: USD0++ is exchanged at 1:1 for USD0 on primary market and reinvested into USCC & USTB. Withdrawals are always processed in USD0++. This strategy gives USD0++ holders exposure to Superstate USTB (Short Duration US Government Securities Fund) & USCC (Crypto Carry Fund) yield. Investors in a USD0++ vault are backed by the chosen asset rather than RWAs.",
+   "transparencyUrl": null,
+   "inception": 1743150395
+  },
+  "1:0x8417430a31851ae0a36a854394227c5d86be8fc9": {
+   "name": "Ammalgam USDC Vault",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Ammalgam",
+     "url": "https://ammalgam.xyz/"
+    }
+   ],
+   "short": "For phase 1, we will take the USDC and WETH and deposit them into Gauntlet vaults. We see them as the gold standard in the lending vaults space for maximizing profit and being hyper-focused on risk management and security.",
+   "description": "Evolves in 3 phases. Phase 1: deploy into Gauntlet Vaults (~2 weeks). Phase 2: target 6–9% via ETH-USDC market making using ≤40% LTV borrowing; 1% used to hedge IL via OTM Derive options, capping IL ≤4% over unlikely 3-month range (~2 weeks). Phase 3: same strategy on Ammalgam. Transitions: 50% start, 50% after 1 week; final phase over 4 weeks. Liquidity: 1% instant, 20%/48h, 100%/7d. Excess fees buy Ammalgam tokens at TGE.",
+   "transparencyUrl": null,
+   "inception": 1773079403
+  },
+  "1:0x8df3deba711ae4a9af16cbca5e4fbb1402f036d5": {
+   "name": "Syntropia Boosted",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Syntropia",
+     "url": "https://syntropia.ai/"
+    }
+   ],
+   "short": "Syntropia Boosted - stake USDC and get boosted APR and rewards.",
+   "description": "This vault leverages synUSD vault tokens and Morpho Protocol to earn even more rewards by supplying synUSD as a collateral to the Morpho market, borrowing USDC and looping it back to synUSD.",
+   "transparencyUrl": null,
+   "inception": 1760019983
+  },
+  "1:0x936facdf10c8c36294e7b9d28345255539d81bc7": {
+   "name": "RockSolid rETH Vault",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Tulipa Capital",
+     "url": "https://tulipa.capital"
+    }
+   ],
+   "short": "Our rETH vault both monitors for the latest opportunities, monitors funding rates to ensure optimal allocations and negotiates with DeFi protocols for preferred terms for vault depositors.",
+   "description": "RockSolid's rETH Vault maximizes rETH-based returns by allocating it across DeFi protocols like AAVE and Morpho. Our asset manager constantly monitors funding rates and DeFi opportunities to ensure maximum performance. Additionally, rETH deposits are used to negotiate new deals for depositors. The vault may deploy assets across mainnet and L2s. An allocation towards to rETH looping is kept whenever funding rates are positive.",
+   "transparencyUrl": null,
+   "inception": 1756363943
+  },
+  "1:0x9c414834a4a85aa15ec461edcd8cc9dd8ec979b9": {
+   "name": "DAMM BTC Algo Fund",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "DAMM Capital",
+     "url": "https://dammcap.finance/"
+    }
+   ],
+   "short": "An algorithmic BTC strategy focused on cross-venue concentrated-liquidity market making between WBTC and liquid BTC-denominated tokens, including cbBTC and tBTC.",
+   "description": "This vault deploys concentrated liquidity to BTC-pair pools (WBTC/cbBTC, tBTC/WBTC) on Uniswap v3, Uniswap v4 and Aerodrome. Positions are managed by automated, rule-based execution with continuous rebalancing with no discretionary decision-making, no leverage, and no directional BTC exposure.\nReturns are generated from swap fees captured by providing liquidity.\nProprietary risk models cap exposure per trading pair, per venue, and per chain to prevent concentration risk. Each trading pair runs in its own isolated account with its own on-chain permission module, so no single strategy key can access another pair's capital.",
+   "transparencyUrl": "https://debank.com/bundles/223424/portfolio",
+   "inception": 1785875363
+  },
+  "1:0xa6e8d7871153d030c918a0ca5d33f90779967484": {
+   "name": "Alchemix Ecosystem ETH vault",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Alchemix",
+     "url": "https://alchemix.fi/"
+    }
+   ],
+   "short": "A vault curated by the Alchemix team that puts your deposited WETH to work across the Alchemix ecosystem to earn a blended yield.",
+   "description": "The Alchemix Ecosystem vault is curated by the Alchemix team. It puts your deposited WETH to work across the Alchemix ecosystem, providing a blended yield from alAsset Liquidity Pools, Mix-Yield Tokens & Fixed Yield Transmuter positions.\n\nVault withdrawals are processed fortnightly, and deposits settle each epoch. To withdraw, you must claim your vault shares first.",
+   "transparencyUrl": null,
+   "inception": 1779965171
+  },
+  "1:0xab122081cbe59388f96e320dae77468f64512232": {
+   "name": "Mt Pelerin – USD f(x) Strategies",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Mt Pelerin",
+     "url": "https://www.mtpelerin.com"
+    }
+   ],
+   "short": "Yield strategies across the f(x) Protocol ecosystem",
+   "description": "Yield strategies across the f(x) Protocol ecosystem. The vault allocates to fxUSD-based positions: the fxUSD stability pool and fxSAVE, liquidity pools and their Convex boosts, Pendle PT and LP positions, and Morpho markets using f(x) assets. Allocation shifts between these building blocks according to their risk-adjusted yield.\n\nMain risks: fxUSD depeg, f(x) Protocol smart-contract and governance risk, stability pool losses during liquidations, impermanent loss on LP positions, and the added contract risk of Convex, Pendle and Morpho.",
+   "transparencyUrl": null,
+   "inception": 1790696795
+  },
+  "1:0xb09f761cb13baca8ec087ac476647361b6314f98": {
+   "name": "Flagship cbBTC",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Tulipa Capital",
+     "url": "https://tulipa.capital"
+    },
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "Get the best risk adjusted yield on cbBTC denominated strategies across a diversified set of DeFi protocols.",
+   "description": "Get the best risk adjusted yield on cbBTC denominated strategies across a diversified set of DeFi protocols.\nStrategies include LP on DEXes, lend assets on money markets, leverage fixed income protocols either to LP or get fixed rate, buy depegged asset and use redemption for LRT/LST.",
+   "transparencyUrl": null,
+   "inception": 1739915603
+  },
+  "1:0xb118de4917f4bac5c3a453ea8de915a7cd84891c": {
+   "name": "Mt Pelerin – ETH strategy pool",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Mt Pelerin",
+     "url": "https://www.mtpelerin.com"
+    }
+   ],
+   "short": "Our ETH vault provides access to curated DeFi opportunities through a non-custodial infrastructure, with a focus on security, risk analysis, and disciplined allocation.",
+   "description": "This ETH vault provides streamlined access to selected DeFi opportunities through a non-custodial, on-chain infrastructure.\nIts automated strategy allocates assets across selected protocols according to predefined rules, combining diversification with delta-neutral and hedging techniques where relevant. Designed for disciplined execution, the vault applies its allocation framework automatically, without requiring users to manage each underlying position.",
+   "transparencyUrl": null,
+   "inception": 1770720695
+  },
+  "1:0xb4a4c9a736f91e2694c6b921445eef3e3585a591": {
+   "name": "Zharta RWA Prime USDC",
+   "category": null,
+   "categoryLabel": null,
+   "curators": [
+    {
+     "name": "Zharta Finance",
+     "url": "https://zharta.io"
+    }
+   ],
+   "short": "Prime fixed-rate, fixed term lending exposure to RWA collateral (T-Bills, MM Funds, Private Credit). Institutional credit priced bilaterally with segregated custody per deal. Originated and serviced by Zharta Finance.",
+   "description": "A USDC Credit Vault on Ethereum that allocates to fixed-rate, fixed-term lending against  tokenized RWA (T-Bills, MM Funds, Private Credit) originated on the Zharta Finance. The exposure is institutional RWA credit priced bilaterally, with segregated custody per deal. Undeployed USDC liquidity is supplied to Aave Horizon's RWA market while origination ramps.\n\n## Risk & Liquidity\n\nThe vault operates within a defined risk mandate covering duration (90 days max. tenor), collateral eligibility, LTV and LLTV caps, concentration limits and liquidity reserves. A liquidity buffer is held in RWA money-markets as an on-demand reserve, if redemptions arrive while capital is locked, they queue and origination stops until they are fully processed.\n\n## NAV\n\nCredit Book is priced under an auditable methodology. Liquidity reserves are priced onchain.",
+   "transparencyUrl": null,
+   "inception": 1776091955
+  },
+  "1:0xbb211be8664128e30c6adcd5998eca9592be272f": {
+   "name": "Ammalgam WETH Vault",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Ammalgam",
+     "url": "https://ammalgam.xyz/"
+    }
+   ],
+   "short": "For phase 1, we will take the USDC and WETH and deposit them into Gauntlet vaults. We see them as the gold standard in the lending vaults space for maximizing profit and being hyper-focused on risk management and security.",
+   "description": "Evolves in 3 phases. Phase 1: deploy into Gauntlet Vaults (~2 weeks). Phase 2: target 6–9% via ETH-USDC market making using ≤40% LTV borrowing; 1% used to hedge IL via OTM Derive options, capping IL ≤4% over unlikely 3-month range (~2 weeks). Phase 3: same strategy on Ammalgam. Transitions: 50% start, 50% after 1 week; final phase over 4 weeks. Liquidity: 1% instant, 20%/48h, 100%/7d. Excess fees buy Ammalgam tokens at TGE.",
+   "transparencyUrl": null,
+   "inception": 1773122075
+  },
+  "1:0xbb30c3b6046debcbe941281218d18dec8ecebeb5": {
+   "name": "1212.Stable",
+   "category": "diversified",
+   "categoryLabel": "Diversified",
+   "curators": [
+    {
+     "name": "1212 Capital",
+     "url": "https://www.1212.capital/"
+    }
+   ],
+   "short": "1212.Stable is an income strategy investing across US-dollar stablecoins and stable-value instruments through liquidity provision, lending, market-neutral arbitrage, on-chain fixed-income strategies, and tokenized real-world assets.",
+   "description": "1212.Stable is an income strategy investing across US-dollar stablecoins and stable-value instruments through liquidity provision, lending, market-neutral arbitrage, on-chain fixed-income strategies, and tokenized real-world assets.\nThe allocation adapts to changing market conditions, while the portfolio’s USD denomination and income-led investment objective remain consistent.",
+   "transparencyUrl": "https://1212capital.octav.fi/app/Vault?board=overview",
+   "inception": 1765195907
+  },
+  "1:0xbc6a48b30405cc1660627d8dfb3872505f14bca0": {
+   "name": "Mt Pelerin – BTC strategy pool",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Mt Pelerin",
+     "url": "https://www.mtpelerin.com"
+    }
+   ],
+   "short": "Our WBTC vault provides access to curated DeFi opportunities through a non-custodial infrastructure, with a focus on security, risk analysis, and disciplined allocation.",
+   "description": "This WBTC vault provides streamlined access to selected DeFi opportunities through a non-custodial, on-chain infrastructure.\nIts automated strategy allocates assets across selected protocols according to predefined rules, combining diversification with delta-neutral and hedging techniques where relevant. Designed for disciplined execution, the vault applies its allocation framework automatically, without requiring users to manage each underlying position.",
+   "transparencyUrl": null,
+   "inception": 1763747243
+  },
+  "1:0xc35ce0c1acfc448d18ddacbf641b09f2a18e1958": {
+   "name": "1212.Alpha",
+   "category": "directional",
+   "categoryLabel": "Directional",
+   "curators": [
+    {
+     "name": "1212 Capital",
+     "url": "https://www.1212.capital/"
+    }
+   ],
+   "short": "1212.Alpha is a long-term, directional strategy in digital assets, managed systematically.",
+   "description": "1212.Alpha is a long-term, directional strategy in digital assets, managed systematically. Quantitative rules determine how much market exposure the strategy holds as conditions change. Capital not allocated to directional market exposure is deployed in USD yield strategies.",
+   "transparencyUrl": null,
+   "inception": 1781090111
+  },
+  "1:0xca790385506b790554571cbc9da73f0130cdcfd5": {
+   "name": "Hub Capital USDC vault",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Hub Capital",
+     "url": null
+    }
+   ],
+   "short": "This vault aims to generate 3-10x the aave usdc lending rate while using only blue chip protocols, strategies and tokens, and focusing on liquid rewards (no points or other illiquid rewards).",
+   "description": "This vault aims to generate 3-10x the aave usdc lending rate while using only blue chip protocols, strategies and tokens, and focusing on liquid rewards (no points or other illiquid rewards).",
+   "transparencyUrl": null,
+   "inception": 1757196299
+  },
+  "1:0xce0b790ae0d8cf91e01f3fb69025e14569b574f3": {
+   "name": "Tulipa USDC",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Tulipa Capital",
+     "url": "https://tulipa.capital"
+    }
+   ],
+   "short": "An actively managed USDC vault targeting ~14% net APY through private DeFi deals, tokenized real world assets, and structured yield products. All positions are USD-denominated, sourced via direct counterparty relationships unavailable to passive depositors",
+   "description": "An actively managed USDC vault targeting ~14% net APY through a curated mix of DeFi yield, tokenised real world assets, and private deals unavailable to passive depositors. Positions span RWA lending, fixed yield products, structured LP arrangements, and incentivised liquidity, all USD-denominated. Tulipa's direct relationships with issuers and protocols unlock yields beyond what aggregators can access, with risk managed through sizing and continuous monitoring.",
+   "transparencyUrl": "https://tulipa-usdc.tulipa.capital/",
+   "inception": 1769003447
+  },
+  "1:0xd0c4c9386f7509c44987f43136be7d4349ccddc9": {
+   "name": "9Summits Flagship EURC",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "Get the best risk adjusted yield on EURC denominated strategies across a diversified set of DeFi protocols.",
+   "description": "Get the best risk adjusted yield on EURC denominated strategies across a diversified set of DeFi protocols. Strategies include LP on DEXes, lend assets on money markets, leverage fixed income protocols either to LP or get fixed rate, buy depegged stablecoins and use redemption.",
+   "transparencyUrl": null,
+   "inception": 1770292655
+  },
+  "1:0xd17049ed25d8f99fe3bfd10cef2263da9995cfd8": {
+   "name": "Syntropia USDC",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Syntropia",
+     "url": "https://syntropia.ai/"
+    }
+   ],
+   "short": "Earn the best risk-adjusted yields on stablecoins with Syntropia’s diversified DeFi strategies.",
+   "description": "We combine multiple approaches: liquidity provision on DEXs, lending on money markets, yield-bearing and fixed-income assets, arbitrage opportunities, and farming points, airdrops, and governance incentives. All of this is powered by advanced risk management and circuit breakers developed by the Syntropia team. Read the full strategy breakdown here: https://docs.syntropia.ai/Transparency",
+   "transparencyUrl": "https://docs.syntropia.ai/transparency",
+   "inception": 1753719407
+  },
+  "1:0xd2386d8413c2ec4a761901da14c74a98ebe5054b": {
+   "name": "Flint USD",
+   "category": null,
+   "categoryLabel": null,
+   "curators": [
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "Flint USD (flUSD) is a USDC vault on Ethereum, allocating into EURO-backed real estate debt. Fully on-chain, non-custodial, targeting stable yield uncorrelated from crypto markets.",
+   "description": "Flint USD deploys USDC into tokenized real estate bonds and private credit backed by euro-denominated operations. Since the vault is denominated in USDC, the euro exposure is fully hedged back to USD using IBKR hedge: the USD–EUR rate differential is captured as carry on top of the underlying yield. Allocations target ~10% gross APR in USD with an average duration of ~18 months, yield distributed weekly on-chain. Every position goes through a credit, liquidity, and smart-contract risk framework before inclusion. Non-custodial, deposits and withdrawals happen directly on-chain, no intermediary touches the capital.",
+   "transparencyUrl": null,
+   "inception": 1792669451
+  },
+  "1:0xdae854d0896ad2fee335689a3f7b4a95fd1a3e46": {
+   "name": "Gami USDC",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Gami",
+     "url": "https://gamilabs.io/"
+    }
+   ],
+   "short": "Gami’s compounding vault optimizes stablecoin yields across DeFi by combining lending, fixed income strategies, and private liquidity programs. It maximizes risk-adjusted returns through dynamic allocation and additional incentive capture.",
+   "description": "Gami USDC is an actively managed, compounding stablecoin vault designed to deliver the best risk-adjusted yields in DeFi. It allocates capital across leading money markets (Morpho, Aave, Euler, Silo...), fixed income protocols (Pendle, Spectra), and liquidity pools (Curve, Balancer...) to optimize performance. The strategy also leverages ecosystem reward programs, pre-TGE tokens, and governance incentives to boost returns.\n\nCapital deployed across EVM & Stellar ecosystems.\n- EVM Address: 0x9A1DfEaF8604911F2B829FF96e038C98dDe5DAdd\n- RWA 1: 0xb605508dcFBa47ce18c9bc20f99063C24e7E52fb\n- RWA 2: 0xDf3eA89d88eD3FF80Ec2aa51B3b8953Fd7432880\n- Stellar Address: GAHBXQUD5ALLP33GEE3ZUTGTPMC74CZVBQHKNGP2UOR763AR4W3V3Y7I",
+   "transparencyUrl": null,
+   "inception": 1762278803
+  },
+  "1:0xdcd0f5ab30856f28385f641580bbd85f88349124": {
+   "name": "Autonomous Liquidity USD",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [],
+   "short": "Autonomous Liquidity USD is a tokenized AI yield optimization strategy built using Almanak’s AI Swarm, which collaboratively coded the underlying strategy.",
+   "description": "Autonomous Liquidity USD is a tokenized AI yield optimization strategy built using Almanak’s AI Swarm, which collaboratively coded the underlying strategy.\n\nThe vault itself is code-based, meaning it runs fully on deployed smart contract logic rather than being managed by AI directly.\n\nBy continuously scanning the DeFi ecosystem, Autonomous Liquidity USD identifies opportunities and repositions capital to capture the highest available yields while operating within customizable risk parameters. The system features automated portfolio rebalancing with intelligent transaction cost analysis, executing moves only when yield improvements justify all associated costs. Advanced routing optimization and auto-compounding ensure maximum capital efficiency across changing market conditions.",
+   "transparencyUrl": null,
+   "inception": 1749539255
+  },
+  "1:0xe6f4bc20f08125818baaac57e6f398ffadcb8d28": {
+   "name": "DAMM ETH Algo Fund",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "DAMM Capital",
+     "url": "https://dammcap.finance/"
+    }
+   ],
+   "short": "An algorithmic ETH strategy focused on cross-venue concentrated-liquidity market making between WETH and liquid staking tokens, including wstETH, rETH, and cbETH.",
+   "description": "DAMM ETH Algo Fund captures swap fees by systematically providing concentrated liquidity to LST/WETH pools on Ethereum mainnet and L2s.\n\nLiquidity is spread across venues — Uniswap v3, Uniswap v4 and Aerodrome — and across wstETH, rETH, and cbETH. Exposure limits are set per pair, per venue, and per chain by proprietary risk models, so no single one carries an outsized share of the book.\n\nOne strategy type, no leverage, no directional bets on ETH. Positions are sized and rebalanced continuously by automated execution, and every allocation decision follows a defined ruleset. There is no discretionary trading.",
+   "transparencyUrl": null,
+   "inception": 1784838431
+  },
+  "1:0xf02030ab0d7385ce4cc2f7f64b7b44430fb44c89": {
+   "name": "Cross-chain USDC Lending",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "σ-Labs",
+     "url": "https://www.sigmalabs.fi"
+    },
+    {
+     "name": "Ellen Capital",
+     "url": "https://www.ellen.capital"
+    }
+   ],
+   "short": "A vault that lends USDC directly into curated Morpho Blue markets across seven chains (Ethereum, Optimism, Base, Arbitrum, Polygon, Monad, HyperEVM).",
+   "description": "A vault that lends USDC directly into curated Morpho Blue markets across seven chains (Ethereum, Optimism, Base, Arbitrum, Polygon, Monad, HyperEVM). A cost-aware graph optimizer moves capital by CCTP only when the yield edge refinances the bridge cost over its calibrated holding horizon — never chasing a thin edge or paying a route it won't earn back.",
+   "transparencyUrl": "https://www.sigmalabs.fi/vault/0xf02030ab0d7385ce4cc2f7f64b7b44430fb44c89",
+   "inception": 1783843920
+  },
+  "1:0xfab0f56c28e3f874b15922b213e696f37b670916": {
+   "name": "Coinshift USPC Prime",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Gami",
+     "url": "https://gamilabs.io/"
+    }
+   ],
+   "short": "Gami’s Coinshift Conservative USPC Vault targets 7-10% net annualized returns through diversified allocation across the Coinshift ecosystem, including liquidity pools, yield monetization, and money market supply. Built on top of USPC, the vault benefits from a strong institutional-grade foundation, with USPC fully backed by a diversified portfolio of institutional-grade assets including BlackRock ICS USD Liquidity, Fidelity ILF USD, and Apollo ACRED.",
+   "description": "USPC is an institutional-grade ERC-4626 wrapper for iUSPC, actively managed without leverage across money markets (TermMax), LP venues (Curve, StakeDAO), and fixed income (Spectra, Pendle), coordinating veBoost mechanics and vote incentives.\n\nIn Phase-1, the underlying USPC backing is anchored by a diversified portfolio of institutional-grade assets, with 80% allocated to daily liquid money market funds (BlackRock ICS USD Liquidity and Fidelity ILF USD) and 20% to Apollo ACRED, a tokenized private credit fund with quarterly liquidity. This structure is designed to maintain strong day-to-day liquidity while enhancing yield through institutional private credit exposure.\nMaterial changes: 14–30d.",
+   "transparencyUrl": null,
+   "inception": 1772464727
+  },
+  "42161:0x018282d5b510f00dcacb8f4a81c3901d2fc9da51": {
+   "name": "DACM LIT Strategy",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "DACM",
+     "url": "https://dacm.io"
+    }
+   ],
+   "short": "USDC-denominated exposure to Lighter's LLP, the liquidity provider vault powering the Lighter perp DEX. Actively managed by DACM to optimise allocation and target consistent risk-adjusted returns from market-making and liquidation fees.",
+   "description": "## Overview\n\nThe DACM LIT Strategy provides USDC-denominated exposure to **Lighter's Liquidity Provider (LLP) vault** — the market-making backbone of the Lighter decentralised perpetual exchange on Arbitrum.\n\nLLP earns yield primarily from:\n\n- Maker rebates and trading fees from perp activity on Lighter\n- Liquidation fees when leveraged traders are closed out\n- Funding rate capture on the resulting market-neutral inventory\n\nDACM actively manages the position — sizing exposure, monitoring structural metrics (notably the OI/TVL ratio as a leading indicator of fee-driven profitability), and rotating capital based on changes in vault economics.\n\n## Why Lighter\n\n- **Order-book DEX** with a strong CEX-like execution profile\n- **Growing open interest** with maker-friendly fee structure\n- **Transparent on-chain accounting** of LLP performance\n\n## Risk Considerations\n\n- **Smart contract risk** — Lighter protocol and Lagoon vault contracts\n- **Drawdown risk** — LLP can absorb losses during adverse market events or coordinated trading flow\n- **Manipulation risk** — perp LP vaults have known structural vulnerabilities under thin liquidity\n- **Liquidity risk** — weekly settlement; redemptions are not instant\n\nThis vault is suitable for investors comfortable with DeFi smart contract exposure and the specific risks of perp DEX liquidity provision.\n\nSettlement: strategy has a 3-day unlock so settles Request+3",
+   "transparencyUrl": null,
+   "inception": 1771553198
+  },
+  "42161:0xe5d6eb448ac5a762c1ebe8cd1692b9cd08025176": {
+   "name": "DAMM Stablecoin Fund",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "DAMM Capital",
+     "url": "https://dammcap.finance/"
+    }
+   ],
+   "short": "This vault is a USD‑denominated T+1 fund designed to deliver market‑neutral returns on stablecoins by implementing a diversified set of DeFi‑native strategies across trusted protocols.",
+   "description": "DAMMstable is a market‑neutral USD fund designed to deliver risk‑adjusted returns by combining decentralized market‑making models with diversified strategies across battle‑tested DeFi infrastructure on multiple blockchains. The strategy actively allocates capital across a range of yield optimization techniques, aiming to maximize nominal returns on stablecoins (USDC, USDT, DAI) while maintaining zero historical drawdowns on the fund’s price per share. Investors also benefit from T+1 liquidity, if needed. DAMMstable deploys capital through a diversified set of strategies: Algorithmic liquidity provision on DEXes like Uniswap, powered by in‑house models, Overcollateralized lending via trusted onchain credit protocols, Fixed‑income strategies using zero‑coupon bonds and fixed‑rate lending protocols. The result is a transparent, partially algorithmic, and discretionary capital allocation model—built to preserve principal while compounding stable, onchain‑native yield across blue‑chip DeFi ecosystems.",
+   "transparencyUrl": null,
+   "inception": 1755008011
+  },
+  "43114:0x3048925b3ea5a8c12eecccb8810f5f7544db54af": {
+   "name": "Avalanche USDC",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Tulipa Capital",
+     "url": "https://tulipa.capital"
+    },
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": null,
+   "description": null,
+   "transparencyUrl": null,
+   "inception": 1760408117
+  },
+  "43114:0xb3a2bcb30c1460d88db18b42a29fae2399952874": {
+   "name": "USDC Avalanche Core",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Gami",
+     "url": "https://gamilabs.io/"
+    }
+   ],
+   "short": "Gami's compounding vault optimizes stablecoin yields across DeFi by combining lending, fixed income strategies, and private liquidity programs. It maximizes risk-adjusted returns through dynamic allocation and additional incentive capture.",
+   "description": "USDC Avalanche Core is an actively managed, compounding stablecoin vault designed to deliver the best risk-adjusted yields exclusively on Avalanche's DeFi protocols. It allocates capital across leading money markets, fixed-income protocols (Spectra), and liquidity pools (Curve, Balancer...) to optimize overall performance. The strategy can also leverage ecosystem reward programs, pre-TGE tokens, and governance incentives to boost returns.",
+   "transparencyUrl": null,
+   "inception": 1773423599
+  },
+  "43114:0xb8a14b03900828f863aedd9dd905363863bc31f4": {
+   "name": "Excellion USDC Vault",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "Excellion Finance",
+     "url": "https://excellion.finance/"
+    }
+   ],
+   "short": "High-yield USDC vault on Avalanche combining advanced DeFi strategies for maximum on-chain returns with international grade security.",
+   "description": "The vault is designed to deliver enhanced USDC yield through diversified deployment across high-performing DeFi strategies on Avalanche, including liquidity provision, leveraged lending, and yield farming. Capital is actively managed and allocated across both established and emerging protocols focused on USD-pegged assets, supporting stability and consistent performance. In addition to core yield generation, the strategy may participate in selected incentive programs, including the Avant points program.",
+   "transparencyUrl": null,
+   "inception": 1752762066
+  },
+  "8453:0x370f89ddd85ca2afcd2c891e67d10289d9d8d2d1": {
+   "name": "Venice AI - Liquid wrapped sVVV",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "This vault gives access to Venice's sVVV yields while being transferable and liquid.",
+   "description": "This vault gives access to Venice's sVVV yields while being transferable and more liquid. It accepts VVV tokens and will stake the mint to sVVV while keeping an ideal buffer of liquid VVVs to facilitate fast withdrawals while maximizing the APR. wsVVV enables new DeFi opportunities such as using it as collateral.\n\nThis strategy is curated by 9Summits. All permissions are public and managed onchain using [Zodiac Role Modifier](https://app.safe.global/apps/open?safe=base:0xAaAbCf1FF955E11C99d3B210F271CB835C38606E&appUrl=https%3A%2F%2Fzodiac.gnosisguild.org%2F). Current permissions are the following:\n\n- Stake VVV as sVVV\n- Start cooldown to exit sVVV\n- Withdraw VVV from sVVV\n\nThe current withdrawal process is asynchronous with an average of 24h max withdrawal time. It can take up to 7 days if the withdrawal request is higher than the current available buffer. In an upcoming update, the withdrawals will be instant.",
+   "transparencyUrl": null,
+   "inception": 1775832375
+  },
+  "8453:0x8092ca384d44260ea4feaf7457b629b8dc6f88f0": {
+   "name": "DeTrade Core USDC",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "DeTrade",
+     "url": "https://detrade.fund/"
+    }
+   ],
+   "short": "This vault maximizes risk-adjusted yields for your USDC by diversifying across stablecoins and DeFi protocols for optimal market returns.",
+   "description": "Strategies include providing liquidity, investing in yield-bearing stablecoins, leveraging yield derivatives for fixed rates, and exploring opportunities that deliver high yields with managed risk.",
+   "transparencyUrl": null,
+   "inception": 1741591861
+  },
+  "8453:0x9b97bfdfe44d1b113ecd4bf2f243ed36aca34523": {
+   "name": "DeTrade Core ETH",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "DeTrade",
+     "url": "https://detrade.fund/"
+    }
+   ],
+   "short": "Core ETH is our ether-denominated vault, designed to deliver sustainable yield while preserving exposure to ETH as the underlying asset. The strategy deposits liquid staking tokens such as cbETH, weETH, and wstETH into lending markets, where they generate staking income while serving as collateral.",
+   "description": "Core ETH is our ether-denominated vault, designed to deliver sustainable yield while preserving exposure to ETH as the underlying asset. The strategy deposits liquid staking tokens such as cbETH, weETH, and wstETH into lending markets, where they generate staking income while serving as collateral. Against this collateral, the vault borrows USD-backed stablecoins that are redeployed into higher-yielding sub-vaults like Core USDC and AppleFarm USDC. This dual performance engine — combining native ETH staking rewards with redeployed stablecoin yield — makes Core ETH a capital-efficient cornerstone of our multi-vault architecture.",
+   "transparencyUrl": null,
+   "inception": 1747322239
+  },
+  "8453:0xd4401d8bea82e4e6c40bb26ae3a04d2fb7ca4550": {
+   "name": "DeTrade Core EURC",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "DeTrade",
+     "url": "https://detrade.fund/"
+    }
+   ],
+   "short": "Core EURC is our euro-denominated vault, designed to preserve exposure to the EURC underlying while generating stable, risk-adjusted yield.",
+   "description": "Core EURC is our euro-denominated vault, designed to preserve exposure to the EURC underlying while generating stable, risk-adjusted yield. The strategy deposits EURC into Aave as collateral, using it to borrow USD-backed stablecoins such as USDC and GHO. These borrowed assets are then redeployed into higher-yielding sub-vaults, primarily Core USDC and AppleFarm USDC, in order to capture spreads above the borrow rate. The result is a euro-native yield engine that benefits from dollar-denominated opportunities while avoiding unhedged forex exposure.",
+   "transparencyUrl": null,
+   "inception": 1750106773
+  },
+  "8453:0xfce2064b4221c54651b21c868064a23695e78f09": {
+   "name": "722Capital-ETH",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "722 Capital",
+     "url": "https://722.capital/"
+    }
+   ],
+   "short": null,
+   "description": null,
+   "transparencyUrl": null,
+   "inception": 1734715725
+  },
+  "999:0x3b65e02b1ff8072bdc094a899a4e41d07ce034aa": {
+   "name": "SP500 Hyperliquid Synth",
+   "category": "directional",
+   "categoryLabel": "Directional",
+   "curators": [
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "S&P 500 exposure on Hyperliquid. Long perp at overall target leverage 1×, idle cash earning yield in HL earn, rebalanced automatically",
+   "description": "This vault maintains continuous long exposure to the S&P 500 via the Hyperliquid HIP-3 perpetual market [xyz:SP500](https://app.hyperliquid.xyz/trade/xyz:SP500), targeting roughly 1× notional relative to equity.\n\n## Capital allocation (default targets)\n\n- ~50% of equity as margin on the HIP-3 dex to collateralize the long perp\n- ~50% supplied to Hyperliquid Earn to earn yield on idle cash\n- Position size is scaled so notional ≈ 1.0 × total equity\n\n## Scope of permissions\nThis strategy is curated by 9Summits. All permissions are public and managed onchain using [Zodiac Role Modifier](https://app.safe.global/apps/open?safe=hyper-evm:0x500d55DDbFfFEa25282D97746b68CC062ED72Bc5&appUrl=https%3A%2F%2Fzodiac.gnosisguild.org%2F). Current permissions are the following:\n\n- Approve USDC to vault for redemptions\n- Send USDC to [Fordefi HL trader address](https://debank.com/profile/0xDA6Eb6f8b8c50E0fa16d7A63C0E53174B5785909)\n- Settle vault\n\nPermission scope for address 0x500d55DDbFfFEa25282D97746b68CC062ED72Bc5 (Fordefi) are\n- Trade on xyz:SP500/USDC\n- Rebalance beween HL earn and Perp position\n\n## How it works\n\nA stateless rebalancer. It reads live on-chain state (equity, position size, mark price, margin, Earn balance). When any leg drifts beyond a small relative threshold, it:\n\n- Adjusts the long position\n- Moves USDC between default perp, spot, HIP-3 margin, and Earn to restore the target split\n\n## Risks\n\n- **Perpetual basis / funding:** long exposure can under- or outperform cash S&P due to funding rates and basis\n- **Liquidation / margin:** although global leverage is ~1×, the position sits on a HIP-3 account with its own leverage settings (2x); large adverse moves or failed rebalances can stress margin\n- **Tracking error:** maker-only execution can delay fills; the vault may temporarily deviate from target exposure\n- **Smart-contract / protocol / operational risk** (Hyperliquid, Earn, bridge)",
+   "transparencyUrl": null,
+   "inception": 1785851576
+  },
+  "999:0x7dd73a986f6188da1baaf68541fd6ebd455abd1d": {
+   "name": "722 Capital Hype",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [
+    {
+     "name": "722 Capital",
+     "url": "https://722.capital/"
+    }
+   ],
+   "short": null,
+   "description": null,
+   "transparencyUrl": null,
+   "inception": 1779482491
+  },
+  "999:0x8982df557d81540678285450898f77c31d69c8b2": {
+   "name": "SpaceX Hyperliquid Synth",
+   "category": "directional",
+   "categoryLabel": "Directional",
+   "curators": [
+    {
+     "name": "9Summits",
+     "url": "https://9summits.io"
+    }
+   ],
+   "short": "SpaceX exposure on Hyperliquid. Long perp at overall target leverage 1×, idle cash earning yield in HL earn, rebalanced automatically",
+   "description": "SpaceX exposure on Hyperliquid. Long perp at overall target leverage 1×, idle cash earning yield in HL earn, rebalanced automatically\n\n## Strategy\n\nThis vault maintains continuous long exposure to SpaceX via the Hyperliquid HIP-3 perpetual market [xyz:SPCX](https://app.hyperliquid.xyz/trade/xyz:SPCX), targeting roughly 1× notional relative to equity.\n\n## Transparency of permissions\n\n## Capital allocation (default targets)\n\n- ~50% of equity as margin on the HIP-3 dex to collateralize the long perp\n- ~50% supplied to Hyperliquid Earn to earn yield on idle cash\n- Position size is scaled so notional ≈ 1.0 × total equity\n\n## Scope of permissions\n\nThis strategy is curated by 9Summits. All permissions are public and managed onchain using [Zodiac Role Modifier](https://app.safe.global/apps/open?safe=hyper-evm:0x5acE511748Bcd9CfA354b4B27757406Aa4bBcDCc&appUrl=https%3A%2F%2Fzodiac.gnosisguild.org%2F). Current permissions are the following:\n\n- Approve USDC to vault for redemptions\n- Send USDC to [Fordefi HL trader address](https://debank.com/profile/0xE64D3e4e0ECCac6665710989b3a6C9C512D2805D)\n- Settle vault\n\nPermission scope for address 0xE64D3e4e0ECCac6665710989b3a6C9C512D2805D (Fordefi) are\n\n- Trade on xyz:SPCX/USDC\n- Rebalance between HL earn and Perp position\n\n## How it works\n\nA stateless rebalancer. It reads live on-chain state (equity, position size, mark price, margin, Earn balance). When any leg drifts beyond a small relative threshold, it:\n\n- Adjusts the long position\n- Moves USDC between default perp, spot, HIP-3 margin, and Earn to restore the target split\n\n## Live dashboard\n\nReal-time state of the strategy is public at [spcx.9summits.io](https://spcx.9summits.io/)\n\n## Risks\n\n- **Perpetual basis / funding:** long exposure can under- or outperform cash SpaceX due to funding rates and basis\n- **Liquidation / margin:** although global leverage is ~1×, the position sits on a HIP-3 account with its own leverage settings (2x); large adverse moves or failed rebalances can stress margin\n- **Tracking error:** maker-only execution can delay fills; the vault may temporarily deviate from target exposure\n- **Single-name / HIP-3 market:** SPCX is a synthetic equity perp (not the Nasdaq share). Availability, oracle, and market parameters depend on the HIP-3 deployer\n- **Smart-contract / protocol / operational risk** (Hyperliquid, Earn, bridge)",
+   "transparencyUrl": "https://spcx.9summits.io/",
+   "inception": 1786741334
+  },
+  "999:0xeeed7bb939d65938fe8f40dd898cd5942e32f09e": {
+   "name": "Nova NLP Vault",
+   "category": "market_neutral_crypto",
+   "categoryLabel": "Market neutral crypto",
+   "curators": [],
+   "short": "Depositor USDC funds an institutional market maker across Nova markets. Earn 70% of market fees plus 100% market-making PnL, with idle capital deployed to Morpho.",
+   "description": "Nova's NLP Vault allocates depositor USDC to an institutional market maker who provides liquidity across Nova supported markets. Depositors earn 70% of the fees generated by those markets, plus 100% market-making PnL. Idle capital can be deployed to Morpho for additional yield.",
+   "transparencyUrl": null,
+   "inception": 1779220229
+  }
+ }
+}

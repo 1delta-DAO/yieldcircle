@@ -67,11 +67,16 @@ export const HIDE_ORDER: HideCode[] = ['thin-borrow', 'small', 'collateral', 'ra
  * question it answers has to be the most basic one. What a row IS (a rate bet)
  * comes before whether it is big enough, which comes before what it pays.
  */
+/**
+ * The cap a row's score is held to. `Any` (5, the top of the 1–5 scale) is no cap at all: it
+ * lets in 6 too, risk-data's `compromised`, which the row then wears as its label (`riskOf`).
+ */
+export const capOf = (st: Settings) => (st.maxRisk >= 5 ? Infinity : st.maxRisk)
 export function softHide(s: Strategy, st: Settings): HideCode | null {
   if (s.kind === 'loop') {
     if (!s.collateralYields && !st.showRateBets) return 'rate-bet'
     if (s.borrowLiquidityUsd < st.minBorrowLiquidityUsd) return 'thin-borrow'
-    if (s.riskScore > st.maxRisk) return s.rated ? 'risky' : 'unrated'
+    if (s.riskScore > capOf(st)) return s.rated ? 'risky' : 'unrated'
     if (s.rate <= 0 && !st.showNegative) return 'negative'
     return null
   }
@@ -79,7 +84,7 @@ export function softHide(s: Strategy, st: Settings): HideCode | null {
   if (s.passthrough && !st.showCollateral && !exposureOf(s.asset)) return 'collateral'
   // a euro, franc or pound row has its own, lower floor: the whole currency is a few rows (`FIAT`)
   if (s.tvlUsd < (isFiat(s.asset) ? Math.min(st.minTvlUsd, FIAT_FLOOR) : st.minTvlUsd)) return 'small'
-  if (s.riskScore > st.maxRisk) return s.rated ? 'risky' : 'unrated'
+  if (s.riskScore > capOf(st)) return s.rated ? 'risky' : 'unrated'
   if (s.rate < st.minRate) return 'dust'
   if (s.rate > st.maxRate) return 'outlier'
   return null

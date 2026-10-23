@@ -5,6 +5,7 @@
  * position alike.
  */
 import React from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
 import { go, marketHref, tokenHref } from '../state/AppState'
 import { useCuratorsByAccount, useHolders, useMarket, useMarketFlow, useMarketTxs, useStress } from '../index/queries'
@@ -26,6 +27,7 @@ import { indexChainLabel, subjectOf } from '../index/types'
 import type { MarketExposure, TxBundle } from '../index/types'
 import { Flows, primaryLeg, TxMoney } from './Feed'
 import { TokLink } from './TokenPage'
+import { lagoonKey, loadLagoon } from '../model/lagoon'
 
 export function Market({ uid }: { uid: string }) {
   const m = useMarket(uid)
@@ -156,6 +158,8 @@ export function Market({ uid }: { uid: string }) {
           ))}
         </div>
       )}
+
+      <Strategy uid={uid} />
 
       <section className="sec" style={{ marginTop: 20 }}>
         <div className="sec-h">
@@ -369,6 +373,51 @@ function Flow({ rows }: { rows: FlowBucket[] }) {
     </div>
   )
 }
+/**
+ * What a Lagoon vault's manager says it does (`model/lagoon.ts`, a snapshot of Lagoon's own
+ * API). Labelled as THEIR words on purpose: it is a pitch, not a reading of where the money is —
+ * that stays with "Whose credit" below, which says "Not readable" when nothing is.
+ */
+function Strategy({ uid }: { uid: string }) {
+  const key = lagoonKey(uid)
+  const q = useQuery({ queryKey: ['lagoon'], queryFn: loadLagoon, enabled: !!key, staleTime: Infinity, gcTime: Infinity })
+  const [more, setMore] = React.useState(false)
+  const v = key ? q.data?.vaults[key] : undefined
+  if (!v || !(v.short || v.description)) return null
+  const lead = v.short ?? v.description!
+  // the full text only when it says more than the summary
+  const full = v.description && v.description !== lead && v.description.length > lead.length + 40 ? v.description : null
+  const curator = v.curators.map((c) => c.name).join(', ')
+  const since = v.inception ? new Date(v.inception * 1000).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : null
+  const links: { href: string; label: string; title?: string }[] = [
+    ...(v.transparencyUrl ? [{ href: v.transparencyUrl, label: 'transparency' }] : []),
+    ...v.curators.filter((c) => c.url && c.url !== v.transparencyUrl).map((c) => ({ href: c.url!, label: c.name })),
+    ...(v.insurance ?? []).map((i) => ({ href: i.link, label: `${i.name} cover`, title: i.note })),
+  ]
+  return (
+    <section className="sec" style={{ marginTop: 20 }}>
+      <div className="sec-h">
+        <h2>The strategy</h2>
+        <span className="sub">in {curator ? `${curator}\u2019s` : 'the manager\u2019s'} own words, from Lagoon — a description, not an allocation</span>
+      </div>
+      <div className="card pad tk-about mk-strat">
+        {(v.categoryLabel || since) && (
+          <div className="mk-strat-t">
+            {v.categoryLabel && <span className="heldchip" title="Lagoon's own strategy category">{v.categoryLabel}</span>}
+            {since && <span className="t40">running since {since}</span>}
+          </div>
+        )}
+        {(more && full ? full : lead).split(/\n{2,}/).map((para, i) => <p key={i}>{para}</p>)}
+        <div className="tk-about-l">
+          {full && <button className="lnk" onClick={() => setMore((x) => !x)}>{more ? 'Show the summary' : 'Read the full description'}</button>}
+          {links.map((l) => <a key={l.href + l.label} href={l.href} title={l.title} target="_blank" rel="noreferrer">{l.label} ↗</a>)}
+          {q.data?.at && <span className="t40">read {q.data.at}</span>}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 /** a USD figure may arrive as a numeric string off a Postgres numeric column */
 const num = (x: number | string | null | undefined) => (x == null || x === '' ? null : Number(x))
 const utilOf = (t: { depositsUsd: number | string | null; debtUsd: number | string | null }) => {

@@ -1422,6 +1422,11 @@ i.chdr-logo{display:grid;place-items:center;font:600 14px/1 var(--mono);font-sty
 .tk-about .warn{color:var(--warning);font-size:12px}
 .tk-about-l{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px}
 .tk-about-l .t40{margin-left:auto}
+/* a Lagoon vault's own pitch on its market page (Market.tsx `Strategy`) */
+.card.pad.mk-strat{margin-top:0}
+.mk-strat-t{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.mk-strat-t .heldchip{margin-left:0}
+.mk-strat p{white-space:pre-line}
 .tk-notes{margin-top:12px;display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--tx40);line-height:1.45}
 .tk-chart{margin-top:16px}
 .tk-chart .ch{display:flex;align-items:baseline;gap:8px;font-size:12.5px;margin-bottom:6px}

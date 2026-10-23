@@ -113,7 +113,7 @@ export function liteHas(r: Page): boolean {
   if (r.view === 'home') return !r.t
   if (r.view === 'earn' || r.view === 'you') return true
   // the leaderboard: wallets by rate or by dollars a day; Pro's cuts (by strategy, an exposure chip, a strategy's holders, lifetime PnL) are Pro's
-  if (r.view === 'board') return !r.by && !r.x && !r.s && (r.t == null || r.t === 'apr' || r.t === 'perDay')
+  if (r.view === 'board') return (!r.by || r.by === 'strategy') && !r.x && !r.s && (r.t == null || r.t === 'apr' || r.t === 'perDay')
   if (r.view !== 'group' || !r.group || !LITE_GROUPS.has(r.group)) return false
   // a running position named alone (`h=` with no row) is managed in Pro, where the off-menu tickets live
   return (r.k == null || r.k === 'simple' || r.k === 'loop') && !(r.h && !r.s)

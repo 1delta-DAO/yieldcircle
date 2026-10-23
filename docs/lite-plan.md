@@ -357,7 +357,18 @@ Changes against the plan above, and why:
     carries the strategy, Follow, and a link to the full wallet page. "People you
     follow" narrows it. An unprefixed `#/board` opens it for a Lite reader; Pro's
     cuts (`by=`, `x=`, `s=`, lifetime sorts) stay Pro's.
-15. **The landing needed no change.** Its CTAs open the app root, which opens the
+15. **You is not a tab** (owner's call, 2026-10-23). The balance chip top-right is
+    on every page and is the way into You, so Lite's bar is Home · Earn · Board.
+    The chip (`LiteYours`, `.lite-chip`) shows the total, what it earns a day and
+    the streak, and lights up while You is open.
+16. **The board has a Strategies view** (`#/lite/board?by=strategy`, 2026-10-23):
+    one row per strategy in Lite's words, ranked by what everyone in it earns
+    together (rate, or dollars a day), from the same strategy board Pro reads.
+    The top one is a hero card in its money's colour with the holders' faces;
+    every row below carries a bar against it. A strategy one wallet alone runs is
+    left out (`BOARD_MIN_WALLETS`). Copy opens Lite's ticket at the best holder's
+    leverage where Lite carries the strategy; otherwise "Who" opens that holder.
+17. **The landing needed no change.** Its CTAs open the app root, which opens the
     saved mode, so Lite for a first visit.
 
 Not built, and why:

@@ -332,3 +332,56 @@ export function boardPositions(
     })
     .sort((a, b) => b.pnlUsd - a.pnlUsd)
 }
+
+export interface BoardStrategy {
+  key: string
+  kind: 'loop' | 'deposit' | 'position'
+  title: string
+  sub: string
+  /** the colour of the money it is in, when Lite knows it (`GROUPS`), else none */
+  color: string | null
+  /** the rate the holders earn, weighted by their equity (`apr`), or the dollars a day they earn together (`perDay`) */
+  value: number
+  wallets: number
+  equityUsd: number
+  faces: string[]
+  /** the best position: who, at what, on how much */
+  best: { account: string; aprPct: number | null; leverage: number | null; equityUsd: number } | null
+  levRange: string | null
+  since: string | null
+}
+/**
+ * The strategy board, cut for Lite: one row per strategy — what is run, not who runs it twice —
+ * named in Lite's words where Lite carries it, with the crowd behind it. Ranked by the holders'
+ * rate or by the dollars a day they earn together. A strategy one wallet alone runs is left out
+ * (`BOARD_MIN_WALLETS`): Lite's board is what people do, and one person is a position, not a
+ * strategy — Pro's board still lists it.
+ */
+export const BOARD_MIN_WALLETS = 2
+export function boardStrategies(
+  rows: { account: string; netAprPct: number | null; leverage: number | null; equityUsd: number; legs: { side: string; symbol: string | null; marketName?: string | null }[]; strategy: { key: string; kind: 'loop' | 'deposit' | 'position'; wallets: number; equityUsd: number; aprPct: number | null; perDayUsd: number | null; leverageMin: number | null; leverageMax: number | null; faces: string[]; firstSince: string | null } }[],
+  sort: BoardSort,
+  lite: (strategyKey: string) => { title: string; sub: string; color: string } | null,
+): BoardStrategy[] {
+  const v = (r: (typeof rows)[number]) => (sort === 'apr' ? r.strategy.aprPct : r.strategy.perDayUsd)
+  const isDebt = (s: string) => s === 'borrow' || s === 'debt'
+  return rows
+    .filter((r) => v(r) != null && Number.isFinite(v(r)!) && v(r)! > 0 && r.strategy.wallets >= BOARD_MIN_WALLETS)
+    .sort((a, b) => v(b)! - v(a)!)
+    .map((r) => {
+      const g = r.strategy
+      const l = lite(g.key)
+      const held = r.legs.find((x) => !isDebt(x.side))?.symbol, debt = r.legs.find((x) => isDebt(x.side))?.symbol
+      const lo = g.leverageMin, hi = g.leverageMax
+      const levRange = g.kind === 'loop' && hi && hi > 1.05 ? (lo && Math.round((hi - lo) * 10) > 1 ? `${leverTag(lo)}–${leverTag(hi).slice(1)}` : leverTag(hi)) : null
+      return {
+        key: g.key, kind: g.kind,
+        title: l?.title ?? held ?? 'A position',
+        sub: l?.sub ?? (g.kind === 'loop' ? `Levered · borrows ${debt ?? '?'}` : g.kind === 'deposit' ? 'Deposit' : 'A position'),
+        color: l?.color ?? null,
+        value: v(r)!, wallets: g.wallets, equityUsd: g.equityUsd, faces: g.faces,
+        best: { account: r.account, aprPct: r.netAprPct, leverage: r.leverage, equityUsd: r.equityUsd },
+        levRange, since: g.firstSince,
+      }
+    })
+}

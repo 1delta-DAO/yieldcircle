@@ -71,6 +71,7 @@ Four screens, three tabs. Everything else is Pro.
   held (fomo's verified · trending · most held). No Hot rail, no Pulse, no
   filter sheet.
 - **Earn** is the four categories, then one list per category.
+- **You is not a tab** (2026-10-23): the balance chip top-right opens it from every page.
 - **You** is positions, points, streak, rank, and the Pro switch.
 - **Borrow and Stocks are not in Lite** (owner's call, 2026-10-23). Borrow is
   the tab with the most concepts (collateral, LTV, what comes out), and Stocks

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boardPositions, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
+import { boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 
@@ -170,5 +170,27 @@ describe('the leaderboard', () => {
     }
     const ps = boardPositions(book, (k) => (k === 'loop:x|y' ? 'Ether via Lido' : null))
     expect(ps.map((p) => [p.title, p.sub, p.pnlUsd])).toEqual([['Ether via Lido', 'Levered · borrows WETH', 900], ['Steakhouse USDC', 'Deposit', 120]])
+  })
+})
+
+describe('the strategy board', () => {
+  const g = (key: string, apr: number | null, day: number | null, more: Partial<Parameters<typeof boardStrategies>[0][number]['strategy']> = {}) => ({
+    account: '0xbest', netAprPct: 27.6, leverage: 4, equityUsd: 350_000,
+    legs: [{ side: 'supply', symbol: 'nOPAL' }, { side: 'borrow', symbol: 'USDC' }],
+    strategy: { key, kind: 'loop' as const, wallets: 12, equityUsd: 941_000, aprPct: apr, perDayUsd: day, leverageMin: 3.9, leverageMax: 4, faces: ['0xbest', '0x2'], firstSince: null, ...more },
+  })
+  it('ranks by the holders’ rate or their dollars a day, and names what Lite carries in its words', () => {
+    const rows = [g('loop:a|b', 12, 300), g('loop:c|d', 27.6, 90), g('dep:e', null, 50)]
+    const out = boardStrategies(rows, 'apr', (k) => (k === 'loop:c|d' ? { title: 'Dollars via Nest', sub: 'Levered ×4.0 · borrows dollars', color: '#3fbf7f' } : null))
+    expect(out.map((s) => [s.title, s.value])).toEqual([['Dollars via Nest', 27.6], ['nOPAL', 12]])
+    expect(out[1].sub).toBe('Levered · borrows USDC')
+    expect(out[0].levRange).toBe('×4.0')
+    expect(boardStrategies(rows, 'perDay', () => null).map((s) => s.key)).toEqual(['loop:a|b', 'loop:c|d', 'dep:e'])
+  })
+  it('leaves out a strategy one wallet alone runs', () => {
+    expect(boardStrategies([g('loop:a|b', 90, 1, { wallets: 1 }), g('loop:c|d', 10, 1)], 'apr', () => null).map((s) => s.key)).toEqual(['loop:c|d'])
+  })
+  it('says a leverage range when the holders differ', () => {
+    expect(boardStrategies([g('loop:a|b', 10, 1, { leverageMin: 2, leverageMax: 4 })], 'apr', () => null)[0].levRange).toBe('×2.0–4.0')
   })
 })

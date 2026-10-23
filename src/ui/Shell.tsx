@@ -48,6 +48,7 @@ import { TxInFlight, TxTray } from './TxTray'
 import { Sk, usd, usdShort } from './bits'
 import { gated, onAccessCode, openGate, useOnList, WAITLIST_HREF } from '../wallet/gate'
 import { usePaperSession } from '../wallet/paper'
+import { useDayLog } from './lite/useLite'
 
 const ic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
 /**
@@ -65,18 +66,17 @@ const TABS: { id: string; label: string; href: string; on: (r: Route) => boolean
 ]
 const ROOTS: View[] = ['home', 'feed', 'earn', 'borrow', 'board']
 /**
- * Lite's four tabs (docs/lite.md): the home (cards to copy), Earn (four categories, one list
- * each), Board (who earns, one number each, positions on a tap) and You (positions, streak,
- * points, rank, alerts). Borrow and the feed are Pro's.
+ * Lite's three tabs (docs/lite.md): the home (cards to copy), Earn (four categories, one list
+ * each) and Board (who earns, one number each, positions on a tap). You — positions, streak,
+ * points, rank — is behind the balance chip top-right (`LiteYours`), the one button every page
+ * has, so it is not a tab too. Borrow and the feed are Pro's.
  */
-const youIcon = <svg {...ic}><circle cx="10" cy="7" r="3.2" /><path d="M3.8 17c.9-3.2 3.3-4.8 6.2-4.8s5.3 1.6 6.2 4.8" /></svg>
 const LITE_TABS: typeof TABS = [
   { ...TABS[0], href: liteHref() },
   { ...TABS[2], href: liteHref('earn'), on: (r) => r.view === 'earn' || r.view === 'group' },
   { ...TABS[4], href: liteHref('board') },
-  { id: 'you', label: 'You', href: liteHref('you'), on: (r) => r.view === 'you', icon: youIcon },
 ]
-const LITE_ROOTS: View[] = ['home', 'earn', 'board', 'you']
+const LITE_ROOTS: View[] = ['home', 'earn', 'board']
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const r = useRoute()
@@ -179,18 +179,29 @@ function Yours() {
 }
 
 /**
- * Lite's top-right: one balance, which opens You — where Lite keeps positions — rather than Pro's
- * sheet with its Borrow and Put-to-work links. Connect before there is a wallet.
+ * Lite's top-right: your money, as the way into You (positions, streak, points, rank — Lite
+ * keeps them there rather than in Pro's sheet, with its Borrow and Put-to-work links). One pill:
+ * the total, what it earns a day and the streak, lit while You is open. Connect before there is
+ * a wallet.
  */
 function LiteYours() {
   const { account } = useApp()
+  const r = useRoute()
   const b = useBook()
+  const day = useDayLog(b)
   if (!account) return <ConnectButton compact />
   const t = totalsOf(b)
   const loading = b.positionsLoading && !b.books.length
+  const on = r.view === 'you'
   return (
-    <a className={`moneychip${b.paper ? ' paper' : ''}`} href={liteHref('you')} aria-label={`You${loading ? '' : `, ${usd(t.tot)}`}`}>
-      {loading ? <Sk w={64} /> : <><b>{usdShort(t.tot)}</b>{t.yearly > 0 ? <small>{b.paper ? 'paper · ' : ''}+{usdShort(t.yearly / 365)}/day</small> : b.paper ? <small>paper</small> : null}</>}
+    <a className={`lite-chip${b.paper ? ' paper' : ''}${on ? ' on' : ''}`} href={liteHref('you')} aria-current={on ? 'page' : undefined} aria-label={`You${loading ? '' : `: ${usd(t.tot)}`}${t.yearly > 0 ? `, earning ${usd(t.yearly / 365)} a day` : ''}`} title="Your money, streak and rank">
+      <span className="lc-ic" aria-hidden><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="15" height="11" rx="2.5" /><path d="M2.5 8.5h15" /><circle cx="13.5" cy="12.3" r="1.2" fill="currentColor" stroke="none" /></svg></span>
+      <span className="lc-t">
+        {loading ? <Sk w={64} h={14} /> : <b>{usdShort(t.tot)}</b>}
+        {loading ? null : t.yearly > 0 ? <small className="ok">+{usdShort(t.yearly / 365)} a day</small> : <small>{b.paper ? 'paper money' : 'nothing earning yet'}</small>}
+      </span>
+      {day.streak > 0 && <span className="lc-streak" title={`${day.streak} day${day.streak === 1 ? '' : 's'} in a row with money at work`}>🔥{day.streak}</span>}
+      <svg className="lc-chev" viewBox="0 0 12 12" width="10" height="10" aria-hidden><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </a>
   )
 }

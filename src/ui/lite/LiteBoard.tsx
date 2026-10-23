@@ -6,7 +6,9 @@ import { useMyFollows, useProfiles } from '../../social/queries'
 import { go, useApp, walletHref } from '../../state/AppState'
 import { normAddr } from '../../model/address'
 import { bookKeyOf } from '../../model/uid'
-import { boardPositions, boardWallets, type BoardSort, type BoardWallet, type LiteRow } from '../../model/lite'
+import { boardPositions, boardStrategies, boardWallets, type BoardSort, type BoardStrategy, type BoardWallet, type LiteRow } from '../../model/lite'
+import { GROUPS } from '../../model/assets'
+import { Face } from '../social-bits'
 import { FollowButton, Who } from '../social-bits'
 import { Sk, pct, usd, usdShort } from '../bits'
 import { useLiteMenu } from './useLite'
@@ -28,9 +30,20 @@ const MEDAL = ['gold', 'silver', 'bronze']
  * The same board Pro's Wallets view and the header's rank read (the index pre-warms both), so
  * the reader's own place here is the one their You page shows.
  */
-export function LiteBoard({ sort }: { sort: BoardSort }) {
-  const { account } = useApp()
+export function LiteBoard({ sort, by }: { sort: BoardSort; /** who earns, or what is run */ by: 'wallet' | 'strategy' }) {
   const L = useLiteMenu()
+  // the Lite row each strategy key opens, for the Copy and the words
+  const liteByKey = React.useMemo(() => {
+    const m = new Map<string, LiteRow>()
+    for (const r of L.rows) { const k = bookKeyOf(r.s); if (k) m.set(k.toLowerCase(), r) }
+    return m
+  }, [L.rows])
+  // two components, not one with a branch: each view has its own hooks
+  return by === 'strategy' ? <Strategies sort={sort} liteByKey={liteByKey} /> : <Wallets sort={sort} liteByKey={liteByKey} />
+}
+
+function Wallets({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<string, LiteRow> }) {
+  const { account } = useApp()
   const q = useQuery({
     // `earners-me` is the $/day board the header and You already read: one request for both
     queryKey: sort === 'perDay' ? ['earners-me'] : ['earners-lite', sort],
@@ -45,19 +58,11 @@ export function LiteBoard({ sort }: { sort: BoardSort }) {
   const { profile } = useProfiles(rows.map((r) => r.account))
   const [open, setOpen] = React.useState<string | null>(null)
   const me = account ? rows.find((r) => normAddr(r.account) === normAddr(account)) : undefined
-  // the Lite row each strategy key opens, for the positions' Copy
-  const liteByKey = React.useMemo(() => {
-    const m = new Map<string, LiteRow>()
-    for (const r of L.rows) { const k = bookKeyOf(r.s); if (k) m.set(k.toLowerCase(), r) }
-    return m
-  }, [L.rows])
   return (
     <div className="lite-page lite-board">
-      <div className="feed-h"><h1>Leaderboard</h1><span className="sp" /><span className="t50">real wallets, read off the chain</span></div>
+      <BoardHead by="wallet" sort={sort} />
       <div className="lite-board-bar">
-        <div className="seg" role="tablist" aria-label="Rank by">
-          {SORTS.map((x) => <button key={x.id} role="tab" aria-selected={sort === x.id} aria-pressed={sort === x.id} onClick={() => go('board', { t: x.id === 'apr' ? undefined : x.id })}>{x.word}</button>)}
-        </div>
+        <SortSeg by="wallet" sort={sort} />
         {account && f.wallets.length > 0 && (
           <div className="seg" role="group" aria-label="Whose">
             <button aria-pressed={!mine} onClick={() => setMine(false)}>Everyone</button>
@@ -117,4 +122,99 @@ function WalletPositions({ account, liteByKey, me }: { account: string; liteByKe
       </div>
     </div>
   )
+}
+
+/** The title and the Wallets · Strategies switch, shared by both views. */
+function BoardHead({ by, sort }: { by: 'wallet' | 'strategy'; sort: BoardSort }) {
+  const t = sort === 'apr' ? undefined : sort
+  return (
+    <div className="feed-h">
+      <h1>Leaderboard</h1>
+      <div className="seg" role="tablist" aria-label="Wallets or strategies">
+        <button role="tab" aria-selected={by === 'wallet'} aria-pressed={by === 'wallet'} onClick={() => go('board', { t })}>Wallets</button>
+        <button role="tab" aria-selected={by === 'strategy'} aria-pressed={by === 'strategy'} onClick={() => go('board', { by: 'strategy', t })}>Strategies</button>
+      </div>
+      <span className="sp" /><span className="t50 hide-m">real wallets, read off the chain</span>
+    </div>
+  )
+}
+function SortSeg({ by, sort }: { by: 'wallet' | 'strategy'; sort: BoardSort }) {
+  return (
+    <div className="seg" role="tablist" aria-label="Rank by">
+      {SORTS.map((x) => <button key={x.id} role="tab" aria-selected={sort === x.id} aria-pressed={sort === x.id} onClick={() => go('board', { by: by === 'strategy' ? 'strategy' : undefined, t: x.id === 'apr' ? undefined : x.id })}>{x.word}</button>)}
+    </div>
+  )
+}
+
+const STRAT_WHY: Record<BoardSort, string> = {
+  apr: 'what everyone in the strategy earns together, a year, at today’s rates',
+  perDay: 'the dollars a day everyone in the strategy earns together: where the money is',
+}
+
+/**
+ * What is RUN, not who runs it twice (docs/board-strategies.md): one row per strategy, in Lite's
+ * words, with the crowd behind it. The best one is the hero — its money's colour, the rate large,
+ * the faces of who holds it — and every row below carries a bar against it, so the page reads as
+ * a ranking before a single number is read. Copy opens Lite's ticket where Lite carries it.
+ */
+function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<string, LiteRow> }) {
+  const { account } = useApp()
+  const q = useQuery({
+    queryKey: ['earners', 'strategy', sort, 'default', true, 'all', 'all', 'all', 'all', 50] as const,
+    queryFn: () => idx.strategyBoard({ sort, people: true, limit: 50 }),
+    staleTime: 60_000,
+    retry: 1,
+  })
+  const colorOf = (g: string) => GROUPS.find((x) => x.id === g)?.color ?? '#8fa6ff'
+  const rows = React.useMemo(() => boardStrategies(q.data?.rows ?? [], sort, (k) => {
+    const r = liteByKey.get(k.toLowerCase())
+    return r ? { title: r.title, sub: r.sub, color: colorOf(r.s.group) } : null
+  }), [q.data, sort, liteByKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const top = rows[0]
+  const fmt = (v: number) => (sort === 'apr' ? pct(v, 1) : usdShort(v))
+  const unit = sort === 'apr' ? 'a year' : 'a day'
+  const copy = (s: BoardStrategy) => { const r = liteByKey.get(s.key.toLowerCase()); if (r) openRow(r.s, { copy: s.best?.account }) }
+  const canCopy = (s: BoardStrategy) => liteByKey.has(s.key.toLowerCase()) && (!account || normAddr(s.best?.account ?? '') !== normAddr(account))
+  return (
+    <div className="lite-page lite-board">
+      <BoardHead by="strategy" sort={sort} />
+      <div className="lite-board-bar"><SortSeg by="strategy" sort={sort} /></div>
+      <p className="t50 lite-lens-why">{STRAT_WHY[sort]}. Copy opens the same strategy at the best holder’s leverage, your own size.</p>
+      {q.isLoading ? <div className="lstrat"><div className="ls-hero" aria-hidden><Sk w={120} h={12} /><Sk w={220} h={26} /><div className="ls-rate"><Sk w={140} h={44} /></div></div>{[0, 1, 2].map((i) => <div key={i} className="ls-row sk"><Sk w={24} h={18} /><Sk w={36} h={36} /><Sk w={160} h={14} /><Sk w={70} h={18} /></div>)}</div>
+        : q.error ? <div className="empty">The board could not be read right now.</div>
+        : !top ? <div className="empty">Nothing on the board right now.</div>
+        : (
+          <div className="lstrat">
+            <section className="ls-hero" style={{ '--gc': top.color ?? undefined } as React.CSSProperties} aria-label="The top strategy">
+              <div>
+                <div className="ls-k">#1 · {sort === 'apr' ? 'best rate' : 'most a day'}</div>
+                <h2>{top.title}</h2>
+                <div className="ls-sub">{top.sub}{top.levRange && !top.sub.includes('×') ? ` · ${top.levRange}` : ''}</div>
+              </div>
+              <div className="ls-rate"><b>{fmt(top.value)}</b><small>{unit} · everyone in it together</small></div>
+              <div className="ls-foot">
+                <Faces faces={top.faces} size={28} />
+                <span className="ls-crowd"><b>{top.wallets}</b> {top.wallets === 1 ? 'person runs' : 'people run'} this · <b>{usdShort(top.equityUsd)}</b> in it{top.best && sort === 'apr' ? <> · the best earns <b>{pct(top.best.aprPct, 1)}</b> on {usdShort(top.best.equityUsd)}</> : null}</span>
+                {canCopy(top) ? <button type="button" className="btn pri" onClick={() => copy(top)}>Copy</button> : top.best ? <a className="btn" href={walletHref(top.best.account)}>See the best holder</a> : null}
+              </div>
+            </section>
+            {rows.slice(1, 40).map((s, i) => (
+              <div key={s.key} className="ls-row" style={{ '--gc': s.color ?? undefined, '--w': `${Math.max(4, Math.min(100, (s.value / top.value) * 100))}%` } as React.CSSProperties}>
+                <span className="ls-bar" aria-hidden />
+                <span className={`lb-rank${i + 2 <= 3 ? ` top ${MEDAL[i + 1]}` : ''}`}>{i + 2}</span>
+                <span className="ls-face"><Faces faces={s.faces.slice(0, 2)} size={26} /></span>
+                <span className="ls-n"><b>{s.title}</b><small>{s.sub} · {s.wallets} {s.wallets === 1 ? 'person' : 'people'} · {usdShort(s.equityUsd)}</small></span>
+                <span className="ls-v"><b>{fmt(s.value)}</b>{canCopy(s) ? <button type="button" className="btn sm pri" onClick={() => copy(s)}>Copy</button> : s.best ? <a className="btn sm" href={walletHref(s.best.account)}>Who</a> : null}</span>
+              </div>
+            ))}
+          </div>
+        )}
+    </div>
+  )
+}
+
+/** Up to three holders' faces, overlapping: the crowd behind a strategy at a glance. */
+function Faces({ faces, size }: { faces: string[]; size: number }) {
+  if (!faces.length) return null
+  return <span className="ls-faces">{faces.slice(0, 3).map((a) => <Face key={a} account={a} size={size} />)}</span>
 }

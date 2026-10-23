@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
+import { boardPositions, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 
@@ -146,5 +146,29 @@ describe('managing a position', () => {
   it('says a risky loop in words, with its tone', () => {
     expect(holdingLine({ kind: 'loop', leverage: 21, health: 1.01 })).toEqual({ text: 'Levered ×21 · 1.0% from liquidation', tone: 'bad' })
     expect(holdingLine({ kind: 'borrow', health: 2 }).text).toBe('A loan · 50% from liquidation')
+  })
+})
+
+describe('the leaderboard', () => {
+  const w = (account: string, apr: number | null, day: number | null, nCounted = 2) => ({ account, netAprPct: apr, perDayUsd: day, navUsd: 50_000, nCounted })
+  it('ranks by one number, and only wallets with a figure', () => {
+    const rows = [w('0xa', 12, 30), w('0xb', 30, 5), w('0xc', null, 90), w('0xd', 50, 1, 0)]
+    expect(boardWallets(rows, 'apr').map((r) => [r.account, r.rank])).toEqual([['0xb', 1], ['0xa', 2]])
+    expect(boardWallets(rows, 'perDay').map((r) => r.account)).toEqual(['0xc', '0xa', '0xb'])
+  })
+  it('narrows to the people the reader follows', () => {
+    expect(boardWallets([w('0xA', 12, 3), w('0xb', 30, 5)], 'apr', new Set(['0xa'])).map((r) => r.account)).toEqual(['0xA'])
+  })
+  it('lists each position with what it made, best first, skipping what is not drawn yet', () => {
+    const book = {
+      strategies: [{ key: 'loop:x|y', kind: 'loop', held: ['wstETH'], debt: ['WETH'], protocol: 'AAVE_V3' }, { key: 'dep:z', kind: 'deposit', held: ['USDC'], debt: [], protocol: 'vault.morpho', market: 'Steakhouse USDC' }],
+      positions: [
+        { key: 'p1', strategyKey: 'dep:z', pnlUsd: 120, pnlAprPct: 6, equityUsd: 5000, since: null, status: 'ok' },
+        { key: 'p2', strategyKey: 'loop:x|y', pnlUsd: 900, pnlAprPct: 14, equityUsd: 9000, since: null, status: 'ok' },
+        { key: 'p3', strategyKey: 'loop:x|y', pnlUsd: null, pnlAprPct: null, equityUsd: 100, since: null, status: 'pending' },
+      ],
+    }
+    const ps = boardPositions(book, (k) => (k === 'loop:x|y' ? 'Ether via Lido' : null))
+    expect(ps.map((p) => [p.title, p.sub, p.pnlUsd])).toEqual([['Ether via Lido', 'Levered · borrows WETH', 900], ['Steakhouse USDC', 'Deposit', 120]])
   })
 })

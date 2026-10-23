@@ -18,6 +18,7 @@ import { LiteHome } from './ui/lite/LiteHome'
 import { LiteEarn } from './ui/lite/LiteEarn'
 import { LiteList } from './ui/lite/LiteList'
 import { LiteYou } from './ui/lite/LiteYou'
+import { LiteBoard } from './ui/lite/LiteBoard'
 
 export default function App() {
   const r = useRoute()
@@ -29,6 +30,7 @@ export default function App() {
   if (r.lite) return (
     <Shell>
       {r.view === 'you' ? <LiteYou />
+        : r.view === 'board' ? <LiteBoard sort={r.t === 'perDay' ? 'perDay' : 'apr'} />
         : group ? <LiteList key={group.id} group={group} route={r} />
         : r.view === 'earn' ? <LiteEarn />
         : <LiteHome />}

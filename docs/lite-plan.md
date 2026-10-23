@@ -348,7 +348,16 @@ Changes against the plan above, and why:
     all, which returns the collateral, and Pay back some. A position within 10 %
     of liquidation opens on Lower risk, and its row says how far it is. Only a
     price bet still opens in Pro.
-14. **The landing needed no change.** Its CTAs open the app root, which opens the
+14. **Lite has a leaderboard, as a fourth tab** (`#/lite/board`, `LiteBoard.tsx`,
+    2026-10-23). It reads the same wallet board as Pro's Wallets view and the
+    header's rank, ranked by one number: the rate on all a wallet's money, or
+    dollars a day, at today's rates. It shows no lifetime total, because a
+    wallet's PnL sum is mostly its coins' price moves. Tapping a wallet opens its
+    positions, each with what it made (the index's PnL book), a Copy where Lite
+    carries the strategy, Follow, and a link to the full wallet page. "People you
+    follow" narrows it. An unprefixed `#/board` opens it for a Lite reader; Pro's
+    cuts (`by=`, `x=`, `s=`, lifetime sorts) stay Pro's.
+15. **The landing needed no change.** Its CTAs open the app root, which opens the
     saved mode, so Lite for a first visit.
 
 Not built, and why:

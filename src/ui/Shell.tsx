@@ -65,16 +65,18 @@ const TABS: { id: string; label: string; href: string; on: (r: Route) => boolean
 ]
 const ROOTS: View[] = ['home', 'feed', 'earn', 'borrow', 'board']
 /**
- * Lite's three tabs (docs/lite.md): the home (cards to copy), Earn (four categories, one list
- * each) and You (positions, streak, points, rank, alerts). Borrow, the board and the feed are Pro's.
+ * Lite's four tabs (docs/lite.md): the home (cards to copy), Earn (four categories, one list
+ * each), Board (who earns, one number each, positions on a tap) and You (positions, streak,
+ * points, rank, alerts). Borrow and the feed are Pro's.
  */
 const youIcon = <svg {...ic}><circle cx="10" cy="7" r="3.2" /><path d="M3.8 17c.9-3.2 3.3-4.8 6.2-4.8s5.3 1.6 6.2 4.8" /></svg>
 const LITE_TABS: typeof TABS = [
   { ...TABS[0], href: liteHref() },
   { ...TABS[2], href: liteHref('earn'), on: (r) => r.view === 'earn' || r.view === 'group' },
+  { ...TABS[4], href: liteHref('board') },
   { id: 'you', label: 'You', href: liteHref('you'), on: (r) => r.view === 'you', icon: youIcon },
 ]
-const LITE_ROOTS: View[] = ['home', 'earn', 'you']
+const LITE_ROOTS: View[] = ['home', 'earn', 'board', 'you']
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const r = useRoute()

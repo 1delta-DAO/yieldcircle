@@ -287,3 +287,48 @@ export function holdingLine(h: Pick<Holding, 'kind' | 'leverage' | 'health' | 'd
   if (h.kind === 'loop') return { text: `Levered ${leverTag(h.leverage ?? 1)}${line}`, tone }
   return { text: 'Earning', tone: '' }
 }
+
+// ---------------------------------------------------------------- the leaderboard
+
+/** What the board ranks by (docs/lite.md §6): the rate a wallet earns on all its money now, or the dollars a day. */
+export type BoardSort = 'apr' | 'perDay'
+export interface BoardWallet { account: string; rank: number; value: number; navUsd: number; positions: number; label?: string | null }
+/**
+ * The wallet board, cut for Lite: wallets with a figure, ranked by one number. No lifetime
+ * total — a wallet's PnL sum is mostly what its coins did against the dollar, and the board's
+ * job here is "who earns, on what": each position's own PnL is one tap away.
+ */
+export function boardWallets(rows: { account: string; netAprPct: number | null; perDayUsd: number | null; navUsd: number; nCounted: number; accountLabel?: string | null }[], sort: BoardSort, only?: Set<string>): BoardWallet[] {
+  const v = (r: (typeof rows)[number]) => (sort === 'apr' ? r.netAprPct : r.perDayUsd)
+  return rows
+    .filter((r) => v(r) != null && Number.isFinite(v(r)!) && r.nCounted > 0 && (!only || only.has(r.account.toLowerCase())))
+    .sort((a, b) => v(b)! - v(a)!)
+    .map((r, i) => ({ account: r.account, rank: i + 1, value: v(r)!, navUsd: r.navUsd, positions: r.nCounted, label: r.accountLabel }))
+}
+
+export interface BoardPosition { key: string; strategyKey: string; title: string; sub: string; pnlUsd: number; aprPct: number | null; equityUsd: number | null; since: string | null }
+/**
+ * One wallet's positions with what each MADE (the index's PnL book), best first. Named in Lite's
+ * words when Lite carries the strategy (`liteTitle`), else by what it holds; a position the index
+ * has not drawn yet is left out rather than shown as zero.
+ */
+export function boardPositions(
+  book: { positions: { key: string; strategyKey: string; pnlUsd: number | null; pnlAprPct: number | null; equityUsd: number | null; since: string | null; status: string }[]; strategies: { key: string; kind: string; held: string[]; debt: string[]; market?: string | null; protocol: string | null }[] },
+  liteTitle: (strategyKey: string) => string | null,
+): BoardPosition[] {
+  const strat = new Map(book.strategies.map((s) => [s.key, s]))
+  return book.positions
+    .filter((p) => p.pnlUsd != null && Number.isFinite(p.pnlUsd) && p.status === 'ok')
+    .map((p) => {
+      const s = strat.get(p.strategyKey)
+      const held = s?.protocol?.startsWith('vault.') && s.market && !s.debt.length ? s.market : (s?.held ?? []).slice(0, 2).join(' + ') || 'A position'
+      const loop = !!s?.debt.length
+      return {
+        key: p.key, strategyKey: p.strategyKey,
+        title: liteTitle(p.strategyKey) ?? held,
+        sub: loop ? `Levered · borrows ${s!.debt.slice(0, 2).join(' + ')}` : 'Deposit',
+        pnlUsd: p.pnlUsd!, aprPct: p.pnlAprPct, equityUsd: p.equityUsd, since: p.since,
+      }
+    })
+    .sort((a, b) => b.pnlUsd - a.pnlUsd)
+}

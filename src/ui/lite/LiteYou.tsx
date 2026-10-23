@@ -56,7 +56,7 @@ export function LiteYou() {
         <Stat k="Earning" v={<span className="ok">+{usd(t.yearly / 365)}</span>} s={`a day · ${usdShort(t.yearly)} a year`} />
         <Stat k="Streak" v={<>🔥 {day.streak}</>} s={day.streak ? `${streakWord(day.streak)} in a row with money at work` : 'put money to work to start one'} />
         <Stat k="Points" v={day.points.toLocaleString('en-US')} s="preview · a point a day per $100 at work" />
-        {!b.paper && <Stat k="Rank" v={stats.rank != null ? `#${stats.rank}` : '—'} s={stats.rank != null ? `on the board · ${usdShort(stats.perDay)}/day` : 'top 100 by what they earn a day'} />}
+        {!b.paper && <Stat k="Rank" v={stats.rank != null ? `#${stats.rank}` : '—'} s={stats.rank != null ? `on the board · ${usdShort(stats.perDay)}/day` : 'top 100 by what they earn a day'} href={liteHref('board?t=perDay')} />}
       </div>
 
       <section className="sec lite-sec">
@@ -83,8 +83,9 @@ export function LiteYou() {
   )
 }
 
-function Stat({ k, v, s }: { k: string; v: React.ReactNode; s: string }) {
-  return <div className="lstat"><span className="k">{k}</span><span className="v">{v}</span><span className="s t50">{s}</span></div>
+function Stat({ k, v, s, href }: { k: string; v: React.ReactNode; s: string; href?: string }) {
+  const body = <><span className="k">{k}{href ? ' ›' : ''}</span><span className="v">{v}</span><span className="s t50">{s}</span></>
+  return href ? <a className="lstat" href={href}>{body}</a> : <div className="lstat">{body}</div>
 }
 
 /**

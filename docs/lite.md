@@ -76,8 +76,8 @@ Four screens, three tabs. Everything else is Pro.
   the tab with the most concepts (collateral, LTV, what comes out), and Stocks
   is mostly a borrow shelf. Lite's Earn has four categories: Dollars, Ether,
   Bitcoin, More.
-- **Board is folded into Home and You.** The strategy board's top rows are
-  Home cards ("12 wallets run this · best 27.6%"); your own rank lives in You.
+- **Board is Lite's fourth tab** (changed 2026-10-23 at the owner's request): wallets
+  by one number, each position's PnL on a tap. See `lite-plan.md`, As built, item 14.
 
 ## 2. Routing and modes
 

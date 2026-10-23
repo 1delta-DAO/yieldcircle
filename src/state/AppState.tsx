@@ -39,8 +39,8 @@ import { readMode, writeMode, type AppMode } from './mode'
  *
  * Lite and Pro (docs/lite.md): any route may lead with `lite/` or `pro/`. Lite has four pages —
  * the home (`#/lite/`), Earn (`#/lite/earn`), a category's list with its ticket
- * (`#/lite/USD?s=…`; USD, ETH, BTC and MORE, no Stocks, no Borrow, no fixed-rate books) and You
- * (`#/lite/you`). A route with no prefix opens in the saved mode (`state/mode.ts`) when Lite has
+ * (`#/lite/USD?s=…`; USD, ETH, BTC and MORE, no Stocks, no Borrow, no fixed-rate books), the
+ * leaderboard (`#/lite/board`, `?t=perDay` for dollars a day) and You (`#/lite/you`). A route with no prefix opens in the saved mode (`state/mode.ts`) when Lite has
  * that page, so a shared link lands a first visitor in Lite; every other page is Pro's, whatever
  * the prefix says.
  */
@@ -112,6 +112,8 @@ export function parseRoute(hash = location.hash): Route {
 export function liteHas(r: Page): boolean {
   if (r.view === 'home') return !r.t
   if (r.view === 'earn' || r.view === 'you') return true
+  // the leaderboard: wallets by rate or by dollars a day; Pro's cuts (by strategy, an exposure chip, a strategy's holders, lifetime PnL) are Pro's
+  if (r.view === 'board') return !r.by && !r.x && !r.s && (r.t == null || r.t === 'apr' || r.t === 'perDay')
   if (r.view !== 'group' || !r.group || !LITE_GROUPS.has(r.group)) return false
   // a running position named alone (`h=` with no row) is managed in Pro, where the off-menu tickets live
   return (r.k == null || r.k === 'simple' || r.k === 'loop') && !(r.h && !r.s)

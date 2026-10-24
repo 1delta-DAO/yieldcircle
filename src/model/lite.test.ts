@@ -95,7 +95,7 @@ describe('the three lines', () => {
     const l = loopLines({ net: 12, amountUsd: 500, lev: 4.5, drop: 0.07, holds: 'Dollars via Ethena', debt: 'dollars', dollarDebt: true, cost: 0.8, payback: 2, quoting: false })
     expect(l.earn.v).toBe('12.00% a year')
     expect(l.earn.s).toContain('$5.00 a month on $500')
-    expect(l.lose.v).toBe('If Dollars via Ethena drops 7.0%')
+    expect(l.lose.v).toBe('If Ethena’s dollar drops 7.0%')
     expect(l.lose.s).toMatch(/^under the dollar/)
     expect(l.lose.tone).toBe('warn')
     expect(l.cost.v).toBe('$0.80 to enter')
@@ -103,7 +103,8 @@ describe('the three lines', () => {
   })
   it('an ether loop is liquidated against ether, not a dollar', () => {
     const l = loopLines({ net: 4, amountUsd: 0, lev: 6, drop: 0.12, holds: 'Ether via Lido', debt: 'ether', dollarDebt: false, cost: null, payback: null, quoting: true })
-    expect(l.lose.s).toMatch(/^against ether/)
+    expect(l.lose.s).toMatch(/^against plain ether/)
+    expect(l.lose.v).toBe('If Lido’s ether drops 12.0%')
     expect(l.cost.v).toBe('Pricing the entry…')
   })
   it('a deposit says its way out, and a tight market says so', () => {

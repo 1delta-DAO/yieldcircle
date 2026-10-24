@@ -173,10 +173,14 @@ export function earnLine(rate: number, amountUsd: number, more?: string): Line {
  */
 export function loopLines(p: { net: number; amountUsd: number; lev: number; drop: number; holds: string; debt: string; dollarDebt: boolean; expiry?: number; cost: number | null; payback: number | null; quoting: boolean }): ThreeLines {
   const earn = earnLine(p.net, p.amountUsd, leverTag(p.lev) + ' levered')
-  const under = p.dollarDebt ? 'under the dollar' : `against ${p.debt}`
+  // "Ethena's dollar", "ether.fi's ether": whose coin can fall, against the plain money it borrows
+  const { short, via } = splitTitle(p.holds)
+  const fam = /^(Dollars|Ether|Bitcoin)/.exec(p.holds)?.[1]
+  const coin = via && fam ? `${short}’s ${fam === 'Dollars' ? 'dollar' : fam.toLowerCase()}` : p.holds
+  const under = p.dollarDebt ? 'under the dollar' : `against plain ${p.debt}`
   const lose: Line = {
     k: 'Can lose',
-    v: `If ${p.holds} drops ${pct(p.drop * 100, 1)}`,
+    v: `If ${coin} drops ${pct(p.drop * 100, 1)}`,
     s: `${under}: the loop is liquidated${p.expiry ? `. It ends on ${dayMonth(p.expiry)}: close or roll it then` : ''}`,
     tone: p.drop < 0.05 ? 'bad' : p.drop < 0.1 ? 'warn' : '',
   }

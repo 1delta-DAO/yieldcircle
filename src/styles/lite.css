@@ -44,11 +44,16 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .lcard-proof .btn{flex:none}
 
 /* ---------------------------------------------------------------- earn: tiles stay, the list changes in place */
-.lite-earn{display:grid;grid-template-columns:minmax(0,880px);justify-content:center;gap:20px;align-items:start}
-.lite-earn.withticket{grid-template-columns:minmax(0,1fr) 400px;max-width:1240px;margin:0 auto}
+.lite-earn{display:grid;grid-template-columns:minmax(0,880px) 0px;column-gap:0;justify-content:center;align-items:start;max-width:1240px;margin:0 auto;transition:grid-template-columns .32s cubic-bezier(.4,0,.2,1),column-gap .32s cubic-bezier(.4,0,.2,1)}
+.lite-earn.withticket{grid-template-columns:minmax(0,1fr) 400px;column-gap:20px}
 .lite-earn .main{min-width:0}
-.lite-earn aside{min-width:0;position:sticky;top:76px}
-.lite-earn aside.closed{display:none}
+/* the ticket's column grows from nothing and the ticket fades in behind it: the list reflows
+   under a transition, the ticket keeps its width and is only revealed */
+.lite-earn aside{min-width:0;position:sticky;top:76px;overflow:hidden;opacity:0;transform:translateX(14px);transition:opacity .26s ease .06s,transform .32s cubic-bezier(.4,0,.2,1)}
+.lite-earn aside > *{width:400px}
+.lite-earn.withticket aside{opacity:1;transform:none;overflow:visible}
+.lite-earn aside.closed{visibility:hidden;transition:opacity .18s ease,transform .18s ease,visibility 0s .18s}
+@media (prefers-reduced-motion:reduce){.lite-earn,.lite-earn aside{transition:none}}
 .lite-earn-list .sec-h{position:relative}
 .lite-earn-all{margin-left:auto;font-size:12.5px}
 .ltile{position:relative;border:1px solid transparent;transition:transform .15s,opacity .15s,border-color .15s}
@@ -58,7 +63,7 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .ltile.on::after{content:"";position:absolute;left:50%;bottom:-11px;width:14px;height:14px;transform:translateX(-50%) rotate(45deg);background:var(--b200);border-right:1px solid color-mix(in srgb,var(--gc) 60%,transparent);border-bottom:1px solid color-mix(in srgb,var(--gc) 60%,transparent)}
 .lite-title{display:inline-flex;align-items:center;gap:6px;min-width:0}
 .lite-title > *{flex:none}
-@media (max-width:1000px){.lite-earn.withticket{grid-template-columns:minmax(0,1fr)}.lite-earn aside{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:40;padding:0}}
+@media (max-width:1000px){.lite-earn,.lite-earn.withticket{grid-template-columns:minmax(0,1fr);column-gap:0}.lite-earn aside{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:40;padding:0;overflow:visible;opacity:1;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1)}.lite-earn aside > *{width:auto}.lite-earn.withticket aside{transform:none}.lite-earn aside.closed{visibility:hidden;transition:transform .22s ease,visibility 0s .22s}}
 @media (min-width:1000.02px){.lite-earn ~ .scrim{display:none}}
 
 /* ---------------------------------------------------------------- lists */

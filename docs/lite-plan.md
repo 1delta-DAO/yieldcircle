@@ -383,7 +383,13 @@ Changes against the plan above, and why:
     leverage (shared sticky keys), with "Open this in Pro" at its foot. A loan's
     Details opens Pro's borrow ticket the same way. The board's podium badges are
     an inner fixed disc (`.medal`), so no container can stretch them.
-19. **The landing needed no change.** Its CTAs open the app root, which opens the
+19. **Polish after review** (2026-10-24): every row title carries the money's
+    mark (a ticker too, hover says the money in words); the Can-lose line says
+    whose coin falls against what, "If ether.fi's ether drops 4.3% against plain
+    ether"; and the ticket's column grows in over 0.3 s while the ticket fades in
+    behind it (a slide-up sheet on a phone), instead of appearing at once. Motion
+    is off under `prefers-reduced-motion`.
+20. **The landing needed no change.** Its CTAs open the app root, which opens the
     saved mode, so Lite for a first visit.
 
 Not built, and why:

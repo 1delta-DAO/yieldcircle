@@ -370,7 +370,15 @@ Changes against the plan above, and why:
     leverage where Lite carries the strategy; otherwise "Who" opens that holder.
     Strategies is the board's default view (`#/lite/board`; `?by=wallet` for
     wallets), and every row carries the tokens' own marks.
-17. **The landing needed no change.** Its CTAs open the app root, which opens the
+17. **Earn is one page** (2026-10-24): the four tiles stay put and the list
+    below changes in place — the highest steady rates across every category, or
+    with a tile lit, that category's rows and its ticket beside them, at the same
+    width either way (`LiteEarn.tsx`; `LiteList.tsx` is gone). Row titles show the
+    money's icon and whose it is ("3Jane", hover "Dollars via 3Jane") rather than
+    the phrase. A loop on an issued desk's product (nOPAL under Nest) is "Dollars
+    via Nest · holds nOPAL", not "pUSD". The board's podium badges are tinted
+    rings, not solid discs.
+18. **The landing needed no change.** Its CTAs open the app root, which opens the
     saved mode, so Lite for a first visit.
 
 Not built, and why:

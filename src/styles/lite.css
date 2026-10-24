@@ -43,6 +43,24 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .lcard-proof > span{min-width:0;cursor:pointer}
 .lcard-proof .btn{flex:none}
 
+/* ---------------------------------------------------------------- earn: tiles stay, the list changes in place */
+.lite-earn{display:grid;grid-template-columns:minmax(0,880px);justify-content:center;gap:20px;align-items:start}
+.lite-earn.withticket{grid-template-columns:minmax(0,1fr) 400px;max-width:1240px;margin:0 auto}
+.lite-earn .main{min-width:0}
+.lite-earn aside{min-width:0;position:sticky;top:76px}
+.lite-earn aside.closed{display:none}
+.lite-earn-list .sec-h{position:relative}
+.lite-earn-all{margin-left:auto;font-size:12.5px}
+.ltile{position:relative;border:1px solid transparent;transition:transform .15s,opacity .15s,border-color .15s}
+.ltiles.picked .ltile:not(.on){opacity:.55}
+.ltiles.picked .ltile:not(.on):hover{opacity:.85}
+.ltile.on{border-color:color-mix(in srgb,var(--gc) 60%,transparent);box-shadow:0 0 0 3px color-mix(in srgb,var(--gc) 18%,transparent);background:linear-gradient(135deg,color-mix(in srgb,var(--gc,#fff) 28%,var(--b200)),var(--b200) 80%)}
+.ltile.on::after{content:"";position:absolute;left:50%;bottom:-11px;width:14px;height:14px;transform:translateX(-50%) rotate(45deg);background:var(--b200);border-right:1px solid color-mix(in srgb,var(--gc) 60%,transparent);border-bottom:1px solid color-mix(in srgb,var(--gc) 60%,transparent)}
+.lite-title{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.lite-title > *{flex:none}
+@media (max-width:1000px){.lite-earn.withticket{grid-template-columns:minmax(0,1fr)}.lite-earn aside{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:40;padding:0}}
+@media (min-width:1000.02px){.lite-earn ~ .scrim{display:none}}
+
 /* ---------------------------------------------------------------- lists */
 .lite-hdr{display:flex;align-items:center;gap:14px;margin:6px 0 16px}
 .lite-hdr h1{font-size:26px;line-height:1.15}
@@ -68,7 +86,7 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .ltile-r{font-size:13px;color:var(--tx70)}
 .ltile-r b{font-size:20px}
 .ltile small{font-size:12px}
-@media (max-width:760px){.ltiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.ltiles{grid-template-columns:repeat(2,minmax(0,1fr))}.ltile.on::after{display:none}}
 
 /* ---------------------------------------------------------------- you */
 .lstats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:4px}
@@ -127,8 +145,8 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .lb-row .chev{color:var(--tx40);transition:transform .15s;flex:none}
 .lb-item.open .lb-row .chev{transform:rotate(180deg)}
 .lb-rank{width:28px;flex:none;text-align:center;font-weight:600;font-variant-numeric:tabular-nums;color:var(--tx50)}
-.lb-rank.top{width:26px;height:26px;margin:0 1px;border-radius:999px;display:grid;place-items:center;font-size:13px;color:#111}
-.lb-rank.gold{background:var(--gold)}.lb-rank.silver{background:var(--silver)}.lb-rank.bronze{background:var(--bronze)}
+.lb-rank.top{display:inline-grid;place-items:center;width:24px;height:24px;flex:0 0 24px;margin:0 2px;border-radius:999px;font-size:12px;font-weight:700;color:var(--rank);background:color-mix(in srgb,var(--rank) 16%,transparent);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--rank) 55%,transparent)}
+.lb-rank.gold{--rank:var(--gold)}.lb-rank.silver{--rank:var(--silver)}.lb-rank.bronze{--rank:var(--bronze)}
 .lb-v{display:flex;flex-direction:column;align-items:flex-end;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
 .lb-v small{font-size:11px;font-weight:400}
 .lb-pos{border-top:1px solid var(--line-soft);padding:4px 0 8px}
@@ -182,7 +200,7 @@ a.lstat{color:var(--tx)}a.lstat:hover{background:var(--b300)}
 .ls-row .ls-bar{position:absolute;left:0;top:0;bottom:0;width:var(--w);background:color-mix(in srgb,var(--gc,var(--primary)) 9%,transparent);pointer-events:none}
 .ls-row > *{position:relative}
 .ls-row .lb-rank{width:28px;justify-self:start}
-.ls-row .lb-rank.top{width:26px;min-width:26px;max-width:26px;margin:0}
+.ls-row .lb-rank.top{width:24px;min-width:24px;max-width:24px;margin:0 2px;justify-self:start}
 .ls-mark{display:flex;align-items:center;justify-content:flex-start;min-width:44px}
 .ls-toks{display:inline-flex;align-items:center}
 .ls-hero h2{display:flex;align-items:center;gap:12px}

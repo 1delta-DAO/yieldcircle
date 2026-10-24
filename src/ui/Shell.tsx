@@ -76,7 +76,8 @@ const LITE_TABS: typeof TABS = [
   { ...TABS[2], href: liteHref('earn'), on: (r) => r.view === 'earn' || r.view === 'group' },
   { ...TABS[4], href: liteHref('board') },
 ]
-const LITE_ROOTS: View[] = ['home', 'earn', 'board']
+// a picked category is the Earn page with a tile lit, not a page under it: no back arrow
+const LITE_ROOTS: View[] = ['home', 'earn', 'group', 'board']
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const r = useRoute()

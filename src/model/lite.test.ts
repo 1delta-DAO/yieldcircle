@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
+import { splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 
@@ -54,6 +54,16 @@ describe('names in words', () => {
     expect(moneyWord(learnDesk({ id: 'ava-labs', name: 'Ava Labs', kind: 'cex' }, 'BTC'), 'BTC')).toBe('Bitcoin via Ava Labs')
     expect(moneyWord(learnDesk({ id: 'superstate', name: 'Superstate', kind: 'institution' }), 'USD')).toBe('Dollars via Superstate')
     expect(moneyWord(learnDesk({ id: 'superstate-2', name: 'SUPERSTATE', kind: 'institution' }), 'USD')).toBe('Dollars via Superstate 2')
+  })
+  it('a loop on an issued desk’s product is the desk’s, and says what it holds', () => {
+    const n = plainName(loop('nest', { asset: 'pUSD', holds: 'nOPAL' }))
+    expect(n.title).toBe('Dollars via Nest')
+    expect(n.sub).toBe('Holds nOPAL · levered ×4.5 · borrows dollars')
+    expect(plainName(loop('usdc', { asset: 'USDC', holds: 'USDC' })).title).toBe('USDC')
+  })
+  it('splits a "via" title into the money and whose it is', () => {
+    expect(splitTitle('Dollars via 3Jane')).toEqual({ short: '3Jane', via: true })
+    expect(splitTitle('USDC')).toEqual({ short: 'USDC', via: false })
   })
   it('a row never names a venue or a chain', () => {
     const n = plainName(loop('x'))

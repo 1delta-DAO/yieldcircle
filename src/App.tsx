@@ -16,7 +16,6 @@ import { useRoute } from './state/AppState'
 import { GROUPS } from './model/assets'
 import { LiteHome } from './ui/lite/LiteHome'
 import { LiteEarn } from './ui/lite/LiteEarn'
-import { LiteList } from './ui/lite/LiteList'
 import { LiteYou } from './ui/lite/LiteYou'
 import { LiteBoard } from './ui/lite/LiteBoard'
 
@@ -31,8 +30,8 @@ export default function App() {
     <Shell>
       {r.view === 'you' ? <LiteYou />
         : r.view === 'board' ? <LiteBoard sort={r.t === 'perDay' ? 'perDay' : 'apr'} by={r.by === 'wallet' ? 'wallet' : 'strategy'} />
-        : group ? <LiteList key={group.id} group={group} route={r} />
-        : r.view === 'earn' ? <LiteEarn />
+        : group ? <LiteEarn key="earn" group={group} route={r} />
+        : r.view === 'earn' ? <LiteEarn key="earn" route={r} />
         : <LiteHome />}
     </Shell>
   )

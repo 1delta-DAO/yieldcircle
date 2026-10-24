@@ -41,6 +41,16 @@ export function liteEligible(s: Strategy): boolean {
     && liqBuffer(s.liqLtv, s.tiers.balanced) >= LITE_MIN_BUFFER
 }
 
+/** The money's family word, for the three monies Lite names by whose they are. */
+export const familyOf = (group: GroupId): string | null => (group === 'USD' ? 'Dollars' : group === 'ETH' ? 'Ether' : group === 'BTC' ? 'Bitcoin' : null)
+/**
+ * A title split for the row: `Dollars via 3Jane` is the money's icon (hover: the whole phrase) and
+ * `3Jane`; `USDC` or `Ether` stays whole, with no icon — the word already is the money.
+ */
+export function splitTitle(title: string): { short: string; via: boolean } {
+  const m = /^(Dollars|Ether|Bitcoin) via (.+)$/.exec(title)
+  return m ? { short: m[2], via: true } : { short: title, via: false }
+}
 /** What the money is, in words a Lite reader knows: `USDC`, `Dollars via Ethena`, `Ether`, `Bitcoin via Lombard`. */
 export function moneyWord(asset: string, group: GroupId = groupOf(asset)): string {
   const d = deskOf(asset)
@@ -76,10 +86,15 @@ const dayMonth = (t: number) => new Date(t * 1000).toLocaleDateString('en-GB', {
 
 /** A row's two lines: what it is, and how it earns — never a venue, never a chain. */
 export function plainName(s: Strategy): { title: string; sub: string } {
-  const title = moneyWord(s.asset, s.group)
+  let title = moneyWord(s.asset, s.group)
   if (s.kind === 'loop') {
+    // an issued desk is known by its ticker (pUSD) — but a loop on one of its PRODUCTS (nOPAL, Nest's
+    // vault token) is not a pUSD loop: it is Nest's, and the row says what it holds
+    const d = deskOf(s.asset), fam = familyOf(s.group)
+    const product = !!d && !!fam && d.kind === 'issued' && s.holds.toUpperCase() !== d.sym.toUpperCase()
+    if (product) title = `${fam} via ${d.name}`
     const end = s.expiry ? ` · until ${dayMonth(s.expiry)}` : ''
-    return { title, sub: `Levered ${leverTag(s.tiers.balanced)} · borrows ${debtWord(s)}${end}` }
+    return { title, sub: `${product ? `Holds ${s.holds} · levered` : 'Levered'} ${leverTag(s.tiers.balanced)} · borrows ${debtWord(s)}${end}` }
   }
   return { title, sub: SIMPLE_SUB[s.source]?.(s) ?? 'Earns interest' }
 }

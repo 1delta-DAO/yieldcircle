@@ -2,7 +2,8 @@ import React from 'react'
 import { go, walletHref } from '../../state/AppState'
 import { canonUid, uidOf } from '../../model/uid'
 import { isSpike, seriesFor, type HistoryGet } from '../../model/rateHistory'
-import { leverTag, type LiteRow } from '../../model/lite'
+import { leverTag, splitTitle, type LiteRow } from '../../model/lite'
+import { GROUPS } from '../../model/assets'
 import type { Proof } from '../../model/activity'
 import type { Strategy } from '../../model/strategies'
 import type { TxBundle } from '../../index/types'
@@ -10,7 +11,7 @@ import { subjectOf } from '../../index/types'
 import { useFeedPage } from '../../index/queries'
 import { useMyFollows, useProfiles } from '../../social/queries'
 import { Ago, Who, describeBundle } from '../social-bits'
-import { RiskDot, Sk, Tok, Toks, pct, usdShort } from '../bits'
+import { GroupIcon, RiskDot, Sk, Tok, Toks, pct, usdShort } from '../bits'
 import { TxMoney, primaryLeg } from '../Feed'
 import { useApp } from '../../state/AppState'
 
@@ -19,6 +20,21 @@ export function LiteFace({ s, size = 28 }: { s: Strategy; size?: number }) {
   return s.kind === 'loop'
     ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} />
     : <Tok sym={s.assetSymbol} logo={[s.tokenLogo, s.logo]} size={size} />
+}
+
+/**
+ * A row's name: `Dollars via 3Jane` is the dollar's own mark and `3Jane`, the whole phrase on hover
+ * — the icon says the money, the word says whose. `USDC` or `Ether` stays a word.
+ */
+export function LiteTitle({ r, size = 14 }: { r: LiteRow; size?: number }) {
+  const { short, via } = splitTitle(r.title)
+  const g = GROUPS.find((x) => x.id === r.s.group)
+  return (
+    <b className="lite-title" title={via ? r.title : undefined}>
+      {via && g && <GroupIcon id={g.id} color={g.color} size={size} />}
+      {short}
+    </b>
+  )
 }
 
 /** Opening a row is opening its ticket on the category's own list. */
@@ -42,7 +58,7 @@ export function LiteRowView({ r, get, proof, on, yoursUsd }: { r: LiteRow; get: 
   return (
     <button type="button" className={`lrow${on ? ' on' : ''}`} aria-pressed={on} onClick={() => openRow(s)}>
       <LiteFace s={s} />
-      <span className="lrow-n"><b>{r.title}</b><small>{r.sub}{who ? <> · <span className="t70">{who}</span></> : null}</small></span>
+      <span className="lrow-n"><LiteTitle r={r} /><small>{r.sub}{who ? <> · <span className="t70">{who}</span></> : null}</small></span>
       {yoursUsd != null && yoursUsd > 0 && <span className="pill run">yours {usdShort(yoursUsd)}</span>}
       {s.kind === 'loop' && <span className="pill lever">{leverTag(s.tiers.balanced)}</span>}
       <RiskDot r={s.risk} label={s.riskLabel} dotOnly />
@@ -59,7 +75,7 @@ export function LiteCard({ r, get, proof, profile }: { r: LiteRow; get: HistoryG
   return (
     <div className="lcard" role="button" tabIndex={0} onClick={() => openRow(s)} onKeyDown={(e) => { if (e.key === 'Enter') openRow(s) }}>
       <div className="lcard-h"><LiteFace s={s} size={30} /><RiskDot r={s.risk} label={s.riskLabel} dotOnly />{s.kind === 'loop' && <span className="pill lever">{leverTag(s.tiers.balanced)}</span>}</div>
-      <div className="lcard-n"><b>{r.title}</b><small className="t50">{r.sub}</small></div>
+      <div className="lcard-n"><LiteTitle r={r} size={15} /><small className="t50">{r.sub}</small></div>
       <div className="lcard-rate"><LiteRate s={s} get={get} /><span className="t50">a year</span></div>
       {best ? (
         <div className="lcard-proof">

@@ -1456,18 +1456,18 @@ export function Action({ ladder: l, label, account, isConnected, disabled, risky
       {!viewing && !l.paper && <SayWhy on={thread ?? null} />}
       {l.paper
         ? <div className="foot" style={{ marginTop: 8 }}><span className="pill paper">paper</span> Play money on real rates and real quotes. Nothing is signed or sent on chain.</div>
-        : <div className="foot" style={{ marginTop: 8 }}>The API builds the exact calls (approvals, then the action); nothing is sent until you sign each one. Gas on {chainLabel(chainId)}.</div>}
+        : <div className="foot" style={{ marginTop: 8 }}>The API builds the exact calls (approvals, then the action); nothing is sent until you sign — once, where your wallet batches them. Gas on {chainLabel(chainId)}.</div>}
     </div>
   )
   return (
     <div className="tsec cta">
       <span className="lbl">{l.paper ? 'Done on paper' : l.settled ? 'Done' : l.finished ? 'Updating your positions…' : l.signing ? 'Confirm in your wallet' : l.pending ? 'Waiting for the block…' : 'Sign in your wallet'}</span>
-      <ol className="steps">{l.bundle.steps.map((st, i) => <StepRow key={i} st={st} n={i + 1} on={st === l.next} signing={l.signing && st === l.next} chainId={chainId} />)}</ol>
+      <ol className="steps">{l.bundle.steps.map((st, i) => { const on = l.together ? l.together.includes(st) : st === l.next; return <StepRow key={i} st={st} n={i + 1} on={on} signing={l.signing && on} chainId={chainId} /> })}</ol>
       {l.err && <div className="err" style={{ marginTop: 8 }}>{l.err}</div>}
       {l.finished && !l.paper && <SayWhy on={thread ?? null} done />}
       <div className="actions" style={{ marginTop: 12 }}>
         {l.finished ? <a className="btn wide pri" href="#/">{l.settled ? 'See your positions' : <><Spin sm /> Updating your positions…</>}</a>
-          : <button className="btn wide pri" disabled={!!l.pending || l.switching || (l.signing && !l.remote)} onClick={l.signing ? l.reopen : l.sendNext}>{l.switching ? 'Switching…' : l.wrongChain ? `Switch wallet to ${chainLabel(chainId)}` : l.signing ? (l.remote ? 'Open your wallet to confirm' : 'Confirm in your wallet…') : l.pending ? <><Spin sm /> Waiting for the block…</> : `Send ${l.done + 1} of ${l.total}`}</button>}
+          : <button className="btn wide pri" disabled={!!l.pending || l.switching || (l.signing && !l.remote)} onClick={l.signing ? l.reopen : l.sendNext}>{l.switching ? 'Switching…' : l.wrongChain ? `Switch wallet to ${chainLabel(chainId)}` : l.signing ? (l.remote ? 'Open your wallet to confirm' : 'Confirm in your wallet…') : l.pending ? <><Spin sm /> Waiting for the block…</> : l.together ? `Send all ${l.together.length} in one` : `Send ${l.done + 1} of ${l.total}`}</button>}
         <button className="btn" onClick={l.reset} disabled={!!l.pending}>Reset</button>
       </div>
     </div>

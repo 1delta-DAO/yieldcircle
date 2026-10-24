@@ -23,6 +23,7 @@ import { solSignAndSend } from '../wallet/solana'
 import { AmountInput, Info, Popover, RouteChooser, Tok, num, usd } from './bits'
 import { Drawer } from './Drawer'
 import { LossAck, ValueRow, useValueCheck } from './ValueCheck'
+import { isRejection } from '../wallet/errors'
 
 export interface Target { chainId: string; address: string; symbol: string; decimals: number; price: number; logo?: string }
 /** A form the strategy takes the money in, with what the wallet already holds of it. */
@@ -399,7 +400,6 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
 }
 const shortErr = (m: string) => (m.length > 140 ? m.slice(0, 140) + '…' : m)
 /** The user said no in the wallet (EIP-1193 4001, or the words wallets use for it). */
-const isRejection = (e: unknown) => { const x = e as { code?: number; cause?: { code?: number }; shortMessage?: string; message?: string }; return x?.code === 4001 || x?.cause?.code === 4001 || /reject|denied|cancel/i.test(x?.shortMessage ?? x?.message ?? '') }
 /**
  * A route's destination gas as the paper bridge op takes it: what lands (destination gas units) and
  * what it costs in the SOURCE gas coin — nothing extra when it is dropped out of the output itself.

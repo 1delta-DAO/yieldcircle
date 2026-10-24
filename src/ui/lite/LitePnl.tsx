@@ -1,6 +1,6 @@
 import React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useAccountPnlBook } from '../../index/pnl'
+import { pnlWaiting, unsupportedLine, useAccountPnlBook, type AccountPnlBook } from '../../index/pnl'
 import { useAccountSync } from '../../index/queries'
 import { isEvmAddr } from '../../model/address'
 import { usePaperDaily } from '../../social/queries'
@@ -24,7 +24,8 @@ export function LitePnl({ account, paper, rows, positions }: { account: string; 
 }
 
 function RealMade({ account, rows, positions }: { account: string; rows: LiteRow[]; positions?: number }) {
-  const q = useAccountPnlBook(account)
+  // You is the owner's own page: its records are asked for, and the book re-read while they are drawn
+  const q = useAccountPnlBook(account, { own: true })
   // the index draws a record only for positions it has read. Pro's wallet page hands it the live
   // book's legs as hints (`useAccountSync`, docs/apis.md: hints, never shown), so a position the
   // ledger never saw gets read; You does the same, and re-reads the book once the sync lands
@@ -46,7 +47,7 @@ function RealMade({ account, rows, positions }: { account: string; rows: LiteRow
     <section className="sec lite-sec">
       <div className="sec-h"><h2>What you made</h2><span className="sub">since each position opened · from the index’s records</span></div>
       <div className="lpnl">
-        {!s ? <div className="empty t50"><Waiting pending={b.coverage.pending} known={b.coverage.positions} live={positions} syncing={!!isEvmAddr(account) && !sync.data && !sync.isError} gaps={sync.data?.synced === false || sync.data?.state === 'gaps'} /></div> : <>
+        {!s ? <div className="empty t50"><Waiting b={b} live={positions} syncing={!!isEvmAddr(account) && !sync.data && !sync.isError} gaps={sync.data?.synced === false || sync.data?.state === 'gaps'} /></div> : <>
           <div className="lpnl-top">
             <b className={`lpnl-v ${s.total >= 0 ? 'ok' : 'bad'}`}>{signedMoney(s.total)}</b>
             <span className="lpnl-s t50">{s.aprPct != null ? `${pct(s.aprPct, 1)} a year on what was in` : ''}{s.on < s.of ? ` · on ${s.on} of ${s.of} positions` : ''}</span>
@@ -64,6 +65,11 @@ function RealMade({ account, rows, positions }: { account: string; rows: LiteRow
             </>
           )}
           <p className="lpnl-word">{s.word}</p>
+          {(() => {
+            const w = pnlWaiting(b)
+            const bits = [w.drawing ? `${w.drawing} drawing now` : '', w.waiting ? `${w.waiting} waiting` : '', unsupportedLine(b)].filter(Boolean)
+            return bits.length ? <p className="lpnl-word t50">Not in this figure: {bits.join(' · ')}.</p> : null
+          })()}
           {b.series.length > 1 && <Spark pts={b.series.map((p) => p.pnl)} up={s.total >= 0} />}
           {ps.length > 0 && (
             <div className="lpnl-pos">
@@ -78,7 +84,7 @@ function RealMade({ account, rows, positions }: { account: string; rows: LiteRow
           )}
           <button type="button" className="lite-details lpnl-more" onClick={() => setMore(true)}><span><b>Every number</b><small>the day-by-day line, yield against price, each strategy</small></span><span aria-hidden>›</span></button>
           <LiteDetailsDrawer open={more} onClose={() => setMore(false)} pro={proHref(walletHref(account))}>
-            <div className="lpnl-full"><WalletPnl addr={account} /></div>
+            <div className="lpnl-full"><WalletPnl addr={account} own /></div>
           </LiteDetailsDrawer>
         </>}
       </div>
@@ -86,12 +92,17 @@ function RealMade({ account, rows, positions }: { account: string; rows: LiteRow
   )
 }
 
-/** Why there is nothing yet, in one line: what is being drawn, what the index has not read, what is on its way. */
-function Waiting({ pending, known, live, syncing, gaps }: { pending: number; known: number; live?: number; syncing: boolean; gaps: boolean }) {
-  const unread = live == null ? 0 : Math.max(0, live - known)
+/** Why there is nothing yet, in one line: what is being drawn, what the index has not read, what it will never draw. */
+function Waiting({ b, live, syncing, gaps }: { b: AccountPnlBook; live?: number; syncing: boolean; gaps: boolean }) {
+  const w = pnlWaiting(b)
+  const known = b.coverage.positions
+  // the venues the index does not follow are not "unread": they are never read
+  const unread = live == null ? 0 : Math.max(0, live - known - w.unsupported)
   const bits = [
-    pending ? `${pending} position${pending === 1 ? '' : 's'} waiting to be drawn — the index draws each within a few hours of reading it` : '',
+    w.drawing ? `${w.drawing} position${w.drawing === 1 ? '' : 's'} drawing now — this updates by itself` : '',
+    w.waiting ? `${w.waiting} position${w.waiting === 1 ? '' : 's'} waiting to be drawn — the index draws each within a few hours of reading it` : '',
     unread ? `${unread} of your ${live} the index has not read yet${syncing ? ' — syncing them now' : gaps ? ' — some it could not read; the balance above has the live numbers' : ''}` : '',
+    unsupportedLine(b),
   ].filter(Boolean)
   return <>No record yet. {bits.length ? bits.join(' · ') + '.' : 'The index draws one per position within a few hours of opening.'}</>
 }

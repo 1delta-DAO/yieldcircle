@@ -6,6 +6,7 @@
  * the call is one cheap read. Both indexes answer it (the Solana one since
  * its PnL lane, docs/sol-lifetime-pnl.md), each for its own addresses.
  */
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { indexForAddr } from './api'
 import { isEvmAddr, isSolAddr } from '../model/address'
@@ -56,6 +57,16 @@ export interface PnlBookPosition {
   /** ok, or why it has no figure: `pending` = not drawn yet, else the record's status */
   status: string
   flags: string[]
+  /** 1 = the index draws it next (its place among every wallet asked for); null/absent = not asked for, or drawn (EVM index, tickets/0093) */
+  queuePosition?: number | null
+}
+/** A leg the wallet's last sync named that the index will never draw: its chain or its lender is not followed. */
+export interface UnsupportedLeg {
+  chainId: string
+  lender: string
+  marketUid: string | null
+  /** `chain` = a chain the index does not follow; else why the lender is not followed */
+  reason: string
 }
 export interface AccountPnlBook {
   account: string
@@ -72,10 +83,15 @@ export interface AccountPnlBook {
   series: PnlBookPoint[]
   strategies: PnlBookStrategy[]
   positions: PnlBookPosition[]
+  /** when this wallet's records were last asked for (`?request=1`, the sync); absent on an older index */
+  requestedAt?: string | null
+  /** what the last sync named that the index will never draw a record for; absent on an older index */
+  unsupported?: UnsupportedLeg[]
 }
 
-export async function accountPnlBook(account: string): Promise<AccountPnlBook | null> {
-  const r = await fetch(`${indexForAddr(account)}/accounts/${account}/pnl`)
+export async function accountPnlBook(account: string, { request = false }: { request?: boolean } = {}): Promise<AccountPnlBook | null> {
+  // `request=1`: someone is looking — either index draws this wallet's records ahead of its board (tickets/0093)
+  const r = await fetch(`${indexForAddr(account)}/accounts/${account}/pnl${request ? '?request=1' : ''}`)
   // an index before the route: no book, not an error worth a red box
   if (r.status === 404) return null
   const j = (await r.json().catch(() => ({}))) as AccountPnlBook & { error?: string }
@@ -83,15 +99,60 @@ export async function accountPnlBook(account: string): Promise<AccountPnlBook | 
   return j
 }
 
-export function useAccountPnlBook(account: string | undefined) {
+/** how long an own page re-reads a book that still has positions waiting to be drawn */
+const PNL_POLL_FOR_MS = 5 * 60_000
+const PNL_POLL_EVERY_MS = 20_000
+
+/**
+ * `own`: the connected wallet's own page. The book is asked for with
+ * `request=1` (its records jump the index's queue) and re-read every 20 s
+ * for five minutes while positions are still waiting to be drawn.
+ */
+export function useAccountPnlBook(account: string | undefined, { own = false }: { own?: boolean } = {}) {
+  const [since] = useState(() => Date.now())
   return useQuery({
     enabled: !!account && (isEvmAddr(account) || isSolAddr(account)),
     // a base58 key is case-significant: only an EVM address is lower-cased
     queryKey: ['pnl-book', account && isEvmAddr(account) ? account.toLowerCase() : account],
-    queryFn: () => accountPnlBook(isEvmAddr(account) ? account.toLowerCase() : account!),
+    queryFn: () => accountPnlBook(isEvmAddr(account) ? account.toLowerCase() : account!, { request: own }),
     staleTime: 5 * 60_000,
     retry: 1,
+    refetchInterval: (q) => (own && (q.state.data?.coverage.pending ?? 0) > 0 && Date.now() - since < PNL_POLL_FOR_MS ? PNL_POLL_EVERY_MS : false),
   })
+}
+
+/** A lender key as words, for a sentence: `SOLV` → Solv, `AAVE_V3` → Aave V3. */
+export function venueName(lender: string): string {
+  return lender
+    .replace(/^vault\./, '')
+    .split(/[_.]/)
+    .filter(Boolean)
+    .map((w) => (/^v\d+$/i.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
+    .join(' ')
+}
+
+/** "3 on venues the index does not follow (Solv, Lista)" — empty when there are none. */
+export function unsupportedLine(b: AccountPnlBook): string {
+  const w = pnlWaiting(b)
+  if (!w.unsupported) return ''
+  const names = w.venues.slice(0, 3).map(venueName).join(', ') + (w.venues.length > 3 ? ` +${w.venues.length - 3}` : '')
+  return `${w.unsupported} on venue${w.unsupported === 1 ? '' : 's'} the index does not follow (${names})`
+}
+
+/**
+ * Where the waiting stands, as counts: drawing now (in the index's requested
+ * queue), waiting, and on venues the index will never draw (by lender).
+ */
+export function pnlWaiting(b: AccountPnlBook): { drawing: number; waiting: number; unsupported: number; venues: string[] } {
+  let drawing = 0
+  for (const p of b.positions) if (p.status === 'pending' && p.queuePosition != null) drawing++
+  const un = b.unsupported ?? []
+  return {
+    drawing,
+    waiting: Math.max(0, b.coverage.pending - drawing),
+    unsupported: un.length,
+    venues: [...new Set(un.map((u) => u.lender))],
+  }
 }
 
 /**

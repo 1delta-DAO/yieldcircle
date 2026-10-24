@@ -269,7 +269,7 @@ export function Wallet({ addr }: { addr: string }) {
       </>}
 
       {/* what it made: lifetime PnL off the index's records (your own only after the sync) */}
-      {!paperEvm && isAddr(addr) && !hidden && !syncing && <WalletPnl addr={addr} />}
+      {!paperEvm && isAddr(addr) && !hidden && !syncing && <WalletPnl addr={addr} own={isMe} />}
 
       <section className="sec">
         {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} inScope={inScope} /></> : <>

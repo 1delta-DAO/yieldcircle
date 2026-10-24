@@ -10,7 +10,7 @@
  * position the index has not drawn yet is counted as missing, never as zero.
  */
 import React from 'react'
-import { useAccountPnlBook, strategyLabel, type AccountPnlBook, type PnlBookPoint, type PnlBookStrategy } from '../index/pnl'
+import { pnlWaiting, unsupportedLine, useAccountPnlBook, strategyLabel, type AccountPnlBook, type PnlBookPoint, type PnlBookStrategy } from '../index/pnl'
 import { indexChainLabel } from '../index/types'
 import { chainLabel } from '../sdk/queries'
 import { go } from '../state/AppState'
@@ -29,8 +29,9 @@ function openPnl(who: string, posKey: string) {
   history.replaceState({ ...(history.state ?? {}), pnl: true }, '')
 }
 
-export function WalletPnl({ addr }: { addr: string }) {
-  const q = useAccountPnlBook(addr)
+/** `own`: the connected wallet's own page — its records are asked for and the book re-read while they are drawn (tickets/0093). */
+export function WalletPnl({ addr, own = false }: { addr: string; own?: boolean }) {
+  const q = useAccountPnlBook(addr, { own })
   const b = q.data
   if (q.isLoading) return <section className="sec"><div className="sec-h"><h2>What it made</h2></div><div className="card"><div className="empty"><Sk w={260} /></div></div></section>
   // an older index (no route), an error, or a wallet with nothing on the board: say nothing here
@@ -44,11 +45,19 @@ export function WalletPnl({ addr }: { addr: string }) {
       {b.coverage.withPnl === 0 ? (
         <div className="card"><div className="empty">
           No lifetime record yet. The index draws one per position in the background
-          {b.coverage.pending ? ` — ${b.coverage.pending} waiting` : ''}; each position’s own history is under its <b>PnL</b> button below.
+          {waitingWords(b)}; each position’s own history is under its <b>PnL</b> button below.
+          {unsupportedLine(b) ? ` ${unsupportedLine(b)}.` : ''}
         </div></div>
       ) : <Book b={b} addr={addr} />}
     </section>
   )
+}
+
+/** " — 2 drawing now, 1 waiting", or the older index's plain count */
+function waitingWords(b: AccountPnlBook): string {
+  const w = pnlWaiting(b)
+  const bits = [w.drawing ? `${w.drawing} drawing now` : '', w.waiting ? `${w.waiting} waiting` : ''].filter(Boolean)
+  return bits.length ? ` — ${bits.join(', ')}` : ''
 }
 
 function Coverage({ b }: { b: AccountPnlBook }) {
@@ -56,6 +65,7 @@ function Coverage({ b }: { b: AccountPnlBook }) {
   const off = Object.entries(c.unranked).reduce((s, [, n]) => s + n, 0)
   const why = [
     c.pending ? `${c.pending} not drawn yet` : '',
+    unsupportedLine(b),
     off ? `${off} without a reliable record (${Object.entries(c.unranked).map(([k, n]) => `${n} ${k}`).join(', ')})` : '',
   ].filter(Boolean).join(' · ')
   return (

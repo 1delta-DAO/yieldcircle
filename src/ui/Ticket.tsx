@@ -43,7 +43,7 @@ import { TicketSocial } from './TicketSocial'
 import { AssetLink } from './TokenPage'
 import { bufferOfHealth, brandOf, debtWord, depositLines, holdingLine, leverTag, liteEligible, loopLines, moneyWord, plainName, saferTargets, trustKind } from '../model/lite'
 import { proHref } from '../state/AppState'
-import { LiteDetails, LiteLines, LitePresets } from './lite/LiteTicketBits'
+import { LiteDetails, LiteDetailsDrawer, LiteLines, LitePresets } from './lite/LiteTicketBits'
 
 /**
  * What the ticket is about, for the pieces too deep to thread props through:
@@ -132,13 +132,15 @@ function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, on
   const risky = (bufferOfHealth(h?.health) ?? 1) < 0.1
   const start: LiteMode = !h ? 'add' : mode0 === 'close' ? 'close' : mode0 && mode0 !== 'add' ? 'reduce' : canAdd && !risky ? 'add' : 'reduce'
   const [mode, setMode] = React.useState<LiteMode>(start)
+  // every number: Pro's ticket for the same strategy (or position), in a drawer over this one
+  const [details, setDetails] = React.useState(false)
   const n = s ? plainName(s) : null
   const title = n?.title ?? (h ? moneyWord(h.asset, h.group) : '')
   const line = h ? holdingLine(h) : null
   const chainIdle = s ? idle.filter((i) => i.chainId === s.chainId) : []
   const lev = s?.kind === 'loop' ? (h?.leverage && h.leverage > 1.05 ? h.leverage : copyLev && copyLev > 1.05 ? copyLev : s.tiers.balanced) : h?.kind === 'loop' ? h.leverage ?? 1 : 0
   // Details: the same position (or row) on Pro's own page, where every tier, route and number is
-  const details = h ? proHref(`#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: mode === 'add' ? 'add' : isLoop ? 'manage' : 'reduce' })}`) : proHref()
+  const detailsHref = h ? proHref(`#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: mode === 'add' ? 'add' : isLoop ? 'manage' : 'reduce' })}`) : proHref()
   const tabs: { id: LiteMode; word: string }[] = !h ? [] : isLoop
     ? [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Lower risk' }, { id: 'close', word: 'Close' }]
     : [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Withdraw' }]
@@ -165,7 +167,11 @@ function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, on
         : null}
       {s && <div className="tsec lite-trust"><span>{trustKind(s)} · {usdShort(s.tvlUsd)} in it</span><span className="sp" /><span className="t50">{brandOf(s)}</span></div>}
       {!s && h && <div className="tsec lite-trust"><span>Not one of Lite’s picks: you can take it out or make it safer here</span></div>}
-      <LiteDetails href={details} what={isLoop ? 'Any leverage, the route, every number' : 'Any amount, the venue, the history'} />
+      <LiteDetails onOpen={() => setDetails(true)} what={isLoop ? 'Any leverage, the route, every number' : 'Any amount, the venue, the history'} />
+      <LiteDetailsDrawer open={details} onClose={() => setDetails(false)} pro={details ? detailsHref : undefined}>
+        {s ? <Ticket s={s} idle={idle} holdings={holdings} pick={h?.key} mode={mode === 'add' ? 'add' : isLoop ? 'manage' : 'reduce'} copy={copy} copyLev={copyLev} onClose={() => setDetails(false)} />
+          : h ? <HoldingTicket h={h} onClose={() => setDetails(false)} /> : null}
+      </LiteDetailsDrawer>
     </div>
   )
 }

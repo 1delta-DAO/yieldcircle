@@ -1,6 +1,7 @@
 import React from 'react'
 import { proHref } from '../../state/AppState'
 import type { Line, ThreeLines } from '../../model/lite'
+import { Drawer } from '../Drawer'
 
 /** The three lines (docs/lite.md §5): what you earn, what you can lose, what it costs to get in. */
 export function LiteLines({ l }: { l: ThreeLines }) {
@@ -31,12 +32,24 @@ export function LitePresets({ onPick }: { onPick: (pct: number) => void }) {
   )
 }
 
-/** The way into Pro for this one strategy: the same ticket, every number and choice, the same amount. */
-export function LiteDetails({ what, href }: { what: string; /** where Pro shows it; the page being read, in Pro, by default */ href?: string }) {
+/**
+ * The way to every number and choice for this one strategy: Pro's own ticket, opened here in a
+ * drawer (`LiteDetailsDrawer`) with the same amount and leverage — the two tickets share their
+ * sticky keys — so nothing jumps to another page. The drawer's foot still offers the Pro page.
+ */
+export function LiteDetails({ what, onOpen }: { what: string; onOpen: () => void }) {
   return (
-    <a className="lite-details" href={href ?? proHref()}>
+    <button type="button" className="lite-details" onClick={onOpen}>
       <span><b>Details</b><small>{what}</small></span>
       <span aria-hidden>›</span>
-    </a>
+    </button>
+  )
+}
+export function LiteDetailsDrawer({ open, onClose, pro, children }: { open: boolean; onClose: () => void; /** the same thing as a Pro page */ pro?: string; children: React.ReactNode }) {
+  return (
+    <Drawer open={open} onClose={onClose} side="right" label="Every number" cls="lite-details-drawer">
+      {children}
+      <a className="lite-details-pro t50" href={pro ?? proHref()}>Open this in Pro, with the whole catalogue ›</a>
+    </Drawer>
   )
 }

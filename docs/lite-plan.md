@@ -378,7 +378,12 @@ Changes against the plan above, and why:
     the phrase. A loop on an issued desk's product (nOPAL under Nest) is "Dollars
     via Nest · holds nOPAL", not "pUSD". The board's podium badges are tinted
     rings, not solid discs.
-18. **The landing needed no change.** Its CTAs open the app root, which opens the
+18. **Details is a drawer, not a link** (2026-10-24): it opens Pro's own ticket
+    for the same strategy or position over the Lite one, same amount and
+    leverage (shared sticky keys), with "Open this in Pro" at its foot. A loan's
+    Details opens Pro's borrow ticket the same way. The board's podium badges are
+    an inner fixed disc (`.medal`), so no container can stretch them.
+19. **The landing needed no change.** Its CTAs open the app root, which opens the
     saved mode, so Lite for a first visit.
 
 Not built, and why:

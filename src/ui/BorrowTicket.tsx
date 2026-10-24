@@ -57,7 +57,7 @@ import { BorrowRewards, DecimalInput, Info, KindPill, RiskDot, SubAccountPill, T
 import { stepsFrom, useTicketLadder } from './useLadder'
 import { borrowPlan, paperPos, repayPlan } from './paperPlans'
 import { bufferOfHealth, holdingLine, moneyWord } from '../model/lite'
-import { LiteDetails, LitePresets } from './lite/LiteTicketBits'
+import { LiteDetails, LiteDetailsDrawer, LitePresets } from './lite/LiteTicketBits'
 import { proHref } from '../state/AppState'
 
 /** a balance as an amount to send: rounded DOWN, never a hair over what is held */
@@ -419,7 +419,8 @@ export function LiteLoanTicket({ h, idle, onClose }: { h: Holding; idle: Idle[];
   const o = React.useMemo(() => offerFromHolding(h), [h])
   const [pane, setPane] = React.useState<'all' | 'some'>((bufferOfHealth(h.health) ?? 1) < 0.1 ? 'some' : 'all')
   const line = holdingLine(h)
-  const details = proHref(`#/${h.group}?${new URLSearchParams({ k: 'borrow', h: h.key, m: 'reduce' })}`)
+  const [details, setDetails] = React.useState(false)
+  const detailsHref = proHref(`#/${h.group}?${new URLSearchParams({ k: 'borrow', h: h.key, m: 'reduce' })}`)
   return (
     <TicketCtx.Provider value={{ uid: o ? canonUid(o.collateral.uid) : null, lite: true }}>
     <div className="ticket lite-ticket">
@@ -434,7 +435,10 @@ export function LiteLoanTicket({ h, idle, onClose }: { h: Holding; idle: Idle[];
         </div></div>
         <RepayPane key={h.key + pane} o={o} h={h} idle={idle} lite={pane} />
       </>}
-      <LiteDetails href={details} what="Borrow more, or take collateral out" />
+      <LiteDetails onOpen={() => setDetails(true)} what="Borrow more, or take collateral out" />
+      {o && <LiteDetailsDrawer open={details} onClose={() => setDetails(false)} pro={detailsHref}>
+        <BorrowTicket o={o} holdings={[h]} idle={idle} pick={h.key} mode="reduce" onClose={() => setDetails(false)} />
+      </LiteDetailsDrawer>}
     </div>
     </TicketCtx.Provider>
   )

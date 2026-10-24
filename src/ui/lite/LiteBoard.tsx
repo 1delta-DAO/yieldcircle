@@ -86,7 +86,7 @@ function WalletRow({ r, sort, profile, me, open, onToggle, liteByKey }: { r: Boa
   return (
     <div className={`lb-item${open ? ' open' : ''}${me ? ' me' : ''}`}>
       <button type="button" className="lb-row" aria-expanded={open} onClick={onToggle}>
-        <span className={`lb-rank${r.rank <= 3 ? ` top ${MEDAL[r.rank - 1]}` : ''}`} aria-label={`#${r.rank}`}>{r.rank}</span>
+        <Rank n={r.rank} />
         <Who account={r.account} profile={profile} size={28} plain sub={`${r.positions} position${r.positions === 1 ? '' : 's'} · on ${usdShort(r.navUsd)}`} />
         <span className="sp" />
         <span className="lb-v ok">{sort === 'apr' ? pct(r.value, 1) : usdShort(r.value)}<small className="t50">{sort === 'apr' ? 'a year' : 'a day'}</small></span>
@@ -203,7 +203,7 @@ function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<strin
             {rows.slice(1, 40).map((s, i) => (
               <div key={s.key} className="ls-row" style={{ '--gc': s.color ?? undefined, '--w': `${Math.max(4, Math.min(100, (s.value / top.value) * 100))}%` } as React.CSSProperties}>
                 <span className="ls-bar" aria-hidden />
-                <span className={`lb-rank${i + 2 <= 3 ? ` top ${MEDAL[i + 1]}` : ''}`}>{i + 2}</span>
+                <Rank n={i + 2} />
                 <span className="ls-mark"><Marks s={s} size={26} /></span>
                 <span className="ls-n"><b>{s.title}</b><small>{s.sub} · {s.wallets} {s.wallets === 1 ? 'person' : 'people'} · {usdShort(s.equityUsd)}</small></span>
                 <span className="ls-v"><span className="ls-face"><Faces faces={s.faces.slice(0, 2)} size={22} /></span><b>{fmt(s.value)}</b>{canCopy(s) ? <button type="button" className="btn sm pri" onClick={() => copy(s)}>Copy</button> : s.best ? <a className="btn sm" href={walletHref(s.best.account)}>Who</a> : null}</span>
@@ -213,6 +213,14 @@ function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<strin
         )}
     </div>
   )
+}
+
+/**
+ * A place on the board. The podium's three are a tinted ring drawn by an inner element with a
+ * fixed box — a grid or flex cell can stretch the outer span, never this disc.
+ */
+function Rank({ n }: { n: number }) {
+  return <span className="lb-rank" aria-label={`#${n}`}>{n <= 3 ? <i className={`medal ${MEDAL[n - 1]}`}>{n}</i> : n}</span>
 }
 
 /** Up to three holders' faces, overlapping: the crowd behind a strategy at a glance. */

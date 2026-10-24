@@ -1,5 +1,8 @@
 import React from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAccountPnlBook } from '../../index/pnl'
+import { useAccountSync } from '../../index/queries'
+import { isEvmAddr } from '../../model/address'
 import { usePaperDaily } from '../../social/queries'
 import { usePaper } from '../../state/Paper'
 import { boardPositions, pnlSummary, signedMoney, type LiteRow } from '../../model/lite'
@@ -16,12 +19,18 @@ import { proHref, walletHref } from '../../state/AppState'
  * (`WalletPnl`); "Every number" opens that page's version in a drawer. A paper account has its
  * own ledger: what the strategies earned, and its daily line.
  */
-export function LitePnl({ account, paper, rows }: { account: string; paper: boolean; rows: LiteRow[] }) {
-  return paper ? <PaperMade account={account} /> : <RealMade account={account} rows={rows} />
+export function LitePnl({ account, paper, rows, positions }: { account: string; paper: boolean; rows: LiteRow[]; /** how many positions the live book holds once it has settled, to say how many the index has not read; absent while chains are still answering */ positions?: number }) {
+  return paper ? <PaperMade account={account} /> : <RealMade account={account} rows={rows} positions={positions} />
 }
 
-function RealMade({ account, rows }: { account: string; rows: LiteRow[] }) {
+function RealMade({ account, rows, positions }: { account: string; rows: LiteRow[]; positions?: number }) {
   const q = useAccountPnlBook(account)
+  // the index draws a record only for positions it has read. Pro's wallet page hands it the live
+  // book's legs as hints (`useAccountSync`, docs/apis.md: hints, never shown), so a position the
+  // ledger never saw gets read; You does the same, and re-reads the book once the sync lands
+  const sync = useAccountSync(isEvmAddr(account) ? account : undefined)
+  const qc = useQueryClient()
+  React.useEffect(() => { if (sync.data) void qc.invalidateQueries({ queryKey: ['pnl-book', account.toLowerCase()] }) }, [sync.data, account, qc])
   const [more, setMore] = React.useState(false)
   const liteByKey = React.useMemo(() => {
     const m = new Map<string, LiteRow>()
@@ -37,7 +46,7 @@ function RealMade({ account, rows }: { account: string; rows: LiteRow[] }) {
     <section className="sec lite-sec">
       <div className="sec-h"><h2>What you made</h2><span className="sub">since each position opened · from the index’s records</span></div>
       <div className="lpnl">
-        {!s ? <div className="empty t50">No record yet. The index draws one per position within a few hours of opening.</div> : <>
+        {!s ? <div className="empty t50"><Waiting pending={b.coverage.pending} known={b.coverage.positions} live={positions} syncing={!!isEvmAddr(account) && !sync.data && !sync.isError} gaps={sync.data?.synced === false || sync.data?.state === 'gaps'} /></div> : <>
           <div className="lpnl-top">
             <b className={`lpnl-v ${s.total >= 0 ? 'ok' : 'bad'}`}>{signedMoney(s.total)}</b>
             <span className="lpnl-s t50">{s.aprPct != null ? `${pct(s.aprPct, 1)} a year on what was in` : ''}{s.on < s.of ? ` · on ${s.on} of ${s.of} positions` : ''}</span>
@@ -75,6 +84,16 @@ function RealMade({ account, rows }: { account: string; rows: LiteRow[] }) {
       </div>
     </section>
   )
+}
+
+/** Why there is nothing yet, in one line: what is being drawn, what the index has not read, what is on its way. */
+function Waiting({ pending, known, live, syncing, gaps }: { pending: number; known: number; live?: number; syncing: boolean; gaps: boolean }) {
+  const unread = live == null ? 0 : Math.max(0, live - known)
+  const bits = [
+    pending ? `${pending} position${pending === 1 ? '' : 's'} waiting to be drawn — the index draws each within a few hours of reading it` : '',
+    unread ? `${unread} of your ${live} the index has not read yet${syncing ? ' — syncing them now' : gaps ? ' — some it could not read; the balance above has the live numbers' : ''}` : '',
+  ].filter(Boolean)
+  return <>No record yet. {bits.length ? bits.join(' · ') + '.' : 'The index draws one per position within a few hours of opening.'}</>
 }
 
 /** The paper account: what its strategies earned (the ledger's own figure) and its daily line. */

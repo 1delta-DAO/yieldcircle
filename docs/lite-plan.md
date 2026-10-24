@@ -395,7 +395,12 @@ Changes against the plan above, and why:
     position's own figure, best first. "Every number" opens Pro's `WalletPnl` in
     a drawer. A paper account shows its ledger's own figure and daily line
     (`LitePnl.tsx`, `pnlSummary`). Pro's profile is unchanged: it already has it.
-21. **The landing needed no change.** Its CTAs open the app root, which opens the
+21. **You syncs the wallet with the index** (2026-10-24), as Pro's wallet page
+    does for your own address: the live book's legs go to `/accounts/:a/sync` as
+    hints and the PnL book is re-read once it answers. The record still covers
+    only what the index has read and drawn; the empty state now says how many
+    positions are waiting to be drawn and how many the index has not read.
+22. **The landing needed no change.** Its CTAs open the app root, which opens the
     saved mode, so Lite for a first visit.
 
 Not built, and why:

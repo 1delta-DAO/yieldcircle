@@ -60,7 +60,7 @@ export function LiteYou() {
         {!b.paper && <Stat k="Rank" v={stats.rank != null ? `#${stats.rank}` : '—'} s={stats.rank != null ? `on the board · ${usdShort(stats.perDay)}/day` : 'top 100 by what they earn a day'} href={liteHref('board?by=wallet&t=perDay')} />}
       </div>
 
-      <LitePnl account={b.account!} paper={b.paper} rows={L.rows} />
+      <LitePnl account={b.account!} paper={b.paper} rows={L.rows} positions={b.positionsLoading || b.isFetching ? undefined : mine.filter((h) => h.kind !== 'borrow').length} />
 
       <section className="sec lite-sec">
         <div className="sec-h"><h2>Your money</h2></div>

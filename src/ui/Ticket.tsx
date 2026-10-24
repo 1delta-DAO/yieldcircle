@@ -1462,7 +1462,12 @@ export function Action({ ladder: l, label, account, isConnected, disabled, risky
   return (
     <div className="tsec cta">
       <span className="lbl">{l.paper ? 'Done on paper' : l.settled ? 'Done' : l.finished ? 'Updating your positions…' : l.signing ? 'Confirm in your wallet' : l.pending ? 'Waiting for the block…' : 'Sign in your wallet'}</span>
-      <ol className="steps">{l.bundle.steps.map((st, i) => { const on = l.together ? l.together.includes(st) : st === l.next; return <StepRow key={i} st={st} n={i + 1} on={on} signing={l.signing && on} chainId={chainId} /> })}</ol>
+      <ol className="steps">{l.bundle.steps.map((st, i, all) => {
+        const on = l.together ? l.together.includes(st) : st === l.next
+        // a batch is one transaction: its trace is said once, under its last step
+        const quiet = !!st.hash && all.slice(i + 1).some((o) => o.hash === st.hash)
+        return <StepRow key={i} st={st} n={i + 1} on={on} signing={l.signing && on} quiet={quiet} chainId={chainId} />
+      })}</ol>
       {l.err && <div className="err" style={{ marginTop: 8 }}>{l.err}</div>}
       {l.finished && !l.paper && <SayWhy on={thread ?? null} done />}
       <div className="actions" style={{ marginTop: 12 }}>
@@ -1501,13 +1506,13 @@ function PaperGas({ chainId, fee, refused }: { chainId: string; fee: FeeKind; re
   )
 }
 /** One step of the ladder: its number (a spinner while its transaction is out), and where that transaction is. */
-function StepRow({ st, n, on, signing, chainId }: { st: Step; n: number; on: boolean; signing: boolean; chainId: string }) {
+function StepRow({ st, n, on, signing, quiet, chainId }: { st: Step; n: number; on: boolean; signing: boolean; quiet?: boolean; chainId: string }) {
   const t = useTrace(st.hash)
   const flying = !!t && !isDone(t)
   return (
     <li className={st.done ? 'done' : on ? 'on' : ''}>
       <i>{st.done && !flying ? '✓' : flying || signing ? <Spin sm /> : n}</i>
-      <span className="sl">{st.label}{signing ? <small>Confirm in your wallet</small> : <TxNote t={t} />}</span>
+      <span className="sl">{st.label}{signing ? <small>Confirm in your wallet</small> : !quiet && <TxNote t={t} />}</span>
       {st.hash && <TxLink chainId={chainId} hash={t?.hash ?? st.hash} label={`${(t?.hash ?? st.hash).slice(0, 10)}…`} />}
     </li>
   )

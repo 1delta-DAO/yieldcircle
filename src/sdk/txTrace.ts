@@ -154,11 +154,32 @@ export function tracePaper(t: { id: string; chainId: string; account: string; ti
   return id
 }
 
+/** What a trace compares against: the positions it touches and the balances it watches, as they stood before it. */
+export type Baseline = { snap: Snap | null; watchBase?: Record<string, string> }
+type Follow = { hash: string; chainId: string; account: string; title: string; label?: string; moves: Moves; bridge?: Trace['bridge']; touches?: (string | undefined)[]; watch?: Trace['watch']; lastValidHeight?: number }
+
+/**
+ * The baseline, read NOW. For a transaction the app only learns the hash of once it has landed —
+ * a `wallet_sendCalls` batch, whose hash the wallet reports after the block — a baseline read at
+ * {@link traceTx} would already include it, and the sync would wait for a change that happened
+ * before it looked. Such a sender takes this at send time and hands it in.
+ */
+export async function baselineOf(t: Pick<Follow, 'chainId' | 'account' | 'moves' | 'touches' | 'watch'>): Promise<Baseline> {
+  const account = normAddr(t.account), scope = scopeOf([...new Set(t.touches?.filter((u): u is string => !!u))])
+  const cached = t.moves === 'positions' && qc ? cachedRows(qc, account, t.chainId) : null
+  const [rows, b] = await Promise.all([
+    t.moves !== 'positions' ? null : cached ?? readScope(account, t.chainId, scope).then((r) => r?.items ?? null),
+    t.watch?.length ? readWatched(account, t.watch) : null,
+  ])
+  return { snap: rows ? fingerprint(rows, t.chainId, scope) : null, watchBase: b ? rawOf(b) : undefined }
+}
+
 /**
  * Follow a transaction the wallet just returned. Idempotent on the hash, so a ladder restored
- * after a reload can call it again without starting a second watcher.
+ * after a reload can call it again without starting a second watcher. `base`: a baseline taken
+ * before it was sent ({@link baselineOf}), in place of the one read here.
  */
-export function traceTx(t: { hash: string; chainId: string; account: string; title: string; label?: string; moves: Moves; bridge?: Trace['bridge']; touches?: (string | undefined)[]; watch?: Trace['watch']; lastValidHeight?: number }) {
+export function traceTx(t: Follow, base?: Baseline) {
   if (isPaperHash(t.hash)) return
   if (get(t.hash)) { void run(t.hash); return }
   const account = normAddr(t.account)
@@ -166,13 +187,13 @@ export function traceTx(t: { hash: string; chainId: string; account: string; tit
   // the baseline is the cached list — certainly from before the transaction; with none cached,
   // the same narrow read the sync will make, sent now while the transaction is still pending
   const scope = scopeOf(touches)
-  const cached = t.moves === 'positions' && qc ? cachedRows(qc, account, t.chainId) : null
-  const snap = cached ? fingerprint(cached, t.chainId, scope) : null
-  traces = [{ id: t.hash, hash: t.hash, chainId: t.chainId, account, title: t.title, label: t.label ?? t.title, moves: t.moves, bridge: t.bridge, touches, watch: t.watch?.length ? t.watch : undefined, phase: 'pending', at: Date.now(), need: FINAL_CONFIRMATIONS[t.chainId] ?? 1, snap, lastValidHeight: t.lastValidHeight }, ...traces]
+  const cached = !base && t.moves === 'positions' && qc ? cachedRows(qc, account, t.chainId) : null
+  const snap = base ? base.snap : cached ? fingerprint(cached, t.chainId, scope) : null
+  traces = [{ id: t.hash, hash: t.hash, chainId: t.chainId, account, title: t.title, label: t.label ?? t.title, moves: t.moves, bridge: t.bridge, touches, watch: t.watch?.length ? t.watch : undefined, watchBase: base?.watchBase, phase: 'pending', at: Date.now(), need: FINAL_CONFIRMATIONS[t.chainId] ?? 1, snap, lastValidHeight: t.lastValidHeight }, ...traces]
   emit()
-  if (t.moves === 'positions' && !cached) void readScope(account, t.chainId, scope).then((r) => { if (r && get(t.hash)?.snap == null) patch(t.hash, { snap: fingerprint(r.items, t.chainId, scope) }) })
+  if (!base && t.moves === 'positions' && !cached) void readScope(account, t.chainId, scope).then((r) => { if (r && get(t.hash)?.snap == null) patch(t.hash, { snap: fingerprint(r.items, t.chainId, scope) }) })
   // the watched balances before anything arrives: a bridge's destination cannot have moved yet
-  if (t.watch?.length) void readWatched(account, t.watch).then((b) => { if (b && !get(t.hash)?.watchBase) patch(t.hash, { watchBase: rawOf(b) }) })
+  if (!base && t.watch?.length) void readWatched(account, t.watch).then((b) => { if (b && !get(t.hash)?.watchBase) patch(t.hash, { watchBase: rawOf(b) }) })
   void run(t.hash)
 }
 export function dismissTrace(id: string) { patch(id, { seen: true }) }

@@ -5,7 +5,7 @@ import { base58Encode, isSvmChain } from '../model/address'
 import { nativeSymbol, WRAPPED_NATIVE } from '../model/positions'
 import { venueLabel } from '../model/strategies'
 import { useLiveBalances } from '../sdk/liveBalances'
-import { hasLanded, isDone, traceTx, useTrace, type Moves } from '../sdk/txTrace'
+import { baselineOf, hasLanded, isDone, traceTx, useTrace, type Baseline, type Moves } from '../sdk/txTrace'
 import { isRemote, openWallet } from '../wallet/deeplink'
 import { isRejection } from '../wallet/errors'
 import { solSignAndSend, useSolWallet } from '../wallet/solana'
@@ -145,10 +145,14 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   const pendingStep = bundle?.steps.find((s) => s.hash === pending)
   // one signer per VM: the Solana account signs svm steps, wagmi's signs the rest
   const signer = svm ? sol.account?.address : address
-  const follow = (hash: string, st: Step, lastValidHeight?: number) =>
-    signer && traceTx({ hash, chainId, account: signer, title: bundle?.title ?? st.label, label: st.label, moves: st.moves ?? 'positions', touches: bundle?.touches, lastValidHeight,
-      // only the step that waits for the positions: an approval moves nothing, a wrap is its own read
-      watch: (st.moves ?? 'positions') === 'positions' ? bundle?.watch?.map((w) => ({ chainId, ...w })) : undefined })
+  // only the step that waits for the positions watches the wallet: an approval moves nothing, a wrap is its own read
+  const watchOf = (st: Step) => ((st.moves ?? 'positions') === 'positions' ? bundle?.watch?.map((w) => ({ chainId, ...w })) : undefined)
+  const follow = (hash: string, st: Step, lastValidHeight?: number, base?: Baseline) =>
+    signer && traceTx({ hash, chainId, account: signer, title: bundle?.title ?? st.label, label: st.label, moves: st.moves ?? 'positions', touches: bundle?.touches, lastValidHeight, watch: watchOf(st) }, base)
+  /** The step a batch is followed as: the one that moves the positions, else its last. */
+  const mainOf = (steps: Step[]) => steps.find((s) => s.moves === 'positions') ?? steps[steps.length - 1]
+  /** A batch's baseline, read as it is sent: its hash only arrives once it has landed (`baselineOf`). */
+  const batchBase = React.useRef<Promise<Baseline | undefined> | null>(null)
   // a ladder restored after a reload whose trace did not survive (storage off): pick the hash up again
   React.useEffect(() => { if (pending && !tr && pendingStep) follow(pending, pendingStep, isSvmTx(pendingStep.tx) ? pendingStep.tx.lastValidBlockHeight : undefined) }, [pending, !!tr, signer])
   React.useEffect(() => {
@@ -182,6 +186,8 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
     openWallet(connector?.id)
     if (together && walletClient) {
       setBatchSigning(true)
+      const main = mainOf(together)
+      batchBase.current = signer ? baselineOf({ chainId, account: signer, moves: main.moves ?? 'positions', touches: bundle?.touches, watch: watchOf(main) }).catch(() => undefined) : null
       try {
         const calls = together.map((s) => { const tx = s.tx as ApiTx; return { to: tx.to as `0x${string}`, data: (tx.data || '0x') as `0x${string}`, value: BigInt(tx.value || '0') } })
         const { id } = await walletClient.sendCalls({ account: walletClient.account, chain: walletClient.chain, calls, forceAtomic: true })
@@ -204,13 +210,16 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   React.useEffect(() => {
     if (!batch || !walletClient) return
     let live = true
-    walletClient.waitForCallsStatus({ id: batch, timeout: 300_000 }).then((st) => {
+    walletClient.waitForCallsStatus({ id: batch, timeout: 300_000 }).then(async (st) => {
       if (!live) return
       const hash = st.receipts?.[st.receipts.length - 1]?.transactionHash
       if (st.status === 'success' && hash) {
         const sent = (bundle?.steps ?? []).filter((s) => !s.done && !s.hash)
-        const main = sent.find((s) => s.moves === 'positions') ?? sent[sent.length - 1]
-        if (main) follow(hash, main)
+        // a batch picked up after a reload has no baseline from before it: the trace reads one, as a lone step does
+        const base = await batchBase.current ?? undefined
+        batchBase.current = null
+        if (!live) return
+        if (sent.length) follow(hash, mainOf(sent), undefined, base)
         setBundle((b) => b && { ...b, steps: b.steps.map((s) => (!s.done && !s.hash ? { ...s, hash } : s)) })
         setPending(hash)
       } else setErr(st.status === 'failure' ? 'The batch reverted on chain — nothing was moved.' : 'The batch was sent; your wallet has not reported it yet. Check the wallet before sending again.')

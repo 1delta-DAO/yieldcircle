@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
+import { pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 
@@ -204,5 +204,22 @@ describe('the strategy board', () => {
   })
   it('says a leverage range when the holders differ', () => {
     expect(boardStrategies([g('loop:a|b', 10, 1, { leverageMin: 2, leverageMax: 4 })], 'apr', () => null)[0].levRange).toBe('×2.0–4.0')
+  })
+})
+
+describe('what you made', () => {
+  const book = (pnl: number, y: number | null, d: number | null, withPnl = 3) => ({ total: { pnlUsd: pnl, yieldUsd: y, directionalUsd: d, pnlAprPct: 8 }, coverage: { positions: 4, withPnl } })
+  it('splits farming from the price move, and says which did it', () => {
+    const s = pnlSummary(book(312, 300, 12))!
+    expect(s.split!.yield).toBeCloseTo(300 / 312)
+    expect(s.word).toBe('Almost all of it is farming: farming made $300.')
+    expect(pnlSummary(book(-90, 10, -100))!.word).toBe('Mostly the coin\'s price: prices took $100, farming made $10.')
+    expect(pnlSummary(book(100, 60, 40))!.word).toBe('Farming made $60 and prices added $40.')
+  })
+  it('has nothing to say without a record, and no split without a yield figure', () => {
+    expect(pnlSummary(book(10, null, null, 0))).toBeNull()
+    expect(pnlSummary(book(10, null, null))!.split).toBeNull()
+    expect(signedMoney(-40)).toBe('−$40')
+    expect(signedMoney(0)).toBe('$0')
   })
 })

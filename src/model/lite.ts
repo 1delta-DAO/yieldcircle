@@ -410,3 +410,44 @@ export function boardStrategies(
       }
     })
 }
+
+// ---------------------------------------------------------------- what you made
+
+export interface PnlSummary {
+  total: number
+  /** what farming made: interest, staking, a token's own growth — the PnL without the money's price move */
+  yield: number | null
+  /** the rest: the held money moving against the dollar */
+  price: number | null
+  aprPct: number | null
+  /** of the yield and the price move, how much of the total each is (0–1), for a split bar; null without a yield figure */
+  split: { yield: number; price: number } | null
+  /** on how many positions, of how many */
+  on: number
+  of: number
+  /** one plain sentence saying where the money came from */
+  word: string
+}
+/**
+ * A wallet's PnL book, in three numbers a Lite reader can use: what you made, how much of that was
+ * farming and how much was the coin's price, and on how many positions the index has a record. The
+ * sentence says the shape of it ("mostly farming", "a price move did most of it") so the split bar
+ * has words.
+ */
+export function pnlSummary(b: { total: { pnlUsd: number; yieldUsd: number | null; directionalUsd: number | null; pnlAprPct: number | null }; coverage: { positions: number; withPnl: number } }): PnlSummary | null {
+  const t = b.total
+  if (!b.coverage.withPnl) return null
+  const y = t.yieldUsd, p = t.directionalUsd ?? (y != null ? t.pnlUsd - y : null)
+  const mag = (y != null ? Math.abs(y) : 0) + (p != null ? Math.abs(p) : 0)
+  const split = y != null && p != null && mag > 0 ? { yield: Math.abs(y) / mag, price: Math.abs(p) / mag } : null
+  let word = t.pnlUsd >= 0 ? 'Up since you opened these positions.' : 'Down since you opened these positions.'
+  if (split) {
+    const farm = y! >= 0 ? 'farming made' : 'farming lost', px = p! >= 0 ? 'prices added' : 'prices took'
+    word = split.yield >= 0.8 ? `Almost all of it is farming: ${farm} ${money(Math.abs(y!))}.`
+      : split.price >= 0.8 ? `Mostly the coin's price: ${px} ${money(Math.abs(p!))}, ${farm} ${money(Math.abs(y!))}.`
+      : `${farm.charAt(0).toUpperCase() + farm.slice(1)} ${money(Math.abs(y!))} and ${px} ${money(Math.abs(p!))}.`
+  }
+  return { total: t.pnlUsd, yield: y, price: p, aprPct: t.pnlAprPct, split, on: b.coverage.withPnl, of: b.coverage.positions, word }
+}
+/** `+$312` / `−$40`, whole dollars past ten; a zero is `$0`, not `+$0.00`. */
+export const signedMoney = (v: number) => (Math.abs(v) < 0.005 ? '$0' : (v < 0 ? '−' : '+') + money(Math.abs(v)))

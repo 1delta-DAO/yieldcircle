@@ -11,6 +11,7 @@ import { Sk, Tok, pct, usd, usdShort } from '../bits'
 import { useDayLog, useLiteMenu } from './useLite'
 import { FollowedMoves, openRow } from './LiteBits'
 import { ModeSwitch } from './ModeSwitch'
+import { LitePnl } from './LitePnl'
 import { LiteHoldingTicket } from '../Ticket'
 import { LiteLoanTicket } from '../BorrowTicket'
 import { useAsideTop } from '../AssetPage'
@@ -58,6 +59,8 @@ export function LiteYou() {
         <Stat k="Points" v={day.points.toLocaleString('en-US')} s="preview · a point a day per $100 at work" />
         {!b.paper && <Stat k="Rank" v={stats.rank != null ? `#${stats.rank}` : '—'} s={stats.rank != null ? `on the board · ${usdShort(stats.perDay)}/day` : 'top 100 by what they earn a day'} href={liteHref('board?by=wallet&t=perDay')} />}
       </div>
+
+      <LitePnl account={b.account!} paper={b.paper} rows={L.rows} />
 
       <section className="sec lite-sec">
         <div className="sec-h"><h2>Your money</h2></div>

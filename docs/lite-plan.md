@@ -389,7 +389,13 @@ Changes against the plan above, and why:
     ether"; and the ticket's column grows in over 0.3 s while the ticket fades in
     behind it (a slide-up sheet on a phone), instead of appearing at once. Motion
     is off under `prefers-reduced-motion`.
-20. **The landing needed no change.** Its CTAs open the app root, which opens the
+20. **What you made** (2026-10-24): You carries a PnL card from the same index
+    record Pro's wallet page shows in full — one number, a farming-against-price
+    bar with one sentence saying which did it, a quiet day-by-day line, and each
+    position's own figure, best first. "Every number" opens Pro's `WalletPnl` in
+    a drawer. A paper account shows its ledger's own figure and daily line
+    (`LitePnl.tsx`, `pnlSummary`). Pro's profile is unchanged: it already has it.
+21. **The landing needed no change.** Its CTAs open the app root, which opens the
     saved mode, so Lite for a first visit.
 
 Not built, and why:

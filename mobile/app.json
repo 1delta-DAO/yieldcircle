@@ -24,8 +24,17 @@
           "zerion",
           "uniswap",
           "phantom",
+          "safe",
+          "metamask",
+          "rainbow",
+          "trust",
+          "cbwallet",
+          "zerion",
+          "uniswap",
+          "phantom",
           "safe"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

@@ -17,7 +17,7 @@ export default function Home() {
     <SafeAreaView style={s.page} edges={['top']}>
       <ScrollView contentContainerStyle={s.body}>
         <Text style={s.h1}>YieldCircle</Text>
-        {!WC_PROJECT_ID && <Text style={s.warn}>EXPO_PUBLIC_WC_PROJECT_ID is not set (mobile/.env): no wallet can connect.</Text>}
+        {!WC_PROJECT_ID && <Text style={s.warn}>No WalletConnect project id: set VITE_WC_PROJECT_ID in the repo's .env and start with `pnpm mobile`.</Text>}
         <AppKitButton />
         <Capabilities />
         <Earn />

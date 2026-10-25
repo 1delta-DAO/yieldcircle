@@ -5,11 +5,11 @@
   "main": "expo-router/entry",
   "description": "The phone app (Expo): wallets through Reown AppKit + wagmi, data and rules from @yieldcircle/core.",
   "scripts": {
-    "start": "expo start --dev-client",
+    "start": "node ../scripts/mobile.mjs start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
-    "bundle": "expo export --platform ios --platform android --output-dir dist",
+    "bundle": "node ../scripts/mobile.mjs bundle",
     "doctor": "expo-doctor"
   },
   "dependencies": {

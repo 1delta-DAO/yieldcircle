@@ -1,6 +1,7 @@
 /**
  * The build's environment, handed to core: the phone's counterpart of packages/web/src/env.ts.
- * Expo inlines `process.env.EXPO_PUBLIC_*` at bundle time (mobile/.env, or EAS build variables).
+ * Expo inlines `process.env.EXPO_PUBLIC_*` at bundle time: `pnpm mobile` maps the root `.env`'s
+ * `VITE_*` onto them (scripts/mobile.mjs); EAS preview/production builds get them from `pnpm mobile env:push`.
  * Unset leaves core's production defaults.
  */
 import { configureBackend } from '@yieldcircle/core/config/backend'

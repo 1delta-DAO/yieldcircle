@@ -28,21 +28,28 @@ AppKit needs native modules, so **Expo Go cannot run it** — a *development
 build* is the app with the dev client inside; build it once, then JS changes
 load live from Metro.
 
-1. `cp mobile/.env.example mobile/.env` and set `EXPO_PUBLIC_WC_PROJECT_ID` (the
-   web's `VITE_WC_PROJECT_ID`). Without it the screen says so and nothing connects.
-2. Build the dev client, either way:
-   - **EAS (cloud, no Mac needed for iOS):** `cd mobile && npx eas-cli login`,
-     then `npx eas-cli build --profile development --platform android` (an APK to
-     install) or `--platform ios` (needs an Apple Developer account; register the
-     test phones with `npx eas-cli device:create`). Set the same
-     `EXPO_PUBLIC_WC_PROJECT_ID` under the EAS project's environment variables.
-   - **Locally:** `pnpm --filter @yieldcircle/mobile android` with the Android
-     SDK + a phone on USB debugging (`ios` needs a Mac with Xcode).
-3. `pnpm mobile` starts Metro; open the dev build on the phone and it loads.
+**One `.env`.** The keys stay in the repo root's `.env`, where the web reads
+them. `scripts/mobile.mjs` (`pnpm mobile …`) hands every `VITE_X` there to Expo
+as `EXPO_PUBLIC_X` for the step it runs — `VITE_WC_PROJECT_ID` becomes
+`EXPO_PUBLIC_WC_PROJECT_ID`, the URL overrides likewise — so there is no
+`mobile/.env`. Only `VITE_*` crosses over; anything else in `.env` (`FAL_KEY`)
+is a secret and never reaches the app.
 
-`pnpm bundle:mobile` bundles both platforms without a device (Metro → Hermes
-bytecode in `mobile/dist/`) — the quick check that core, the polyfills and the
-workspace links still resolve. `pnpm typecheck` covers mobile with the rest.
+| | |
+|---|---|
+| `pnpm mobile setup android` | **first time, in one go:** EAS login and project (once), the dev client built on EAS (an APK — install it from the link), then Metro. `ios` needs an Apple Developer account and the phone registered (`npx eas-cli device:create`) |
+| `pnpm mobile` | every day after: Metro with the keys; open the dev build on the phone |
+| `pnpm mobile build android` | rebuild the dev client — only after a native change (a new native package, `app.json`) |
+| `pnpm mobile run android` | build and install locally instead of EAS (Android SDK + a phone on USB; `ios` needs a Mac) |
+| `pnpm mobile env` | what the app gets, masked |
+| `pnpm mobile env:push` | copy the same values to EAS for **preview / production** builds |
+| `pnpm bundle:mobile` | bundle both platforms without a device — the check that core, the polyfills and the workspace links resolve |
+
+A dev build is native code only; its JS, keys included, comes from Metro on
+your machine, so the EAS dev build needs no keys. Preview and production builds
+bundle the JS on EAS's servers, which never see the local `.env` — hence
+`env:push` (plaintext variables: `EXPO_PUBLIC_*` ships inside the app anyway).
+`pnpm typecheck` covers mobile with the rest.
 
 ## The capabilities test, per wallet
 

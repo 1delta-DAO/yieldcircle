@@ -15,7 +15,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const here = new URL('..', import.meta.url).pathname
-const copy = join(here, 'src/model/assetClass.ts')
+const copy = join(here, 'packages/web/src/model/assetClass.ts')
 const source = join(process.env.POS_INDEXER ?? join(here, '../pos-indexer'), 'packages/position-store/src/assetClass.ts')
 if (!existsSync(source)) {
   console.log('asset-class: no source at', source, '— skipped')

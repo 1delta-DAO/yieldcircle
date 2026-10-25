@@ -16,8 +16,8 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
 const BASE = 'https://app.lagoon.finance/api'
-const OUT = new URL('../src/data/lagoon.json', import.meta.url)
-const SEED = new URL('../src/data/menu-seed.json', import.meta.url)
+const OUT = new URL('../packages/web/src/data/lagoon.json', import.meta.url)
+const SEED = new URL('../packages/web/src/data/menu-seed.json', import.meta.url)
 const UA = { 'User-Agent': 'Mozilla/5.0 (yieldcircle lagoon snapshot)' }
 
 async function get(path) {

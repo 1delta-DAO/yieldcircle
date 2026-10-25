@@ -18,17 +18,20 @@ where to add a new one: [`docs/apis.md`](docs/apis.md).
 cp .env.example .env     # VITE_BACKEND_BASE_URL — the credited backend for development
 pnpm install
 pnpm dev                 # the app,     http://localhost:3200
-pnpm build               # tsc + vite → dist/
+pnpm build               # tsc + vite → packages/web/dist/
 pnpm dev:landing         # the landing, http://localhost:3201
-pnpm build:landing       # tsc + vite → dist-landing/
+pnpm build:landing       # tsc + vite → packages/landing/dist/
 ```
 
-Two front ends, two deployments: the **app** (`index.html`, `src/`) and the
-**landing page** (`landing/` — the public page and the waitlist signup, which
-links into the app). The landing shares `src/` and `public/` and has its own
-Vite config and Worker. The design both wear — tokens, base styles, shared
+A pnpm workspace. Two front ends, two deployments: the **app**
+(`packages/web` — `index.html`, `src/`, the gate) and the **landing page**
+(`packages/landing` — the public page and the waitlist signup, which links into
+the app). The landing shares the app's `src/`, `gate/` and `public/` and has its
+own Vite config and Worker. The design both wear — tokens, base styles, shared
 components, the brand — is the workspace package
-[`design/`](design/README.md) (`@yieldcircle/design`).
+[`packages/design`](packages/design/README.md) (`@yieldcircle/design`). The root
+`package.json` forwards every command, so `pnpm dev`, `pnpm build` etc. run from
+the repo root; `scripts/`, `docs/`, `tickets/` and `brand/` stay at the root.
 
 Append `?as=0x…` to the URL to read an address's positions without a wallet
 (or type it in the wallet dialog). Connect an injected wallet to sign;
@@ -162,7 +165,7 @@ src/social/    threads, profiles, follows, reactions → social.1delta.io
                sign.ts — every write is one EIP-712 message; no sessions
 src/identity/  name.ts (ported from pos-indexer), character.tsx
 src/model/uid.ts  the join: <lender>:<chainId>:<ref>, the same string everywhere
-worker/x-link/    the OAuth worker, because a static site cannot hold a secret
+packages/x-link/  the OAuth worker, because a static site cannot hold a secret
 ```
 
 Both services are public and send `CORS *`, so nothing here needs a backend.
@@ -170,7 +173,7 @@ Both services are public and send `CORS *`, so nothing here needs a backend.
 Linking an X account is free and needs no developer account: sign a message,
 post your address and a code on X, paste the link, and the service reads the
 post back through X's public oEmbed endpoint. `VITE_XLINK_URL` adds the
-optional OAuth route (`worker/x-link`), which buys X's stable numeric id for
+optional OAuth route (`packages/x-link`), which buys X's stable numeric id for
 about a cent a link.
 
 **Your own positions never come from the index.** They stay on the live
@@ -239,6 +242,8 @@ The query parameters that do this (`maxRiskScore`, `minTvlUsd`,
 
 ## Layout
 
+`src/` is `packages/web/src`; `brand/` and `docs/` are at the repo root.
+
 ```
 src/
   config/backend.ts        base URL + apiHeaders() — the fork's auth hook
@@ -252,7 +257,7 @@ src/
   wallet/                  wagmi config (injected + optional WalletConnect), ConnectButton
   styles/app.css           the mockup's stylesheet, plus a few app classes
 brand/gen.py               the mark (an open turn of yield), the YIELD·CIRCLE lockup, og card and README
-                           banner, all as paths; `pnpm brand` regenerates public/ icons and docs/banner.*
+                           banner, all as paths; `pnpm brand` regenerates packages/web/public/ icons and docs/banner.*
                            (needs python3 + fontTools; resvg for the PNGs)
 docs/simplify.md           why the asset page is one list with a toggle
 ```

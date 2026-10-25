@@ -18,7 +18,7 @@
  */
 import React from 'react'
 import { Logo, Mark } from '@yieldcircle/design'
-import { Character, type Spec } from '../src/identity/character'
+import { Character, type Spec } from '../web/src/identity/character'
 
 const hic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
 const css = (o: Record<string, string | number>) => o as React.CSSProperties

@@ -333,7 +333,7 @@ accounts cannot be verified this way — oEmbed will not serve them.
 
 ### The paid one: OAuth, when the numeric id is worth a cent
 
-`worker/x-link` still implements OAuth 2.0 + PKCE against a Cloudflare Worker
+`packages/x-link` still implements OAuth 2.0 + PKCE against a Cloudflare Worker
 holding the client secret, calling `GET /2/users/me` in the user's own
 context and handing both halves to `POST /x-link` under a shared secret. It
 stores `method = 'oauth'` and X's numeric id, which survives a rename. Set
@@ -450,7 +450,7 @@ src/identity/    name.ts (ported) · character.tsx
 src/model/uid.ts the join
 src/ui/          Feed · Wallet · Market · Board · Profile · Alerts
                  Thread · SayWhy · TicketSocial · social-bits · useMenu
-worker/x-link/   the OAuth worker
+packages/x-link/ the OAuth worker
 ```
 
 The ticket gained three things and lost none: a **copy banner** when it was

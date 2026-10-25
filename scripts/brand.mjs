@@ -7,7 +7,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
 let Resvg
 try { ({ Resvg } = require('@resvg/resvg-js')) } catch { ({ Resvg } = require(process.env.RESVG_PATH ?? '/home/axtar/credx/app/node_modules/@resvg/resvg-js')) }
-const src = (n) => join(root, 'brand', 'out', n), pub = (n) => join(root, 'public', n), doc = (n) => join(root, 'docs', n)
+const src = (n) => join(root, 'brand', 'out', n), pub = (n) => join(root, 'packages/web/public', n), doc = (n) => join(root, 'docs', n)
 mkdirSync(pub(''), { recursive: true }); mkdirSync(doc(''), { recursive: true })
 const png = (svgName, width) => new Resvg(readFileSync(src(svgName), 'utf8'), { fitTo: { mode: 'width', value: width } }).render().asPng()
 const out = { 'favicon-16.png': png('mark.svg', 16), 'favicon-32.png': png('mark.svg', 32), 'favicon-48.png': png('mark.svg', 48), 'apple-touch-icon.png': png('mark.svg', 180), 'icon-192.png': png('mark.svg', 192), 'icon-512.png': png('mark.svg', 512), 'icon-maskable-512.png': png('mark-maskable.svg', 512), 'og.png': png('og.svg', 1200) }

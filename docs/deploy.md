@@ -5,13 +5,13 @@ live in the dashboard, never in git:
 
 | | what | where | serves |
 |---|---|---|---|
-| 1 | the app — **Pages** project `yieldcircle` | `app.yieldcircle.io` | `index.html` + `src/`, the beta gate (`functions/`) |
-| 2 | the landing — **Pages** project `yieldcircle-landing` | `yieldcircle.io` | `landing/`: the public page and the waitlist signup, linking into the app |
-| 3 | the x-link helper — **Worker** `yieldcircle-xlink` (optional) | `xlink.yieldcircle.io` | `worker/x-link/` |
+| 1 | the app — **Pages** project `yieldcircle` | `app.yieldcircle.io` | `packages/web`: `index.html` + `src/`, the beta gate (`functions/`) |
+| 2 | the landing — **Pages** project `yieldcircle-landing` | `yieldcircle.io` | `packages/landing`: the public page and the waitlist signup, linking into the app |
+| 3 | the x-link helper — **Worker** `yieldcircle-xlink` (optional) | `xlink.yieldcircle.io` | `packages/x-link/` |
 
 The landing and the app share one waitlist: both bind the `WHITELIST` KV
 namespace and answer `/gate/check` + `/gate/request` from the same code
-(`gate/waitlist.ts`). Only the app signs a wallet in (`/gate/verify`), since
+(`packages/web/gate/waitlist.ts`). Only the app signs a wallet in (`/gate/verify`), since
 the beta cookie belongs to its origin — a whitelisted wallet on the landing is
 sent on to the app.
 
@@ -24,7 +24,7 @@ and unused by the git build).
 |---|---|
 | Build command | `pnpm build` |
 | Build output directory | `dist` |
-| Root directory | `/` |
+| Root directory | `packages/web` — Pages takes `functions/` (the gate) from the root directory, so it must be the package |
 
 **No build variable is required** — the API, index, social and site URLs all
 default to production. Optional, and only effective on the next build:
@@ -35,7 +35,7 @@ default to production. Optional, and only effective on the next build:
 | `VITE_XLINK_URL` | `https://xlink.yieldcircle.io` |
 | `VITE_SITE_URL` | defaults to `https://app.yieldcircle.io` — the canonical / og origin and the WalletConnect metadata URL |
 
-**The beta gate** (`functions/_middleware.ts`, tickets/0002) needs, under
+**The beta gate** (`packages/web/functions/_middleware.ts`, tickets/0002) needs, under
 both Production and Preview:
 
 | Settings → … | name | value |
@@ -59,22 +59,23 @@ gate **off**, app open (a misconfiguration never takes the site down). Manage th
 (`add`, `remove`, `list`, `waitlist`, `wait`, `promote N` — see
 `scripts/whitelist.mjs`).
 
-Locally: `pnpm deploy` / `pnpm deploy:preview` (direct upload of `dist`).
+Locally: `pnpm deploy` / `pnpm deploy:preview` (direct upload of `packages/web/dist`; wrangler runs in
+`packages/web`, so it picks up `functions/`).
 
 ## 2 · The landing — Pages project `yieldcircle-landing`
 
 A second Pages project on the same repo. Its Worker
-([`landing/worker.ts`](../landing/worker.ts)) is bundled into the output as
-`_worker.js` by [`landing/build-worker.mjs`](../landing/build-worker.mjs) —
-Pages' advanced mode, so the repo's `functions/` (the app's gate) is ignored
+([`packages/landing/worker.ts`](../packages/landing/worker.ts)) is bundled into the output as
+`_worker.js` by [`packages/landing/build-worker.mjs`](../packages/landing/build-worker.mjs) —
+Pages' advanced mode, so a `functions/` folder would be ignored
 here — and `_routes.json` sends it only `/gate/*`; everything else is a static
 file.
 
 | Settings → Build | value |
 |---|---|
-| Build command | `pnpm build:landing` |
-| Build output directory | `dist-landing` |
-| Root directory | `/` |
+| Build command | `pnpm build` |
+| Build output directory | `dist` |
+| Root directory | `packages/landing` |
 
 | Settings → … (Production and Preview) | name | value |
 |---|---|---|
@@ -85,13 +86,13 @@ file.
 | Secret (optional) | `RESEND_API_KEY`, `NOTIFY_EMAIL` | as on the app — a request mail per new waitlist entry |
 
 The gate's card is built into the landing's `index.html` at build time
-(`landing/vite.config.ts`), so nothing rewrites HTML at the edge. Locally:
+(`packages/landing/vite.config.ts`), so nothing rewrites HTML at the edge. Locally:
 `pnpm dev:landing` (port 3201; `/gate/*` needs the Worker:
-`pnpm build:landing && npx wrangler pages dev dist-landing --kv WHITELIST`),
+`pnpm build:landing && cd packages/landing && npx wrangler pages dev dist --kv WHITELIST`),
 or `pnpm deploy:landing` (direct upload).
 
 The investor deck lives on the landing too, at `/deck`: a second page of the
-same build (`landing/deck.html` → `deck-main.tsx` → `Deck.tsx`, styles in
+same build (`packages/landing/deck.html` → `deck-main.tsx` → `Deck.tsx`, styles in
 `deck.css`). Nothing links to it. Pages serves `deck.html` for `/deck`; in dev
 it is `http://localhost:3201/deck.html`. `pnpm deck:pdf` prints it to
 `dist/deck.pdf`, one slide a page; the "Save as PDF" button on the page does the
@@ -104,7 +105,7 @@ In order:
 
 1. Pages `yieldcircle` → Custom domains: add `app.yieldcircle.io`.
 2. Reown project: add `https://app.yieldcircle.io` (keep `https://yieldcircle.io`, the landing connects wallets too).
-3. `worker/x-link/wrangler.toml`: `ALLOWED_ORIGIN` → `https://app.yieldcircle.io`, redeploy the x-link worker.
+3. `packages/x-link/wrangler.toml`: `ALLOWED_ORIGIN` → `https://app.yieldcircle.io`, redeploy the x-link worker.
 4. Pages `yieldcircle` → Custom domains: remove `yieldcircle.io`; Pages `yieldcircle-landing` → add it (the dashboard repoints the DNS record).
 5. Pages `yieldcircle` → Variables: `VITE_SITE_URL` → `https://app.yieldcircle.io`, then redeploy.
 
@@ -112,13 +113,13 @@ Beta cookies are per origin: members sign in once more on `app.yieldcircle.io`.
 
 ## 3 · The x-link worker — `yieldcircle-xlink` (optional)
 
-[`worker/x-link/wrangler.toml`](../worker/x-link/wrangler.toml) carries the
+[`packages/x-link/wrangler.toml`](../packages/x-link/wrangler.toml) carries the
 plain vars and the `XLINK` KV binding. Without this worker the app uses the
 free X-post link path.
 
 | Settings → Build | value |
 |---|---|
-| Root directory | `worker/x-link` |
+| Root directory | `packages/x-link` |
 | Build command | *(empty)* |
 | Deploy command | `npx wrangler deploy` |
 
@@ -130,4 +131,4 @@ free X-post link path.
 Secrets survive deploys — wrangler never touches them. In the toml, fill
 `X_CLIENT_ID` and set `REDIRECT_URI` to the worker URL + `/callback` (register
 the same in the X app). For `wrangler dev`, the secrets go in the gitignored
-`worker/x-link/.dev.vars`.
+`packages/x-link/.dev.vars`.

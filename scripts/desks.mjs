@@ -21,7 +21,7 @@ const root = process.argv[2] ?? process.env.TOKEN_LISTS_DIR ?? '/home/axtar/toke
 // 3Jane's and Reserve's — an unattributed savings token stays unattributed until token-lists
 // names it (a ticker is not an identity).
 // ---------------------------------------------------------------------------------------------
-const queriesSrc = readFileSync(new URL('../src/sdk/queries.ts', import.meta.url), 'utf8')
+const queriesSrc = readFileSync(new URL('../packages/web/src/sdk/queries.ts', import.meta.url), 'utf8')
 // the chains the app offers: `CHAINS` in src/sdk/queries.ts, read from there rather than repeated
 const chainsSrc = queriesSrc.slice(queriesSrc.indexOf('export const CHAINS'), queriesSrc.indexOf('\n]', queriesSrc.indexOf('export const CHAINS')))
 // every chain, `solana` included: positions and balances there are resolved through this table too
@@ -101,7 +101,7 @@ for (const chain of offered) {
     table[`${chain}:${addr}`] = d?.id ?? (money === 'USD' && rootOf(t) ? `~${rootOf(t)}` : '')
   }
 }
-writeFileSync(new URL('../src/data/desks.json', import.meta.url), JSON.stringify({ desks: deskNames, tokens: deskTokens, eth: ethTokens, btc: btcTokens }) + '\n')
+writeFileSync(new URL('../packages/web/src/data/desks.json', import.meta.url), JSON.stringify({ desks: deskNames, tokens: deskTokens, eth: ethTokens, btc: btcTokens }) + '\n')
 for (const [money, table] of [['dollar', deskTokens], ['ether', ethTokens], ['bitcoin', btcTokens]]) {
   const attributed = Object.values(table).filter((v) => v && !v.startsWith('~')).length
   console.log(`${Object.keys(table).length} ${money} tokens written, ${attributed} with a desk`)

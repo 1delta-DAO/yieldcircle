@@ -1,10 +1,10 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { overlay } from '../gate/page'
+import { overlay } from '../web/gate/page'
 
 // The landing's own build (`pnpm build:landing`, `pnpm dev:landing`): this folder is the root, the
-// app's `src/` is shared code, `public/` is shared assets, `.env` is the repo's.
+// app's `src/` (../web/src) is shared code, `public/` (../web/public) is shared assets, `.env` is the repo's.
 // index.html's canonical / og tags need an absolute origin, or share cards break.
 process.env.VITE_SITE_URL ||= 'https://yieldcircle.io'
 process.env.VITE_APP_URL ||= 'https://app.yieldcircle.io'
@@ -23,10 +23,12 @@ const gateCard = () => ({
 
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
-  envDir: '..',
-  publicDir: '../public',
+  envDir: '../..',
+  publicDir: '../web/public',
   plugins: [react(), gateCard()],
+  // landing/ and web/ each link their own copies; one instance of each, or hooks and contexts split
+  resolve: { dedupe: ['react', 'react-dom', 'wagmi', 'viem', '@tanstack/react-query'] },
   // Two pages: the landing, and the deck at /deck (Pages serves `deck.html` for `/deck`; in dev it is /deck.html).
-  build: { outDir: '../dist-landing', emptyOutDir: true, rollupOptions: { input: { main: fileURLToPath(new URL('index.html', import.meta.url)), deck: fileURLToPath(new URL('deck.html', import.meta.url)) } } },
+  build: { outDir: 'dist', emptyOutDir: true, rollupOptions: { input: { main: fileURLToPath(new URL('index.html', import.meta.url)), deck: fileURLToPath(new URL('deck.html', import.meta.url)) } } },
   server: { port: 3201, open: false },
 })

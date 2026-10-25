@@ -26,7 +26,7 @@ const canon = (u) => {
   return `${url.pathname.replace(/^\/v1\/data/, '')}?${pairs.map(([k, v]) => `${k}=${v}`).join('&')}`
 }
 
-const vite = await createServer({ root: ROOT, server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
+const vite = await createServer({ root: join(ROOT, 'packages/web'), server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
 const want = []
 try {
   const load = (p) => vite.ssrLoadModule(p)

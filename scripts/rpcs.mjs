@@ -27,7 +27,7 @@ const UNKNOWN = '0x' + '11'.repeat(32)
 const EXTRA = { 4217: ['https://rpc.tempo.xyz', 'https://tempo.drpc.org'] }
 
 // the chains the app offers: `CHAINS` in src/sdk/queries.ts, read from there rather than repeated
-const queriesSrc = readFileSync(new URL('../src/sdk/queries.ts', import.meta.url), 'utf8')
+const queriesSrc = readFileSync(new URL('../packages/web/src/sdk/queries.ts', import.meta.url), 'utf8')
 const chainsSrc = queriesSrc.slice(queriesSrc.indexOf('export const CHAINS'), queriesSrc.indexOf('\n]', queriesSrc.indexOf('export const CHAINS')))
 const offered = [...chainsSrc.matchAll(/id:\s*'(\d+)'/g)].map((m) => Number(m[1]))
 
@@ -96,6 +96,6 @@ for (const id of offered) {
   if (!live.length) console.warn(`chain ${id}: NO public RPC passed — the watcher falls back to viem's default`)
 }
 if (process.env.DEBUG) for (const r of results.filter((r) => !r.ok)) console.log('  -', r.id, r.url, r.why)
-const out = new URL('../src/data/rpcs.json', import.meta.url)
+const out = new URL('../packages/web/src/data/rpcs.json', import.meta.url)
 writeFileSync(out, JSON.stringify({ checked: new Date().toISOString().slice(0, 10), chains }, null, 1) + '\n')
 console.log(`wrote ${out.pathname}`)

@@ -24,5 +24,7 @@ const guardWalletConnect = (mode: string, env: NodeJS.ProcessEnv) => ({
 
 export default defineConfig(({ mode }) => ({
   plugins: [react(), guardWalletConnect(mode, process.env)],
+  // `.env` stays at the repo root, shared with the landing
+  envDir: '../..',
   server: { port: 3200, open: false },
 }))

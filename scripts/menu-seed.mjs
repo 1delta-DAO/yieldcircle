@@ -16,9 +16,10 @@ import { join } from 'node:path'
 import { createServer } from 'vite'
 
 const ROOT = join(import.meta.dirname, '..')
-const OUT = join(ROOT, 'src/data/menu-seed.json')
+const WEB = join(ROOT, 'packages/web')
+const OUT = join(WEB, 'src/data/menu-seed.json')
 
-const vite = await createServer({ root: ROOT, server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
+const vite = await createServer({ root: WEB, server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
 try {
   const load = (p) => vite.ssrLoadModule(p)
   const [{ fetchEarn }, { classifyEarn, dedupe, capPerAsset }, { softHide }, { uidOf }, { DEFAULTS }, { CHAINS, chainBuckets }] = await Promise.all([

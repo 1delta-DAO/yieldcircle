@@ -1,0 +1,30 @@
+{
+  "name": "@yieldcircle/landing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The landing (yieldcircle.io) and the deck. Shares the app's src/, gate/ and public/ (../web).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node build-worker.mjs",
+    "typecheck": "tsc --noEmit",
+    "deploy": "pnpm run build && wrangler pages deploy dist --project-name yieldcircle-landing --branch main"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.91.3",
+    "@yieldcircle/design": "workspace:*",
+    "@yieldcircle/web": "workspace:*",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "viem": "^2.47.6",
+    "wagmi": "^2.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "5.9.3",
+    "vite": "^8.0.1"
+  }
+}

@@ -12,6 +12,5 @@
     "resolveJsonModule": true,
     "types": ["vite/client"]
   },
-  "include": ["src", "landing", "gate", "design"],
-  "exclude": ["landing/vite.config.ts"]
+  "include": ["src", "gate"]
 }

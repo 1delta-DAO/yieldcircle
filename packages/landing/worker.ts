@@ -11,7 +11,7 @@
  * `RESEND_API_KEY` (Secret) and `NOTIFY_EMAIL` optional, as on the app. Without the KV binding the endpoints
  * answer 503 and the page still serves.
  */
-import { check, join, json, type WaitlistEnv } from '../gate/waitlist'
+import { check, join, json, type WaitlistEnv } from '../web/gate/waitlist'
 
 type Env = Partial<WaitlistEnv> & { ASSETS: { fetch: (r: Request) => Promise<Response> } }
 type ExecutionContext = { waitUntil: (p: Promise<unknown>) => void }

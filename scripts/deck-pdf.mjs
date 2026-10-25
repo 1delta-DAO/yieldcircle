@@ -24,7 +24,7 @@ let server
 if (!url) {
   url = `http://localhost:${PORT}`
   // the binary itself, not `npx vite`: killing npx leaves vite running on the port, and the next run prints a stranger
-  server = spawn(path.join(ROOT, 'node_modules/.bin/vite'), ['--config', 'landing/vite.config.ts', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore' })
+  server = spawn(path.join(ROOT, 'node_modules/.bin/vite'), ['--config', 'packages/landing/vite.config.ts', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore' })
   const t0 = Date.now()
   while (Date.now() - t0 < 30_000) {
     try { await fetch(url); break } catch { await new Promise((r) => setTimeout(r, 300)) }

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { build } from 'vite'
 
 const root = fileURLToPath(new URL('.', import.meta.url))
-const out = fileURLToPath(new URL('../dist-landing/', import.meta.url))
+const out = fileURLToPath(new URL('dist/', import.meta.url))
 await build({
   configFile: false,
   root,
@@ -15,4 +15,4 @@ await build({
   build: { ssr: 'worker.ts', outDir: out, emptyOutDir: false, target: 'es2022', minify: true, rollupOptions: { output: { entryFileNames: '_worker.js', format: 'es' } } },
 })
 writeFileSync(out + '_routes.json', JSON.stringify({ version: 1, include: ['/gate/*'], exclude: [] }, null, 2) + '\n')
-console.log('dist-landing/_worker.js and _routes.json written')
+console.log('dist/_worker.js and _routes.json written')

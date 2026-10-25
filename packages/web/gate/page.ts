@@ -24,7 +24,9 @@
  * app to sign in there — the beta cookie belongs to the app's origin.
  */
 
-import { MARK_D, MARK_VIEWBOX, TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL, X_D, X_URL } from '../design/brand'
+// a path, not `@yieldcircle/design/brand`: the landing's vite.config.ts imports this file, and Vite
+// bundles relative imports into a config but leaves packages to Node, which cannot load the .ts
+import { MARK_D, MARK_VIEWBOX, TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL, X_D, X_URL } from '../../design/brand'
 
 /** The key an address is stored and signed under: EVM lower-cased, a Solana pubkey as is (base58 is case-sensitive). */
 export const norm = (address: string) => (address.startsWith('0x') ? address.toLowerCase() : address)

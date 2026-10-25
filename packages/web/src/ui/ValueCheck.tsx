@@ -9,42 +9,11 @@ import { Info } from './bits'
  * Quiet while the fill is fair; amber past `WARN`; past `ACK` (and at least `ACK_MIN_USD`) the loss is
  * confirmed with a checkbox before the action unlocks — once per quote: a re-quote asks again.
  */
-export const WARN = 0.01, ACK = 0.03
-/** …unless the loss is pocket change: 4 % of a $10 swap is not worth a checkbox. */
-export const ACK_MIN_USD = 1
+export { ACK, ACK_MIN_USD, WARN, useValueCheck, type Sev, type ValueCheck } from '@yieldcircle/app/tickets/valueCheck'
+import { ACK, WARN, type ValueCheck } from '@yieldcircle/app/tickets/valueCheck'
+import { cents, pctAbs } from '@yieldcircle/core/model/format'
+export { cents }
 
-export type Sev = 'unk' | 'up' | 'ok' | 'warn' | 'bad'
-export interface ValueCheck {
-  inUsd: number; outUsd: number; priced: boolean
-  /** out − in, in dollars; negative is a loss */
-  diff: number
-  /** out / in − 1 */
-  impact: number
-  sev: Sev
-  /** a loss large enough to confirm */
-  severe: boolean
-  /** severe and not yet confirmed for this quote: the action stays disabled */
-  blocked: boolean
-  acked: boolean
-  setAcked: (b: boolean) => void
-}
-
-/** `inUsd` / `outUsd` 0 = no price on that side. `quoteKey` changes with every quote, so a confirmation never carries over. */
-export function useValueCheck(inUsd: number, outUsd: number, quoteKey: string): ValueCheck {
-  const [ackedKey, setAckedKey] = React.useState('')
-  const priced = inUsd > 0 && outUsd > 0
-  const diff = outUsd - inUsd, impact = priced ? outUsd / inUsd - 1 : 0
-  const sev: Sev = !priced ? 'unk' : impact <= -ACK ? 'bad' : impact <= -WARN ? 'warn' : impact > 0.001 ? 'up' : 'ok'
-  const severe = sev === 'bad' && -diff >= ACK_MIN_USD
-  const acked = ackedKey === quoteKey
-  return { inUsd, outUsd, priced, diff, impact, sev, severe, blocked: severe && !acked, acked, setAcked: (b) => setAckedKey(b ? quoteKey : '') }
-}
-
-/**
- * The row: `in → out | change`. `labels` name the three cells; `info` explains the change; `missing`
- * names what has no price when one side is unpriced.
- */
-/** `third`: another figure in the last cell instead of the value change (a loop's break-even); `title` then carries the change on hover. */
 export function ValueRow({ v, labels, info, missing, third }: { v: ValueCheck; labels: [string, string, string]; info: React.ReactNode; missing?: string; third?: { value: React.ReactNode; cls?: string; title?: string } }) {
   return (
     <div className={`qval ${v.sev}`} title={third?.title}>
@@ -70,5 +39,3 @@ export function LossAck({ v, what, advice }: { v: ValueCheck; what: string; advi
   )
 }
 
-export const cents = (x: number) => '$' + x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-const pctAbs = (x: number) => { const a = Math.abs(x); return `${(a * 100).toFixed(a < 0.1 ? 2 : 1)}%` }

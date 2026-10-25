@@ -1,94 +1,112 @@
 import React from 'react'
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Stack, useLocalSearchParams } from 'expo-router'
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { router, useLocalSearchParams } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLiteMenu } from '@yieldcircle/app/lite'
-import { CHAINS } from '@yieldcircle/app/sdk/queries'
-import { brandOf, heldBy, leverTag, plainName, trustKind } from '@yieldcircle/core/model/lite'
-import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
-import { isSpike, seriesFor } from '@yieldcircle/core/model/rateHistory'
-import { C, RISK } from '../../src/theme'
-import { Btn, Face, Rate, Sk, T } from '../../src/ui/bits'
+import { brandOf, holdingLine, leverTag, liteModes, moneyWord, plainName, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
+import { usd, usdShort } from '@yieldcircle/core/model/format'
+import { C } from '../../src/theme'
+import { Sk, Tok, Toks } from '../../src/ui/bits'
+import { Who } from '../../src/ui/Character'
+import { Txt } from '../../src/ui/Txt'
+import { Details, Sec, TicketHead, Trust } from '../../src/ticket/parts'
+import { DepositBody, LoopBody, ManageLoopBody, WithdrawBody } from '../../src/ticket/bodies'
 
 /**
- * One strategy, read-only: what it is in words, what it pays, how risky, who runs it, and yours.
- * The ticket (the web's three lines and one button) is the next step on the phone; until then
- * this says so rather than offering a button that does nothing.
+ * Lite's ticket (the web's `LiteTicket`, docs/lite.md §5), as a sheet: what it is in words, then one
+ * of a few plain actions — never a tier, a slider, a route or a sub-account. Opened on a row
+ * (`id`), or on a position (`h`, its holding key) whether or not Lite would offer it today; `copy`
+ * and `lev` when it copies a wallet, `m` the action a link asked for.
  */
-export default function StrategyScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>()
+export default function TicketScreen() {
+  const p = useLocalSearchParams<{ id: string; h?: string; copy?: string; lev?: string; m?: string }>()
+  const insets = useSafeAreaInsets()
   const L = useLiteMenu()
   const { b } = L
-  const s = b.all.find((x) => x.id === id) ?? b.hidden.find((x) => x.id === id) ?? b.overflow.find((x) => x.id === id)
-  const row = L.rows.find((r) => r.s.id === id)
-  if (!s) {
+  const byKey = p.h ? b.holdings.find((x) => x.key === p.h) ?? null : null
+  // a position opened by its key (You) runs whatever strategy the catalogue holds for it, or none
+  const s = b.all.find((x) => x.id === p.id) ?? b.hidden.find((x) => x.id === p.id) ?? b.overflow.find((x) => x.id === p.id) ?? (byKey ? L.runs(byKey) ?? null : null)
+  const holdings = s ? L.holdingsOf(s) : byKey ? [byKey] : []
+  const holding = holdings.find((x) => x.key === p.h) ?? holdings[0] ?? null
+  // what an Add builds on: the picked position, unless the API cannot build for its account — then a new one
+  const into = holding && !holding.subAccount?.unsupported ? holding : null
+  const copyLev = p.lev ? Number(p.lev) : undefined
+  const { isLoop, start, tabs } = liteModes(s, holding, p.m)
+  const [mode, setMode] = React.useState<LiteMode>(start)
+  // the position may arrive after the sheet opens: start where it would have
+  const seen = React.useRef(!!holding)
+  React.useEffect(() => { if (!seen.current && holding) { seen.current = true; setMode(start) } }, [!!holding]) // eslint-disable-line react-hooks/exhaustive-deps
+  const close = () => router.back()
+
+  if (!s && !holding) {
     return (
-      <View style={st.page}>
-        {b.isLoading ? <><Sk w={200} h={24} /><Sk w={140} /></> : <Text style={T.dim}>This strategy is not in the catalogue right now.</Text>}
-      </View>
+      <Frame insets={insets}>
+        <TicketHead face={<Sk w={26} h={26} r={13} />} title={b.isLoading ? '' : 'Not in the catalogue right now'} onClose={close} />
+        <Sec plain>{b.isLoading ? <Sk w={200} /> : <Txt s={13} c={C.tx50}>This strategy is not on the menu on these chains at the moment.</Txt>}</Sec>
+      </Frame>
     )
   }
-  const name = row ? { title: row.title, sub: row.sub } : plainName(s)
-  const spike = isSpike(s.rate, seriesFor(s, L.get, true))
-  const chain = CHAINS.find((c) => c.id === s.chainId)?.label ?? s.chainId
-  const mine = L.holdingsOf(s).reduce((a, h) => a + h.valueUsd, 0)
-  const who = heldBy(L.proof(s))
-  const facts: [string, string][] = [
-    ['Risk', `${s.riskLabel}${s.riskScore ? ` · ${s.riskScore} of 5` : ''}`],
-    ['What it is', trustKind(s)],
-    ['Run by', brandOf(s)],
-    ['On', chain],
-    ['Size', usdShort(s.tvlUsd)],
-  ]
-  if (s.kind === 'loop') facts.splice(1, 0, ['Leverage', `${leverTag(s.tiers.balanced)} — borrows ${s.debt} against ${s.holds}`])
+  const h = holding
+  const n = s ? plainName(s) : null
+  const title = n?.title ?? (h ? moneyWord(h.asset, h.group) : '')
+  const line = h ? holdingLine(h) : null
+  const chainIdle = s ? b.idlePerChain.filter((i) => i.chainId === s.chainId) : []
+  const lev = s?.kind === 'loop' ? (h?.leverage && h.leverage > 1.05 ? h.leverage : copyLev && copyLev > 1.05 ? copyLev : s.tiers.balanced) : h?.kind === 'loop' ? h.leverage ?? 1 : 0
+  const face = s?.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : s ? <Tok sym={s.assetSymbol} logo={[s.tokenLogo, s.logo]} size={26} /> : <Tok sym={h!.symbol} logo={h!.logo} size={26} />
   return (
-    <ScrollView contentContainerStyle={st.page}>
-      <Stack.Screen options={{ title: name.title }} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <Face s={s} size={44} />
-        <View style={{ flex: 1 }}>
-          <Text style={[T.h2, { fontSize: 20 }]}>{name.title}</Text>
-          <Text style={T.dim}>{name.sub}</Text>
-        </View>
-      </View>
-
-      <View style={st.card}>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-          <Rate s={s} get={L.get} style={{ fontSize: 36 }} />
-          <Text style={T.dim70}>a year</Text>
-        </View>
-        {spike && <Text style={{ color: C.warn }}>Higher than this month’s usual — the list ranks by the steady rate.</Text>}
-        <Text style={T.dim70}>On {usd(1000)} that is about <Text style={T.ok}>{usd(10 * s.rate)}</Text> a year, before compounding.</Text>
-        {who ? <Text style={T.dim70}>{who}</Text> : null}
-      </View>
-
-      {mine >= 1 && (
-        <View style={[st.card, { backgroundColor: C.okBg, borderColor: 'transparent' }]}>
-          <Text style={T.body}>You have <Text style={{ fontWeight: '700' }}>{usd(mine)}</Text> in this, earning about <Text style={T.ok}>{usd(mine * s.rate / 100)}</Text> a year.</Text>
+    <Frame insets={insets}>
+      <TicketHead face={face} title={title} sub={line ? `${usd(h!.valueUsd)} yours · ${line.text}` : n?.sub} subTone={line?.tone} lever={lev > 1.05 ? leverTag(lev) : undefined} onClose={close} />
+      {tabs.length > 1 && (
+        <Sec>
+          <View style={st.modes}>
+            {tabs.map((x) => (
+              <Pressable key={x.id} onPress={() => setMode(x.id)} style={[st.mode, mode === x.id && st.modeOn]}>
+                <Txt s={13} c={mode === x.id ? C.primary : C.tx50}>{x.word}</Txt>
+              </Pressable>
+            ))}
+            {holdings.length > 1 && <Txt s={11.5} mono c={C.tx50} style={{ marginLeft: 'auto' }}>1 of {holdings.length}</Txt>}
+          </View>
+        </Sec>
+      )}
+      {p.copy && s && (
+        <View style={st.copy}>
+          <Who account={p.copy} size={24} />
+          <Txt s={12.5} c={C.tx70} style={{ flexBasis: '100%' }}>is in this {s.kind === 'loop' ? 'loop' : 'strategy'}. You are opening the same one{s.kind === 'loop' && copyLev ? ` at their ${copyLev.toFixed(2)}×` : ''} — your own size.</Txt>
         </View>
       )}
+      {h && mode !== 'add'
+        ? (h.subAccount?.unsupported
+          ? <Sec><Txt s={13} c={C.tx70}>YieldCircle cannot build for this account yet: manage it on {h.venue.split(' · ')[0]}.</Txt></Sec>
+          : isLoop ? <ManageLoopBody key={h.key + mode} s={s?.kind === 'loop' ? s : null} h={h} close={mode === 'close'} />
+          : <WithdrawBody key={h.key} s={s?.kind === 'simple' ? s : null} h={h} />)
+        : s?.kind === 'simple' ? <DepositBody key={into?.key} s={s} idle={chainIdle} allIdle={b.idlePerChain} into={into} />
+        : s?.kind === 'loop' ? <LoopBody key={into?.key} s={s} idle={chainIdle} allIdle={b.idlePerChain} holding={into} copyLev={copyLev} />
+        : null}
+      {s && <Trust left={`${trustKind(s)} · ${usdShort(s.tvlUsd)} in it`} right={brandOf(s)} />}
+      {!s && h && <Trust left="Not one of Lite’s picks: you can take it out or make it safer here" />}
+      <Details what={isLoop ? 'Any leverage, the route, every number' : 'Any amount, the venue, the history'} onOpen={() => router.push('/details')} />
+    </Frame>
+  )
+}
 
-      <View style={st.card}>
-        {facts.map(([k, v]) => (
-          <View key={k} style={st.fact}>
-            <Text style={[T.dim, { width: 92 }]}>{k}</Text>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              {k === 'Risk' && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: RISK[s.risk] }} />}
-              <Text style={[T.body, { flexShrink: 1 }]}>{v}</Text>
-            </View>
-          </View>
-        ))}
-        {row && row.also > 0 && <Text style={[T.dim, { marginTop: 6 }]}>Also on {row.also} other venue{row.also === 1 ? '' : 's'} at a lower rate — Pro lists them.</Text>}
+/** The sheet: rounded at the top over a dimmed page, its grab handle, scrolling under the keyboard. */
+function Frame({ insets, children }: { insets: { top: number; bottom: number }; children: React.ReactNode }) {
+  return (
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <Pressable style={{ height: Math.max(insets.top, 24) + 36 }} onPress={() => router.back()} accessibilityLabel="Close" />
+      <View style={st.sheet}>
+        <View style={st.grab} />
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}>{children}</ScrollView>
       </View>
-
-      <Btn title="Earn this" disabled />
-      <Text style={[T.dim, { textAlign: 'center' }]}>Opening a position from the phone is the next step. Until then, open it on the web — rates and rows are the same.</Text>
-      <Text style={[T.dim, { fontSize: 11, textAlign: 'center' }]}>{pct(s.rate, 2)} · {s.venue} · id {s.id}</Text>
-    </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
 const st = StyleSheet.create({
-  page: { padding: 16, gap: 14, paddingBottom: 48 },
-  card: { backgroundColor: C.b200, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: 14, gap: 8 },
-  fact: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
+  sheet: { flex: 1, backgroundColor: C.b200, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderWidth: 1, borderColor: C.line, overflow: 'hidden' },
+  grab: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: C.line2, marginTop: 8 },
+  modes: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  mode: { minHeight: 32, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: 'transparent', justifyContent: 'center' },
+  modeOn: { borderColor: C.primary, backgroundColor: '#062830' },
+  copy: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, backgroundColor: '#062830', paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.line },
 })

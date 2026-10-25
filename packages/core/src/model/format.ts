@@ -38,3 +38,8 @@ export const num = (x: number, d = 4) => x.toLocaleString('en-US', { maximumFrac
 /** A logo URL worth trying: IPFS gateways time out more often than they answer. */
 const DEAD_LOGO = /^(ipfs:|https?:\/\/([^/]*\.)?(ipfs\.io|dweb\.link|cloudflare-ipfs\.com|cf-ipfs\.com|nftstorage\.link|w3s\.link|4everland\.io)\/)/i
 export const liveLogo = (u: string | null | undefined): u is string => !!u && !DEAD_LOGO.test(u)
+
+/** Dollars to the cent, `$1,234.56` — what a loss to confirm is said in. */
+export const cents = (x: number) => '$' + x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+/** A share, unsigned, in a percent: a 3.1 % loss reads 3.1 %, not −3.1 %. */
+export const pctAbs = (x: number) => { const a = Math.abs(x); return `${(a * 100).toFixed(a < 0.1 ? 2 : 1)}%` }

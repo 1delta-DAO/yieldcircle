@@ -16,7 +16,10 @@
  *     against `lastValidBlockHeight` would call a live transaction expired; it
  *     serves signature statuses only.
  */
-const KEYED = (import.meta.env.VITE_RPC_SOLANA as string | undefined)?.trim()
+import { SOL_RPC_URL } from '../config/backend'
+
+// read at call time: `configureBackend` sets it (the web from `VITE_RPC_SOLANA`)
+const keyed = () => SOL_RPC_URL?.trim() || undefined
 const PUBLIC: { url: string; height: boolean }[] = [
   { url: 'https://solana-rpc.publicnode.com', height: false },
   { url: 'https://public.rpc.solanavibestation.com', height: true },
@@ -43,7 +46,8 @@ async function rpc<T>(method: string, params: unknown[], heightSafe = false): Pr
   const start = turn++ % pool.length
   const ring = [...pool.slice(start), ...pool.slice(0, start)]
   const now = Date.now(), fresh = (u: string) => (benched.get(u) ?? 0) <= now
-  const order = [...(KEYED ? [KEYED] : []), ...ring.filter(fresh), ...ring.filter((u) => !fresh(u))]
+  const k = keyed()
+  const order = [...(k ? [k] : []), ...ring.filter(fresh), ...ring.filter((u) => !fresh(u))]
   let last: unknown
   for (const url of order) {
     try { const v = await call<T>(url, method, params); benched.delete(url); return v }

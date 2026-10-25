@@ -4,19 +4,16 @@ import { isSvmTx, type AnyTx, type ApiTx, type LoopActions } from '@yieldcircle/
 import { base58Encode, isSvmChain } from '@yieldcircle/core/model/address'
 import { nativeSymbol, WRAPPED_NATIVE } from '@yieldcircle/core/model/positions'
 import { venueLabel } from '@yieldcircle/core/model/strategies'
-import { useLiveBalances } from '@yieldcircle/app/sdk/liveBalances'
-import { baselineOf, hasLanded, isDone, traceTx, useTrace, type Baseline, type Moves } from '../sdk/txTrace'
-import { isRemote, openWallet } from '../wallet/deeplink'
-import { isRejection } from '../wallet/errors'
-import { solSignAndSend, useSolWallet } from '../wallet/solana'
-import { useSwitchTo } from '../wallet/useSwitchTo'
-import { tracePaper } from '../sdk/txTrace'
+import { useLiveBalances } from './sdk/liveBalances'
+import { baselineOf, hasLanded, isDone, tracePaper, traceTx, useTrace, type Baseline, type Moves } from './sdk/txTrace'
+import { isRejection } from '@yieldcircle/core/sdk/walletErrors'
 import type { PaperOp } from '@yieldcircle/core/model/paper'
-import { usePaper } from '../state/Paper'
+import { usePlatform } from './platform'
+import { useSession } from './session'
 
 /**
  * The execution ladder, generic over the action that built it: permissions (each mined) →
- * setup transactions → exactly ONE route. Mirrored to sessionStorage keyed on the inputs so the
+ * setup transactions → exactly ONE route. Mirrored to the platform's scratchpad keyed on the inputs so the
  * wallet hand-off on a phone survives a discarded tab. A key change drops the bundle.
  *
  * Each sent step is handed to `txTrace.ts`, which follows it to final and re-reads what it moved;
@@ -48,8 +45,9 @@ type Bundle = { steps: Step[]; title?: string; touches?: string[]; watch?: { add
 /** `batch`: the `wallet_sendCalls` id in flight, until the wallet reports the transaction it became. */
 type Saved = { key: string; bundle: Bundle; pending?: string; batch?: string }
 const SS = 'yieldcircle.bundle'
-const load = (key: string): Saved | null => { try { const v = JSON.parse(sessionStorage.getItem(SS) ?? 'null') as Saved | null; return v && v.key === key ? v : null } catch { return null } }
-const save = (v: Saved | null) => { try { v ? sessionStorage.setItem(SS, JSON.stringify(v)) : sessionStorage.removeItem(SS) } catch { /* private mode */ } }
+type Scratch = ReturnType<typeof usePlatform>['scratch']
+const load = (x: Scratch, key: string): Saved | null => { try { const v = JSON.parse(x.get(SS) ?? 'null') as Saved | null; return v && v.key === key ? v : null } catch { return null } }
+const save = (x: Scratch, v: Saved | null) => { try { v ? x.set(SS, JSON.stringify(v)) : x.remove(SS) } catch { /* private mode */ } }
 
 /**
  * A venue with no native entry takes the gas coin as its own wallet steps — `WETH.deposit()` before
@@ -108,18 +106,20 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   const svm = isSvmChain(chainId)
   // the wallet's own chain: `useChainId` is the config's, and never follows a wallet onto a chain it lacks
   const { isConnected, chainId: walletChain, address, connector } = useAccount()
-  const sol = useSolWallet()
-  const { switchTo, switching } = useSwitchTo()
-  const [bundle, setBundle] = React.useState<Bundle | null>(() => load(key)?.bundle ?? null)
-  const [pending, setPending] = React.useState<string | undefined>(() => load(key)?.pending)
-  const [batch, setBatch] = React.useState<string | undefined>(() => load(key)?.batch)
+  const platform = usePlatform()
+  const { scratch, openWallet, isRemote, solSignAndSend } = platform
+  const sol = platform.useSol()
+  const { switchTo, switching } = platform.useSwitchTo()
+  const [bundle, setBundle] = React.useState<Bundle | null>(() => load(scratch, key)?.bundle ?? null)
+  const [pending, setPending] = React.useState<string | undefined>(() => load(scratch, key)?.pending)
+  const [batch, setBatch] = React.useState<string | undefined>(() => load(scratch, key)?.batch)
   const [batchSigning, setBatchSigning] = React.useState(false)
   const [noBatch, setNoBatch] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
   const send = useSendTransaction()
   const { data: walletClient } = useWalletClient()
-  const onPaper = usePaper().active
+  const onPaper = !!useSession().paper?.active
   const caps = useCapabilities({ account: address, query: { enabled: !!address && !svm && !onPaper, retry: false, staleTime: 60_000 } })
   const atomic = (caps.data as Record<number, { atomic?: { status?: string } }> | undefined)?.[Number(chainId)]?.atomic?.status
   const canBatch = !svm && !noBatch && (atomic === 'supported' || atomic === 'ready')
@@ -129,10 +129,10 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   const first = React.useRef(true)
   React.useEffect(() => {
     if (first.current) { first.current = false; return }
-    const saved = load(key)
+    const saved = load(scratch, key)
     setBundle(saved?.bundle ?? null); setPending(saved?.pending); setBatch(saved?.batch); setErr(null)
   }, [key])
-  React.useEffect(() => { save(bundle ? { key, bundle, pending, batch } : null) }, [key, bundle, pending, batch])
+  React.useEffect(() => { save(scratch, bundle ? { key, bundle, pending, batch } : null) }, [key, bundle, pending, batch])
   const start = async (title?: string) => {
     setBusy(true); setErr(null)
     try { const steps = await build(); if (!steps.length) throw new Error('the API returned nothing to sign'); setPending(undefined); setBundle({ steps, title, touches: touches.filter((u): u is string => !!u), watch: watch.filter((w): w is { address: string; symbol?: string } => !!w.address) }) }
@@ -255,7 +255,7 @@ export interface PaperBuilt {
 }
 const PAPER_TX = { to: '0x0000000000000000000000000000000000000000', data: '0x', value: '0' } as ApiTx
 const PAPER_SS = 'yieldcircle.paperbundle'
-const loadPaper = (key: string): Bundle | null => { try { const v = JSON.parse(sessionStorage.getItem(PAPER_SS) ?? 'null') as { key: string; bundle: Bundle } | null; return v && v.key === key ? v.bundle : null } catch { return null } }
+const loadPaper = (x: Scratch, key: string): Bundle | null => { try { const v = JSON.parse(x.get(PAPER_SS) ?? 'null') as { key: string; bundle: Bundle } | null; return v && v.key === key ? v.bundle : null } catch { return null } }
 
 /**
  * The paper twin of {@link useLadder}: the same shape, so a ticket's button, step list and "Done"
@@ -268,15 +268,16 @@ const loadPaper = (key: string): Bundle | null => { try { const v = JSON.parse(s
 const FUNDS_ONLY = /insufficient|balance|allowance|not enough|funds|AccountNotFound|does not exist on chain|token account/i
 
 export function usePaperLadder(key: string, chainId: string, plan?: () => Promise<PaperBuilt>, dryBuild?: () => Promise<Step[]>): Ladder {
-  const paper = usePaper()
+  const paper = useSession().paper
+  const { scratch } = usePlatform()
   // mirrored like the real ladder's: the position a confirm creates remounts the ticket body (its
   // `key` is the holding), and "Done" must survive that
-  const [bundle, setBundleRaw] = React.useState<Bundle | null>(() => loadPaper(key))
-  const setBundle = (b: Bundle | null) => { setBundleRaw(b); try { b ? sessionStorage.setItem(PAPER_SS, JSON.stringify({ key, bundle: b })) : sessionStorage.removeItem(PAPER_SS) } catch { /* private mode */ } }
+  const [bundle, setBundleRaw] = React.useState<Bundle | null>(() => loadPaper(scratch, key))
+  const setBundle = (b: Bundle | null) => { setBundleRaw(b); try { b ? scratch.set(PAPER_SS, JSON.stringify({ key, bundle: b })) : scratch.remove(PAPER_SS) } catch { /* private mode */ } }
   const [err, setErr] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
   const first = React.useRef(true)
-  React.useEffect(() => { if (first.current) { first.current = false; return } setBundleRaw(loadPaper(key)); setErr(null) }, [key])
+  React.useEffect(() => { if (first.current) { first.current = false; return } setBundleRaw(loadPaper(scratch, key)); setErr(null) }, [key])
   const start = async (title?: string) => {
     if (!plan) { setErr('This action is not available on paper yet.'); return }
     setBusy(true); setErr(null)
@@ -288,15 +289,16 @@ export function usePaperLadder(key: string, chainId: string, plan?: () => Promis
         if (steps && !steps.length) throw new Error('The API builds nothing for this right now, so it cannot be done on paper either.')
       }
       const b = await plan()
+      if (!paper?.act || !paper.session) throw new Error('Sign in to a paper account first.')
       await paper.act(b.op, b.names)
-      const id = tracePaper({ id: (b.op as { id?: string }).id ?? Math.random().toString(16).slice(2), chainId, account: paper.session!.evm, title: title ?? 'Paper', label: 'on paper', bridge: b.bridge ? { name: b.bridge.name, toChainId: b.bridge.toChainId } : undefined, arrivesAt: b.arrivesAt })
+      const id = tracePaper({ id: (b.op as { id?: string }).id ?? Math.random().toString(16).slice(2), chainId, account: paper.session.evm, title: title ?? 'Paper', label: 'on paper', bridge: b.bridge ? { name: b.bridge.name, toChainId: b.bridge.toChainId } : undefined, arrivesAt: b.arrivesAt })
       setBundle({ steps: [{ kind: 'route', tx: PAPER_TX, label: title ?? 'Paper', hash: id, done: true, moves: 'positions' }], title })
     } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
   const finished = !!bundle
   return {
     bundle, next: undefined, together: null, done: bundle ? 1 : 0, total: bundle ? 1 : 0, pending: undefined, err, busy, start, sendNext: async () => {}, reset: () => { setBundle(null); setErr(null) },
-    isConnected: paper.active, wrongChain: false, switching: false, signing: false, remote: false, reopen: () => {}, finished, settled: finished, main: undefined, paper: true,
+    isConnected: !!paper?.active, wrongChain: false, switching: false, signing: false, remote: false, reopen: () => {}, finished, settled: finished, main: undefined, paper: true,
   }
 }
 
@@ -306,7 +308,7 @@ export function usePaperLadder(key: string, chainId: string, plan?: () => Promis
  */
 export function useTicketLadder(key: string, chainId: string, build: () => Promise<Step[]>, touches: (string | undefined)[] = [], watch: Watch[] = [], plan?: () => Promise<PaperBuilt>, dryRun = false): Ladder {
   const real = useLadder(key, chainId, build, touches, watch)
-  const onPaper = usePaper().active
+  const onPaper = !!useSession().paper?.active
   // `dryRun`: on paper, the real build runs first, unsigned (tickets/0006: paper may do only what the API would build)
   const paper = usePaperLadder(key, chainId, plan, dryRun ? build : undefined)
   return onPaper ? paper : real

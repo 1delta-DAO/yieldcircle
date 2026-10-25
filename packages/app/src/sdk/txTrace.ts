@@ -1,13 +1,12 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { useSyncExternalStore } from 'react'
 import { getBlockNumber, getTransactionReceipt, waitForTransactionReceipt } from 'viem/actions'
-import { wagmiConfig } from '../wallet/wagmi'
 import { bridgeStatus, fetchEarnPositions, fetchTokenBalances, type PositionsScope } from '@yieldcircle/core/sdk/api'
-import { balancesChanged } from '@yieldcircle/app/sdk/liveBalances'
+import { balancesChanged } from './liveBalances'
 import { isEvmAddr, isEvmChain, isSvmChain, normAddr } from '@yieldcircle/core/model/address'
-import { getBlockHeight, getSignatureStatus } from '../wallet/solRpc'
 import { isNativeAddress } from '@yieldcircle/core/model/positions'
-import { formatUnits, TransactionReceiptNotFoundError, type TransactionReceipt } from 'viem'
+import { getBlockHeight, getSignatureStatus } from '@yieldcircle/core/sdk/solRpc'
+import { formatUnits, TransactionReceiptNotFoundError, type Client, type TransactionReceipt } from 'viem'
 import type { EarnPosition, EarnPositionsResponse } from '@yieldcircle/core/sdk/types'
 
 /**
@@ -213,7 +212,18 @@ export function useTrace(id: string | undefined): Trace | undefined {
 
 // ---------------------------------------------------------------- the watcher
 
-type ChainId = (typeof wagmiConfig)['chains'][number]['id']
+/**
+ * What the watcher reads EVM chains with — each app's own wagmi config (Solana is core's
+ * `sdk/solRpc.ts`). Set once at start (`configureTrace`), before anything is sent.
+ */
+export interface TraceChains {
+  /** a viem client for an EVM chain id (wagmi's `config.getClient({ chainId })`) */
+  evm: (chainId: number) => Client
+}
+let chains: TraceChains | null = null
+export function configureTrace(c: TraceChains) { chains = c }
+const need = () => { if (!chains) throw new Error('configureTrace was not called'); return chains }
+
 async function run(id: string) {
   if (running.has(id)) return
   running.add(id)
@@ -241,7 +251,7 @@ async function step(id: string) {
   if (isSvmChain(t.chainId)) return solStep(id)
   // viem's actions on wagmi's client, not wagmi's wrappers: wagmi's receipt wait THROWS on a revert
   // (after an extra eth_call for the reason), and a revert is an answer here, not an error
-  const client = wagmiConfig.getClient({ chainId: Number(t.chainId) as ChainId })
+  const client = need().evm(Number(t.chainId))
   if (t.phase === 'pending') {
     const slow = setTimeout(() => { if (get(id)?.phase === 'pending') patch(id, { note: 'Taking longer than usual. If your wallet shows it as dropped, send it again.' }) }, Math.max(0, SLOW_MS - (Date.now() - t.at)))
     let cancelled = false

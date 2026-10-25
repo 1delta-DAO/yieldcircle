@@ -19,13 +19,13 @@ import { Who } from './social-bits'
 import { LossAck, ValueRow, cents, useValueCheck } from './ValueCheck'
 import { isSvmChain, normAddr } from '@yieldcircle/core/model/address'
 import { useProfiles } from '../social/queries'
-import { stepsFrom, useTicketLadder, type Ladder, type Step } from './useLadder'
+import { stepsFrom, useTicketLadder, type Ladder, type Step } from '@yieldcircle/app/ladder'
 import { usePaper } from '../state/Paper'
 import { balanceOf, gasCoinOf, gasTokenOf, networkFeeUsd, NO_GAS, tokenKey, type FeeKind } from '@yieldcircle/core/model/paper'
 import { openPaperSignIn } from './PaperSignIn'
 import { openGate, realTradingGated } from '../wallet/gate'
-import { depositPlan, leverPlan, loopPlan, reducePlan, withdrawPlan } from './paperPlans'
-import { isDone, useTrace } from '../sdk/txTrace'
+import { depositPlan, leverPlan, loopPlan, reducePlan, withdrawPlan } from '@yieldcircle/app/tickets/paperPlans'
+import { isDone, useTrace } from '@yieldcircle/app/sdk/txTrace'
 import { Spin, TxNote } from './TxTray'
 import { GetAsset, type Target } from './GetAsset'
 import { FundingLock } from './FundingLock'
@@ -41,9 +41,11 @@ import { NATURES, isSavings } from '@yieldcircle/core/model/nature'
 import { SayWhy } from './SayWhy'
 import { TicketSocial } from './TicketSocial'
 import { AssetLink } from './TokenPage'
-import { bufferOfHealth, brandOf, debtWord, depositLines, holdingLine, leverTag, liteEligible, loopLines, moneyWord, plainName, saferTargets, trustKind } from '@yieldcircle/core/model/lite'
+import { bufferOfHealth, brandOf, debtWord, depositLines, holdingLine, leverTag, liteEligible, liteModes, loopLines, moneyWord, plainName, saferTargets, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
 import { proHref } from '../state/AppState'
 import { LiteDetails, LiteDetailsDrawer, LiteLines, LitePresets } from './lite/LiteTicketBits'
+import { CLOSE_INTEREST_PAD, DAY_S, NATIVE_MAX_ROUNDS, NO_NATIVE_DEPOSIT, NO_NATIVE_WITHDRAW, NO_ROUTE, closeKeepPad, dayMonth, dayOf, daysWord, defaultTenor, defaultTerm, getForms, hasRoute, nativeMaxRounds, payOptions, paysNative, safetyOf, sameToken, startsAny, tenorWord, type PayOption, type PayRole } from '@yieldcircle/core/model/ticket'
+export { safetyOf, sameToken }
 
 /**
  * What the ticket is about, for the pieces too deep to thread props through:
@@ -123,14 +125,10 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
  * one the menu has no row for — is still the reader's, so it is managed here all the same. One
  * that sits close to the line opens on "Lower risk".
  */
-type LiteMode = 'add' | 'reduce' | 'close'
 function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, onClose }: { s: Strategy | null; idle: Idle[]; holdings: Holding[]; holding: Holding | null; into: Holding | null; mode0?: Mode; copy?: string; copyLev?: number; onClose: () => void }) {
   const h = holding
-  // adding is opening Lite's own strategy: only on a row Lite offers, and into an account the API can build for
-  const canAdd = !!s && liteEligible(s)
-  const isLoop = (s?.kind ?? h?.kind) === 'loop'
-  const risky = (bufferOfHealth(h?.health) ?? 1) < 0.1
-  const start: LiteMode = !h ? 'add' : mode0 === 'close' ? 'close' : mode0 && mode0 !== 'add' ? 'reduce' : canAdd && !risky ? 'add' : 'reduce'
+  // which tabs, and which it opens on: core's rule, shared with the phone
+  const { isLoop, start, tabs } = liteModes(s, h, mode0)
   const [mode, setMode] = React.useState<LiteMode>(start)
   // every number: Pro's ticket for the same strategy (or position), in a drawer over this one
   const [details, setDetails] = React.useState(false)
@@ -141,9 +139,6 @@ function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, on
   const lev = s?.kind === 'loop' ? (h?.leverage && h.leverage > 1.05 ? h.leverage : copyLev && copyLev > 1.05 ? copyLev : s.tiers.balanced) : h?.kind === 'loop' ? h.leverage ?? 1 : 0
   // Details: the same position (or row) on Pro's own page, where every tier, route and number is
   const detailsHref = h ? proHref(`#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: mode === 'add' ? 'add' : isLoop ? 'manage' : 'reduce' })}`) : proHref()
-  const tabs: { id: LiteMode; word: string }[] = !h ? [] : isLoop
-    ? [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Lower risk' }, { id: 'close', word: 'Close' }]
-    : [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Withdraw' }]
   return (
     <div className="ticket lite-ticket">
       <div className="grab" />
@@ -269,114 +264,16 @@ const SOURCE_WORDS: Record<string, string> = {
   fixed: 'You buy a principal token at a discount. At maturity it redeems for exactly one unit of the underlying, which locks the yield in today. Selling before maturity gets the market price.',
   vault: 'You deposit into a curated vault that allocates across lending markets. You hold vault shares that grow in value.',
 }
-/**
- * What a plain deposit can be paid with: the market's own token, and — into a row whose token is
- * the chain's wrapped gas coin — the gas coin itself, which the API wraps inside the deposit when
- * asked with `payAsset` = {@link nativeAsset}. Leaving `payAsset` out asks for the ERC-20: an approve of
- * WHYPE and a deposit that reverts for a wallet holding HYPE. Native first, so a wallet holding
- * neither is offered the coin it is likelier to get.
- */
-/**
- * An idle row against a pay option. The option spells the gas coin as the API takes it ({@link nativeAsset}),
- * a balance row may use another alias (`0xEeee…`, `native`) — so the coin read 0 in the chips.
- */
-export const sameToken = (held: string, want: string) => held === want || (isNativeAddress(held) && isNativeAddress(want))
-type PayRole = 'native' | 'token'
-interface PayOption { role: PayRole; address: string; symbol: string; decimals: number }
-function payOptions(s: SimpleStrategy): PayOption[] {
-  const token: PayOption = { role: 'token', address: normAddr(s.assetAddress), symbol: s.assetSymbol, decimals: s.decimals }
-  const native = s.nativeIn ?? (wrapsNative(s.chainId, s.assetAddress) && !startsAny(s.venueKey, NO_NATIVE_DEPOSIT))
-  return native ? [{ role: 'native', address: nativeAsset(s.chainId), symbol: nativeSymbol(s.chainId), decimals: nativeDecimals(s.chainId) }, token] : [token]
-}
-/**
- * The API answers "can the coin go in / come out here" itself (`acceptsNative`, read into
- * `s.nativeIn` / `s.nativeOut`). These lists are only for the window before the flag reaches the
- * listing (docs/native-routes.md): what the worker serves without it. Every venue with no payable
- * entry now takes the coin as a wrap step, so what is left is structural — the Liquity family needs
- * a `troveId` an earn request never carries, and Fluid lists the coin as its own token, never the
- * wrapper. The exits refuse more: TermMax and Term price theirs at execution, and the single-token
- * vaults (the savings registry, Lagoon) pay their token only.
- */
-const LIQUITY_FAMILY = ['LIQUITY', 'FELIX', 'NERITE', 'QUILL', 'EBISU', 'SONETA', 'ENOSYS_LOANS']
-const NO_NATIVE_DEPOSIT = [...LIQUITY_FAMILY, 'FLUID']
-const NO_NATIVE_WITHDRAW = [...NO_NATIVE_DEPOSIT, 'TERMMAX', 'TERM_FINANCE', 'vault.savings', 'vault.lagoon']
-/**
- * Aave forks whose native gateway withdraws `max` from an aToken transfer that rounds 1 wei short,
- * so a native FULL exit reverts every time (fork-checked 2026-09-28, docs/native-routes.md).
- * `lender prefix → chains`. The ERC-20 exit works there; the coin is withheld for a full exit only.
- */
-const NATIVE_MAX_ROUNDS: Record<string, string[]> = {
-  XLEND: ['10', '8453'], GRANARY: ['1'], VALAS: ['56'], RADIANT_V2: ['1'], PRIME_FI: ['50'], PLOUTOS: ['43111'],
-  RMM: ['100'], ZEROLEND: ['169'], MOLEND: ['34443'], MERIDIAN: ['167000'],
-}
-const startsAny = (key: string, prefixes: string[]) => prefixes.some((v) => key.startsWith(v))
-const nativeMaxRounds = (key: string, chainId: string) => Object.entries(NATIVE_MAX_ROUNDS).some(([v, cs]) => key.startsWith(v) && cs.includes(chainId))
-/**
- * Asked to pay in the gas coin, a bundle that moves none of it is a bundle for the ERC-20 — the
- * approve-then-revert this whole choice exists to avoid. Some leg must carry `value` (a gateway
- * deposit, a bundler call, or Gearbox's wrap step).
- */
-function paysNative(a: LoopActions | null | undefined): boolean {
-  // an svm step has no `value` and resolves its lamport transfers inside the message: trust it
-  return [...(a?.permissions ?? []), ...(a?.transactions ?? []), ...(a?.alternatives ?? []).slice(0, 1)].some((t) => { if (isSvmTx(t)) return true; try { return BigInt(t.value || '0') > 0n } catch { return false } })
-}
-/**
- * A loop answer with no quote has no swap route: `quotes: []`, no transactions, and still the
- * lender's permissions (Lista's borrow approval), which on their own only cost the user gas.
- */
-const hasRoute = (d: { quotes?: unknown[] } | null | undefined) => !!d?.quotes?.length
-const NO_ROUTE = 'No swap route at this size right now, so there is nothing to sign. Try another amount or leverage, or come back later.'
-/**
- * A loop built on a deposit whose collateral flag is off (an Aave supply, `needsCollateralOn`):
- * switching it on is the first step, or the borrow reverts (tickets/0015). Nothing to re-read after
- * it — the lever after it is what moves the position.
- */
-export async function collateralOnFirst(h: Holding | null, operator: string): Promise<Step[]> {
-  if (!h?.putUp || !h.marketUid || !needsCollateralOn(h)) return []
-  const env = await enableCollateral({ marketUid: h.marketUid, operator, accountId: h.accountId })
-  return stepsFrom(env.actions, `Use ${h.symbol} as collateral`, h.chainId).map((x) => ({ ...x, moves: 'none' as const }))
-}
+export { collateralOnFirst } from '@yieldcircle/app/tickets/collateral'
+import { collateralOnFirst } from '@yieldcircle/app/tickets/collateral'
+import { useSimpleTicket } from '@yieldcircle/app/tickets/simple'
+import { useBorrowAt, useLoopTicket } from '@yieldcircle/app/tickets/loop'
+import { useWithdrawTicket } from '@yieldcircle/app/tickets/withdraw'
+import { useManageLoop } from '@yieldcircle/app/tickets/manageLoop'
 /** `into`: the held position an Add tops up — its sub-account is named, or the deposit lands in the venue's default (Euler 0) or a new Fluid / Jupiter Lend position */
 function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[]; into?: Holding | null }) {
-  const { account, isConnected, solSigner, actorOn } = useApp()
-  // who the API builds for: the VM's own signer — a Solana row is built for the Solana wallet
-  const actor = actorOn(s.chainId)
-  const [getOpen, setGetOpen] = React.useState(false)
-  const opts = React.useMemo(() => payOptions(s), [s.id])
-  // the balance of the EXACT token: a wstETH row is not paid with the wallet's ETH, and WHYPE is not HYPE until the API is told so
-  const balOf = (address: string) => chainIdle.find((i) => sameToken(i.address, address))
-  const [role, setRole] = useSticky<PayRole | null>(`t:${s.id}:pay`, null)
-  const chosen = opts.find((o) => o.role === role) ?? [...opts].sort((a, b) => (balOf(b.address)?.amount ?? 0) - (balOf(a.address)?.amount ?? 0))[0]
-  const idle = balOf(chosen.address)
-  // the token actually paid (WETH on Monad, where the gas coin is MON): the group's name ("ETH") is
-  // not what the wallet sends. Dollars stay dollars — a stablecoin amount is entered 1:1 as $.
-  const unit = unitOf(s.asset) === '$' ? '$' : chosen.symbol
-  // the row rarely carries a price: any pay option's balance has it (the coin and its wrapper trade 1:1), else a same-asset balance as the estimate
-  const price = s.priceUsd ?? opts.map((o) => balOf(o.address)?.price).find(Boolean) ?? allIdle.find((i) => i.asset === s.asset)?.price ?? (unit === '$' ? 1 : 0)
-  const [amt, setAmt] = useStickyAmount(`t:${s.id}:amount`, () => fromUnits(unit === '$' ? 1000 : Math.min(idle?.amount ?? 1, 1)))
-  const amount = unitsOf(amt)
-  // what is sent: Max resolved on the exact balance, a typed amount parsed from its text and capped at it
-  const sendRaw = payRaw(amt, chosen.decimals, idle)
-  const amtUsd = amount * price
-  const yearly = amtUsd * s.rate / 100
-  // a PT is bought on its AMM: the API wants a bound on the fill, and a PT against its underlying is one money
-  const st = useSettings().st
-  const slip = s.booked ? slippageFor(st, isSavings(s.nature)) : undefined
-  const key = [s.id, into?.accountId ?? '', sendRaw, chosen.role, actor ?? '', slip ?? ''].join('|')
-  const paper = usePaper()
-  const ladder = useTicketLadder(key, s.chainId, async () => {
-    const env = await earnDeposit({ earnUid: s.earnUid, amountRaw: sendRaw, operator: actor!, payAsset: chosen.role === 'native' ? chosen.address : undefined, slippageBp: slip, accountId: into?.accountId })
-    if (chosen.role === 'native' && !paysNative(env.actions)) throw new Error(`${s.brand} does not take ${chosen.symbol} directly here. Pay with ${s.assetSymbol}.`)
-    return stepsFrom(env.actions, s.via, s.chainId)
-  }, [s.earnUid, s.marketUid], [chosen], depositPlan(s, { into, payToken: chosen.address, amount, price, feed: paper.price }),
-    // the deposit's own build, unsigned — EVM only: Solana's builders simulate against the chain, where a paper address holds nothing
-    !isSvmChain(s.chainId))
-  const more = !!idle && amount > idle.amount
-  // the exit line, said with this market's own numbers where it has them: a
-  // pool that is 94 % lent out is not the "rare, short" case the generic
-  // sentence describes, and the figure to check it against is right there
-  const tight = s.utilization != null && s.utilization >= 0.9
-  const exit = exitTerms(s)
+  // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/simple`)
+  const { account, isConnected, getOpen, setGetOpen, opts, balOf, setRole, chosen, idle, unit, price, amt, setAmt, amount, amtUsd, yearly, ladder, more, tight, exit } = useSimpleTicket(s, chainIdle, allIdle, into)
   const { lite } = React.useContext(TicketCtx)
   if (lite) return (
     <>
@@ -442,9 +339,6 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
   )
 }
 
-const DAY_S = 86_400
-/** `25 Dec` — a picker's date, the year said elsewhere */
-const dayMonth = (t: number) => new Date(t * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 /**
  * A fixed-rate deposit into an order book (tickets/0013, `s.book`): the amount fills borrowers'
  * offers on the lend side of the book, best rate first, and the position is repaid its FACE on the
@@ -612,12 +506,6 @@ function HistorySec({ s, L, now, bare }: { s: Strategy; L?: number; now: number;
   return bare ? panel : <div className="tsec">{panel}</div>
 }
 
-/**
- * How far from the line, in a word — the same bands as the tier cards' colours (red under 5 %,
- * amber under 10 %), so the hero and the card it came from never disagree.
- */
-export const safetyOf = (drop: number): { word: string; cls: 'bad' | 'warn' | 'ok' } =>
-  drop < 0.05 ? { word: 'Tight', cls: 'bad' } : drop < 0.1 ? { word: 'Narrow', cls: 'warn' } : drop < 0.2 ? { word: 'Comfortable', cls: 'ok' } : { word: 'Wide', cls: 'ok' }
 
 /**
  * One of the loop ticket's folds: a question as its header, the numbers that answer it inside.
@@ -635,26 +523,6 @@ function Fold({ id, title, hint, children }: { id: string; title: string; hint: 
   )
 }
 
-/**
- * The borrow rate at THIS ticket's size, off the debt market's own curve. The
- * list quotes every loop at $10k, and on a thin market that one quote can be
- * the whole free liquidity — shMON/WMON on Euler read 35 % against a 6 % spot.
- * While the curve loads the spot rate stands in; a market with no curve keeps
- * the $10k quote.
- */
-function useBorrowAt(s: LoopStrategy | null, term?: LoopTerm, bookApr?: number) {
-  // an order book has no curve: its rate is what the size fills at (a Loopscale tenor's offer, a Midnight book's levels)
-  const books = !!s && (!!s.tenors || !!s.dueAt)
-  const irm = useIrm(s?.marketShortUid, !!s && !books)
-  // a fixed term costs its card rate at any size: the curve is where the debt goes AFTER the term
-  return (extraDebtUsd: number) => (!s ? 0 : term ? term.apr : books ? bookApr ?? s.borSpot : s.terms ? s.borSpot : irm.isPending ? s.borSpot : borrowAtSize(s.borSpot, s.bor, extraDebtUsd, irm.data))
-}
-/**
- * The term a fixed-rate loop opens with before anyone picks: the cheapest, and the longest of equals —
- * slisBNB/WBNB charges 0.5 % for 7, 14 and 30 days alike, and a shorter lock of the same rate only
- * moves the day the debt drops to the variable rate closer.
- */
-const defaultTerm = (ts: LoopTerm[]) => [...ts].sort((a, b) => a.apr - b.apr || b.days - a.days)[0]
 /**
  * The number beside a leverage slider, typed into. A keystroke moves the slider only once the text
  * reads as a leverage inside the range — "1" on the way to "1.5" would otherwise snap to the floor
@@ -690,192 +558,11 @@ function CopiedTier({ l, theirs, on, n, d, onPick }: { l: number; theirs: number
     </button>
   )
 }
-/** The tenor a Loopscale loop opens with before anyone picks: the cheapest quoted, the longest of equals; the shortest while nothing has answered. */
-const defaultTenor = <T extends { tenor: LoopTenor; offer: { apr: number } | null }>(qs: T[]) =>
-  [...qs].filter((q) => q.offer).sort((a, b) => a.offer!.apr - b.offer!.apr || b.tenor.days - a.tenor.days)[0] ?? qs[0]
-/** A payback in words: hours under a day, then whole days (rounded up — it is not earned back before). */
-const daysWord = (d: number) => (d <= 0 ? 'at once' : d < 1 ? `${Math.max(1, Math.ceil(d * 24))} h` : `${Math.ceil(d)} day${Math.ceil(d) === 1 ? '' : 's'}`)
-const tenorWord = (t: LoopTenor) => (t.days === 1 ? '1 day' : t.days === 7 ? '1 week' : t.days === 30 ? '1 month' : `${t.days / 30} months`)
-const dayOf = (days: number) => new Date(Date.now() + days * 86400_000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 
 function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle[]; allIdle: Idle[]; holding: Holding | null }) {
-  const { account, isConnected, solSigner, actorOn } = useApp()
-  // a dated pair (Midnight) is one row with a date per maturity, each its own market: the picked date
-  // IS the strategy from here on — its lender, its market uids, its top of book
-  const dates = s0.dates
-  const [dateId, setDateId] = useSticky<string | null>(`t:${s0.id}:date`, null)
-  const s = dates?.find((d) => d.id === dateId) ?? s0
-  // every loop on the menu is a carry (one money); an exposure loop (JLP against dollars) is not
-  const slip = slippageFor(useSettings().st, isSavings(s.nature))
-  const actor = actorOn(s.chainId)
-  const [getOpen, setGetOpen] = React.useState(false)
-  const unit = unitOf(s.asset)
-  // pay with the collateral or the debt token, whichever the venue accepts and the wallet holds more of
-  const pay = useLoopPayAssets(s)
-  const opts = React.useMemo(() => {
-    const coll = { role: 'collateral' as const, symbol: s.holds, address: s.collateralAddress, decimals: s.decimalsLong, price: s.priceLong ?? 0, logo: s.logoLong }
-    const debt = { role: 'debt' as const, symbol: s.debt, address: s.debtAddress, decimals: s.decimalsShort, price: s.priceShort ?? 0, logo: s.logoShort }
-    // A role can carry MORE than one token (Alchemix: the MYT share AND its underlying USDC both fund
-    // the collateral), so a row whose address is not the market's own token takes the server's metadata
-    // — copying the side's symbol / decimals onto it showed USDC as "mixUSDC" and scaled it by 1e12.
-    const own = (side: typeof coll | typeof debt, a: LoopPayAsset) => !a.address || normAddr(side.address) === normAddr(a.address) ? { ...side, address: a.address || side.address } : { ...side, address: a.address, symbol: a.symbol ?? side.symbol, decimals: a.decimals ?? side.decimals, price: 0, logo: a.logoURI }
-    const list = pay.data ? pay.data.payAssets.map((a) => a.role === 'collateral' ? own(coll, a) : a.role === 'debt' ? own(debt, a) : { ...(a.wrapsRole === 'debt' ? debt : coll), role: 'native' as const, address: nativeAsset(s.chainId), symbol: a.symbol || 'ETH', logo: a.logoURI }) : [coll, debt]
-    return list
-  }, [pay.data, s.id])
-  // a venue that takes no margin with the open (the server lists none): say so rather than a dead button
-  const noPay = !!pay.data && pay.data.payAssets.length === 0
-  // the pay-with chips read the exact token: native is the zero address in the balances (and the API), wrapped is its own entry
-  const balOf = (address: string, _symbol: string) => idle.find((i) => sameToken(i.address, normAddr(address)))
-  // chosen by ADDRESS: two pay rows can share a role (see `own` above)
-  const [payAddr, setPayAddr] = useSticky<string | null>(`t:${s0.id}:payaddr`, null)
-  // with nothing held, Lite asks for the plain money (the debt: dollars, ether), never a PT's or a share's name
-  const liteTicket = React.useContext(TicketCtx).lite
-  const chosen = opts.find((o) => !!payAddr && normAddr(o.address) === normAddr(payAddr)) ?? [...opts].sort((a, b) => (balOf(b.address, b.symbol)?.usd ?? 0) - (balOf(a.address, a.symbol)?.usd ?? 0) || (liteTicket ? Number(b.role === 'debt') - Number(a.role === 'debt') : 0))[0]
-  const bal = chosen ? balOf(chosen.address, chosen.symbol) : undefined
-  const price = chosen?.price || bal?.price || (unit === '$' ? 1 : 0)
-  const [amt, setAmt] = useStickyAmount(`t:${s0.id}:amount`, () => fromUnits(unit === '$' ? 1000 : 1))
-  const amount = unitsOf(amt)
-  // the margin as sent: Max is the exact balance (a float Max overshot it by 166,624 wei and the loop reverted, tickets/0014)
-  const marginRaw = chosen && amount > 0 ? payRaw(amt, chosen.decimals, bal) : undefined
-  const [tier, setTier] = useSticky<TierId>(`t:${s0.id}:tier`, isSavings(s.nature) ? DEFAULT_TIER : 'defensive')
-  // a number of your own is behind the slider icon, never the default: the tiers are the advice,
-  // the slider is for someone who already knows the number they want. `null` = on the tiers
-  const [custom, setCustom] = useSticky<number | null>(`t:${s0.id}:lev`, null)
-  const [lo, hi] = customRange(s.maxLev), canCustom = hi > lo + 0.05
-  // a copy opens on the copied wallet's own leverage, held inside what this venue lets a new loop take;
-  // any tier or the slider leaves it, and its tile brings it back
   const { copyLev, lite } = React.useContext(TicketCtx)
-  const copyL = copyLev && copyLev > 1.05 ? Math.round(Math.min(hi, Math.max(lo, copyLev)) * 100) / 100 : null
-  const [onCopy, setOnCopy] = React.useState(copyL != null)
-  const pickTier = (t: TierId) => { setOnCopy(false); setCustom(null); setTier(t) }
-  // Lite picks for the reader: the copied leverage on a copy, the Balanced tier otherwise — and
-  // leaves the tier it used behind, so Details opens Pro's ticket on the same number
-  React.useEffect(() => { if (lite) { setCustom(null); setTier(DEFAULT_TIER) } }, [lite]) // eslint-disable-line react-hooks/exhaustive-deps
-  // adding to a running loop keeps its own shape — its leverage, never above Balanced — so one Add
-  // cannot quietly push a ×2.4 position to ×5.6
-  const heldL = holding?.leverage && holding.leverage > 1.05 ? Math.round(Math.min(hi, Math.max(lo, Math.min(holding.leverage, s.tiers[DEFAULT_TIER]))) * 100) / 100 : null
-  const L = lite ? heldL ?? copyL ?? s.tiers[DEFAULT_TIER] : onCopy && copyL != null ? copyL : custom != null && canCustom ? Math.min(hi, Math.max(lo, custom)) : s.tiers[tier]
-  const E = amount * price, C = E * L, D = E * (L - 1)
-  // a fixed-rate loop borrows for one term off the broker's card; `undefined` on a float loop
-  const [termId, setTermId] = useSticky<string | null>(`t:${s0.id}:term`, null)
-  const term = s.terms ? s.terms.find((t) => t.id === termId) ?? defaultTerm(s.terms) : undefined
-  // a Loopscale loop borrows for one tenor, each its own order book: every tenor is quoted at this size
-  const tenorQs = useTenorQuotes(s, E, L, actor, slip)
-  const [tenorId, setTenorId] = useSticky<string | null>(`t:${s0.id}:tenor`, null)
-  // the pick holds while it is quoting; a tenor nobody offers at this size falls back to the default
-  const picked = tenorQs.find((x) => x.tenor.id === tenorId)
-  const tq = s.tenors ? (picked && (picked.offer || picked.pending) ? picked : defaultTenor(tenorQs)) : undefined
-  const tenor = tq?.tenor, offer = tq?.offer ?? null
-  // each tenor's lenders set their own liquidation threshold (JLP/USDC: 95 % for a day, 90 % for longer)
-  const liqLtv = offer?.lqt || s.liqLtv
-  // a rate the borrower sets (Liquity family, Flex): a NEW trove picks it here, off the live
-  // redemption queue (model/userSetRate.ts); a running trove keeps its own. The feed's `bor` is the
-  // queue's suggested pick, so a different pick shifts the borrow leg by the difference.
-  const picksRate = !!s.userSet && !holding
-  const [queueQ] = useLendingBooks(picksRate ? [s.marketShortUid] : [])
-  const queueBook = queueQ?.book ?? null
-  const urate = picksRate ? userSetOfBook(queueBook) ?? s.userSet! : null
-  const suggested = recommendedOf(urate)?.apr
-  const [rate0, setRate] = useSticky<number | null>(`t:${s0.id}:rate`, null)
-  const rate = urate ? clampRate(urate, rate0 ?? suggested ?? s.borSpot) : null
-  const rateShift = rate != null && suggested != null ? rate - suggested : 0
-  // a dated book prices the debt at size: the levels this loan walks, for every maturity on offer
-  const books = useLendingBooks(dates ? dates.map((d) => d.marketShortUid) : [])
-  const debtTok = s.priceShort ? (E * (L - 1)) / s.priceShort : 0
-  const bookOf = (d: LoopStrategy) => books.find((b) => b.uid === d.marketShortUid)
-  const bookApr = s.dueAt ? bookAprAt(bookOf(s)?.book ?? null, debtTok) : null
-  const bookShort = !!s.dueAt && !!bookOf(s)?.book && bookApr == null
-  const due = s.dueAt ? new Date(s.dueAt * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
-  const dueDays = s.dueAt ? Math.max(0, Math.round((s.dueAt * 1000 - Date.now()) / 86400_000)) : 0
-  const borAt0 = useBorrowAt(s, term, offer?.apr ?? bookApr ?? undefined)
-  const borAt = (d: number) => borAt0(d) + rateShift
-  const dep = s.depSpot, bor = borAt(D)
-  const net = netAprAtLeverage(dep, bor, L), drop = liqBuffer(liqLtv, L), hf = healthAt(liqLtv, L)
-  const netWorst = netAprAtLeverage(dep, bor + 2, L)
-  // when the term ends the debt is not due: it moves to the market's variable rate until it is fixed again
-  const irm = useIrm(s.marketShortUid, !!term)
-  const after = term ? curveRateNow(irm.data) : null
-  const netAfter = after != null ? netAprAtLeverage(dep, after, L) : null
-  const ends = term ? dayOf(term.days) : ''
-  const overLiquidity = s.borrowLiquidityUsd > 0 && D > s.borrowLiquidityUsd
-  // adding to a loop the wallet already runs: the new debt lands in the same book, so the number that
-  // matters is the whole position after — the existing debt is already in the curve's utilisation
-  const Eh = holding && holding.valueUsd > 0 ? holding.valueUsd : 0, Lh = holding?.leverage && holding.leverage > 1 ? holding.leverage : 1
-  const Lc = Eh > 0 ? (Eh * Lh + E * L) / (Eh + E) : L
-  const netC = netAprAtLeverage(dep, bor, Lc), hfC = healthAt(liqLtv, Lc)
-  // the VM's own signer, as the build below: a Solana loop quoted for the EVM address is quoted for nobody
-  // the margin rides the preview too: a lender that checks health up front (Alchemix) cannot price a
-  // loop with no collateral of its own, and every other lender's preview is more accurate with it
-  const { q: q0, settling } = useLoopQuote(s, E, L, actor, slip, term?.id, tenor, chosen && marginRaw ? { asset: chosen.address, raw: marginRaw } : undefined)
-  // while the slider or the amount is ahead of the debounce, the answer in hand is the last size's: it reads as quoting
-  const q = { data: settling ? undefined : q0.data, error: settling ? null : q0.error, isFetching: q0.isFetching || settling }
-  // the swap routes the API found for the leverage leg, best first; another is picked by its aggregator's
-  // name, so the build (a fresh call) runs the same one wherever it lands in that answer's order
-  const routes = q.data?.data?.quotes ?? []
-  const [routeName, setRouteName] = React.useState<string | null>(null)
-  const routeSel = Math.max(0, routes.findIndex((r) => r.deltas?.aggregator === routeName))
-  const econ = (routeSel > 0 ? routes[routeSel]?.economics : null) ?? q.data?.data?.economics ?? routes[0]?.economics ?? null
-  // Break-even: the entry cost over what the loop earns a day. The API's own where it prices the
-  // carry (EVM). Its Solana quote leaves the carry null (worker-api `svmEconomics`, 2026-10-06), and
-  // on a broker term it prices the debt at the market's variable rate, not the term's (2026-09-29):
-  // there the payback is this ticket's own, off the net it shows. Null = never (no positive carry).
-  const cost = econ?.entryCostUsd.total ?? 0
-  const ownPayback = !econ ? null : cost <= 0 ? 0 : net > 0 && E > 0 ? cost / (E * net / 100 / 365) : null
-  const payback = !econ ? null : term ? ownPayback : econ.breakEvenDays.total ?? ownPayback
-  // the clock the payback runs against: the fixed debt's term, its due date, the PT's expiry
-  const clockDays = term?.days ?? tenor?.days ?? (s.dueAt ? (s.dueAt * 1000 - Date.now()) / 86400_000 : s.expiry ? (s.expiry * 1000 - Date.now()) / 86400_000 : null)
-  const clockWord = term ? `the ${term.days}-day term` : tenor ? `the ${tenorWord(tenor)} term` : s.dueAt ? `the loan's due date` : s.expiry ? 'maturity' : ''
-  const simHf = q.data?.data?.simulation?.post?.healthFactor
-  // answered, but with no route: the build would come back with nothing but an approval
-  const noRoute = !!q.data && !hasRoute(q.data.data)
-  // a Loopscale loan draws on ONE lender: too big for the deepest on this tenor, nothing opens. The API
-  // says so in words and hands back the margin (USD, re-read in the pay token) and leverage that fit
-  const short = tq?.short ?? null
-  const fitAmount = short?.fit.margin?.usd && price > 0 ? short.fit.margin.usd / price : 0
-  const fitLev = short?.fit.leverage ?? 0
-  const fitTier = fitLev ? [...TIERS].reverse().find((t) => s.tiers[t.id] <= fitLev) : undefined
-  const yearly = E * net / 100
-  const key = [s.id, holding?.accountId ?? '', marginRaw ?? '', L, term?.id ?? '', tenor?.id ?? '', chosen?.address ?? '', actor ?? '', slip, routeName ?? '', rate ?? ''].join('|')
-  const paper = usePaper()
-  const { signTypedDataAsync } = useSignTypedData()
-  // on paper, what the chain would refuse is refused too (tickets/0006): a quote with a route, the
-  // market's free liquidity, a dated book deep enough for the size
-  const paperRefuse = !paper.active ? null
-    : overLiquidity ? `The market has only ${usdShort(s.borrowLiquidityUsd)} of ${s.debt} free to borrow — lower the amount or the leverage.`
-    : bookShort ? `The book does not hold ${usd(D)} of ${s.debt} at this date — borrow less or pick another date.`
-    : q.isFetching && !q.data ? 'Quoting the route…'
-    : !q.data || !hasRoute(q.data.data) ? 'No quote with a route at this size right now, so nothing can be opened — try another amount or leverage.'
-    : null
-  const ladder = useTicketLadder(key, s.chainId, async () => {
-    const debtTokens = s.priceShort ? D / s.priceShort : 0
-    const openParams = {
-      collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(debtTokens, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!,
-      payAsset: chosen?.address, payAmountRaw: marginRaw, termId: term?.id, tenor,
-      // a new user-set-rate trove opens at the picked rate (absent → the API's suggested pick)
-      ...(rate != null ? { interestRate: rateToWad(rate) } : {}),
-      // into the position the after-figures below are computed for, not a fresh account beside it
-      accountId: holding?.accountId, simulate: !!holding,
-    }
-    const pre = await collateralOnFirst(holding, actor!)
-    // a venue may answer a sign step first (`actions.signs`: Inverse's ALE borrows on a per-action permit); paper asks, never signs
-    const env = await withSignature(await loopOpen(openParams), paper.active ? null : (td) => signTypedDataAsync(td as never))
-    if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
-    if (chosen?.role === 'native' && !paysNative(env.actions)) throw new Error(`This loop does not take ${chosen.symbol} directly. Pay with another asset.`)
-    const route = Math.max(0, (env.data?.quotes ?? []).findIndex((r) => r.deltas?.aggregator === routeName))
-    return [...pre, ...stepsFrom(env.actions, `Open ${num(L, 2)}× loop${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)} term` : s.dueAt ? ` · due ${due}` : ''}`, s.chainId, route)]
-    // the swap's leftover lands in the wallet as either leg's token (Jupiter's exact-in fill on Solana)
-  }, [s.marketLongUid, s.marketShortUid], [{ address: chosen?.address, symbol: chosen?.symbol }, { address: s.collateralAddress, symbol: s.holds }, { address: s.debtAddress, symbol: s.debt }],
-    // on paper: the same margin, leverage and rates, and the quote's entry cost (a Solana quote prices none: 0)
-    loopPlan(s, { into: holding, payToken: chosen?.address ?? '', amount, equityUsd: E, L, dep, bor, liqLtv, entryCostUsd: econ ? Math.max(0, cost - (econ.entryCostUsd.gas ?? 0)) : isSvmChain(s.chainId) && q.data ? 0 : null, quoting: q.isFetching, refuse: paperRefuse }),
-    // the open's own build, unsigned, on either chain: the same call the quote makes
-    true)
-  // the open at market prices: your equity right after it is what you put in less the entry cost (`ValueCheck.tsx`)
-  const vc = useValueCheck(E, econ && E > 0 ? E - cost : 0, `${key}|${cost}`)
-  const more = !!bal && amount > bal.amount
-  // the hero's two answers: the net, and how far from the line — in a word, the distance and the health factor
-  const hfShown = simHf ?? hf, safe = safetyOf(drop)
-  const rewardsNow = loopRewards(s, L)
-  const fixedNote = term ? `fixed to ${ends}` : tenor ? `fixed for ${tenorWord(tenor)}` : s.dueAt ? `fixed to ${due}` : ''
+  // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/loop`)
+  const { account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, more, hfShown, safe, rewardsNow, fixedNote } = useLoopTicket(s0, idle, allIdle, holding, { lite, copyLev })
   if (lite) return (
     <>
       <div className="tsec">
@@ -1034,53 +721,9 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
 
 /** Withdraw from a deposit the wallet already holds. `s` is null for a position the menu has no row for. */
 function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mode: Mode }) {
-  const { account, isConnected, solSigner, actorOn } = useApp()
-  const actor = actorOn(h.chainId)
-  const all = mode === 'close'
-  // Lite starts on all of it, and keeps its own amount apart from Pro's half
   const { lite } = React.useContext(TicketCtx)
-  const [amt, setAmt] = useStickyAmount(`t:${h.key}:withdraw${lite ? ':lite' : ''}`, () => portion(heldRaw(h), lite ? 100 : 50, h.decimals))
-  const amount = unitsOf(amt)
-  const eff = all ? h.amount : Math.min(amount, h.amount)
-  const share = h.amount > 0 ? eff / h.amount : 0
-  // out of a wrapped-native row the gas coin is one tap away (`receiveAsset` = `nativeAsset`, unwrapped in the
-  // same bundle). Not the default: the unwrap goes through a gateway, the composer or Morpho's
-  // adapter, which costs an approve or an authorization the plain withdraw does not
-  const venueKey = s?.venueKey ?? h.earnUid ?? h.lender ?? ''
-  const canNative = s?.nativeOut ?? (wrapsNative(h.chainId, h.assetAddress ?? s?.assetAddress) && !startsAny(venueKey, NO_NATIVE_WITHDRAW))
-  const fullExit = all || share > 0.999
-  // a native full exit through a rounding gateway reverts every time — the coin stays offered for a partial exit
-  const maxRounds = canNative && fullExit && nativeMaxRounds(venueKey, h.chainId)
-  const coin = nativeSymbol(h.chainId)
-  const [asNative, setAsNative] = useSticky<boolean>(`t:${h.key}:receive-native`, false)
-  const native = canNative && asNative && !maxRounds
-  const outSym = native ? coin : h.symbol
-  const rate = s?.rate ?? h.apr
-  // a PT is SOLD on its AMM before maturity: a bound on the fill is required, and `isAll` is refused (the raw amount is exact anyway)
-  const booked = s?.booked ?? isBooked(h.earnUid ?? '')
-  const st = useSettings().st
-  const slip = booked ? slippageFor(st, s ? isSavings(s.nature) : true) : undefined
-  // Max and 100 % are the exact holding; a typed amount is parsed from its text and capped at it
-  const sendRaw = (all || (booked && fullExit)) && h.amountRaw ? h.amountRaw : all ? capRaw(eff, h.decimals, heldRaw(h)) : payRaw(amt, h.decimals, heldRaw(h))
-  const key = [s?.id ?? h.key, h.accountId ?? '', mode, sendRaw, native ? 'native' : 'token', actor ?? '', slip ?? ''].join('|')
-  const paper = usePaper()
-  // on paper (tickets/0006): an instant exit pays out only what can leave the market now; a queued
-  // one (a cooldown, a request) lands after the venue's wait — a week where it publishes none
-  const px = h.amount > 0 ? h.valueUsd / h.amount : 0
-  const instant = !s || !!s.maturity || ['instant', 'instant-capped', 'market-sale', 'instant-or-queued'].includes(s.exitMode)
-  const queueSecs = instant ? 0 : s?.exitSecs ?? 7 * 86_400
-  const queueWord = instant || !s ? undefined : s.exitMode === 'fixed-cooldown' ? 'cooldown' : 'exit queue'
-  const paperRefuse = !paper.active || !instant || !s || s.liquidityUsd == null || eff * px <= s.liquidityUsd ? null
-    : `Only ${usdShort(s.liquidityUsd)} can leave this market right now — withdraw less, or wait for borrowers to repay.`
-  const ladder = useTicketLadder(key, h.chainId, async () => {
-    const env = await earnWithdraw({ earnUid: s?.earnUid ?? h.earnUid!, amountRaw: sendRaw, operator: actor!, isAll: fullExit && !booked, receiveAsset: native ? nativeAsset(h.chainId) : undefined, slippageBp: slip, accountId: h.accountId })
-    return stepsFrom(env.actions, 'Withdraw', h.chainId)
-  }, [s?.earnUid, h.earnUid], [native ? { address: nativeAsset(h.chainId), symbol: coin } : { address: h.assetAddress ?? s?.assetAddress, symbol: h.symbol }],
-    withdrawPlan({ ledger: paper.ledger, h, units: eff, all: fullExit, receiveToken: native ? nativeAsset(h.chainId) : (h.assetAddress ?? s?.assetAddress ?? ''), feed: paper.price, receiveName: native ? { symbol: coin, decimals: nativeDecimals(h.chainId) } : { symbol: h.symbol, decimals: h.decimals }, refuse: paperRefuse, queueSecs, queue: queueWord }))
-    // no dry-run on an exit: where the API cannot build one (Lido's queue, say) a real user leaves on
-    // the venue's own site — a paper account has nowhere else to go, so it is never locked in
-  const price = h.amount > 0 ? h.valueUsd / h.amount : 0
-  const exit = s && exitTerms(s)
+  // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/withdraw`)
+  const { account, isConnected, actor, all, amt, setAmt, amount, eff, share, venueKey, canNative, fullExit, maxRounds, coin, asNative, setAsNative, native, outSym, rate, booked, st, slip, sendRaw, key, paper, px, instant, queueSecs, queueWord, paperRefuse, ladder, price, exit } = useWithdrawTicket(s, h, mode, { lite })
   if (lite) return (
     <>
       {!all && <div className="tsec">
@@ -1145,129 +788,9 @@ function CannotManage({ h }: { h: Holding }) {
  * nothing but the two market uids the position already names.
  */
 function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; closeFirst?: boolean }) {
-  const { account, isConnected, solSigner, actorOn } = useApp()
-  // Lite: a close, or "Lower risk" — one of three targets by distance from liquidation, never a slider
   const { lite } = React.useContext(TicketCtx)
-  const slip = slippageFor(useSettings().st, s ? isSavings(s.nature) : !h.directional)
-  const actor = actorOn(h.chainId)
-  const holds = s?.holds ?? h.symbol, debt = s?.debt ?? h.debtSymbol ?? 'debt'
-  // the book as the API reports it: equity and leverage from the position, prices only to size the legs in tokens
-  const E = Math.max(h.valueUsd, 0.01)
-  // a deposit with nothing borrowed (`depositsAsLoops`, tickets/0015): 1× by definition, only up from there
-  const putUp = !!h.putUp && !!s
-  const Lnow = putUp ? 1 : Math.max(1, h.leverage && h.leverage > 1 ? h.leverage : s?.priceLong ? (h.amount * s.priceLong) / E : 1)
-  const C = E * Lnow, D = C - E
-  // off the menu the price is read back from the position — from the loop's OWN collateral leg: the
-  // account's total counts every collateral, and a second one would inflate it
-  const pC = s?.priceLong ?? (h.amount > 0 ? (h.collateralUsd ?? C) / h.amount : 0)
-  const pD = s?.priceShort ?? 0
-  // off the menu, the threshold is read back from the health the position reports: HF = L · lt / (L − 1)
-  const liqLtv = s?.liqLtv ?? (h.health != null && Lnow > 1 ? (h.health * (Lnow - 1)) / Lnow : null)
-  // a fixed-rate loop is a set of broker loans, and one close repays ONE of them (`loanId`): the slider
-  // stops where that loan is paid off, and "Close" is there only when it is the whole debt. Adding
-  // borrows a new term, which is the Add tab's job — here the slider only goes down.
-  const loans = h.loans ?? []
-  const [loanId, setLoanId] = React.useState<string | undefined>(loans[0]?.id)
-  const loan = loans.find((x) => x.id === loanId) ?? loans[0]
-  const rest = loan ? Math.max(0, D - loan.debtUsd) : 0
-  const minL = loan && rest > D * 0.01 ? Math.ceil((1 + rest / E) * 100) / 100 : 1
-  const maxL = loan ? Lnow : s ? Math.max(Lnow, Math.floor(s.maxLev * 100) / 100) : Lnow
-  // ...and it starts on the tier the open ticket would: "Now" is a plain deposit, which is not what was asked for
-  const safer = lite && !closeFirst ? saferTargets(Lnow, liqLtv, minL) : []
-  const [L0, setL] = React.useState<number>(() => (closeFirst && !putUp ? 1 : lite && safer.length ? safer[Math.min(1, safer.length - 1)].L : putUp ? Math.min(maxL, s!.tiers[isSavings(s!.nature) ? DEFAULT_TIER : 'defensive']) : +Lnow.toFixed(2)))
-  const L = Math.max(minL, L0)
-  const same = Math.abs(L - Lnow) < 0.02
-  // nothing to close on a deposit: taking it out is the deposit's own Withdraw
-  const closing = !putUp && L <= 1.001
-  const down = L < Lnow
-  // target book
-  const C2 = closing ? 0 : E * L, D2 = closing ? 0 : E * (L - 1)
-  const sellUsd = down ? C - C2 : 0, borrowUsd = !down ? D2 - D : 0
-  const sellTok = pC ? sellUsd / pC : 0, borrowTok = pD ? borrowUsd / pD : 0
-  // the existing debt is already in the market's utilisation: spot is the rate now, and a step walks the curve by its own size
-  const borAt = useBorrowAt(s)
-  const net = closing || !s ? null : netAprAtLeverage(s.depSpot, borAt(D2 - D), L)
-  const drop = closing ? 1 : liqLtv != null ? liqBuffer(liqLtv, L) : null
-  const hf = closing ? Infinity : liqLtv != null ? healthAt(liqLtv, L) : null
-  // A full close pays out in the debt token (sell everything, repay, the rest comes back) or in the
-  // collateral (sell only what repays the debt, keep the rest). Both are the same call: `isAll`
-  // withdraws ALL the collateral, the swap takes the `amount` it is given, and what the swap and the
-  // repay leave over is swept to the wallet — so keeping the collateral is only a smaller `amount`.
-  // Both are sized off what the sale fetches on the MARKET, never off the position's own value: that
-  // is the lender's oracle, and an LST priced at its redemption rate sells for less than it says.
-  const collUid = h.collateralUid ?? s?.marketLongUid ?? '', debtUid = h.debtUid ?? s?.marketShortUid ?? ''
-  // (a deposit's neighbours in its account are not in its own value: nothing to take off the hold cell)
-  const otherColl = putUp ? [] : (h.others ?? []).filter((o) => o.side === 'collateral'), otherUsd = otherColl.reduce((t, o) => t + o.usd, 0)
-  const sameToken = holds === debt
-  const [recv, setRecv] = useSticky<'debt' | 'collateral'>(`t:${h.key}:recv`, 'debt')
-  // Loopscale's full close has no "sell everything": the venue repays the loan (accrued to now plus a
-  // margin), sells only the collateral that takes and hands the rest back (`isAll` drops `amount`).
-  // So it always pays out in the collateral — the debt-token option would promise what it cannot do
-  const venueKeeps = isLoopscale(h.lender ?? s?.lender)
-  // Lite closes one way: everything sold, the debt repaid, the rest back in the debt coin
-  const keep = closing && !sameToken && (venueKeeps || (!lite && recv === 'collateral'))
-  const owed = loan ? loan.debt : h.debtAmount ?? (pD ? D / pD : 0)
-  const pDebt = pD || (owed > 0 ? D / owed : 0)
-  // the exact balance: a float-sized amount can overshoot it by a few wei and the swap reverts
-  const allRaw = h.amountRaw ?? toRaw(h.amount, h.decimals)
-  const cq = useCloseQuote(closing && collUid && debtUid ? { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: allRaw, accountId: h.accountId, loanId: loan?.id } : null, slip)
-  const sale = cq.data ?? null
-  const rate = sale ? sale.output / sale.input : null
-  const covers = sale ? sale.output >= owed * (1 + CLOSE_INTEREST_PAD) : null
-  const tight = !!sale && covers && sale.output * (1 - slip / 10_000) < owed
-  const backDebt = sale ? sale.output - owed : null
-  const keepPad = closeKeepPad(slip)
-  const sellKeep = rate ? (owed * (1 + keepPad)) / rate : null
-  const keepOk = sellKeep != null && sellKeep < h.amount
-  const backColl = keepOk ? h.amount - sellKeep! : null
-  const leftover = owed * keepPad
-  const backUsd = !sale ? null : keep ? (keepOk ? (backColl! * rate! + leftover) * pDebt : null) : backDebt! * pDebt
-  const closeBlock = !closing ? null : cq.isPending ? 'pricing' : !sale ? 'no-route' : !covers ? 'short' : keep && !keepOk ? 'keep-short' : null
-  const key = [s?.id ?? h.key, h.accountId ?? '', 'manage', L, keep ? 'keep' : 'sell', actor ?? '', slip].join('|')
-  // a full close at market prices against the equity the venue's oracle says it holds: the sale's
-  // slippage and fees, and any gap between the oracle and the market (`ValueCheck.tsx`). Only for the
-  // loop's own pair — other legs stay where they are, so the account's equity is not what comes back.
-  const valued = closing && !closeBlock && !h.others?.length && h.valueUsd > 0 && backUsd != null && backUsd > 0
-  const vc = useValueCheck(valued ? h.valueUsd : 0, valued ? backUsd! : 0, `${key}|${backUsd}`)
-  const paper = usePaper()
-  const { signTypedDataAsync } = useSignTypedData()
-  // Inverse's loop answers a signature request first; paper asks, never signs
-  const paperSign = paper.active ? null : (td: unknown) => signTypedDataAsync(td as never)
-  // on paper: a deleverage costs what the slippage allows, a close what the sale quote says, a step up what the open quote says
-  // on paper every step needs what the real one needs (tickets/0006): a close its sale quote (the
-  // button already waits for it), a deleverage a quote for the part it sells, a step up a quote with
-  // a route and the market's free liquidity — no estimate stands in for a missing quote
-  const paperPlan = !h.paper ? undefined : closing
-    ? reducePlan({ ledger: paper.ledger, h, closing, keep, sellUsd, costUsd: sale?.exitCostUsd != null ? sale.exitCostUsd * (keep && keepOk ? sellKeep! / h.amount : 1) : C * slip / 10_000, feed: paper.price })
-    : down || !s
-    ? async () => {
-      const q = await quoteClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: capRaw(sellTok, h.decimals, heldRaw(h)), accountId: h.accountId, loanId: loan?.id }, slip, false).catch(() => null)
-      if (!q) throw new Error(NO_ROUTE)
-      // what the sale loses against the position's own valuation, at the quote's fill
-      const cost = q.exitCostUsd != null && q.exitCostUsd > 0 ? q.exitCostUsd : Math.max(0, sellUsd - q.output * pDebt)
-      return reducePlan({ ledger: paper.ledger, h, closing: false, keep: false, sellUsd, costUsd: cost, feed: paper.price })()
-    }
-    : async () => {
-      if (s.borrowLiquidityUsd > 0 && borrowUsd > s.borrowLiquidityUsd) throw new Error(`The market has only ${usdShort(s.borrowLiquidityUsd)} of ${debt} free to borrow — pick a lower leverage.`)
-      const q = await loopOpen({ collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: slip, leverage: L, account: actor })
-      if (!hasRoute(q.data)) throw new Error(NO_ROUTE)
-      return leverPlan({ ledger: paper.ledger, h, borrowUsd, costUsd: Math.max(0, (q.data?.economics?.entryCostUsd.total ?? 0) - (q.data?.economics?.entryCostUsd.gas ?? 0)), feed: paper.price })()
-    }
-  const ladder = useTicketLadder(key, h.chainId, async () => {
-    if (down || !s) {
-      const amountRaw = closing && !keep ? allRaw : capRaw(closing ? sellKeep! : sellTok, h.decimals, heldRaw(h))
-      const closeParams = { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: slip, isAll: closing, account: actor!, accountId: h.accountId, loanId: loan?.id }
-      const env = await withSignature(await loopClose(closeParams), paperSign)
-      if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
-      return stepsFrom(env.actions, closing ? `Close the loop · receive ${keep ? holds : debt}` : `Deleverage to ${num(L, 2)}×`, h.chainId)
-    }
-    // a pure leverage step: borrow more against what is there, no new margin
-    const upParams = { collateralMarketUid: s.marketLongUid, debtMarketUid: s.marketShortUid, debtAmountRaw: toRaw(borrowTok, s.decimalsShort), slippageBp: slip, leverage: L, account: actor!, accountId: h.accountId, simulate: true }
-    const pre = await collateralOnFirst(h, actor!)
-    const env = await withSignature(await loopOpen(upParams), paperSign)
-    if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
-    return [...pre, ...stepsFrom(env.actions, putUp ? `Lever to ${num(L, 2)}×` : `Increase to ${num(L, 2)}×`, h.chainId)]
-  }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid], [{ address: h.collateralAddress ?? s?.collateralAddress, symbol: holds }, { address: h.debtAddress ?? s?.debtAddress, symbol: debt }], paperPlan)
+  // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/manageLoop`)
+  const { account, isConnected, slip, actor, holds, debt, E, putUp, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, signTypedDataAsync, paperSign, paperPlan, ladder } = useManageLoop(s, h, closeFirst, { lite })
   if (lite && !closing) {
     const bufNow = liqLtv != null ? liqBuffer(liqLtv, Lnow) : bufferOfHealth(h.health)
     return (
@@ -1362,14 +885,6 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
     </>
   )
 }
-/**
- * A full close is sized off a market quote taken seconds before the block. INTEREST: the debt grows
- * and the price moves in between, so a sale that only just covers it is refused. KEEP: keeping the
- * collateral sells what repays the debt plus a margin of twice the slippage (never under 0.4 %, the
- * interest pad's double), and the surplus comes back in the debt token.
- */
-const CLOSE_INTEREST_PAD = 0.002
-const closeKeepPad = (slipBp: number) => Math.max((2 * slipBp) / 10_000, 2 * CLOSE_INTEREST_PAD)
 
 type Leg = NonNullable<Holding['others']>[number]
 const legList = (ls: Leg[]) => ls.map((o) => `${num(o.amount, 4)} ${o.symbol} (${usd(o.usd)})`).join(' and ')
@@ -1401,15 +916,6 @@ function LegsNote({ h, holds, debt, adding }: { h: Holding; holds: string; debt:
 }
 
 /** One quiet line under the amount: the way in when the wallet is short, a smaller link when it is not. */
-/**
- * What "Get" buys for a loop: the chosen margin token — and, when it is the gas coin or its wrapper
- * and the venue takes the coin, both of them, the coin first (no approval to pay it in).
- */
-function getForms<T extends { role: string; address: string; symbol: string }>(opts: T[], chosen: T, chainId: string): T[] {
-  const coin = opts.find((o) => o.role === 'native')
-  const wrapped = opts.find((o) => o.role !== 'native' && wrapsNative(chainId, o.address))
-  return coin && wrapped && (chosen === coin || chosen === wrapped) ? [coin, wrapped] : [chosen]
-}
 export function GetLine({ account, short, symbol, open, onOpen }: { account?: string; short: boolean; symbol: string; open: boolean; onOpen: () => void }) {
   if (!account || open) return null
   return (

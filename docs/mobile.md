@@ -54,6 +54,20 @@ mobile/
 and closing a position: the web's `Ticket.tsx` + `useLadder.ts`), the social
 layer (profiles, follows, the feed, signed comments), paper accounts, Solana.
 
+**The ticket on the phone** runs on the web's own ticket engine — the
+ladder, the transaction trace and one controller per ticket body live in
+`@yieldcircle/app` (docs/mobile-plan.md, phase 3). The phone fills
+`@yieldcircle/app/platform` in `mobile/src/platform.tsx`: its SQLite
+`localStorage` as the scratchpad, the WalletConnect session's redirect to bring
+the wallet forward, wagmi for chain switches.
+
+**One copy of each context library** (`mobile/metro.config.js`): pnpm installs
+a package once per set of its peers, so the phone's wagmi (built against
+AsyncStorage) and the shared package's (a dev dependency there) were two copies
+— and the shared ladder's `useAccount` could not see the phone's
+`<WagmiProvider>`. Metro resolves `wagmi`, `viem`, `@tanstack/react-query`,
+`react` and `react-dom` from the phone app, wherever they are imported.
+
 ## Running it
 
 AppKit needs native modules, so **Expo Go cannot run it** — a *development

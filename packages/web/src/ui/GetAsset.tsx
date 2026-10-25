@@ -5,7 +5,7 @@ import { fromUnits, payRaw, portion, unitsOf, type Amount } from '@yieldcircle/c
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchTokenBalances, spotSwapQuote, xchainSwapQuote, ZERO, type DestinationGas, type SwapQuoteActions, type SwapQuoteData, type SwapRouteQuote } from '@yieldcircle/core/sdk/api'
 import { CHAINS, chainLabel, useBalances } from '@yieldcircle/app/sdk/queries'
-import { hasLanded, isDone, isOk, tracePaper, traceTx, useTrace } from '../sdk/txTrace'
+import { hasLanded, isDone, isOk, tracePaper, traceTx, useTrace } from '@yieldcircle/app/sdk/txTrace'
 import { paperId, usePaper } from '../state/Paper'
 import { realTradingGated } from '../wallet/gate'
 import { balanceOf, gasTokenOf, knownOf, MAX_TOPUPS, starterOf, starterRef, tokenKey, TOPUP_UNITS, type PaperOp } from '@yieldcircle/core/model/paper'
@@ -24,7 +24,7 @@ import { solSignAndSend } from '../wallet/solana'
 import { AmountInput, Info, Popover, RouteChooser, Tok, num, usd } from './bits'
 import { Drawer } from './Drawer'
 import { LossAck, ValueRow, useValueCheck } from './ValueCheck'
-import { isRejection } from '../wallet/errors'
+import { isRejection } from '@yieldcircle/core/sdk/walletErrors'
 
 export interface Target { chainId: string; address: string; symbol: string; decimals: number; price: number; logo?: string }
 /** A form the strategy takes the money in, with what the wallet already holds of it. */

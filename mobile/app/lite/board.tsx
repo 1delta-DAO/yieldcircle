@@ -1,7 +1,7 @@
 import { ScrollView } from 'react-native'
-import { WalletBoard } from '../../src/ui/board'
+import { Board } from '../../src/ui/board'
 
 /** Lite's leaderboard: who earns, read off the chain. */
 export default function LiteBoard() {
-  return <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}><WalletBoard /></ScrollView>
+  return <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 40 }}><Board /></ScrollView>
 }

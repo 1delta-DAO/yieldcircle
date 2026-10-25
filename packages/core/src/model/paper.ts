@@ -707,3 +707,6 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
   l.updatedAt = ctx.now
   return l
 }
+
+/** A fresh id for a paper op or position: 12 random bytes in hex. */
+export const paperId = () => { const b = new Uint8Array(12); crypto.getRandomValues(b); return [...b].map((x) => x.toString(16).padStart(2, '0')).join('') }

@@ -11,6 +11,7 @@ configureBackend({
   index: process.env.EXPO_PUBLIC_INDEX_BASE_URL,
   solIndex: process.env.EXPO_PUBLIC_SOL_INDEX_BASE_URL,
   social: process.env.EXPO_PUBLIC_SOCIAL_BASE_URL,
+  solRpc: process.env.EXPO_PUBLIC_RPC_SOLANA,
 })
 
 /** Reown project id — the web's `VITE_WC_PROJECT_ID`. */

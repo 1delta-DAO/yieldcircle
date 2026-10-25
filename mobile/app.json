@@ -4,7 +4,8 @@
     "slug": "yieldcircle",
     "platforms": [
       "ios",
-      "android"
+      "android",
+      "web"
     ],
     "scheme": "yieldcircle",
     "version": "0.1.0",

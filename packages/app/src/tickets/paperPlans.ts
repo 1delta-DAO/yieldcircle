@@ -5,11 +5,10 @@
 import { isSavings } from '@yieldcircle/core/model/nature'
 import { nativeSymbol, type Holding } from '@yieldcircle/core/model/positions'
 import { normAddr } from '@yieldcircle/core/model/address'
-import { legPrices, nativeOf, valueOf, type PaperLedger, type PaperOp, type PaperPosition, type PaperRate, type PaperSnap, type PriceFn } from '@yieldcircle/core/model/paper'
+import { legPrices, nativeOf, paperId, valueOf, type PaperLedger, type PaperOp, type PaperPosition, type PaperRate, type PaperSnap, type PriceFn } from '@yieldcircle/core/model/paper'
 import type { LoopStrategy, SimpleStrategy } from '@yieldcircle/core/model/strategies'
 import type { BorrowOffer } from '@yieldcircle/core/model/borrow'
-import { paperId } from '../state/Paper'
-import type { PaperBuilt } from './useLadder'
+import type { PaperBuilt } from '../ladder'
 
 const leg = (symbol: string, decimals: number, address: string, priceUsd: number, logo?: string) => ({ symbol, decimals, address: normAddr(address), priceUsd, logo })
 

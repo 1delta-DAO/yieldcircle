@@ -8,6 +8,7 @@
  * the connected Solana one, and `useBook` reads its money from here instead of the chain.
  */
 import React from 'react'
+import { paperId } from '@yieldcircle/core/model/paper'
 import { useAccount, useConfig, useConnect, useDisconnect } from 'wagmi'
 import { privateKeyToAccount } from 'viem/accounts'
 import { apply, bookOf, emptyLedger, PaperError, starterOf, starterRef, tokenKey, type PaperBook, type PaperLedger, type PaperOp, type PriceFn } from '@yieldcircle/core/model/paper'
@@ -26,8 +27,9 @@ const DAY = 86_400_000
 const PAPER_TYPES = { PaperOp: [{ name: 'author', type: 'address' }, { name: 'op', type: 'string' }, { name: 'nonce', type: 'string' }, { name: 'signedAt', type: 'uint256' }] } as const
 /** Fastify's own 404 (`error: 'Not Found'`): the service answers, but has no paper routes yet — not a refusal. */
 export const missingRoute = (e: unknown) => (e as social.SocialError)?.status === 404 && (e as Error).message === 'Not Found'
-const nonce = () => { const b = new Uint8Array(12); crypto.getRandomValues(b); return [...b].map((x) => x.toString(16).padStart(2, '0')).join('') }
-export const paperId = () => nonce()
+// one id generator for ops and positions (core's, the phone uses it too)
+const nonce = paperId
+export { paperId }
 
 interface Saved { ledger: PaperLedger | null; pending: PaperOpEnvelope[]; tokens: TokenMeta; skewDays: number }
 const EMPTY: Saved = { ledger: null, pending: [], tokens: {}, skewDays: 0 }

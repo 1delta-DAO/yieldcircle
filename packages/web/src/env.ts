@@ -10,4 +10,5 @@ configureBackend({
   index: import.meta.env.VITE_INDEX_BASE_URL as string | undefined,
   solIndex: import.meta.env.VITE_SOL_INDEX_BASE_URL as string | undefined,
   social: import.meta.env.VITE_SOCIAL_BASE_URL as string | undefined,
+  solRpc: import.meta.env.VITE_RPC_SOLANA as string | undefined,
 })

@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "The React half both apps share: the data hooks (catalogue, book, rate history, index, Lite's menu) and the settings, over @yieldcircle/core. React and React Query, no DOM — the web and the phone each supply who is looking through SessionProvider.",
+  "description": "The React half both apps share: the data hooks (catalogue, book, rate history, index, Lite's menu) and the settings, over @yieldcircle/core. React and React Query, no DOM \u2014 the web and the phone each supply who is looking through SessionProvider.",
   "exports": {
     "./session": "./src/session.tsx",
     "./state/Settings": "./src/state/Settings.tsx",
+    "./identity/character": "./src/identity/character.tsx",
+    "./platform": "./src/platform.tsx",
     "./*": "./src/*.ts"
   },
   "scripts": {
@@ -18,7 +20,9 @@
   },
   "peerDependencies": {
     "@tanstack/react-query": "5.91.3",
-    "react": "^19"
+    "react": "^19",
+    "viem": "^2.47.6",
+    "wagmi": "^2.19.0"
   },
   "devDependencies": {
     "@tanstack/react-query": "5.91.3",
@@ -26,6 +30,9 @@
     "@types/react": "^19.2.14",
     "react": "^19.2.4",
     "typescript": "5.9.3",
-    "vitest": "3.2.4"
+    "viem": "^2.47.6",
+    "vitest": "3.2.4",
+    "wagmi": "^2.19.0",
+    "zod": "3.25.76"
   }
 }

@@ -13,23 +13,9 @@ export { pct, usd, usdBig, usdShort, num } from '@yieldcircle/core/model/format'
 /** Amount of a base asset in its natural unit: dollars for the USD group, the token otherwise. */
 export const amt = (asset: string, x: number, usdValue?: number) => (unitOf(asset) === '$' ? usd(usdValue ?? x) : `${num(x, x >= 100 ? 2 : 4)} ${asset}`)
 
-/**
- * A decimal input that accepts what people type: a comma or a dot as the decimal mark (both become a
- * dot), thousands separators dropped, one decimal point, no letters. The text stays as typed while
- * editing ("1." and "0,0" are fine), and only follows `value` when it changes from outside (Max).
- */
-export function normaliseDecimal(raw: string): string {
-  let t = raw.replace(/\s/g, '')
-  // "1,234.5" / "1.234,5": the LAST separator is the decimal mark, the others are grouping
-  const lastComma = t.lastIndexOf(','), lastDot = t.lastIndexOf('.')
-  if (lastComma >= 0 && lastDot >= 0) { const dec = Math.max(lastComma, lastDot); t = t.slice(0, dec).replace(/[.,]/g, '') + '.' + t.slice(dec + 1).replace(/[.,]/g, '') }
-  else t = t.replace(/,/g, '.')
-  t = t.replace(/[^0-9.]/g, '')
-  const i = t.indexOf('.')
-  if (i >= 0) t = t.slice(0, i + 1) + t.slice(i + 1).replace(/\./g, '')
-  if (t.startsWith('.')) t = '0' + t
-  return t
-}
+// typed amounts are read the same on every app (core's `model/amount`)
+export { normaliseDecimal } from '@yieldcircle/core/model/amount'
+import { normaliseDecimal } from '@yieldcircle/core/model/amount'
 export function DecimalInput({ value, onChange, style, ariaLabel, autoFocus }: { value: number; onChange: (v: number) => void; style?: React.CSSProperties; ariaLabel?: string; autoFocus?: boolean }) {
   const [text, setText] = React.useState(() => fmtIn(value))
   const emitted = React.useRef(value)

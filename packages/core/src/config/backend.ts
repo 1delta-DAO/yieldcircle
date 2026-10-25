@@ -54,10 +54,14 @@ export let SOL_INDEX_BASE_URL = 'https://sol-positions.1delta.io'
  */
 export let SOCIAL_BASE_URL = 'https://social.1delta.io'
 
+/** A keyed Solana RPC asked before the public rotation (`sdk/solRpc.ts`); none by default. */
+export let SOL_RPC_URL: string | undefined
+
 /** Point the clients at other services. Unset or empty keeps the default. */
-export function configureBackend(o: { backend?: string; index?: string; solIndex?: string; social?: string }) {
+export function configureBackend(o: { backend?: string; index?: string; solIndex?: string; social?: string; solRpc?: string }) {
   if (o.backend) BACKEND_BASE_URL = o.backend
   if (o.index) INDEX_BASE_URL = o.index
   if (o.solIndex) SOL_INDEX_BASE_URL = o.solIndex
   if (o.social) SOCIAL_BASE_URL = o.social
+  if (o.solRpc) SOL_RPC_URL = o.solRpc
 }

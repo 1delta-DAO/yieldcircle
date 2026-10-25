@@ -8,6 +8,7 @@ import { wagmiConfig } from '../web/src/wallet/wagmi'
 import { AppProvider } from '../web/src/state/AppState'
 import { SettingsProvider } from '@yieldcircle/app/state/Settings'
 import { GateBridge } from '../web/src/wallet/GateBridge'
+import { WebPlatform } from '../web/src/state/platform'
 import { Landing } from './Landing'
 import '@yieldcircle/design/index.css'
 
@@ -18,7 +19,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={qc}>
-        <SettingsProvider><AppProvider><Landing /><GateBridge /></AppProvider></SettingsProvider>
+        <WebPlatform><SettingsProvider><AppProvider><Landing /><GateBridge /></AppProvider></SettingsProvider></WebPlatform>
       </QueryClientProvider>
     </WagmiProvider>
   </React.StrictMode>,

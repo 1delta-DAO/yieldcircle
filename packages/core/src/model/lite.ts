@@ -466,3 +466,22 @@ export const LITE_NAME: Record<string, { name: string; line: string }> = {
   BTC: { name: 'Bitcoin', line: 'Earn on bitcoin, in bitcoin.' },
   MORE: { name: 'More', line: 'Other coins and currencies: BNB, AVAX, SOL, the euro, gold.' },
 }
+
+/** The Lite ticket's actions on a strategy and, when the wallet holds it, its position (docs/lite.md §5). */
+export type LiteMode = 'add' | 'reduce' | 'close'
+/**
+ * Which tabs Lite's ticket shows and which it opens on. Adding is opening Lite's own strategy: only
+ * on a row Lite offers. A held loop is added to, made safer or closed; a deposit added to or
+ * withdrawn from — and a position close to the line opens on "Lower risk". `mode0`: what the link
+ * asked for (`add`, `close`, anything else is a reduce).
+ */
+export function liteModes(s: Strategy | null, h: Holding | null, mode0?: string): { canAdd: boolean; isLoop: boolean; start: LiteMode; tabs: { id: LiteMode; word: string }[] } {
+  const canAdd = !!s && liteEligible(s)
+  const isLoop = (s?.kind ?? h?.kind) === 'loop'
+  const risky = (bufferOfHealth(h?.health) ?? 1) < 0.1
+  const start: LiteMode = !h ? 'add' : mode0 === 'close' ? 'close' : mode0 && mode0 !== 'add' ? 'reduce' : canAdd && !risky ? 'add' : 'reduce'
+  const tabs: { id: LiteMode; word: string }[] = !h ? [] : isLoop
+    ? [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Lower risk' }, { id: 'close', word: 'Close' }]
+    : [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Withdraw' }]
+  return { canAdd, isLoop, start, tabs }
+}

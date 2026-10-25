@@ -23,3 +23,12 @@ export const C = {
 
 /** Pro's risk word as a colour: 1 low, 2 medium, 3 high. */
 export const RISK = { 1: C.ok, 2: C.warn, 3: C.bad } as const
+
+const rgb = (hex: string) => { const h = hex.replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255] }
+/** `hex` at an opacity: the web's `color-mix(... transparent)` / `#rrggbb66`. */
+export const alpha = (hex: string, a: number) => { const [r, g, b] = rgb(hex); return `rgba(${r},${g},${b},${a})` }
+/** `hex` laid at `a` over `base` (the web's `color-mix(in srgb, hex a, base)`), as an opaque colour. */
+export const mix = (hex: string, a: number, base: string = C.b200) => {
+  const [r, g, b] = rgb(hex), [R, G, B] = rgb(base)
+  return `rgb(${Math.round(r * a + R * (1 - a))},${Math.round(g * a + G * (1 - a))},${Math.round(b * a + B * (1 - a))})`
+}

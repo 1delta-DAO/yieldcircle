@@ -105,7 +105,10 @@ switch (cmd) {
 
   case 'go':
     requireWalletConnect(env)
-    console.log('\nExpo Go: scan the QR code with the iPhone camera (Android: in Expo Go). After approving in the wallet, switch back by hand.')
+    // the QR opens a chooser page (the project has expo-dev-client); its "Development Build" button
+    // asks this Expo Go server for a dev-client link it cannot make: an empty 404, which Safari saves as a file
+    console.log('\nExpo Go: scan the QR code with the iPhone camera and tap "Expo Go" on the page that opens (not "Development Build"),')
+    console.log('or in Expo Go: "Enter URL manually" → the exp:// address below. After approving in the wallet, switch back by hand.')
     run('npx', ['expo', 'start', '--go', ...rest], { env })
     break
 

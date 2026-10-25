@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "YieldCircle",
+    "slug": "yieldcircle",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "scheme": "yieldcircle",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
+    "ios": {
+      "bundleIdentifier": "io.yieldcircle.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "metamask",
+          "rainbow",
+          "trust",
+          "cbwallet",
+          "zerion",
+          "uniswap",
+          "phantom",
+          "safe"
+        ]
+      }
+    },
+    "android": {
+      "package": "io.yieldcircle.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "./plugins/wallet-queries.js"
+    ]
+  }
+}

@@ -31,7 +31,8 @@ own Vite config and Worker. The design both wear — tokens, base styles, shared
 components, the brand — is the workspace package
 [`packages/design`](packages/design/README.md) (`@yieldcircle/design`). The root
 `package.json` forwards every command, so `pnpm dev`, `pnpm build` etc. run from
-the repo root; `scripts/`, `docs/`, `tickets/` and `brand/` stay at the root.
+the repo root; `scripts/`, `docs/`, `tickets/` and `brand/` stay at the root. The phone app is
+`mobile/` (Expo) — [`docs/mobile.md`](docs/mobile.md).
 
 Append `?as=0x…` to the URL to read an address's positions without a wallet
 (or type it in the wallet dialog). Connect an injected wallet to sign;

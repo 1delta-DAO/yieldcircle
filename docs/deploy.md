@@ -20,8 +20,10 @@ sent on to the app.
 The repo is a pnpm workspace, and each Pages project's root directory is its
 package (`packages/web`, `packages/landing`). Pages' automatic install only
 looks in the root directory, which has no lockfile, so it is switched off and
-the build command installs the workspace itself. `pnpm install` run from a
-package installs the whole workspace from the repo root's `pnpm-lock.yaml`.
+the build command installs the workspace itself from the repo root's
+`pnpm-lock.yaml`. The `--filter "<package>..."` limits it to that site and
+what it depends on (core, design; the landing also web) — without it every
+site build would download the phone app's React Native toolchain too.
 
 | Settings → Variables and Secrets (Production **and** Preview, plain text) | value | why |
 |---|---|---|
@@ -48,7 +50,7 @@ and unused by the git build).
 | Settings → Build | value |
 |---|---|
 | Framework preset | None |
-| Build command | `pnpm install && pnpm build` |
+| Build command | `pnpm install --filter "@yieldcircle/web..." && pnpm build` |
 | Build output directory | `dist` |
 | Root directory | `packages/web` — Pages takes `functions/` (the gate) from the root directory, so it must be the package |
 
@@ -102,7 +104,7 @@ file.
 | Settings → Build | value |
 |---|---|
 | Framework preset | None |
-| Build command | `pnpm install && pnpm build` |
+| Build command | `pnpm install --filter "@yieldcircle/landing..." && pnpm build` |
 | Build output directory | `dist` |
 | Root directory | `packages/landing` |
 

@@ -35,3 +35,10 @@ docs/colosseum/
 
 # Superteam application assets (logos) stay local
 docs/superteam/
+
+# mobile: Expo caches, local bundles, and the native projects `expo prebuild` generates (CNG — app.json is the source)
+mobile/.expo/
+mobile/dist/
+mobile/ios/
+mobile/android/
+mobile/expo-env.d.ts

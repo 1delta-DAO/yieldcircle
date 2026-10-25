@@ -11,7 +11,10 @@
   `model/`, `data/`, `config/`, `vendor/`, `search/`, the API clients `sdk/api.ts` and
   `index/api.ts` — is `packages/core` (`@yieldcircle/core/…`; no React, no DOM, guarded by
   `src/platform.test.ts`). A `src/…` path in these notes and in `docs/` is in core if it is one
-  of those, else in `packages/web/src/…`. Run everything from the repo root (the root `package.json`
+  of those, else in `packages/web/src/…`.
+- The phone app is `mobile/` (Expo, AppKit + wagmi, `@yieldcircle/core`): how to run it, its
+  decisions and gaps in [`docs/mobile.md`](docs/mobile.md). Platform code (storage, URLs from
+  `EXPO_PUBLIC_*`) stays in `mobile/src`; anything both apps need goes to core. Run everything from the repo root (the root `package.json`
   forwards); `scripts/`, `docs/`, `tickets/` and `brand/` stay at the root.
 - Lite and Pro: two shells over one catalogue (`#/lite/…`, `#/pro/…`, Lite is the
   default). Lite's rules live only in `model/lite.ts` (core); its pages in `src/ui/lite/`;

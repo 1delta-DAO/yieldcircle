@@ -38,6 +38,17 @@
     "plugins": [
       "expo-router",
       "./plugins/wallet-queries.js"
-    ]
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "17e62e78-22d2-4f64-a06e-6da4a5e31fbd"
+      }
+    },
+    "owner": "alphachim"
   }
 }

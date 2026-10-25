@@ -1,3 +1,8 @@
 packages:
   - packages/*
   - mobile
+
+# here, not package.json's "pnpm" field: pnpm 11 (EAS's default) no longer reads that, and a
+# frozen install then fails on the lockfile's overrides
+overrides:
+  '@walletconnect/logger': 3.0.2

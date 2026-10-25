@@ -15,6 +15,31 @@ namespace and answer `/gate/check` + `/gate/request` from the same code
 the beta cookie belongs to its origin — a whitelisted wallet on the landing is
 sent on to the app.
 
+## Monorepo builds (both Pages projects)
+
+The repo is a pnpm workspace, and each Pages project's root directory is its
+package (`packages/web`, `packages/landing`). Pages' automatic install only
+looks in the root directory, which has no lockfile, so it is switched off and
+the build command installs the workspace itself. `pnpm install` run from a
+package installs the whole workspace from the repo root's `pnpm-lock.yaml`.
+
+| Settings → Variables and Secrets (Production **and** Preview, plain text) | value | why |
+|---|---|---|
+| `SKIP_DEPENDENCY_INSTALL` | `1` | the automatic install sees no lockfile in the package and cannot resolve `workspace:*` |
+| `PNPM_VERSION` | `10.16.1` | the build image does not read the pnpm version from the lockfile |
+| `NODE_VERSION` | `22` | the repo's `.nvmrc` sits at the repo root, outside the project's root directory, so Pages never sees it |
+
+Build watch paths (Settings → Build → Build watch paths) keep a push that only
+touches the other site, `docs/` or `tickets/` from rebuilding a project:
+
+| project | include | exclude |
+|---|---|---|
+| `yieldcircle` (app) | `packages/web/*`, `packages/design/*`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` | *(none)* |
+| `yieldcircle-landing` | `packages/landing/*`, `packages/web/*`, `packages/design/*`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` | *(none)* |
+
+The landing watches `packages/web/*` because it builds from the app's `src/`,
+`gate/` and `public/`.
+
 ## 1 · The app — Pages project `yieldcircle`
 
 Configured entirely in the dashboard (the root `wrangler.toml` is gitignored
@@ -22,11 +47,14 @@ and unused by the git build).
 
 | Settings → Build | value |
 |---|---|
-| Build command | `pnpm build` |
+| Framework preset | None |
+| Build command | `pnpm install && pnpm build` |
 | Build output directory | `dist` |
 | Root directory | `packages/web` — Pages takes `functions/` (the gate) from the root directory, so it must be the package |
 
-**No build variable is required** — the API, index, social and site URLs all
+Plus the three variables under [Monorepo builds](#monorepo-builds-both-pages-projects).
+
+**No other build variable is required** — the API, index, social and site URLs all
 default to production. Optional, and only effective on the next build:
 
 | Build variable | value |
@@ -73,9 +101,12 @@ file.
 
 | Settings → Build | value |
 |---|---|
-| Build command | `pnpm build` |
+| Framework preset | None |
+| Build command | `pnpm install && pnpm build` |
 | Build output directory | `dist` |
 | Root directory | `packages/landing` |
+
+Plus the three variables under [Monorepo builds](#monorepo-builds-both-pages-projects).
 
 | Settings → … (Production and Preview) | name | value |
 |---|---|---|

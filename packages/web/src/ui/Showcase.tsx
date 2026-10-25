@@ -7,7 +7,7 @@
  * over the field, and a click on the ground closes an open card.
  */
 import React from 'react'
-import showcase from '../data/showcase.json'
+import showcase from '@yieldcircle/core/data/showcase.json'
 import { Character } from '../identity/character'
 import { useEarners } from '../index/queries'
 import { chainLabel } from '../sdk/queries'

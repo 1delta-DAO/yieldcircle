@@ -13,7 +13,7 @@
  */
 import React from 'react'
 import { bookAprAt, bookDepth, useLendingBooks } from '../sdk/queries'
-import type { LendingBook } from '../sdk/types'
+import type { LendingBook } from '@yieldcircle/core/sdk/types'
 import { Popover, Sk, num, pct, usdShort } from './bits'
 
 /** `lend`: the borrowers' offers a deposit fills. `borrow`: the lenders' offers a loan — or a lender's early sale — fills. */

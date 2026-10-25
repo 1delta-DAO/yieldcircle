@@ -1,11 +1,11 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
-import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
-import { assetLogo, colorOf, deskById, deskLogo, deskOf, short, subscribeWideLogos, unitOf, wideLogosReady } from '../model/assets'
+import { isEvmChain, isSolAddr, isSvmChain } from '@yieldcircle/core/model/address'
+import { assetLogo, colorOf, deskById, deskLogo, deskOf, short, subscribeWideLogos, unitOf, wideLogosReady } from '@yieldcircle/core/model/assets'
 import { ChainMark, addressUrl, chainInfo, txUrl } from './ChainMark'
-import { maturityClock, rewardsOf, termClock, type Risk, type Strategy } from '../model/strategies'
-import { PROTOCOL_ICONS } from '../model/vaultDesk'
-import type { Amount } from '../model/amount'
+import { maturityClock, rewardsOf, termClock, type Risk, type Strategy } from '@yieldcircle/core/model/strategies'
+import { PROTOCOL_ICONS } from '@yieldcircle/core/model/vaultDesk'
+import type { Amount } from '@yieldcircle/core/model/amount'
 
 export const pct = (x: number | null | undefined, d = 2) => (x == null || !Number.isFinite(x) ? '—' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%')
 /** One decimal while the figure is a single digit (9.44 → "9.4", 5.02 → "5"), whole from 10 on (9.97 → "10"). */

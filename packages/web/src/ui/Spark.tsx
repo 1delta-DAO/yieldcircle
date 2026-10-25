@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
-import { avgLast, isSpike, seriesFor, type HistoryGet, type RateSeries } from '../model/rateHistory'
-import type { Strategy } from '../model/strategies'
+import { avgLast, isSpike, seriesFor, type HistoryGet, type RateSeries } from '@yieldcircle/core/model/rateHistory'
+import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { pct } from './bits'
 
 /**

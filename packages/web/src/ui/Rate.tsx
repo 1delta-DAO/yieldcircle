@@ -23,7 +23,7 @@
  */
 import React from 'react'
 import { useRatingLabels, useRatings, useSocialRefresh } from '../social/queries'
-import { normAddr } from '../model/address'
+import { normAddr } from '@yieldcircle/core/model/address'
 import { useSocialWrite } from '../social/sign'
 import type { RatingLabel, RatingLabelAgg, RatingSubjectKind, RatingVote } from '../social/api'
 import { Who } from './social-bits'

@@ -21,8 +21,8 @@ import { marketHref } from '../state/AppState'
 import { FollowButton, Money, Who } from './social-bits'
 import { Sk } from './bits'
 import { Thread } from './Thread'
-import type { Strategy } from '../model/strategies'
-import { bookKeyOf, type ThreadRef } from '../model/uid'
+import type { Strategy } from '@yieldcircle/core/model/strategies'
+import { bookKeyOf, type ThreadRef } from '@yieldcircle/core/model/uid'
 
 export function TicketSocial({ uid, thread, s, focus }: {
   /** the market the strategy sits in (a loop's collateral leg): whose holders these are */

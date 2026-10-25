@@ -1,6 +1,6 @@
 import React from 'react'
-import { GROUPS, type Group } from '../../model/assets'
-import { LITE_GROUPS, LITE_LIST_ROWS, liteEligible } from '../../model/lite'
+import { GROUPS, type Group } from '@yieldcircle/core/model/assets'
+import { LITE_GROUPS, LITE_LIST_ROWS, liteEligible } from '@yieldcircle/core/model/lite'
 import { go, liteHref, proHref, type Route } from '../../state/AppState'
 import { useSticky } from '../../state/sticky'
 import { GroupIcon, Sk, pct, usd, usdShort } from '../bits'

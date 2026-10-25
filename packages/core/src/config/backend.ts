@@ -1,8 +1,12 @@
-const DEFAULT_BASE_URL = 'https://allocator.api.1delta.io'
+/**
+ * Where the services live. Production by default; each app overrides from its own environment
+ * ({@link configureBackend}) — the web app from `VITE_*` in `packages/web/src/env.ts`, imported
+ * first in every entry. Live bindings: every read is inside a function, so a value set before
+ * the first request is the one every request sees.
+ */
 
 /** Base backend URL. Override only for a proxy or a local worker-api. */
-export const BACKEND_BASE_URL =
-  (import.meta.env.VITE_BACKEND_BASE_URL as string | undefined) ?? DEFAULT_BASE_URL
+export let BACKEND_BASE_URL = 'https://allocator.api.1delta.io'
 
 /**
  * Headers attached to every backend request made through `sdk/http.ts`.
@@ -10,7 +14,7 @@ export const BACKEND_BASE_URL =
  * **This is the hook for a fork's authentication.** The public endpoint is
  * unauthenticated and rate-limited; a production integration generates a key at
  * https://auth.1delta.io/ and puts it behind a server-side proxy, then points
- * `VITE_BACKEND_BASE_URL` at that proxy. The proxy attaches the key, so nothing
+ * `VITE_BACKEND_BASE_URL` (web) at that proxy. The proxy attaches the key, so nothing
  * secret reaches the browser bundle.
  *
  * If your proxy needs a non-secret header instead — a tenant id, a request id,
@@ -30,8 +34,7 @@ export function apiHeaders(): Record<string, string> {
  * ACTS on (a form, a max, health) stays on the live allocator path
  * (`/v1/data/earn/positions`) — that is the hard rule.
  */
-export const INDEX_BASE_URL =
-  (import.meta.env.VITE_INDEX_BASE_URL as string | undefined) ?? 'https://positions.1delta.io'
+export let INDEX_BASE_URL = 'https://positions.1delta.io'
 
 /**
  * The SOLANA position index (`pos-indexer/apps/sol-indexer`), public at
@@ -42,13 +45,19 @@ export const INDEX_BASE_URL =
  * YieldCircle does not adapt them (plan decision 2), so a route that still
  * answers its old `{ok, data}` envelope simply reads as empty here.
  */
-export const SOL_INDEX_BASE_URL =
-  (import.meta.env.VITE_SOL_INDEX_BASE_URL as string | undefined) ?? 'https://sol-positions.1delta.io'
+export let SOL_INDEX_BASE_URL = 'https://sol-positions.1delta.io'
 
 /**
  * The social service, public at https://social.1delta.io. Reads are open;
  * every write is an EIP-712 message signed by the wallet that authored it, so
  * there are no sessions, no cookies and no key here either.
  */
-export const SOCIAL_BASE_URL =
-  (import.meta.env.VITE_SOCIAL_BASE_URL as string | undefined) ?? 'https://social.1delta.io'
+export let SOCIAL_BASE_URL = 'https://social.1delta.io'
+
+/** Point the clients at other services. Unset or empty keeps the default. */
+export function configureBackend(o: { backend?: string; index?: string; solIndex?: string; social?: string }) {
+  if (o.backend) BACKEND_BASE_URL = o.backend
+  if (o.index) INDEX_BASE_URL = o.index
+  if (o.solIndex) SOL_INDEX_BASE_URL = o.solIndex
+  if (o.social) SOCIAL_BASE_URL = o.social
+}

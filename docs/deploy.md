@@ -34,8 +34,8 @@ touches the other site, `docs/` or `tickets/` from rebuilding a project:
 
 | project | include | exclude |
 |---|---|---|
-| `yieldcircle` (app) | `packages/web/*`, `packages/design/*`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` | *(none)* |
-| `yieldcircle-landing` | `packages/landing/*`, `packages/web/*`, `packages/design/*`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` | *(none)* |
+| `yieldcircle` (app) | `packages/web/*`, `packages/core/*`, `packages/design/*`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` | *(none)* |
+| `yieldcircle-landing` | `packages/landing/*`, `packages/web/*`, `packages/core/*`, `packages/design/*`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` | *(none)* |
 
 The landing watches `packages/web/*` because it builds from the app's `src/`,
 `gate/` and `public/`.

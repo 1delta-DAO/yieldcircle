@@ -33,7 +33,7 @@
 import { recoverMessageAddress, isHex } from 'viem'
 import { overlay, message, norm } from '../gate/page'
 import { check, join, json, okAddress, type KV, type WaitUntil, type WaitlistEnv } from '../gate/waitlist'
-import { isSolAddr, base58Decode } from '../src/model/address'
+import { isSolAddr, base58Decode } from '@yieldcircle/core/model/address'
 
 interface Env extends Partial<WaitlistEnv> {
   GATE_SECRET?: string

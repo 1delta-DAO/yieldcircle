@@ -2,13 +2,13 @@ import type { QueryClient } from '@tanstack/react-query'
 import { useSyncExternalStore } from 'react'
 import { getBlockNumber, getTransactionReceipt, waitForTransactionReceipt } from 'viem/actions'
 import { wagmiConfig } from '../wallet/wagmi'
-import { bridgeStatus, fetchEarnPositions, fetchTokenBalances, type PositionsScope } from './api'
+import { bridgeStatus, fetchEarnPositions, fetchTokenBalances, type PositionsScope } from '@yieldcircle/core/sdk/api'
 import { balancesChanged } from './liveBalances'
-import { isEvmAddr, isEvmChain, isSvmChain, normAddr } from '../model/address'
+import { isEvmAddr, isEvmChain, isSvmChain, normAddr } from '@yieldcircle/core/model/address'
 import { getBlockHeight, getSignatureStatus } from '../wallet/solRpc'
-import { isNativeAddress } from '../model/positions'
+import { isNativeAddress } from '@yieldcircle/core/model/positions'
 import { formatUnits, TransactionReceiptNotFoundError, type TransactionReceipt } from 'viem'
-import type { EarnPosition, EarnPositionsResponse } from './types'
+import type { EarnPosition, EarnPositionsResponse } from '@yieldcircle/core/sdk/types'
 
 /**
  * Every transaction the app sends, followed until the app's own numbers show it.

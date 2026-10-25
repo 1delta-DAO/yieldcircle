@@ -4,8 +4,8 @@
  * server recovers the signer from the signature — there is no session to hold
  * and nothing to log out of.
  */
-import { SOCIAL_BASE_URL } from '../config/backend'
-import { normAddr } from '../model/address'
+import { SOCIAL_BASE_URL } from '@yieldcircle/core/config/backend'
+import { normAddr } from '@yieldcircle/core/model/address'
 import type { Follow, Follower, Message, Profile, ProfileResponse, SubjectKind, Thread, ThreadSummary, TypedData } from './types'
 
 /** Where in a `Batch` an op failed, in the message's own words: `follows[3]`, `profile[0].handle`. */

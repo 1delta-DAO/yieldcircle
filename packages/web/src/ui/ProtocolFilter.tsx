@@ -20,7 +20,7 @@
 import React from 'react'
 import { useApp } from '../state/AppState'
 import { useProtocols } from '../index/queries'
-import type { ProtocolFacet } from '../index/api'
+import type { ProtocolFacet } from '@yieldcircle/core/index/api'
 import { useSticky } from '../state/sticky'
 
 /**

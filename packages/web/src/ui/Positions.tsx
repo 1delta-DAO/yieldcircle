@@ -10,11 +10,11 @@
  * user's own positions are the one thing the index must not serve.
  */
 import React from 'react'
-import { GROUPS, nameOf, whatIs, type GroupId } from '../model/assets'
+import { GROUPS, nameOf, whatIs, type GroupId } from '@yieldcircle/core/model/assets'
 import { go } from '../state/AppState'
 import { useBook } from './useBook'
 import { GroupIcon, HealthPill, KindPill, LegsPill, MaturityNote, Sk, Tok, amt, deskLogos, pct, usd, usdShort } from './bits'
-import type { AssetBook, Holding } from '../model/positions'
+import type { AssetBook, Holding } from '@yieldcircle/core/model/positions'
 import { chainLabel, useBorrowOffers } from '../sdk/queries'
 import { PaperPanel } from './PaperPanel'
 import { useApp } from '../state/AppState'

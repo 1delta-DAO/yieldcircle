@@ -13,9 +13,9 @@
  * the list lends against. Its rows say what you have there and what it could take.
  */
 import React from 'react'
-import { GROUPS, nameOf, type GroupId } from '../model/assets'
-import { DEEP_USD, OUTS, bordersFor, headlineOffers, maxBorrowUsd, owedOf, type BorrowOffer, type Out, type Yours } from '../model/borrow'
-import type { Holding, Idle } from '../model/positions'
+import { GROUPS, nameOf, type GroupId } from '@yieldcircle/core/model/assets'
+import { DEEP_USD, OUTS, bordersFor, headlineOffers, maxBorrowUsd, owedOf, type BorrowOffer, type Out, type Yours } from '@yieldcircle/core/model/borrow'
+import type { Holding, Idle } from '@yieldcircle/core/model/positions'
 import { chainLabel } from '../sdk/queries'
 import { go } from '../state/AppState'
 import { useViewport } from './useViewport'

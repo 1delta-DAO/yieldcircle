@@ -101,7 +101,7 @@ for (const chain of offered) {
     table[`${chain}:${addr}`] = d?.id ?? (money === 'USD' && rootOf(t) ? `~${rootOf(t)}` : '')
   }
 }
-writeFileSync(new URL('../packages/web/src/data/desks.json', import.meta.url), JSON.stringify({ desks: deskNames, tokens: deskTokens, eth: ethTokens, btc: btcTokens }) + '\n')
+writeFileSync(new URL('../packages/core/src/data/desks.json', import.meta.url), JSON.stringify({ desks: deskNames, tokens: deskTokens, eth: ethTokens, btc: btcTokens }) + '\n')
 for (const [money, table] of [['dollar', deskTokens], ['ether', ethTokens], ['bitcoin', btcTokens]]) {
   const attributed = Object.values(table).filter((v) => v && !v.startsWith('~')).length
   console.log(`${Object.keys(table).length} ${money} tokens written, ${attributed} with a desk`)

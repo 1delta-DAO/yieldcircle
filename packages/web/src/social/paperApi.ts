@@ -3,9 +3,9 @@
  * op at a time, applied by the server with the same `model/paper.ts` this app runs, so the book it
  * answers is the truth and the local one is its cache.
  */
-import { SOCIAL_BASE_URL } from '../config/backend'
+import { SOCIAL_BASE_URL } from '@yieldcircle/core/config/backend'
 import { SocialError } from './api'
-import type { PaperBook, PaperLedger } from '../model/paper'
+import type { PaperBook, PaperLedger } from '@yieldcircle/core/model/paper'
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(SOCIAL_BASE_URL + path, { cache: 'no-store', ...init })
@@ -43,6 +43,6 @@ export async function paperPrices(keys: string[]): Promise<Record<string, number
 }
 /** One signed op as the server applied it, with the prices it was judged at (`<chain>:<token>` → usd). */
 /** `frictionUsd`: what the op cost — fees, slippage, the bridge's cut (tickets/0007 D); null for ops from before it was booked. */
-export interface PaperOpRow { id: number; kind: string; op: import('../model/paper').PaperOp; prices: Record<string, number | null>; at: string; frictionUsd?: number | null }
+export interface PaperOpRow { id: number; kind: string; op: import('@yieldcircle/core/model/paper').PaperOp; prices: Record<string, number | null>; at: string; frictionUsd?: number | null }
 export const paperOps = (account: string, limit = 200) =>
   call<{ ops: PaperOpRow[] }>(`/paper/book/${account.toLowerCase()}/ops?limit=${limit}`)

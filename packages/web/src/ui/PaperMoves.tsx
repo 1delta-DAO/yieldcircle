@@ -4,8 +4,8 @@
  * flows above them, valued at the prices each op was judged at. Nothing here is on chain.
  */
 import React from 'react'
-import { bookOf, starterRef, tokenKey, type PaperBook, type PaperLedger, type PaperOp, type PaperSnap, type PriceFn } from '../model/paper'
-import { ledgerMeta, metaKey, type TokenMeta } from '../model/paperView'
+import { bookOf, starterRef, tokenKey, type PaperBook, type PaperLedger, type PaperOp, type PaperSnap, type PriceFn } from '@yieldcircle/core/model/paper'
+import { ledgerMeta, metaKey, type TokenMeta } from '@yieldcircle/core/model/paperView'
 import { usePaperBook, usePaperOps } from '../social/queries'
 import { missingRoute, usePaper } from '../state/Paper'
 import { chainLabel } from '../sdk/queries'

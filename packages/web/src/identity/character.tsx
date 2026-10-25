@@ -26,7 +26,7 @@
  * §3.5). Status you cannot buy is the whole point.
  */
 import React from 'react'
-import { fnv1a } from './name'
+import { fnv1a } from '@yieldcircle/core/identity/name'
 
 // ---------------------------------------------------------------- palettes
 export interface Palette { name: string; bg: string; bg2: string; body: string; body2: string; ink: string; accent: string }

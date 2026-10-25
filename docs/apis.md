@@ -5,9 +5,9 @@ has **no backend of its own**; it reads three services:
 
 | Service | Base URL (env) | Default | What for | Client code |
 |---|---|---|---|---|
-| **1delta API** (worker-api / "allocator") | `VITE_BACKEND_BASE_URL` | `https://allocator.api.1delta.io` | catalogue, the connected user's positions + balances, every transaction built | `src/vendor/allocator/http.ts` → `src/sdk/api.ts` → `src/sdk/queries.ts` |
-| **Position index** (`pos-indexer`) | `VITE_INDEX_BASE_URL` | `https://positions.1delta.io` | other wallets, feed, markets, hot/trending, board, curators, assets, idle-balance snapshots — the EVM chains | `src/index/api.ts` → `src/index/queries.ts` |
-| **Solana position index** (`pos-indexer/apps/sol-indexer`) | `VITE_SOL_INDEX_BASE_URL` | `https://sol-positions.1delta.io` | the same ledger questions for `solana`, a separate service until the merge ([`solana.md`](solana.md)) | `src/index/api.ts` routes to it by chain / address shape / uid; it must answer the EVM index's shapes — no adapter here |
+| **1delta API** (worker-api / "allocator") | `VITE_BACKEND_BASE_URL` | `https://allocator.api.1delta.io` | catalogue, the connected user's positions + balances, every transaction built | core `vendor/allocator/http.ts` → core `sdk/api.ts` → web `src/sdk/queries.ts` |
+| **Position index** (`pos-indexer`) | `VITE_INDEX_BASE_URL` | `https://positions.1delta.io` | other wallets, feed, markets, hot/trending, board, curators, assets, idle-balance snapshots — the EVM chains | core `index/api.ts` → web `src/index/queries.ts` |
+| **Solana position index** (`pos-indexer/apps/sol-indexer`) | `VITE_SOL_INDEX_BASE_URL` | `https://sol-positions.1delta.io` | the same ledger questions for `solana`, a separate service until the merge ([`solana.md`](solana.md)) | core `index/api.ts` routes to it by chain / address shape / uid; it must answer the EVM index's shapes — no adapter here |
 | **Social service** (`pos-indexer/packages/social`) | `VITE_SOCIAL_BASE_URL` | `https://social.1delta.io` | threads, profiles, follows, ratings (EIP-712 signed writes); the **paper ledger** under `/paper/*` | `src/social/api.ts` → `src/social/queries.ts` (see [`social.md`](social.md)); paper: `src/social/paperApi.ts` (tickets/0006) |
 
 All base URLs are resolved in `src/config/backend.ts`. Vite bakes them in at
@@ -42,16 +42,26 @@ position's share comes from the positions route's `aprBreakdown`, at its own lev
 ## The layering (keep it)
 
 ```
-config/backend.ts          base URLs, apiHeaders()  (the only auth hook)
-vendor/allocator/http.ts   apiFetch / apiFetchEnvelope / apiFetchLoose — envelope, errors, 429 gate
-sdk/api.ts                 one function per 1delta endpoint; wire names translated HERE only
-index/api.ts               one function per index endpoint (own tiny `get`, no envelope)
-sdk/queries.ts             React Query hooks for the 1delta API (+ the index balance POST)
-index/queries.ts           React Query hooks for the index
-social/sign.ts             every signed social write; social/pending.ts queues follows + profile edits for ONE Batch signature
-model/*.ts                 pure functions turning responses into Strategy / Holding / uid
-ui/*                       components; call hooks, not fetch
+core (packages/core/src — no React, no DOM; web, landing and mobile share it)
+  config/backend.ts          base URLs (production defaults, `configureBackend`), apiHeaders()  (the only auth hook)
+  vendor/allocator/http.ts   apiFetch / apiFetchEnvelope / apiFetchLoose — envelope, errors, 429 gate
+  sdk/api.ts                 one function per 1delta endpoint; wire names translated HERE only
+  index/api.ts               one function per index endpoint (own tiny `get`, no envelope)
+  model/*.ts                 pure functions turning responses into Strategy / Holding / uid
+web (packages/web/src)
+  env.ts                     the build's VITE_* URLs → configureBackend; imported first by every entry
+  sdk/queries.ts             React Query hooks for the 1delta API (+ the index balance POST)
+  index/queries.ts           React Query hooks for the index
+  social/sign.ts             every signed social write; social/pending.ts queues follows + profile edits for ONE Batch signature
+  ui/*                       components; call hooks, not fetch
 ```
+
+Core is imported as `@yieldcircle/core/<path>` (`@yieldcircle/core/sdk/api`,
+`@yieldcircle/core/data/logos.json`). It reads no browser global — no
+`window`, `localStorage`, `location` — and `packages/core/src/platform.test.ts`
+fails the tests if one creeps in; storage and other platform code stay in the
+app (`state/gasPref.ts` beside `model/destGas.ts`, `state/Settings.tsx` beside
+`model/settings.ts`).
 
 Rules:
 
@@ -85,7 +95,7 @@ Envelope: `{ success, data, actions: { transactions, permissions }, error }`.
 that sometimes answer un-enveloped or with `ok` instead of `success`
 (`/lending/pairs/optimize`, `/v1/data/earn`, `/earn/positions`).
 
-### Reads (`src/sdk/api.ts`)
+### Reads (core `sdk/api.ts`)
 
 | Function | Endpoint | Used by | Notes |
 |---|---|---|---|
@@ -186,7 +196,7 @@ from token-lists) for an API without them. Rules:
   rates in percent) and `issuerMatch=credit` exist upstream; the app does not
   call them yet.
 
-## Position index — endpoints used (`src/index/api.ts`)
+## Position index — endpoints used (core `index/api.ts`)
 
 Plain JSON, no envelope, no key, CORS `*`. Errors are `{ error }` + non-2xx
 → thrown `Error`. Comma-joined CSV for list params.

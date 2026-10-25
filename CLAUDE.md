@@ -7,11 +7,14 @@
   positions from the index, `marketUidIn/Out` flip between loop open and close).
 - Social layer design: [`docs/social.md`](docs/social.md).
 - A pnpm workspace: the app is `packages/web`, the landing `packages/landing`, the design
-  `packages/design`, the X OAuth worker `packages/x-link`. `src/…` paths in these notes and in
-  `docs/` mean `packages/web/src/…`. Run everything from the repo root (the root `package.json`
+  `packages/design`, the X OAuth worker `packages/x-link`, and the platform-free half —
+  `model/`, `data/`, `config/`, `vendor/`, `search/`, the API clients `sdk/api.ts` and
+  `index/api.ts` — is `packages/core` (`@yieldcircle/core/…`; no React, no DOM, guarded by
+  `src/platform.test.ts`). A `src/…` path in these notes and in `docs/` is in core if it is one
+  of those, else in `packages/web/src/…`. Run everything from the repo root (the root `package.json`
   forwards); `scripts/`, `docs/`, `tickets/` and `brand/` stay at the root.
 - Lite and Pro: two shells over one catalogue (`#/lite/…`, `#/pro/…`, Lite is the
-  default). Lite's rules live only in `src/model/lite.ts`; its pages in `src/ui/lite/`;
+  default). Lite's rules live only in `model/lite.ts` (core); its pages in `src/ui/lite/`;
   the ticket's Lite branches in `src/ui/Ticket.tsx`. See [`docs/lite-plan.md`](docs/lite-plan.md).
 - Two deployments from one repo: the app (`packages/web`: `index.html` + `src/`, Pages +
   `functions/_middleware.ts`) and the landing page (`packages/landing`, a second Pages

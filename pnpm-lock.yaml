@@ -30,6 +30,18 @@ importers:
         specifier: ^8.0.1
         version: 8.3.0(@types/node@25.9.7)(esbuild@0.28.2)
 
+  packages/core:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.9.7
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@25.9.7)(lightningcss@1.33.0)
+
   packages/design:
     dependencies:
       react:
@@ -45,6 +57,9 @@ importers:
       '@tanstack/react-query':
         specifier: 5.91.3
         version: 5.91.3(react@19.3.0)
+      '@yieldcircle/core':
+        specifier: workspace:*
+        version: link:../core
       '@yieldcircle/design':
         specifier: workspace:*
         version: link:../design
@@ -94,6 +109,9 @@ importers:
       '@tanstack/react-query':
         specifier: 5.91.3
         version: 5.91.3(react@19.3.0)
+      '@yieldcircle/core':
+        specifier: workspace:*
+        version: link:../core
       '@yieldcircle/design':
         specifier: workspace:*
         version: link:../design

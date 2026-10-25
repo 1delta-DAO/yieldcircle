@@ -8,7 +8,7 @@
  * never has to switch to leave a comment.
  */
 import { useAccount, useSignTypedData } from 'wagmi'
-import { base58Encode, isSolAddr } from '../model/address'
+import { base58Encode, isSolAddr } from '@yieldcircle/core/model/address'
 import { solSignMessage, useSolWallet } from '../wallet/solana'
 import * as api from './api'
 import type { RatingSubjectKind } from './api'

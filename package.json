@@ -10,7 +10,7 @@
     "build:landing": "pnpm --filter @yieldcircle/landing run build",
     "preview": "pnpm --filter @yieldcircle/web run preview",
     "typecheck": "pnpm -r run typecheck",
-    "test": "pnpm --filter @yieldcircle/web run test",
+    "test": "pnpm -r run test",
     "shots": "node scripts/shots.mjs",
     "shots:baseline": "node scripts/shots.mjs --baseline",
     "deck:pdf": "node scripts/deck-pdf.mjs",

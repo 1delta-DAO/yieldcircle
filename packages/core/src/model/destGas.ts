@@ -14,18 +14,14 @@ import { gasTokenOf, isSol, nativeOf, networkFeeUsd, starterRef, tokenKey } from
 /** Below this much gas (USD) on the destination, a bridge brings some: one loop open's worth. */
 export const gasFloorUsd = (chainId: string) => networkFeeUsd(chainId, 'loop')
 
-/** The user's standing choice (Settings in the drawer), kept per browser. */
+/** The user's standing choice (Settings in the drawer), kept per device (web: `state/gasPref.ts`). */
 export interface GasPref { mode: 'auto' | 'custom' | 'off'; /** custom: USD to bring */ usd?: number }
-const LS = 'yc.destGas'
 export const DEFAULT_GAS_PREF: GasPref = { mode: 'auto' }
-export function loadGasPref(): GasPref {
-  try {
-    const p = JSON.parse(localStorage.getItem(LS) ?? 'null') as GasPref | null
-    if (p && (p.mode === 'auto' || p.mode === 'off' || (p.mode === 'custom' && Number(p.usd) > 0))) return p
-  } catch { /* private mode / junk */ }
-  return DEFAULT_GAS_PREF
+/** A stored preference, if it is a valid one. */
+export const isGasPref = (p: unknown): p is GasPref => {
+  const g = p as GasPref | null
+  return !!g && (g.mode === 'auto' || g.mode === 'off' || (g.mode === 'custom' && Number(g.usd) > 0))
 }
-export function saveGasPref(p: GasPref) { try { localStorage.setItem(LS, JSON.stringify(p)) } catch { /* private mode */ } }
 
 /** Auto never asks a bridge for more than this share of what it bridges. */
 export const AUTO_GAS_SHARE = 0.1

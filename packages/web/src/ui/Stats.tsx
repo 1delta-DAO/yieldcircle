@@ -9,10 +9,10 @@
  */
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import * as idx from '../index/api'
+import * as idx from '@yieldcircle/core/index/api'
 import { useFollowers } from '../social/queries'
 import { usdShort } from './bits'
-import { normAddr } from '../model/address'
+import { normAddr } from '@yieldcircle/core/model/address'
 
 export function useMyStats(account: string | undefined) {
   const board = useQuery({

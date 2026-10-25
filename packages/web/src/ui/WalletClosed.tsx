@@ -11,9 +11,9 @@
  */
 import React from 'react'
 import { useQueries } from '@tanstack/react-query'
-import * as api from '../index/api'
+import * as api from '@yieldcircle/core/index/api'
 import { useClosedPositions } from '../index/queries'
-import { indexChainLabel } from '../index/types'
+import { indexChainLabel } from '@yieldcircle/core/index/types'
 import { chainLabel } from '../sdk/queries'
 import { go } from '../state/AppState'
 import { ProtocolLogo, Sk, pct, protocolIconUrls, usd, usdShort } from './bits'

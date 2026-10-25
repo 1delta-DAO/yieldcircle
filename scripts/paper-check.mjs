@@ -12,7 +12,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const here = new URL('..', import.meta.url).pathname
-const source = join(here, 'packages/web/src/model/paper.ts')
+const source = join(here, 'packages/core/src/model/paper.ts')
 const copy = join(process.env.POS_INDEXER ?? join(here, '../pos-indexer'), 'packages/social/src/paperModel.ts')
 const mine = readFileSync(source, 'utf8')
 let theirs = ''

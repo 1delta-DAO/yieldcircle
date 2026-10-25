@@ -1,8 +1,8 @@
 import React from 'react'
 import { go, liteHref, proHref, useRoute } from '../../state/AppState'
-import { holdingLine, liteEligible, moneyWord, streakWord } from '../../model/lite'
-import type { Holding } from '../../model/positions'
-import type { Strategy } from '../../model/strategies'
+import { holdingLine, liteEligible, moneyWord, streakWord } from '@yieldcircle/core/model/lite'
+import type { Holding } from '@yieldcircle/core/model/positions'
+import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { ConnectButton } from '../../wallet/ConnectButton'
 import { PaperOffer } from '../PaperPanel'
 import { totalsOf } from '../Positions'
@@ -15,7 +15,7 @@ import { LitePnl } from './LitePnl'
 import { LiteHoldingTicket } from '../Ticket'
 import { LiteLoanTicket } from '../BorrowTicket'
 import { useAsideTop } from '../AssetPage'
-import { owedOf } from '../../model/borrow'
+import { owedOf } from '@yieldcircle/core/model/borrow'
 
 /**
  * You (docs/lite.md §6): what you have and what it earns, your streak, points and rank, what the

@@ -1,8 +1,8 @@
 import { useApp } from '../state/AppState'
-import { isEvmAddr, isSolAddr } from '../model/address'
+import { isEvmAddr, isSolAddr } from '@yieldcircle/core/model/address'
 import { useBalancesPerChain, useCatalog, useEarnPositions, useFixedRateCatalog } from '../sdk/queries'
-import { books, holdingsFrom, idleFrom, mergeIdle, type AssetBook, type Holding, type Idle } from '../model/positions'
-import type { Strategy } from '../model/strategies'
+import { books, holdingsFrom, idleFrom, mergeIdle, type AssetBook, type Holding, type Idle } from '@yieldcircle/core/model/positions'
+import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { usePaper } from '../state/Paper'
 
 /**

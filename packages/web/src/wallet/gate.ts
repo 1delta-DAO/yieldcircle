@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { isAddr } from '../model/address'
+import { isAddr } from '@yieldcircle/core/model/address'
 
 /**
  * The beta gate as the app sees it (`functions/_middleware.ts`). A visitor who

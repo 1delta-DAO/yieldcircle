@@ -11,7 +11,7 @@
  */
 import React from 'react'
 import { pnlWaiting, unsupportedLine, useAccountPnlBook, strategyLabel, type AccountPnlBook, type PnlBookPoint, type PnlBookStrategy } from '../index/pnl'
-import { indexChainLabel } from '../index/types'
+import { indexChainLabel } from '@yieldcircle/core/index/types'
 import { chainLabel } from '../sdk/queries'
 import { go } from '../state/AppState'
 import { ProtocolLogo, Sk, pct, protocolIconUrls, usd, usdShort } from './bits'

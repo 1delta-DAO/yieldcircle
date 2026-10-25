@@ -3,7 +3,7 @@ import { useAccount, useConfig } from 'wagmi'
 import { getAccount, signMessage } from 'wagmi/actions'
 import { ConnectSheet } from './ConnectSheet'
 import { openWallet } from './deeplink'
-import { isSolAddr } from '../model/address'
+import { isSolAddr } from '@yieldcircle/core/model/address'
 import { solAddress, solSignMessage, useSolWallet } from './solana'
 
 /**

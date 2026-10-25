@@ -17,7 +17,7 @@
 import React from 'react'
 import { useApp } from '../state/AppState'
 import { useCurators } from '../index/queries'
-import type { AccountCurator, CuratorRow } from '../index/api'
+import type { AccountCurator, CuratorRow } from '@yieldcircle/core/index/api'
 import { ProtocolLogo, curatorIconUrls, usdShort } from './bits'
 import { useSticky } from '../state/sticky'
 

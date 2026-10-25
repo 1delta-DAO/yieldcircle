@@ -1,6 +1,6 @@
 import React from 'react'
 import { proHref } from '../../state/AppState'
-import type { Line, ThreeLines } from '../../model/lite'
+import type { Line, ThreeLines } from '@yieldcircle/core/model/lite'
 import { Drawer } from '../Drawer'
 
 /** The three lines (docs/lite.md §5): what you earn, what you can lose, what it costs to get in. */

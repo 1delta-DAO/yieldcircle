@@ -1,0 +1,20 @@
+{
+  "name": "@yieldcircle/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The platform-free half of YieldCircle: the model, the API clients (allocator, position index), search and the data tables. No React, no DOM, no npm dependencies; shared by the web app, the landing and mobile.",
+  "exports": {
+    "./data/*": "./src/data/*",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest --run"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  }
+}

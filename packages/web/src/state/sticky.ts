@@ -1,5 +1,5 @@
 import React from 'react'
-import { asAmount, type Amount } from '../model/amount'
+import { asAmount, type Amount } from '@yieldcircle/core/model/amount'
 
 /**
  * `useState` that outlives the component: the value is kept in sessionStorage

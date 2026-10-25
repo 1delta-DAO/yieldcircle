@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const here = new URL('..', import.meta.url).pathname
-const copy = join(here, 'packages/web/src/search/rank.ts')
+const copy = join(here, 'packages/core/src/search/rank.ts')
 const source = join(process.env.POS_INDEXER ?? join(here, '../pos-indexer'), 'packages/position-store/src/search.ts')
 const mine = readFileSync(copy, 'utf8')
 const header = mine.slice(0, mine.indexOf('*/') + 3)

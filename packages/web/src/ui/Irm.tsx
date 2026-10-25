@@ -27,7 +27,7 @@
  */
 import React from 'react'
 import { useIrm } from '../sdk/queries'
-import type { IrmCurve, IrmPoint } from '../sdk/types'
+import type { IrmCurve, IrmPoint } from '@yieldcircle/core/sdk/types'
 import { Popover, Sk, pct, usdShort } from './bits'
 
 export type IrmSide = 'supply' | 'borrow'

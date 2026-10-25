@@ -23,7 +23,7 @@ import { useApp } from "../state/AppState";
 import { go, levParam, marketHref, parseRoute } from "../state/AppState";
 import { feedHash, readFeedLink, sameFilters, type FeedFilters } from "../state/feedLink";
 import { useCuratorsByAccount, useFeedPage } from "../index/queries";
-import type { TxBundle, TxLeg, TxSubject } from "../index/types";
+import type { TxBundle, TxLeg, TxSubject } from "@yieldcircle/core/index/types";
 import {
   useCounts,
   useLatest,
@@ -42,18 +42,18 @@ import { DeskMark, useIssuerFilter } from "./IssuerFilter";
 import { AssetClassChips, ClassChip, ClassStaleNote, useAssetClassFilter } from "./AssetClassFilter";
 import { CuratorMark, useCuratorFilter } from "./CuratorFilter";
 import { RateMark } from "./Rate";
-import { parseUid, protocolKeyOf, uidOf } from "../model/uid";
-import { HIDES, isSoft, relaxFor, type HideCode } from "../model/visibility";
+import { parseUid, protocolKeyOf, uidOf } from "@yieldcircle/core/model/uid";
+import { HIDES, isSoft, relaxFor, type HideCode } from "@yieldcircle/core/model/visibility";
 import { useSettings } from "../state/Settings";
 import { Ago, Comments, Money, Who, describeBundle } from "./social-bits";
 import { ChainCorner } from "./ChainMark";
-import { indexChainLabel, subjectOf } from "../index/types";
+import { indexChainLabel, subjectOf } from "@yieldcircle/core/index/types";
 import { Sk, Tip, Tok, TxLink, pct, usdShort } from "./bits";
 import { Thread } from "./Thread";
 import { Talk } from "./Talk";
 import { ChainChip, LinkChainsToast } from "./ChainPicker";
 import { chainLabel } from "../sdk/queries";
-import type { Strategy } from "../model/strategies";
+import type { Strategy } from "@yieldcircle/core/model/strategies";
 
 type Tab = "following" | "menu" | "everyone" | "talk";
 

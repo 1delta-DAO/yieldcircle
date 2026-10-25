@@ -1,5 +1,5 @@
 import React from 'react'
-import { subjectOf, type TxBundle } from '../index/types'
+import { subjectOf, type TxBundle } from '@yieldcircle/core/index/types'
 import { marketHref, walletHref } from '../state/AppState'
 import { useApp } from '../state/AppState'
 import { useFeedPage } from '../index/queries'

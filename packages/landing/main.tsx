@@ -1,3 +1,5 @@
+// first: hands the build's VITE_* service URLs to core before any module that fetches
+import '../web/src/env'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'

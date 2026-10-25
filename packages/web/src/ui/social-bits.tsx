@@ -5,14 +5,14 @@
  * only, no fetching except the one-line hooks that are genuinely per-widget.
  */
 import React from 'react'
-import { normAddr } from '../model/address'
+import { normAddr } from '@yieldcircle/core/model/address'
 import { Character, unearned, specFor } from '../identity/character'
-import { AUTO_TITLE, labelFor, shortAddr } from '../identity/name'
+import { AUTO_TITLE, labelFor, shortAddr } from '@yieldcircle/core/identity/name'
 import { useMyFollows, useSocialRefresh } from '../social/queries'
 import { entryKey, useBatchSupported, usePending } from '../social/pending'
 import { useSocialWrite } from '../social/sign'
 import type { AuthorStake, Follow, Profile } from '../social/types'
-import type { AccountKind, TxBundle, UsdStatus } from '../index/types'
+import type { AccountKind, TxBundle, UsdStatus } from '@yieldcircle/core/index/types'
 import { chainLabel } from '../sdk/queries'
 import { Tip, pct, usd, usdShort } from './bits'
 

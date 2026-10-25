@@ -13,8 +13,8 @@
  * the lowest rate goes first, so the cheapest rate is never free. `model/userSetRate.ts`.
  */
 import React from 'react'
-import type { LendingBook, RatePickId } from '../sdk/types'
-import { PICK_WORD, clampRate, debtAheadAt, pressureLine, recommendedOf, type UserSetRate } from '../model/userSetRate'
+import type { LendingBook, RatePickId } from '@yieldcircle/core/sdk/types'
+import { PICK_WORD, clampRate, debtAheadAt, pressureLine, recommendedOf, type UserSetRate } from '@yieldcircle/core/model/userSetRate'
 import { Info, num, pct, usdShort } from './bits'
 
 export function RatePicker({ u, book, rate, onRate, debtSymbol, price, feePct, className = 'tsec ratepick' }: {

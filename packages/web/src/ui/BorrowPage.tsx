@@ -13,8 +13,8 @@
  * here; `?u=<asset>` alone opens the ticket on the app's pick for that asset (`bestOfferFor`).
  */
 import React from 'react'
-import { bestOfferFor, loansByOffer, offerFromHolding, outOf, owedOf, yoursOf, type BorrowOffer, type Out } from '../model/borrow'
-import type { Holding } from '../model/positions'
+import { bestOfferFor, loansByOffer, offerFromHolding, outOf, owedOf, yoursOf, type BorrowOffer, type Out } from '@yieldcircle/core/model/borrow'
+import type { Holding } from '@yieldcircle/core/model/positions'
 import { chainLabel, useBorrowOffers } from '../sdk/queries'
 import { go, useApp, type Route } from '../state/AppState'
 import { useBook } from './useBook'

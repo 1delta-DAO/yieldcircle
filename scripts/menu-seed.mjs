@@ -17,14 +17,18 @@ import { createServer } from 'vite'
 
 const ROOT = join(import.meta.dirname, '..')
 const WEB = join(ROOT, 'packages/web')
-const OUT = join(WEB, 'src/data/menu-seed.json')
+const CORE = join(ROOT, 'packages/core/src')
+const OUT = join(CORE, 'data/menu-seed.json')
 
 const vite = await createServer({ root: WEB, server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
 try {
   const load = (p) => vite.ssrLoadModule(p)
+  // core by file path; env.ts first, so the run talks to the services .env names
+  const core = (p) => load(join(CORE, p))
+  await load('/src/env.ts')
   const [{ fetchEarn }, { classifyEarn, dedupe, capPerAsset }, { softHide }, { uidOf }, { DEFAULTS }, { CHAINS, chainBuckets }] = await Promise.all([
-    load('/src/sdk/api.ts'), load('/src/model/strategies.ts'), load('/src/model/visibility.ts'),
-    load('/src/model/uid.ts'), load('/src/state/Settings.tsx'), load('/src/sdk/queries.ts'),
+    core('sdk/api.ts'), core('model/strategies.ts'), core('model/visibility.ts'),
+    core('model/uid.ts'), load('/src/state/Settings.tsx'), load('/src/sdk/queries.ts'),
   ])
   const pages = await Promise.all(chainBuckets(CHAINS.map((c) => c.id)).map((ids) =>
     fetchEarn({ chainIds: ids, count: 1000, maxRiskScore: 5, minTvlUsd: DEFAULTS.minTvlUsd })))

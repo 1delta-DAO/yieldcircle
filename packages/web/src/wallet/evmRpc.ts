@@ -1,5 +1,5 @@
 import { createTransport, http, shouldThrow, type Chain, type EIP1193RequestFn, type Transport } from 'viem'
-import RPCS from '../data/rpcs.json'
+import RPCS from '@yieldcircle/core/data/rpcs.json'
 
 /**
  * The EVM side of what `wallet/solRpc.ts` is for Solana: the transport behind every wagmi

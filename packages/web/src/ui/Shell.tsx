@@ -29,7 +29,7 @@
  * them to join the waitlist (`Waitlist`), until their wallet holds a place.
  */
 import React from 'react'
-import { normAddr } from '../model/address'
+import { normAddr } from '@yieldcircle/core/model/address'
 import { Logo } from '@yieldcircle/design'
 import { ConnectButton } from '../wallet/ConnectButton'
 import { hrefIn, liteHref, useApp, useRoute, type Route, type View } from '../state/AppState'

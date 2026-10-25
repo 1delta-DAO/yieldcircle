@@ -14,7 +14,7 @@
  * asked about and left out is remembered as `null` ("nobody, yet").
  */
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
-import { strategyProofs, type StrategyProofRow } from './api'
+import { strategyProofs, type StrategyProofRow } from '@yieldcircle/core/index/api'
 
 const TTL_MS = 2 * 60_000
 /** the index answers at most 5 000 keys per request */

@@ -30,8 +30,11 @@ const vite = await createServer({ root: join(ROOT, 'packages/web'), server: { mi
 const want = []
 try {
   const load = (p) => vite.ssrLoadModule(p)
+  // core by file path; env.ts first, so the run talks to the services .env names
+  const core = (p) => load(join(ROOT, 'packages/core/src', p))
+  await load('/src/env.ts')
   const [{ fetchEarn, fetchOptimizerPairs }, { DEFAULTS }, { CHAINS, chainBuckets, prewarmBooks }, { EXPOSURE_ASSETS }, { FIXED_BOOK_PROTOCOLS }, { isEvmChain }] = await Promise.all([
-    load('/src/sdk/api.ts'), load('/src/state/Settings.tsx'), load('/src/sdk/queries.ts'), load('/src/model/assets.ts'), load('/src/model/strategies.ts'), load('/src/model/address.ts'),
+    core('sdk/api.ts'), load('/src/state/Settings.tsx'), load('/src/sdk/queries.ts'), core('model/assets.ts'), core('model/strategies.ts'), core('model/address.ts'),
   ])
   const all = CHAINS.map((c) => c.id)
   const take = async (f) => { seen.length = 0; await f(); return canon(seen[0]) }

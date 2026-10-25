@@ -15,7 +15,7 @@
  */
 import { useQuery } from '@tanstack/react-query'
 import React from 'react'
-import { normAddr } from '../model/address'
+import { normAddr } from '@yieldcircle/core/model/address'
 import * as api from './api'
 import { useSocialRefresh } from './queries'
 import { useSocialWrite, type FollowOp, type ProfileOp } from './sign'

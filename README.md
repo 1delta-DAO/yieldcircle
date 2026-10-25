@@ -242,7 +242,9 @@ The query parameters that do this (`maxRiskScore`, `minTvlUsd`,
 
 ## Layout
 
-`src/` is `packages/web/src`; `brand/` and `docs/` are at the repo root.
+`config/`, `vendor/`, `sdk/api.ts`, `model/` (and `index/api.ts`, `search/`, `data/`) are
+`packages/core/src` — the platform-free half, shared with mobile; the rest of `src/` is
+`packages/web/src`. `brand/` and `docs/` are at the repo root.
 
 ```
 src/

@@ -1,0 +1,48 @@
+/**
+ * Core runs in a browser, in Node (scripts, tests) and in React Native. What all three share is
+ * the language plus `fetch`, `URL`, `AbortSignal` and `Headers` — the reason `tsconfig.json` keeps
+ * the DOM lib for its types. Everything else the DOM lib declares is the browser's alone; this
+ * walks every source file's syntax tree and fails on any read of one.
+ */
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import ts from 'typescript'
+import { describe, expect, it } from 'vitest'
+
+const BROWSER_ONLY = new Set([
+  'window', 'document', 'localStorage', 'sessionStorage', 'navigator', 'location', 'history',
+  'matchMedia', 'requestAnimationFrame', 'cancelAnimationFrame', 'IntersectionObserver',
+  'ResizeObserver', 'MutationObserver', 'HTMLElement', 'Element', 'getComputedStyle', 'indexedDB',
+])
+
+const SRC = new URL('.', import.meta.url).pathname
+const sources = (dir: string): string[] =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? sources(join(dir, e.name)) : /\.tsx?$/.test(e.name) && !e.name.endsWith('.test.ts') ? [join(dir, e.name)] : [],
+  )
+
+/** Identifiers that read a global: not a property name, a declaration's own name or a type. */
+function browserReads(file: string): string[] {
+  const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
+  const hits: string[] = []
+  const visit = (n: ts.Node) => {
+    if (ts.isIdentifier(n) && BROWSER_ONLY.has(n.text)) {
+      const p = n.parent
+      const isName =
+        (ts.isPropertyAccessExpression(p) && p.name === n) ||
+        ((ts.isPropertyAssignment(p) || ts.isPropertySignature(p) || ts.isPropertyDeclaration(p) || ts.isMethodDeclaration(p) ||
+          ts.isVariableDeclaration(p) || ts.isParameter(p) || ts.isBindingElement(p) || ts.isShorthandPropertyAssignment(p)) && p.name === n) ||
+        ts.isTypeReferenceNode(p) || ts.isQualifiedName(p)
+      if (!isName) hits.push(`${file.slice(SRC.length)}:${sf.getLineAndCharacterOfPosition(n.getStart()).line + 1} ${n.text}`)
+    }
+    ts.forEachChild(n, visit)
+  }
+  visit(sf)
+  return hits
+}
+
+describe('core is platform-free', () => {
+  it('reads no browser-only global', () => {
+    expect(sources(SRC).flatMap(browserReads)).toEqual([])
+  })
+})

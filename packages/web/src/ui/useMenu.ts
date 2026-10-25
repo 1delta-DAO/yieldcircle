@@ -2,9 +2,9 @@ import React from 'react'
 import { useApp } from '../state/AppState'
 import { useSettings } from '../state/Settings'
 import { useCatalog } from '../sdk/queries'
-import { parseUid, uidOf, uidsOf } from '../model/uid'
-import SEED from '../data/menu-seed.json'
-import type { Strategy } from '../model/strategies'
+import { parseUid, uidOf, uidsOf } from '@yieldcircle/core/model/uid'
+import SEED from '@yieldcircle/core/data/menu-seed.json'
+import type { Strategy } from '@yieldcircle/core/model/strategies'
 
 /**
  * The catalogue indexed by market uid — the join that makes a feed row

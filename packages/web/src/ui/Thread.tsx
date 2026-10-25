@@ -10,7 +10,7 @@ import { useSocialWrite } from '../social/sign'
 import type { Message, SubjectKind } from '../social/types'
 import { Ago, Stake, Who } from './social-bits'
 import { Sk } from './bits'
-import { normAddr } from '../model/address'
+import { normAddr } from '@yieldcircle/core/model/address'
 
 const REACTIONS: { kind: string; glyph: string; title: string; word: string }[] = [
   { kind: 'like', glyph: '♥', title: 'like', word: 'like' },

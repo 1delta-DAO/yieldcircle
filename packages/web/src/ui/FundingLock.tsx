@@ -1,4 +1,4 @@
-import { dateOf, type LoopStrategy } from '../model/strategies'
+import { dateOf, type LoopStrategy } from '@yieldcircle/core/model/strategies'
 import { useFundingLock } from '../sdk/queries'
 import { Info, pct, usd } from './bits'
 

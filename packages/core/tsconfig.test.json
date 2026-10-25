@@ -1,0 +1,7 @@
+{
+  // the tests read files (node:fs) — Node's types for them only, never for src
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node"] },
+  "include": ["src"],
+  "exclude": []
+}

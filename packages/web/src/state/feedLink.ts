@@ -1,6 +1,6 @@
 import { CHAINS } from '../sdk/queries'
-import type { IssuerMatch } from '../index/api'
-import { ASSET_CLASS_MATCHES, parseAssetClassParam, type AssetClassMatch } from '../model/assetClass'
+import type { IssuerMatch } from '@yieldcircle/core/index/api'
+import { ASSET_CLASS_MATCHES, parseAssetClassParam, type AssetClassMatch } from '@yieldcircle/core/model/assetClass'
 
 /**
  * The feed's filters as a link, so a view can be sent to someone:

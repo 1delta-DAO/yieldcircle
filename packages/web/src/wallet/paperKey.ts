@@ -17,7 +17,7 @@ import { ed25519 } from '@noble/curves/ed25519'
 import { secp256k1 } from '@noble/curves/secp256k1'
 import { privateKeyToAccount } from 'viem/accounts'
 import { bytesToHex, type Hex } from 'viem'
-import { base58Encode } from '../model/address'
+import { base58Encode } from '@yieldcircle/core/model/address'
 
 /** The social service's handle rule — the name IS the handle. */
 export const PAPER_NAME = /^[a-z0-9_]{3,20}$/

@@ -10,9 +10,9 @@
 import React from 'react'
 import { useAccount, useConfig, useConnect, useDisconnect } from 'wagmi'
 import { privateKeyToAccount } from 'viem/accounts'
-import { apply, bookOf, emptyLedger, PaperError, starterOf, starterRef, tokenKey, type PaperBook, type PaperLedger, type PaperOp, type PriceFn } from '../model/paper'
-import { ledgerMeta, metaKey, paperHoldings, paperIdle, type TokenMeta } from '../model/paperView'
-import type { Holding, Idle } from '../model/positions'
+import { apply, bookOf, emptyLedger, PaperError, starterOf, starterRef, tokenKey, type PaperBook, type PaperLedger, type PaperOp, type PriceFn } from '@yieldcircle/core/model/paper'
+import { ledgerMeta, metaKey, paperHoldings, paperIdle, type TokenMeta } from '@yieldcircle/core/model/paperView'
+import type { Holding, Idle } from '@yieldcircle/core/model/positions'
 import { connectPaperSol, disconnectPaperSol, PAPER_CONNECTOR_ID, setPaperSession, usePaperSession } from '../wallet/paper'
 import { solSign, type PaperKeys } from '../wallet/paperKey'
 import { useSolWallet } from '../wallet/solana'
@@ -20,7 +20,7 @@ import { usePaperPrices } from '../social/queries'
 import { paperBook, paperPrices, postPaperOp, type PaperOpEnvelope } from '../social/paperApi'
 import * as social from '../social/api'
 import { canonicalJson, DOMAIN, TYPES } from '../social/sign'
-import { base58Encode } from '../model/address'
+import { base58Encode } from '@yieldcircle/core/model/address'
 
 const DAY = 86_400_000
 const PAPER_TYPES = { PaperOp: [{ name: 'author', type: 'address' }, { name: 'op', type: 'string' }, { name: 'nonce', type: 'string' }, { name: 'signedAt', type: 'uint256' }] } as const

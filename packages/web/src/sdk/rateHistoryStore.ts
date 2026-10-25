@@ -13,8 +13,8 @@
  * that is remembered too (as `null`), so it is not asked for again until TTL.
  */
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
-import { fetchRateHistory } from './api'
-import type { RateHistoryItem } from '../model/rateHistory'
+import { fetchRateHistory } from '@yieldcircle/core/sdk/api'
+import type { RateHistoryItem } from '@yieldcircle/core/model/rateHistory'
 
 const TTL_MS = 30 * 60_000
 /** after a failed request, wait this long before asking for the same uids again */

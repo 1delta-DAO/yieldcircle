@@ -3,7 +3,7 @@ import { verifyMessage } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { ed25519 } from '@noble/curves/ed25519'
 import { derivePaperKeys, solSign, solPublicKey } from './paperKey'
-import { base58Encode } from '../model/address'
+import { base58Encode } from '@yieldcircle/core/model/address'
 
 describe('paper keys', () => {
   it('derive the same two addresses from the same name and password, on any device', async () => {

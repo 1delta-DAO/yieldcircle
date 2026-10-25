@@ -16,7 +16,7 @@
 import React from 'react'
 import { useSocialRefresh } from '../social/queries'
 import { useSocialWrite } from '../social/sign'
-import type { ThreadRef } from '../model/uid'
+import type { ThreadRef } from '@yieldcircle/core/model/uid'
 
 export function SayWhy({ on, label, done }: { on: ThreadRef | null; label?: string; done?: boolean }) {
   const { account, message } = useSocialWrite()

@@ -55,7 +55,7 @@ function recordKeys(body) {
   return [...flat.matchAll(/(?:^|,)\s*(?:'([^']+)'|([A-Za-z0-9._$]+))\s*:/gm)].map((m) => (m[1] ?? m[2]).toUpperCase())
 }
 
-const assets = readFileSync(new URL('../packages/web/src/model/assets.ts', import.meta.url), 'utf8')
+const assets = readFileSync(new URL('../packages/core/src/model/assets.ts', import.meta.url), 'utf8')
 const bases = recordKeys(literalBody(assets, 'const BASE:'))
 // the dollar desks' row keys draw as their flagship ticker (`syrupUSDC` for Maple, `USDe` for Ethena)
 const deskEntries = [...literalBody(assets, 'const DESK:').matchAll(/(?:'([^']+)'|([A-Za-z0-9_$-]+))\s*:\s*\{\s*sym:\s*'([^']+)'/g)].map((m) => [m[1] ?? m[2], m[3].toUpperCase()])
@@ -98,7 +98,7 @@ const wrapped = Object.fromEntries(
  * Which chains have which coin is `NATIVE` in src/model/positions.ts — read from there, so the
  * app keeps one answer to "what is chain N's gas" rather than two.
  */
-const positions = readFileSync(new URL('../packages/web/src/model/positions.ts', import.meta.url), 'utf8')
+const positions = readFileSync(new URL('../packages/core/src/model/positions.ts', import.meta.url), 'utf8')
 const natives = [...literalBody(positions, 'const NATIVE:').matchAll(/(?:'([^']+)'|([A-Za-z0-9._$]+))\s*:\s*'([^']+)'/g)]
   .map((m) => [m[1] ?? m[2], m[3].toUpperCase()])
 let byGroup = {}
@@ -161,7 +161,7 @@ for (const sym of [...new Set([...bases, ...deskSyms, ...Object.keys(wrapped)])]
   else missing.push(sym)
 }
 
-writeFileSync(new URL('../packages/web/src/data/logos.json', import.meta.url), JSON.stringify(out, null, 1) + '\n')
+writeFileSync(new URL('../packages/core/src/data/logos.json', import.meta.url), JSON.stringify(out, null, 1) + '\n')
 console.log(`${Object.keys(out).length} logos written from ${INDEX}`)
 if (missing.length) {
   // A base asset with no icon draws a blank circle in the app, so say which — the fix belongs in
@@ -188,7 +188,7 @@ if (missing.length) {
   const offered = [...cs.matchAll(/id:\s*'([^']+)'/g)].map((m) => m[1])
   const nrm = (a) => (/^0x[0-9a-fA-F]*$/.test(a) ? a.toLowerCase() : a)
   let desks = { tokens: {}, eth: {}, btc: {} }
-  try { desks = JSON.parse(readFileSync(new URL('../packages/web/src/data/desks.json', import.meta.url), 'utf8')) } catch { console.warn('no src/data/desks.json — run scripts/desks.mjs first') }
+  try { desks = JSON.parse(readFileSync(new URL('../packages/core/src/data/desks.json', import.meta.url), 'utf8')) } catch { console.warn('no src/data/desks.json — run scripts/desks.mjs first') }
   const inDesks = new Set([...Object.keys(desks.tokens), ...Object.keys(desks.eth), ...Object.keys(desks.btc)])
   const wide = {}
   const flag = {} // desk id → symbol → { chains, logo }
@@ -216,8 +216,8 @@ if (missing.length) {
   const sorted = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1)))
   const CG = 'https://assets.coingecko.com/coins/images/'
   const packed = Object.fromEntries(Object.entries(sorted(wide)).map(([k, v]) => [k, v.startsWith(CG) ? 'cg:' + v.slice(CG.length) : v]))
-  writeFileSync(new URL('../packages/web/src/data/desk-logos.json', import.meta.url), JSON.stringify(sorted(deskLogos)) + '\n')
-  writeFileSync(new URL('../packages/web/src/data/token-icons.json', import.meta.url), JSON.stringify(packed) + '\n')
+  writeFileSync(new URL('../packages/core/src/data/desk-logos.json', import.meta.url), JSON.stringify(sorted(deskLogos)) + '\n')
+  writeFileSync(new URL('../packages/core/src/data/token-icons.json', import.meta.url), JSON.stringify(packed) + '\n')
   console.log(`${Object.keys(deskLogos).length} desk marks, ${Object.keys(packed).length} wide token icons written`)
 }
 
@@ -236,7 +236,7 @@ const CHAINS = [...readFileSync(new URL('../packages/web/src/sdk/queries.ts', im
 const norm = (chain, a) => (/^\d+$/.test(chain) ? String(a).toLowerCase() : String(a))
 // a chain whose list or earn read fails keeps the entries it had, rather than losing them
 let strat = {}
-try { strat = JSON.parse(readFileSync(new URL('../packages/web/src/data/strategy-tokens.json', import.meta.url), 'utf8')) } catch { /* first run */ }
+try { strat = JSON.parse(readFileSync(new URL('../packages/core/src/data/strategy-tokens.json', import.meta.url), 'utf8')) } catch { /* first run */ }
 for (const chain of CHAINS) {
   let list
   try { list = JSON.parse(readFileSync(join(root, `${chain}.json`), 'utf8')).list } catch { continue }
@@ -255,5 +255,5 @@ for (const chain of CHAINS) {
   }
 }
 strat = Object.fromEntries(Object.entries(strat).sort(([a], [b]) => (a < b ? -1 : 1)))
-writeFileSync(new URL('../packages/web/src/data/strategy-tokens.json', import.meta.url), JSON.stringify(strat, null, 1) + '\n')
+writeFileSync(new URL('../packages/core/src/data/strategy-tokens.json', import.meta.url), JSON.stringify(strat, null, 1) + '\n')
 console.log(Object.keys(strat).length, 'strategy tokens written')

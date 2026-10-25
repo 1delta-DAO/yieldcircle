@@ -14,7 +14,7 @@
 import React from 'react'
 import { useAccount } from 'wagmi'
 import { ACCESSORIES, BACKDROPS, CREATURES, Character, EYES, GATED, LAYERS, MOUTHS, PALETTES, MAX_PICTURE_URL, formatSpec, parseSpec, pictureUrl, specOf, unearned, type Spec } from '../identity/character'
-import { autoName, shortAddr } from '../identity/name'
+import { autoName, shortAddr } from '@yieldcircle/core/identity/name'
 import { SOCIAL_LINKS_READY } from '../social/api'
 import { useBatchSupported, usePending } from '../social/pending'
 import { useHandleCheck, useProfile, useSocialRefresh, useWalletLinks } from '../social/queries'

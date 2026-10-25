@@ -1,12 +1,12 @@
 import { useIsFetching, useQueries, useQuery, useQueryClient, type Query } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { hintLegs } from '../sdk/queries'
-import type { EarnPositionsResponse } from '../sdk/types'
-import { isEvmAddr, isSolAddr, normAddr } from '../model/address'
-import * as api from './api'
+import type { EarnPositionsResponse } from '@yieldcircle/core/sdk/types'
+import { isEvmAddr, isSolAddr, normAddr } from '@yieldcircle/core/model/address'
+import * as api from '@yieldcircle/core/index/api'
 import { useProofsFor } from './proofStore'
-import type { RecentQuery } from './api'
-import type { TxBundle } from './types'
+import type { RecentQuery } from '@yieldcircle/core/index/api'
+import type { TxBundle } from '@yieldcircle/core/index/types'
 
 const MIN = 60_000
 /** a 404 is an answer (the route does not exist on that index), not a hiccup worth three retries */

@@ -10,7 +10,7 @@
  */
 import { isAddress } from 'viem'
 import { norm } from './page'
-import { isSolAddr } from '../src/model/address'
+import { isSolAddr } from '@yieldcircle/core/model/address'
 
 export interface KV {
   get(key: string): Promise<string | null>

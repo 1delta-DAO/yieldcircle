@@ -8,8 +8,8 @@
  */
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { indexForAddr } from './api'
-import { isEvmAddr, isSolAddr } from '../model/address'
+import { indexForAddr } from '@yieldcircle/core/index/api'
+import { isEvmAddr, isSolAddr } from '@yieldcircle/core/model/address'
 
 export interface PnlBookPoint {
   t: string

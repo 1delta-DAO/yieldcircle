@@ -2,12 +2,12 @@
  * What each ticket does on paper (tickets/0006 §C): the op a confirm applies, built from the same
  * row, amounts and quotes the real build uses. Kept apart so a ticket body changes by one argument.
  */
-import { isSavings } from '../model/nature'
-import { nativeSymbol, type Holding } from '../model/positions'
-import { normAddr } from '../model/address'
-import { legPrices, nativeOf, valueOf, type PaperLedger, type PaperOp, type PaperPosition, type PaperRate, type PaperSnap, type PriceFn } from '../model/paper'
-import type { LoopStrategy, SimpleStrategy } from '../model/strategies'
-import type { BorrowOffer } from '../model/borrow'
+import { isSavings } from '@yieldcircle/core/model/nature'
+import { nativeSymbol, type Holding } from '@yieldcircle/core/model/positions'
+import { normAddr } from '@yieldcircle/core/model/address'
+import { legPrices, nativeOf, valueOf, type PaperLedger, type PaperOp, type PaperPosition, type PaperRate, type PaperSnap, type PriceFn } from '@yieldcircle/core/model/paper'
+import type { LoopStrategy, SimpleStrategy } from '@yieldcircle/core/model/strategies'
+import type { BorrowOffer } from '@yieldcircle/core/model/borrow'
 import { paperId } from '../state/Paper'
 import type { PaperBuilt } from './useLadder'
 

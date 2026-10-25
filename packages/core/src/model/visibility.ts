@@ -11,7 +11,7 @@
  * The point is not the switches. It is that an empty list can now say WHY it
  * is empty, with counts, instead of looking like a chain nobody lends on.
  */
-import { DEFAULTS, NO_CAP, type Settings } from '../state/Settings'
+import { DEFAULTS, NO_CAP, type Settings } from './settings'
 import type { Strategy } from './strategies'
 import { exposureOf, FIAT_FLOOR, isFiat } from './assets'
 

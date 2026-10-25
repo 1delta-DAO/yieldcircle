@@ -12,7 +12,7 @@
  * show these" is an answer and silence is not.
  */
 import React from 'react'
-import { HIDES, relaxFor, restoreFor, widenedCodes, type HideCode } from '../model/visibility'
+import { HIDES, relaxFor, restoreFor, widenedCodes, type HideCode } from '@yieldcircle/core/model/visibility'
 import { useSettings } from '../state/Settings'
 import type { HiddenRow, StructuralCount } from '../sdk/queries'
 import { Info } from './bits'

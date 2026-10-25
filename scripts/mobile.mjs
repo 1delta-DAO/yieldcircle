@@ -13,6 +13,8 @@
  *   pnpm mobile setup [android|ios] first time: EAS login + project, build the dev client, start Metro
  *   pnpm mobile build [android|ios] (re)build the dev client on EAS — after a native change
  *   pnpm mobile device              register an iPhone for iOS dev builds (once per phone, then rebuild)
+ *   pnpm mobile go [--tunnel]       try it in Expo Go instead: no build, no Apple account; wallets connect
+ *                                   but do not hand back (Expo Go is not `yieldcircle://`) and none is detected
  *   pnpm mobile run [android|ios]   build + install the dev client locally (Android SDK / Xcode)
  *   pnpm mobile bundle              bundle both platforms, no device (the CI-style check)
  *   pnpm mobile env                 what the app would get (values masked)
@@ -101,6 +103,12 @@ switch (cmd) {
     run('npx', [...EAS, 'build', '--profile', 'development', '--platform', platformArg(arg)])
     break
 
+  case 'go':
+    requireWalletConnect(env)
+    console.log('\nExpo Go: scan the QR code with the iPhone camera (Android: in Expo Go). After approving in the wallet, switch back by hand.')
+    run('npx', ['expo', 'start', '--go', ...rest], { env })
+    break
+
   case 'device':
     easReady()
     // prints a link / QR code: open it on the iPhone and install the profile it offers
@@ -131,6 +139,6 @@ switch (cmd) {
     break
 
   default:
-    console.error(`unknown command "${cmd}" — start | setup | build | device | run | bundle | env | env:push`)
+    console.error(`unknown command "${cmd}" — start | setup | build | device | go | run | bundle | env | env:push`)
     process.exit(1)
 }

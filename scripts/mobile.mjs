@@ -8,9 +8,11 @@
  * whatever else `.env` holds (FAL_KEY …) is a secret and never reaches a bundle. `EXPO_PUBLIC_*`
  * already in the shell wins over `.env`.
  *
- *   pnpm mobile                     Metro for the dev build on your phone (the everyday step)
+ *   pnpm mobile [--tunnel]          Metro for the dev build on your phone (the everyday step); flags go to
+ *                                   `expo start` — `--tunnel` when the phone cannot reach this machine on the LAN
  *   pnpm mobile setup [android|ios] first time: EAS login + project, build the dev client, start Metro
  *   pnpm mobile build [android|ios] (re)build the dev client on EAS — after a native change
+ *   pnpm mobile device              register an iPhone for iOS dev builds (once per phone, then rebuild)
  *   pnpm mobile run [android|ios]   build + install the dev client locally (Android SDK / Xcode)
  *   pnpm mobile bundle              bundle both platforms, no device (the CI-style check)
  *   pnpm mobile env                 what the app would get (values masked)
@@ -70,20 +72,23 @@ function easReady() {
   if (!app.expo?.extra?.eas?.projectId) run('npx', [...EAS, 'init'])
 }
 
-const [cmd = 'start', arg] = process.argv.slice(2)
+// `pnpm mobile --tunnel` is `start --tunnel`
+const argv = process.argv.slice(2)
+const [cmd, ...rest] = !argv.length || argv[0].startsWith('-') ? ['start', ...argv] : argv
+const arg = rest[0]
 const env = publicEnv()
 
 switch (cmd) {
   case 'start':
     requireWalletConnect(env)
-    run('npx', ['expo', 'start', '--dev-client'], { env })
+    run('npx', ['expo', 'start', '--dev-client', ...rest], { env })
     break
 
   case 'setup': {
     requireWalletConnect(env)
     const p = platformArg(arg)
     easReady()
-    if (p === 'ios') console.log('\niOS: the dev build installs only on registered phones — `npx eas-cli device:create` first, if this one is new.')
+    if (p === 'ios') console.log('\niOS: the dev build installs only on phones registered BEFORE it is built — `pnpm mobile device` first if this one is new.')
     // the dev client needs no keys (its JS comes from Metro), so the cloud build gets none
     run('npx', [...EAS, 'build', '--profile', 'development', '--platform', p])
     console.log('\nInstall the build from the link above (or the QR code), then open it: Metro starts now.')
@@ -94,6 +99,13 @@ switch (cmd) {
   case 'build':
     easReady()
     run('npx', [...EAS, 'build', '--profile', 'development', '--platform', platformArg(arg)])
+    break
+
+  case 'device':
+    easReady()
+    // prints a link / QR code: open it on the iPhone and install the profile it offers
+    run('npx', [...EAS, 'device:create'])
+    console.log('\nRegistered phones get into the NEXT build: `pnpm mobile build ios`.')
     break
 
   case 'run':
@@ -119,6 +131,6 @@ switch (cmd) {
     break
 
   default:
-    console.error(`unknown command "${cmd}" — start | setup | build | run | bundle | env | env:push`)
+    console.error(`unknown command "${cmd}" — start | setup | build | device | run | bundle | env | env:push`)
     process.exit(1)
 }

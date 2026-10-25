@@ -37,8 +37,9 @@ is a secret and never reaches the app.
 
 | | |
 |---|---|
-| `pnpm mobile setup android` | **first time, in one go:** EAS login and project (once), the dev client built on EAS (an APK — install it from the link), then Metro. `ios` needs an Apple Developer account and the phone registered (`npx eas-cli device:create`) |
-| `pnpm mobile` | every day after: Metro with the keys; open the dev build on the phone |
+| `pnpm mobile setup android` | **first time, in one go:** EAS login and project (once), the dev client built on EAS (an APK — install it from the link), then Metro. `ios` needs an Apple Developer account and the phone registered first (`pnpm mobile device`; see "On an iPhone") |
+| `pnpm mobile` | every day after: Metro with the keys; open the dev build on the phone (`pnpm mobile --tunnel` when the phone cannot reach this machine on the Wi-Fi) |
+| `pnpm mobile device` | register an iPhone (below) |
 | `pnpm mobile build android` | rebuild the dev client — only after a native change (a new native package, `app.json`) |
 | `pnpm mobile run android` | build and install locally instead of EAS (Android SDK + a phone on USB; `ios` needs a Mac) |
 | `pnpm mobile env` | what the app gets, masked |
@@ -50,6 +51,33 @@ your machine, so the EAS dev build needs no keys. Preview and production builds
 bundle the JS on EAS's servers, which never see the local `.env` — hence
 `env:push` (plaintext variables: `EXPO_PUBLIC_*` ships inside the app anyway).
 `pnpm typecheck` covers mobile with the rest.
+
+### On an iPhone
+
+Everything builds on EAS, so no Mac is needed — but Apple only installs a
+development build on phones it knows, signed by a paid developer account.
+
+1. **Apple Developer Program** (99 USD a year, developer.apple.com) on the
+   Apple ID that will own the app. EAS logs into it during the first iOS build
+   and creates the certificate, the provisioning profile and the app id
+   `io.yieldcircle.app` itself (say yes to its prompts).
+2. **Register the phone:** `pnpm mobile device` → open the link (or scan the
+   QR code) on the iPhone in Safari and install the profile it offers
+   (Settings → General → VPN & Device Management). Once per phone.
+3. **Build:** `pnpm mobile setup ios` — the build carries every phone
+   registered *before* it started; a phone added later needs
+   `pnpm mobile build ios` again.
+4. **Install:** open the build's link on the iPhone (the QR code on the build
+   page) and install.
+5. **Developer Mode** (iOS 16+): the first launch is refused until it is on —
+   Settings → Privacy & Security → Developer Mode → on, restart, confirm.
+6. **Run:** `pnpm mobile` on this machine, open YieldCircle on the phone; it
+   finds Metro on the same Wi-Fi, or use `pnpm mobile --tunnel`.
+
+An iOS *simulator* build needs a Mac to run, so from Linux a real phone is the
+way. For testers beyond your own phones later: a `preview` / `production` build
+goes through TestFlight (`npx eas-cli submit --platform ios`) and needs
+`pnpm mobile env:push` first, since those builds carry their JS and keys.
 
 ## The capabilities test, per wallet
 

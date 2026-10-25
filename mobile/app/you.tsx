@@ -1,5 +1,5 @@
 import React from 'react'
-import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAppKit, AppKitButton } from '@reown/appkit-react-native'
@@ -7,12 +7,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Svg, { Defs, G, Line, LinearGradient, Path, Stop } from 'react-native-svg'
 import * as idx from '@yieldcircle/core/index/api'
 import { useDayLog, useLiteMenu } from '@yieldcircle/app/lite'
-import { pnlWaiting, unsupportedLine, useAccountPnlBook } from '@yieldcircle/app/index/pnl'
+import { pnlNotReadYet } from '@yieldcircle/core/model/holdingPnl'
+import { pnlWaiting, unsupportedLine, useAccountPnlBook, useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { useAccountSync } from '@yieldcircle/app/index/queries'
 import { isEvmAddr, normAddr } from '@yieldcircle/core/model/address'
 import { bookKeyOf } from '@yieldcircle/core/model/uid'
 import { totalsOf, type Holding } from '@yieldcircle/core/model/positions'
-import { boardPositions, holdingLine, liteEligible, moneyWord, pnlSummary, signedMoney, streakWord, type LiteRow } from '@yieldcircle/core/model/lite'
+import { boardPositions, holdingLine, moneyWord, pnlSummary, signedMoney, streakWord, type LiteRow } from '@yieldcircle/core/model/lite'
 import { owedOf } from '@yieldcircle/core/model/borrow'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
@@ -73,7 +74,7 @@ export default function You() {
             <View style={{ gap: 6 }}>
               {b.positionsLoading && !mine.length ? [0, 1].map((i) => <View key={i} style={st.row}><Sk w={28} h={28} r={14} /><Sk w={120} /></View>)
                 : !mine.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing at work yet.</Txt>
-                : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} account={b.account!} />)}
+                : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} />)}
             </View>
             <View style={{ marginTop: 14, alignItems: 'flex-start' }}><AppKitButton /></View>
           </>
@@ -119,7 +120,9 @@ function Made({ account, rows, positions }: { account: string; rows: LiteRow[]; 
   const s = b ? pnlSummary(b) : null
   const head = <View style={{ marginTop: 26, marginBottom: 10, gap: 4 }}><Txt s={16} w={600} style={{ letterSpacing: -0.16 }}>What you made</Txt><Txt s={12.5} c={C.tx50}>since each position opened · from the index’s records</Txt></View>
   if (q.isLoading) return <>{head}<View style={st.pnl}><Sk w={160} h={34} /><Sk w={240} h={12} /></View></>
-  if (!b || !b.coverage.positions) return null
+  const syncing = isEvmAddr(account) && !sync.data && !sync.isError
+  // no book, or one with nothing in it: say so while there is money at work, instead of a blank
+  if (!b || !b.coverage.positions) return positions ? <>{head}<View style={st.pnl}><Txt s={13} c={C.tx50} lh={19}>{pnlNotReadYet(positions, syncing, q.isError)}</Txt></View></> : null
   const ps = boardPositions(b, (k) => liteByKey.get(k.toLowerCase())?.title ?? null)
   const w = pnlWaiting(b)
   const notIn = [w.drawing ? `${w.drawing} drawing now` : '', w.waiting ? `${w.waiting} waiting` : '', unsupportedLine(b)].filter(Boolean)
@@ -194,20 +197,15 @@ function PnlLine({ pts, up }: { pts: number[]; up: boolean }) {
   )
 }
 
-/** A position (the web's You `Position`): what it is, how far from the line, its value and rate — its ticket a tap away. */
-function Position({ h, s, account }: { h: Holding; s: Strategy | null; account: string }) {
+/** A position (the web's You `Position`): what it is, how far from the line, its value, what it made and its rate — its ticket (manage, share) a tap away. */
+function Position({ h, s }: { h: Holding; s: Strategy | null }) {
   const line = holdingLine(h)
-  const shareable = !!s && liteEligible(s) && h.kind !== 'borrow' && !h.directional
+  // what it made since it was opened, the index's figure for it
+  const pnl = useHoldingPnl(h)
   const open = () => {
     // a price bet (a debt in another money) and loans are Pro's on the phone for now
     if (h.directional) return router.push('/details')
     openStrategy(s ?? ({ id: '_' } as Strategy), { h: h.key })
-  }
-  const share = async () => {
-    if (!s) return
-    const word = moneyWord(h.asset, h.group)
-    const url = `https://app.yieldcircle.io/#/lite/${s.group}?s=${encodeURIComponent(s.id)}&k=${s.kind}&copy=${account}`
-    try { await Share.share({ message: `Earning ${pct(h.apr ?? s.rate)} on ${word.startsWith('Dollars') ? 'dollars' : word} with YieldCircle ${url}` }) } catch { /* closed */ }
   }
   return (
     <Pressable onPress={open} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]}>
@@ -218,9 +216,8 @@ function Position({ h, s, account }: { h: Holding; s: Strategy | null; account: 
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Txt w={700}>{usd(h.valueUsd)}</Txt>
-        {h.apr != null && <Txt s={12} c={h.apr >= 0 ? C.ok : C.bad}>{pct(h.apr)}</Txt>}
+        {(h.apr != null || pnl) && <Txt s={12}>{pnl && <Txt s={12} c={pnl.pnlUsd! >= 0 ? C.ok : C.bad}>{signedMoney(pnl.pnlUsd!)}</Txt>}{pnl && h.apr != null && <Txt s={12} c={C.tx40}> · </Txt>}{h.apr != null && <Txt s={12} c={h.apr >= 0 ? C.ok : C.bad}>{pct(h.apr)}</Txt>}</Txt>}
       </View>
-      {shareable && <Pressable onPress={share} style={st.share}><Txt s={12.5} w={500} c={C.tx70}>Share</Txt></Pressable>}
       <Txt c={C.tx40}>›</Txt>
     </Pressable>
   )
@@ -249,5 +246,4 @@ const st = StyleSheet.create({
   pnl: { backgroundColor: C.b200, borderRadius: 18, paddingVertical: 18, paddingHorizontal: 20, gap: 12, overflow: 'hidden' },
   bar2: { flexDirection: 'row', height: 10, borderRadius: 999, overflow: 'hidden', backgroundColor: C.b400, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.b200, borderRadius: 12 },
-  share: { minHeight: 30, paddingHorizontal: 12, borderRadius: 999, justifyContent: 'center' },
 })

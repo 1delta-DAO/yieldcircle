@@ -10,6 +10,7 @@ import { bookKeyOf } from '@yieldcircle/core/model/uid'
 import { Sk, pct, usdShort } from '../bits'
 import { LiteDetailsDrawer } from './LiteTicketBits'
 import { WalletPnl } from '../WalletPnl'
+import { pnlNotReadYet } from '@yieldcircle/core/model/holdingPnl'
 import { PaperWalletBook } from '../PaperPanel'
 import { paperPnlBook } from '@yieldcircle/core/model/paperView'
 import { proHref, walletHref } from '../../state/AppState'
@@ -43,13 +44,20 @@ function RealMade({ account, rows, positions }: { account: string; rows: LiteRow
   const b = q.data
   const s = b ? pnlSummary(b) : null
   if (q.isLoading) return <section className="sec lite-sec"><div className="sec-h"><h2>What you made</h2></div><div className="lpnl"><Sk w={160} h={34} /><Sk w={240} h={12} /></div></section>
-  if (!b || !b.coverage.positions) return null
+  const syncing = !!isEvmAddr(account) && !sync.data && !sync.isError
+  // no book, or one with nothing in it: say so while there is money at work, instead of a blank
+  if (!b || !b.coverage.positions) return positions ? (
+    <section className="sec lite-sec">
+      <div className="sec-h"><h2>What you made</h2><span className="sub">since each position opened · from the index’s records</span></div>
+      <div className="lpnl"><div className="empty t50">{pnlNotReadYet(positions, syncing, q.isError)}</div></div>
+    </section>
+  ) : null
   const ps = boardPositions(b, (k) => liteByKey.get(k.toLowerCase())?.title ?? null)
   return (
     <section className="sec lite-sec">
       <div className="sec-h"><h2>What you made</h2><span className="sub">since each position opened · from the index’s records</span></div>
       <div className="lpnl">
-        {!s ? <div className="empty t50"><Waiting b={b} live={positions} syncing={!!isEvmAddr(account) && !sync.data && !sync.isError} gaps={sync.data?.synced === false || sync.data?.state === 'gaps'} /></div> : <>
+        {!s ? <div className="empty t50"><Waiting b={b} live={positions} syncing={syncing} gaps={sync.data?.synced === false || sync.data?.state === 'gaps'} /></div> : <>
           <div className="lpnl-top">
             <b className={`lpnl-v ${s.total >= 0 ? 'ok' : 'bad'}`}>{signedMoney(s.total)}</b>
             <span className="lpnl-s t50">{s.aprPct != null ? `${pct(s.aprPct, 1)} a year on what was in` : ''}{s.on < s.of ? ` · on ${s.on} of ${s.of} positions` : ''}</span>

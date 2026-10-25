@@ -21,15 +21,22 @@ import { Txt } from '../ui/Txt'
  */
 
 /** The ticket's head (`.th`): the face, what it is, a lever tag, close. */
-export function TicketHead({ face, title, sub, subTone, lever, onClose }: { face: React.ReactNode; title: string; sub?: string; subTone?: string; lever?: string; onClose: () => void }) {
+export function TicketHead({ face, title, sub, subTone, pnl, lever, onShare, onClose }: { face: React.ReactNode; title: string; sub?: string; subTone?: string; /** what the position made since it was opened (`pnlLine`) */ pnl?: { text: string; tone: 'ok' | 'bad' } | null; lever?: string; /** a held position's Copy link (`sharePosition`) */ onShare?: (() => void) | null; onClose: () => void }) {
   return (
     <View style={st.th}>
       {face}
       <View style={{ flex: 1 }}>
         <Txt s={16} w={600} lh={20}>{title}</Txt>
         {!!sub && <Txt s={12.5} c={subTone === 'bad' ? C.bad : subTone === 'warn' ? C.warn : C.tx50} style={{ marginTop: 2 }}>{sub}</Txt>}
+        {!!pnl && <Txt s={12.5} c={pnl.tone === 'ok' ? C.ok : C.bad} style={{ marginTop: 2 }}>{pnl.text}</Txt>}
       </View>
       {lever && <LeverPill text={lever} />}
+      {onShare && (
+        <Pressable onPress={onShare} hitSlop={6} style={({ pressed }) => [st.share, pressed && { backgroundColor: C.b400 }]} accessibilityLabel="Share">
+          <Svg width={15} height={15} viewBox="0 0 20 20" fill="none" stroke={C.tx70} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><Path d="M10 12.5V3M6.5 6.5 10 3l3.5 3.5M5 10v5.5a1.5 1.5 0 0 0 1.5 1.5h7a1.5 1.5 0 0 0 1.5-1.5V10" /></Svg>
+          <Txt s={12.5} w={500} c={C.tx70}>Share</Txt>
+        </Pressable>
+      )}
       <Pressable onPress={onClose} hitSlop={8} style={st.x} accessibilityLabel="Close"><Txt s={16} c={C.tx50}>✕</Txt></Pressable>
     </View>
   )
@@ -254,6 +261,7 @@ export const Plain = ({ children, tone }: { children: React.ReactNode; tone?: 'w
 
 const st = StyleSheet.create({
   th: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingTop: 14, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.line, backgroundColor: C.b200 },
+  share: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 30, paddingHorizontal: 10, borderRadius: 999, backgroundColor: C.b300, marginTop: -3 },
   x: { width: 32, height: 32, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: -4, marginRight: -6 },
   sec: { paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.line },
   amt: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 12, backgroundColor: '#000', borderWidth: 1, borderColor: C.line2, borderRadius: 12 },

@@ -211,6 +211,7 @@ Those come from `/v1/data/earn/positions` (live). `accountPositions` is for
 |---|---|---|
 | Feed | `recentTxs`, `recentEvents` → `GET /events/recent` (`group=tx` folds per tx); `recentTxsIn` → `POST /events/recent` with `{ inMarkets }` (falls back to GET + client filter on 404/405) | `useFeedPage` (refetch 20 s) |
 | Wallet | `accountTxs` `/accounts/:a/events`, `accountFlows` `/accounts/:a/flows`, `accountPositions` `/positions/:a` | `useAccountTxs`, `useAccountFlows`, `useIndexPositions` |
+| PnL | `accountPnlBook` `/accounts/:a/pnl` (the account's book: total, line, strategies, one record per lender account; `?request=1` on the own page) — a live position's own record is `pnlOfHolding` (`model/holdingPnl.ts`: same strategy-book key and chain, then lender and sub-account; only `status: ok`) | `useAccountPnlBook`, `useHoldingPnl` (You rows, Lite ticket heads) |
 | Market | `market` `/markets/:uid`, `marketTxs` `…/events`, `marketHolders` `…/holders`, `marketFlow` `…/flow` | `useMarket`, `useMarketTxs`, `useHolders`, `useMarketFlow` |
 | Discovery | `trending` `/trending`, `hot` `/hot`, `protocols` `/protocols`, `issuers` `/issuers`, `leaderboard` `/leaderboard` (may 404 → caller falls back) | `useTrending`, `useHot`, `useProtocols`, `useIssuers`; board in `ui/Board.tsx` |
 | Vaults / desks | `vaultsAt` `/vaults`, `curators`, `curator`, `curatorAllocation`, `curatorTxs`, `curatorHolders` `/curators/…`, `curatorsByAccount` `/curators/by-account` | `useVaultsAt`, `useCurator*` |

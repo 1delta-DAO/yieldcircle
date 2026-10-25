@@ -45,6 +45,9 @@ import { bufferOfHealth, brandOf, debtWord, depositLines, holdingLine, leverTag,
 import { proHref } from '../state/AppState'
 import { LiteDetails, LiteDetailsDrawer, LiteLines, LitePresets } from './lite/LiteTicketBits'
 import { CLOSE_INTEREST_PAD, DAY_S, NATIVE_MAX_ROUNDS, NO_NATIVE_DEPOSIT, NO_NATIVE_WITHDRAW, NO_ROUTE, closeKeepPad, dayMonth, dayOf, daysWord, defaultTenor, defaultTerm, getForms, hasRoute, nativeMaxRounds, payOptions, paysNative, safetyOf, sameToken, startsAny, tenorWord, type PayOption, type PayRole } from '@yieldcircle/core/model/ticket'
+import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
+import { pnlLine } from '@yieldcircle/core/model/holdingPnl'
+import { useSharePosition } from './lite/share'
 export { safetyOf, sameToken }
 
 /**
@@ -135,6 +138,11 @@ function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, on
   const n = s ? plainName(s) : null
   const title = n?.title ?? (h ? moneyWord(h.asset, h.group) : '')
   const line = h ? holdingLine(h) : null
+  // what the position made since it was opened: the index's own figure for it
+  const pnl = useHoldingPnl(h)
+  const pl = pnl ? pnlLine(pnl) : null
+  // a position held as a Lite strategy is shared from here (a Copy link)
+  const sh = useSharePosition(s, h)
   const chainIdle = s ? idle.filter((i) => i.chainId === s.chainId) : []
   const lev = s?.kind === 'loop' ? (h?.leverage && h.leverage > 1.05 ? h.leverage : copyLev && copyLev > 1.05 ? copyLev : s.tiers.balanced) : h?.kind === 'loop' ? h.leverage ?? 1 : 0
   // Details: the same position (or row) on Pro's own page, where every tier, route and number is
@@ -143,8 +151,9 @@ function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, on
     <div className="ticket lite-ticket">
       <div className="grab" />
       <div className="th">{s?.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : s ? <Tok sym={s.assetSymbol} logo={[s.tokenLogo, s.logo]} size={26} /> : <Tok sym={h!.symbol} logo={h!.logo} size={26} />}
-        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{title}</div><div className={`s ${line?.tone ?? ''}`}>{line ? `${usd(h!.valueUsd)} yours · ${line.text}` : n?.sub}</div></div>
+        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{title}</div><div className={`s ${line?.tone ?? ''}`}>{line ? `${usd(h!.valueUsd)} yours · ${line.text}` : n?.sub}</div>{pl && <div className={`s ${pl.tone}`}>{pl.text}</div>}</div>
         {lev > 1.05 && <span className="pill lever">{leverTag(lev)}</span>}
+        {sh.can && <button type="button" className="th-share" onClick={() => void sh.share()} title="Share a link that opens this strategy, copying you">{sh.shared ? 'Copied' : <><svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M10 12.5V3M6.5 6.5 10 3l3.5 3.5M5 10v5.5a1.5 1.5 0 0 0 1.5 1.5h7a1.5 1.5 0 0 0 1.5-1.5V10" /></svg>Share</>}</button>}
         <button className="x" onClick={onClose} aria-label="Close">✕</button></div>
       {tabs.length > 1 && (
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">

@@ -1,6 +1,6 @@
 import React from 'react'
 import { go, liteHref, proHref, useRoute } from '../../state/AppState'
-import { holdingLine, liteEligible, moneyWord, streakWord } from '@yieldcircle/core/model/lite'
+import { holdingLine, moneyWord, signedMoney, streakWord } from '@yieldcircle/core/model/lite'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { ConnectButton } from '../../wallet/ConnectButton'
@@ -9,6 +9,7 @@ import { totalsOf } from '../Positions'
 import { useMyStats } from '../Stats'
 import { Sk, Tok, pct, usd, usdShort } from '../bits'
 import { useDayLog, useLiteMenu } from '@yieldcircle/app/lite'
+import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { FollowedMoves, openRow } from './LiteBits'
 import { ModeSwitch } from './ModeSwitch'
 import { LitePnl } from './LitePnl'
@@ -68,7 +69,7 @@ export function LiteYou() {
         <div className="lrows">
           {b.positionsLoading && !mine.length ? [0, 1].map((i) => <div key={i} className="lrow sk"><Sk w={28} h={28} /><span className="lrow-n"><Sk w={120} h={14} /></span></div>)
             : !mine.length ? <div className="empty">Nothing at work yet. <a className="pri" href={liteHref('earn')}>Find something to earn ›</a></div>
-            : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} account={b.account!} on={sel?.key === h.key} />)}
+            : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} on={sel?.key === h.key} />)}
         </div>
       </section>
 
@@ -92,35 +93,23 @@ function Stat({ k, v, s, href }: { k: string; v: React.ReactNode; s: string; hre
 }
 
 /**
- * One position, in words: what it is, how far from liquidation, what it is worth and earns. Tapping
- * it opens its Lite ticket; a price bet opens in Pro, the one kind Lite has no actions for.
+ * One position, in words: what it is, how far from liquidation, what it is worth, made and earns.
+ * Tapping it opens its Lite ticket (where it is managed and shared); a price bet opens in Pro, the
+ * one kind Lite has no actions for.
  */
-function Position({ h, s, account, on }: { h: Holding; s: Strategy | null; account: string; on: boolean }) {
+function Position({ h, s, on }: { h: Holding; s: Strategy | null; on: boolean }) {
   const line = holdingLine(h)
+  // what it made since it was opened, the index's figure for it
+  const pnl = useHoldingPnl(h)
   const open = () => {
     if (!h.directional) return go('you', { h: h.key })
     location.hash = proHref(`#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: 'manage' })}`)
-  }
-  const shareable = !!s && liteEligible(s) && h.kind !== 'borrow' && !h.directional
-  const [shared, setShared] = React.useState(false)
-  const share = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!s) return
-    // the link is a Copy link: whoever opens it lands on the same strategy, with you as the one copied
-    const url = `${location.origin}${location.pathname}${liteHref(`${s.group}?s=${encodeURIComponent(s.id)}&k=${s.kind}&copy=${account}`)}`
-    const word = moneyWord(h.asset, h.group)
-    const text = `Earning ${pct(h.apr ?? s.rate)} on ${word.startsWith('Dollars') ? 'dollars' : word} with YieldCircle`
-    try {
-      if (navigator.share) await navigator.share({ title: 'YieldCircle', text, url })
-      else { await navigator.clipboard.writeText(`${text} ${url}`); setShared(true); setTimeout(() => setShared(false), 1800) }
-    } catch { /* the reader closed the sheet */ }
   }
   return (
     <div className={`lrow${on ? ' on' : ''}`} role="button" tabIndex={0} aria-pressed={on} onClick={open} onKeyDown={(e) => { if (e.key === 'Enter') open() }}>
       <Tok sym={h.symbol} logo={h.logo} size={28} />
       <span className="lrow-n"><b>{moneyWord(h.asset, h.group)}{h.kind === 'borrow' ? ' loan' : ''}</b><small className={line.tone}>{h.kind === 'borrow' ? line.text.replace(/^A loan/, `owes ${usd(owedOf(h))}`) : line.text}{h.directional ? ' · managed in Pro' : ''}</small></span>
-      <span className="lrow-v"><b>{usd(h.valueUsd)}</b>{h.apr != null && <small className={h.apr >= 0 ? 'ok' : 'bad'}>{pct(h.apr)}</small>}</span>
-      {shareable && <button type="button" className="btn sm ghost" onClick={share} title="Share a link that opens this strategy, copying you">{shared ? 'Copied' : 'Share'}</button>}
+      <span className="lrow-v"><b>{usd(h.valueUsd)}</b>{(h.apr != null || pnl) && <small>{pnl && <span className={pnl.pnlUsd! >= 0 ? 'ok' : 'bad'} title="Made since it was opened">{signedMoney(pnl.pnlUsd!)}</span>}{pnl && h.apr != null && <span className="t40"> · </span>}{h.apr != null && <span className={h.apr >= 0 ? 'ok' : 'bad'}>{pct(h.apr)}</span>}</small>}</span>
       <span className="t40" aria-hidden>›</span>
     </div>
   )

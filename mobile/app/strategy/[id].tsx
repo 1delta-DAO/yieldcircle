@@ -6,6 +6,10 @@ import { useLiteMenu } from '@yieldcircle/app/lite'
 import { brandOf, holdingLine, leverTag, liteModes, moneyWord, plainName, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
 import { usd, usdShort } from '@yieldcircle/core/model/format'
 import { owedOf } from '@yieldcircle/core/model/borrow'
+import { pnlLine } from '@yieldcircle/core/model/holdingPnl'
+import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
+import { useSession } from '@yieldcircle/app/session'
+import { sharePosition } from '../../src/ui/lite'
 import { C } from '../../src/theme'
 import { Sk, Tok, Toks } from '../../src/ui/bits'
 import { Who } from '../../src/ui/Character'
@@ -38,6 +42,9 @@ export default function TicketScreen() {
   const seen = React.useRef(!!holding)
   React.useEffect(() => { if (!seen.current && holding) { seen.current = true; setMode(start) } }, [!!holding]) // eslint-disable-line react-hooks/exhaustive-deps
   const close = () => router.back()
+  // what the position made since it was opened: the index's own figure for it
+  const pnl = useHoldingPnl(byKey ?? holding)
+  const { account } = useSession()
 
   if (!s && !holding) {
     return (
@@ -53,7 +60,7 @@ export default function TicketScreen() {
     const ln = holdingLine(byKey)
     return (
       <Frame insets={insets}>
-        <TicketHead face={<Toks a={byKey.symbol} b={byKey.debtSymbol ?? 'USD'} logoA={byKey.logo} />} title={`${moneyWord(byKey.asset, byKey.group)} loan`} sub={`owes ${usd(owedOf(byKey))} · ${ln.text.replace(/^A loan · /, '')}`} subTone={ln.tone} onClose={close} />
+        <TicketHead face={<Toks a={byKey.symbol} b={byKey.debtSymbol ?? 'USD'} logoA={byKey.logo} />} title={`${moneyWord(byKey.asset, byKey.group)} loan`} sub={`owes ${usd(owedOf(byKey))} · ${ln.text.replace(/^A loan · /, '')}`} subTone={ln.tone} pnl={pnl ? pnlLine(pnl, { loan: true }) : null} onClose={close} />
         <LoanBody h={byKey} idle={b.idlePerChain} />
         <Details what="Borrow more, or take collateral out" onOpen={() => router.push('/details')} />
       </Frame>
@@ -67,7 +74,7 @@ export default function TicketScreen() {
   const face = s?.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : s ? <Tok sym={s.assetSymbol} logo={[s.tokenLogo, s.logo]} size={26} /> : <Tok sym={h!.symbol} logo={h!.logo} size={26} />
   return (
     <Frame insets={insets}>
-      <TicketHead face={face} title={title} sub={line ? `${usd(h!.valueUsd)} yours · ${line.text}` : n?.sub} subTone={line?.tone} lever={lev > 1.05 ? leverTag(lev) : undefined} onClose={close} />
+      <TicketHead face={face} title={title} sub={line ? `${usd(h!.valueUsd)} yours · ${line.text}` : n?.sub} subTone={line?.tone} pnl={h && pnl ? pnlLine(pnl) : null} onShare={sharePosition(s, h, account)} lever={lev > 1.05 ? leverTag(lev) : undefined} onClose={close} />
       {tabs.length > 1 && (
         <Sec>
           <View style={st.modes}>

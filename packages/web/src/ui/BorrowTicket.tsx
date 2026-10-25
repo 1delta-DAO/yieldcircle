@@ -60,6 +60,8 @@ import { bufferOfHealth, holdingLine, moneyWord } from '@yieldcircle/core/model/
 import { LiteDetails, LiteDetailsDrawer, LitePresets } from './lite/LiteTicketBits'
 import { ceil6, floor6 } from '@yieldcircle/core/model/ticket'
 import { useRepayTicket } from '@yieldcircle/app/tickets/repay'
+import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
+import { pnlLine } from '@yieldcircle/core/model/holdingPnl'
 import { proHref } from '../state/AppState'
 
 /** a coin amount or a price in another coin, to four significant figures (0.03124 BTC, 1,240 USDC) */
@@ -417,6 +419,8 @@ export function LiteLoanTicket({ h, idle, onClose }: { h: Holding; idle: Idle[];
   const o = React.useMemo(() => offerFromHolding(h), [h])
   const [pane, setPane] = React.useState<'all' | 'some'>((bufferOfHealth(h.health) ?? 1) < 0.1 ? 'some' : 'all')
   const line = holdingLine(h)
+  const pnl = useHoldingPnl(h)
+  const pl = pnl ? pnlLine(pnl, { loan: true }) : null
   const [details, setDetails] = React.useState(false)
   const detailsHref = proHref(`#/${h.group}?${new URLSearchParams({ k: 'borrow', h: h.key, m: 'reduce' })}`)
   return (
@@ -424,7 +428,7 @@ export function LiteLoanTicket({ h, idle, onClose }: { h: Holding; idle: Idle[];
     <div className="ticket lite-ticket">
       <div className="grab" />
       <div className="th"><Toks a={h.symbol} b={h.debtSymbol} logoA={h.logo} />
-        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{moneyWord(h.asset, h.group)} loan</div><div className={`s ${line.tone}`}>owes {usd(owedOf(h))} · {line.text.replace(/^A loan · /, '')}</div></div>
+        <div style={{ flex: 1, minWidth: 0 }}><div className="n">{moneyWord(h.asset, h.group)} loan</div><div className={`s ${line.tone}`}>owes {usd(owedOf(h))} · {line.text.replace(/^A loan · /, '')}</div>{pl && <div className={`s ${pl.tone}`}>{pl.text}</div>}</div>
         <button className="x" onClick={onClose} aria-label="Close">✕</button></div>
       {!o ? <div className="tsec"><div className="caution">This loan can’t be read well enough to pay back here. Open it in Details.</div></div> : <>
         <div className="tsec"><div className="modes" role="tablist" aria-label="Pay back">

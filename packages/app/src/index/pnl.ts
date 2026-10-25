@@ -9,6 +9,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { indexForAddr } from '@yieldcircle/core/index/api'
+import type { Holding } from '@yieldcircle/core/model/positions'
+import { pnlOfHolding } from '@yieldcircle/core/model/holdingPnl'
+import { useSession } from '../session'
 import { isEvmAddr, isSolAddr } from '@yieldcircle/core/model/address'
 
 export interface PnlBookPoint {
@@ -165,4 +168,14 @@ export function strategyLabel(s: Pick<PnlBookStrategy, 'held' | 'debt' | 'market
   const held = s.held.slice(0, 2).join(' + ') + (s.held.length > 2 ? ` +${s.held.length - 2}` : '')
   const debt = s.debt.slice(0, 2).join(' + ') + (s.debt.length > 2 ? ` +${s.debt.length - 2}` : '')
   return (held || '—') + (debt ? ` ↺ ${debt}` : '')
+}
+
+/**
+ * One live position's own PnL from the account's book (`pnlOfHolding`): what it made since it was
+ * opened, and that a year on what was in. The book is the one You reads (one query, cached).
+ */
+export function useHoldingPnl(h: Holding | null | undefined): PnlBookPosition | null {
+  const { account } = useSession()
+  const q = useAccountPnlBook(h && !h.key.startsWith('paper:') ? account : undefined)
+  return h ? pnlOfHolding(q.data?.positions, h) : null
 }

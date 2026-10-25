@@ -126,5 +126,15 @@ Get line for the coin owed when short), opened from a loan on You. The
 phone's `actorOn` now acts for the account read, as the web's does, so `?as=`
 quotes in the browser render.
 
+**2026-10-25 — each position's PnL.** You's rows and the Lite ticket heads (a
+deposit, a loop, a loan) show what the position made since it was opened, on
+the web and the phone: the index's record for it, matched to the live
+position by `pnlOfHolding` (core, `model/holdingPnl.ts`) through
+`useHoldingPnl` (app). No yearly rate on a loan, nor past ±100 % a year.
+"What you made" no longer disappears while the index holds no record for
+the wallet: it says the positions are not read yet and that the figure comes
+within hours. Share moved off You's rows into the ticket head (a row tap
+manages; Share sits beside close), on both apps.
+
 Not yet on the phone: Details (Pro's ticket) and the profile sheet — they open
 a "comes next" note.

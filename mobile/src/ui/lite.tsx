@@ -1,9 +1,10 @@
 import React from 'react'
-import { Pressable, StyleSheet, View } from 'react-native'
+import { Pressable, Share, StyleSheet, View } from 'react-native'
 import { router } from 'expo-router'
 import { GROUPS } from '@yieldcircle/core/model/assets'
-import { heldBy, leverTag, splitTitle, type LiteRow } from '@yieldcircle/core/model/lite'
-import { usdShort } from '@yieldcircle/core/model/format'
+import { heldBy, leverTag, liteEligible, moneyWord, splitTitle, type LiteRow } from '@yieldcircle/core/model/lite'
+import type { Holding } from '@yieldcircle/core/model/positions'
+import { pct, usdShort } from '@yieldcircle/core/model/format'
 import type { Proof } from '@yieldcircle/core/model/activity'
 import type { HistoryGet } from '@yieldcircle/core/model/rateHistory'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
@@ -64,3 +65,17 @@ const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.b200, borderRadius: 12 },
   run: { backgroundColor: alpha(C.ok, 0.13), borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
 })
+
+/**
+ * Sharing a position (the head of its ticket, the web's `useSharePosition`): a Copy link to the
+ * same strategy with this wallet as the one copied — only a Lite strategy held as itself, not a
+ * loan or a price bet. Null when there is nothing to share.
+ */
+export function sharePosition(s: Strategy | null, h: Holding | null, account: string | undefined): (() => void) | null {
+  if (!s || !h || !account || !liteEligible(s) || h.kind === 'borrow' || h.directional || h.key.startsWith('paper:')) return null
+  return () => {
+    const word = moneyWord(h.asset, h.group)
+    const url = `https://app.yieldcircle.io/#/lite/${s.group}?s=${encodeURIComponent(s.id)}&k=${s.kind}&copy=${account}`
+    void Share.share({ message: `Earning ${pct(h.apr ?? s.rate)} on ${word.startsWith('Dollars') ? 'dollars' : word} with YieldCircle ${url}` }).catch(() => { /* closed */ })
+  }
+}

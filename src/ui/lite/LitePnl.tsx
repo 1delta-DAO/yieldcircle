@@ -10,6 +10,8 @@ import { bookKeyOf } from '../../model/uid'
 import { Sk, pct, usdShort } from '../bits'
 import { LiteDetailsDrawer } from './LiteTicketBits'
 import { WalletPnl } from '../WalletPnl'
+import { PaperWalletBook } from '../PaperPanel'
+import { paperPnlBook } from '../../model/paperView'
 import { proHref, walletHref } from '../../state/AppState'
 
 /**
@@ -107,22 +109,65 @@ function Waiting({ b, live, syncing, gaps }: { b: AccountPnlBook; live?: number;
   return <>No record yet. {bits.length ? bits.join(' · ') + '.' : 'The index draws one per position within a few hours of opening.'}</>
 }
 
-/** The paper account: what its strategies earned (the ledger's own figure) and its daily line. */
+/**
+ * The paper account, on par with the real one (pos-indexer tickets/0093): the same figure, the same
+ * farming / price bar and sentence, the same per-position rows and the same "Every number" drawer
+ * — off the paper ledger (`paperPnlBook`), so nothing ever waits to be drawn. What paper adds is
+ * the friction line (its costs are known to the cent) and the return on what was put in.
+ */
 function PaperMade({ account }: { account: string }) {
   const paper = usePaper()
   const daily = usePaperDaily(account, 90)
+  const [more, setMore] = React.useState(false)
+  // accrual moves the figure by the second; re-fold it twice a minute like the positions sheet
+  const [, tick] = React.useReducer((x: number) => x + 1, 0)
+  React.useEffect(() => { const t = setInterval(tick, 30_000); return () => clearInterval(t) }, [])
+  const l = paper.ledger
   const b = paper.book
-  if (!b) return null
+  if (!l || !b) return null
+  const pb = paperPnlBook(l, paper.viewNow, paper.price)
+  const s = pnlSummary(pb)
   const pts = (daily.data?.days ?? []).map((d) => d.pnlUsd)
   return (
     <section className="sec lite-sec">
-      <div className="sec-h"><h2>What you made</h2><span className="sub">on paper · what the strategies earned, costs included</span></div>
+      <div className="sec-h"><h2>What you made</h2><span className="sub">on paper · since each position opened{paper.skewDays ? ` · previewing +${paper.skewDays} days` : ''}</span></div>
       <div className="lpnl paper">
-        <div className="lpnl-top">
-          <b className={`lpnl-v ${b.pnlUsd >= 0 ? 'ok' : 'bad'}`}>{signedMoney(b.pnlUsd)}</b>
-          <span className="lpnl-s t50">{pct(b.returnPct, 2)} of what was put in{b.frictionUsd > 0.005 ? ` · ${usdShort(b.frictionUsd)} of it went on fees and swaps` : ''}</span>
-        </div>
-        {pts.length > 1 ? <Spark pts={pts} up={b.pnlUsd >= 0} /> : <p className="lpnl-word t50">The day-by-day line starts after a second day.</p>}
+        {!s ? <div className="empty t50">Nothing made yet. Open a deposit or a loop on paper and its figure shows here at once, accruing by the minute.</div> : <>
+          <div className="lpnl-top">
+            <b className={`lpnl-v ${s.total >= 0 ? 'ok' : 'bad'}`}>{signedMoney(s.total)}</b>
+            <span className="lpnl-s t50">{s.aprPct != null ? `${pct(s.aprPct, 1)} a year on what was in · ` : ''}{pct(b.returnPct, 2)} of what was put in</span>
+          </div>
+          {s.split && s.yield != null && s.price != null && (
+            <>
+              <div className="lpnl-bar" role="img" aria-label={`${Math.round(s.split.yield * 100)}% farming, ${Math.round(s.split.price * 100)}% price`}>
+                <i className={`y ${s.yield < 0 ? 'neg' : ''}`} style={{ flex: `0 0 ${Math.round(s.split.yield * 100)}%` }} />
+                <i className={`p ${s.price < 0 ? 'neg' : ''}`} style={{ flex: '1 1 auto' }} />
+              </div>
+              <div className="lpnl-k">
+                <span><i className="dot y" />Farming <b className={s.yield >= 0 ? 'ok' : 'bad'}>{signedMoney(s.yield)}</b></span>
+                <span><i className="dot p" />Price <b className={s.price >= 0 ? 'ok' : 'bad'}>{signedMoney(s.price)}</b></span>
+              </div>
+            </>
+          )}
+          <p className="lpnl-word">{s.word}</p>
+          {b.frictionUsd > 0.005 && <p className="lpnl-word t50">{usdShort(b.frictionUsd)} of it went on fees, swaps and bridges.</p>}
+          {pts.length > 1 ? <Spark pts={pts} up={s.total >= 0} /> : <p className="lpnl-word t50">The day-by-day line starts after a second day.</p>}
+          {pb.positions.length > 0 && (
+            <div className="lpnl-pos">
+              {pb.positions.slice(0, 4).map((p) => (
+                <div key={p.key} className="lpnl-p">
+                  <span className="lpnl-pn"><b>{p.title}</b><small className="t50">{p.sub} · {usdShort(p.equityUsd)} in it</small></span>
+                  <b className={p.pnlUsd >= 0 ? 'ok' : 'bad'}>{signedMoney(p.pnlUsd)}</b>
+                </div>
+              ))}
+              {pb.positions.length > 4 && <div className="lpnl-p t50"><small>and {pb.positions.length - 4} more</small></div>}
+            </div>
+          )}
+          <button type="button" className="lite-details lpnl-more" onClick={() => setMore(true)}><span><b>Every number</b><small>each position, what is at work, what it cost</small></span><span aria-hidden>›</span></button>
+          <LiteDetailsDrawer open={more} onClose={() => setMore(false)} pro={proHref(walletHref(account))}>
+            <div className="lpnl-full"><PaperWalletBook account={account} inScope={() => true} /></div>
+          </LiteDetailsDrawer>
+        </>}
       </div>
     </section>
   )

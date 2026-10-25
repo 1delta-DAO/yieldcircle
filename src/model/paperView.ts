@@ -5,7 +5,7 @@
  */
 import type { TokenBalance } from '../sdk/types'
 import { idleFrom, type Holding, type Idle } from './positions'
-import { knownTokens, tokenKey, valueOf, type PaperLedger, type PaperPosition, type PriceFn } from './paper'
+import { knownTokens, legPrices, tokenKey, valueOf, type PaperLedger, type PaperPosition, type PriceFn } from './paper'
 
 /** What a bank token is called: its symbol, decimals and logo, keyed `chainId:token`. */
 export type TokenMeta = Record<string, { symbol: string; decimals: number; logo?: string }>
@@ -62,4 +62,71 @@ export function paperHoldings(l: PaperLedger, at: number, price: PriceFn): Holdi
       collateralAddress: s.held.address, debtAddress: s.debt?.address, lender: s.lender, collateralUsd: v.heldUsd,
     }
   })
+}
+
+const DAY = 86_400_000
+
+/** One open paper position's lifetime figure, the shape the real book's rows have (`boardPositions`). */
+export interface PaperPnlPosition {
+  key: string
+  title: string
+  sub: string
+  pnlUsd: number
+  /** farming: what the rate earned (the position at its open prices) */
+  yieldUsd: number
+  /** the legs' prices since the open (a peg position: its money's move only) */
+  priceUsd: number
+  aprPct: number | null
+  equityUsd: number
+  since: string
+}
+
+/**
+ * The paper account's "What you made" in the real wallet book's shape (pos-indexer
+ * docs/lifetime-pnl.md "The wallet book"), so Lite's You page and the wallet page render paper
+ * and real money the same way: one figure, how much of it was farming and how much price, an APR
+ * on what was in, and each position's own figure.
+ *
+ * Display only — nothing here is in `paper.ts` (the model the server runs), and nothing changes
+ * what `bookOf` ranks. The split, per open position: `price` = the units held now × each leg's
+ * move since its open price (`snap.*.priceUsd`, stamped at the open), `yield` = the rest. A
+ * position added to later (`into`) keeps its first open's prices, so units bought after a move
+ * book that move as price and the same amount as a farming loss — the total is exact, the split
+ * approximate there. `realizedUsd` (closes, swaps, bridges, fees) has no split: it counts as
+ * farming, and `frictionUsd` says how much of it was cost. The APR is the open positions' PnL over
+ * their basis × days open (≥ 1 day), the real book's capital-days rule with the basis as capital.
+ */
+export function paperPnlBook(l: PaperLedger, at: number, price: PriceFn) {
+  let open = 0, priceUsd = 0, capDays = 0, openPnl = 0
+  const positions: PaperPnlPosition[] = []
+  for (const p of l.positions) {
+    const v = valueOf(p, at, price)
+    const { pHeld, pDebt } = legPrices(p, price)
+    const px = v.units * (pHeld - p.snap.held.priceUsd) - (p.snap.debt ? v.debtUnits * (pDebt - p.snap.debt.priceUsd) : 0)
+    const days = (at - p.openedAt) / DAY
+    const cap = days >= 1 && p.basisUsd > 0 ? p.basisUsd * days : 0
+    open += v.pnlUsd
+    priceUsd += px
+    if (cap > 0) { capDays += cap; openPnl += v.pnlUsd }
+    positions.push({
+      key: p.id,
+      title: p.snap.label,
+      sub: `${p.kind === 'simple' ? 'Deposit' : `Levered · borrows ${p.snap.debt?.symbol ?? ''}`} · ${p.snap.venue}`,
+      pnlUsd: v.pnlUsd,
+      yieldUsd: v.pnlUsd - px,
+      priceUsd: px,
+      aprPct: cap > 0 ? (v.pnlUsd / cap) * 365 * 100 : null,
+      equityUsd: v.equityUsd,
+      since: new Date(p.openedAt).toISOString(),
+    })
+  }
+  const pnlUsd = l.realizedUsd + open
+  return {
+    total: { pnlUsd, yieldUsd: pnlUsd - priceUsd, directionalUsd: priceUsd, pnlAprPct: capDays > 0 ? (openPnl / capDays) * 365 * 100 : null },
+    // every paper position has its figure at once: nothing waits to be drawn. With none open, the
+    // realized part still counts as one line
+    coverage: { positions: Math.max(1, positions.length), withPnl: positions.length || (Math.abs(l.realizedUsd) > 0.005 ? 1 : 0) },
+    realizedUsd: l.realizedUsd,
+    positions: positions.sort((a, b) => b.pnlUsd - a.pnlUsd),
+  }
 }

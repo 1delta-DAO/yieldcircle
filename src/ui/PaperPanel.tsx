@@ -8,7 +8,8 @@ import React from 'react'
 import { usePaper } from '../state/Paper'
 import { openPaperSignIn } from './PaperSignIn'
 import { bookOf, MAX_TOPUPS, type PaperBook } from '../model/paper'
-import { metaKey, paperHoldings } from '../model/paperView'
+import { metaKey, paperHoldings, paperPnlBook } from '../model/paperView'
+import { signedMoney } from '../model/lite'
 import { usePaperDaily } from '../social/queries'
 import { costWord, usePaperLedgerFor } from './PaperMoves'
 import { HealthPill, Sk } from './bits'
@@ -131,6 +132,8 @@ export function PaperWalletBook({ account, inScope }: { account: string; inScope
   // what the strategies earned is the whole account's; the rows follow the page's chain filter
   const book = ledger ? bookOf(ledger, Date.now(), price) : null
   const rows = ledger ? paperHoldings(ledger, Date.now(), price).filter((h) => inScope(h.chainId)) : []
+  // each position's own figure since its open (the real wallet page's "What it made" rows)
+  const made = new Map((ledger ? paperPnlBook(ledger, Date.now(), price).positions : []).map((p) => [`paper:${p.key}`, p]))
   if (loading) return <div className="card"><div className="empty"><Sk w={220} /></div></div>
   if (!ledger) return <div className="card"><div className="empty">{error ? 'This paper account has no book on the server yet.' : 'No paper book.'}</div></div>
   return (
@@ -147,7 +150,7 @@ export function PaperWalletBook({ account, inScope }: { account: string; inScope
           <span className="xt"><span className="n"><span>{h.label}</span><span className="pill paper">paper</span></span>
             <small>{h.venue} · {chainLabel(h.chainId)}{h.health != null ? <> · <HealthPill h={h.health} /></> : ''}{h.health != null && h.health < 1 ? <> · <span className="liq-warn">would have been liquidated</span></> : ''}</small></span>
           <span className="sp" />
-          <span className="xv"><b>{usd(h.valueUsd)}</b><small>{h.apr != null ? <span className="ok">{pct(h.apr)}</span> : '—'}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}</small></span>
+          <span className="xv"><b>{usd(h.valueUsd)}</b><small>{h.apr != null ? <span className="ok">{pct(h.apr)}</span> : '—'}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}{made.get(h.key) ? <> · <span className={made.get(h.key)!.pnlUsd >= 0 ? 'ok' : 'bad'} title={`farming ${signedMoney(made.get(h.key)!.yieldUsd)} · price ${signedMoney(made.get(h.key)!.priceUsd)}`}>{signedMoney(made.get(h.key)!.pnlUsd)} made</span></> : ''}</small></span>
         </div>
       ))}
     </div>

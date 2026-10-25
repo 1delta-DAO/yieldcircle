@@ -24,7 +24,7 @@
  * machine. Preview and production builds embed the JS on EAS's servers, which never see this
  * `.env`: `env:push` puts the same values there.
  */
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseEnv } from 'node:util'
@@ -51,6 +51,48 @@ function run(cmd, args, { env = {}, allowFail = false } = {}) {
   const r = spawnSync(cmd, args, { cwd: MOBILE, stdio: 'inherit', env: { ...process.env, ...env } })
   if (r.status !== 0 && !allowFail) process.exit(r.status ?? 1)
   return r.status === 0
+}
+
+/**
+ * Metro, with the first bundle built before the phone asks. A cold bundle takes Metro longer than
+ * the Expo tunnel waits, so the phone's first load through `--tunnel` ended in "gateway timeout";
+ * here the script asks Metro for the iOS and Android bundles itself as soon as it is up, so the
+ * phone's request finds them cached — and on the LAN the first load is no longer slow either.
+ */
+function serve(args, env) {
+  console.log(`\n› npx expo start ${args.join(' ')}`)
+  const child = spawn('npx', ['expo', 'start', ...args], { cwd: MOBILE, stdio: 'inherit', env: { ...process.env, ...env } })
+  child.on('exit', (code) => process.exit(code ?? 0))
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill(sig))
+  const i = args.indexOf('--port')
+  warm(i >= 0 ? Number(args[i + 1]) : 8081)
+}
+
+async function warm(port) {
+  const base = `http://localhost:${port}`
+  for (let t = 0; t < 180; t++) {
+    const up = await fetch(`${base}/status`).then((r) => r.text()).catch(() => '')
+    if (up.includes('running')) break
+    await new Promise((r) => setTimeout(r, 1000))
+  }
+  for (const platform of ['ios', 'android']) {
+    const t0 = Date.now()
+    try {
+      const m = await fetch(base, { headers: { 'expo-platform': platform, accept: 'application/expo+json,application/json' } }).then((r) => r.json())
+      // the manifest names the bundle on the address the phone uses (the tunnel or the LAN); ask Metro directly
+      const u = new URL(m.launchAsset.url)
+      await fetch(`${base}${u.pathname}${u.search}`).then((r) => r.arrayBuffer())
+      console.log(`\n› ${platform} bundle ready (${Math.round((Date.now() - t0) / 1000)} s) — open it on the phone now`)
+      // the tunnel's address is new on every start: Expo Go's "recently opened" entries from an earlier
+      // run point at a dead tunnel and answer "gateway timeout" — always open this one
+      // a tunnel answers on https only: `exps://` (Expo Go's https); `exp://` goes out as plain http
+      // and, from an iPhone, failed with "gateway timeout" although Safari reached the same host
+      const lan = /^\d+\.\d+\.\d+\.\d+(:\d+)?$|^localhost/.test(u.host)
+      if (platform === 'ios') console.log(`› address for this run: ${lan ? 'exp' : 'exps'}://${u.host}   (Expo Go → "Enter URL manually"; older entries in its history are dead)`)
+    } catch (e) {
+      console.log(`\n› could not pre-build the ${platform} bundle (${e.message}); the phone's first load builds it instead`)
+    }
+  }
 }
 
 const quiet = (cmd, args) => spawnSync(cmd, args, { cwd: MOBILE, encoding: 'utf8' })
@@ -83,7 +125,7 @@ const env = publicEnv()
 switch (cmd) {
   case 'start':
     requireWalletConnect(env)
-    run('npx', ['expo', 'start', '--dev-client', ...rest], { env })
+    serve(['--dev-client', ...rest], env)
     break
 
   case 'setup': {
@@ -94,7 +136,7 @@ switch (cmd) {
     // the dev client needs no keys (its JS comes from Metro), so the cloud build gets none
     run('npx', [...EAS, 'build', '--profile', 'development', '--platform', p])
     console.log('\nInstall the build from the link above (or the QR code), then open it: Metro starts now.')
-    run('npx', ['expo', 'start', '--dev-client'], { env })
+    serve(['--dev-client'], env)
     break
   }
 
@@ -109,7 +151,7 @@ switch (cmd) {
     // asks this Expo Go server for a dev-client link it cannot make: an empty 404, which Safari saves as a file
     console.log('\nExpo Go: scan the QR code with the iPhone camera and tap "Expo Go" on the page that opens (not "Development Build"),')
     console.log('or in Expo Go: "Enter URL manually" → the exp:// address below. After approving in the wallet, switch back by hand.')
-    run('npx', ['expo', 'start', '--go', ...rest], { env })
+    serve(['--go', ...rest], env)
     break
 
   case 'device':

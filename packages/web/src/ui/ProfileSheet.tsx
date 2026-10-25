@@ -19,7 +19,7 @@ import { ChainList } from './ChainPicker'
 import { SettingsPanel } from './SettingsPanel'
 import { useUnseen } from './Alerts'
 import { MyStats } from './Stats'
-import { useSettings } from '../state/Settings'
+import { useSettings } from '@yieldcircle/app/state/Settings'
 import { Socials } from '@yieldcircle/design'
 import { ModeSwitch } from './lite/ModeSwitch'
 

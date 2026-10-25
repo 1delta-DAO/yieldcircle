@@ -1,21 +1,14 @@
 import React from 'react'
 import { GROUPS, type Group } from '@yieldcircle/core/model/assets'
-import { LITE_GROUPS, LITE_LIST_ROWS, liteEligible } from '@yieldcircle/core/model/lite'
+import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, liteEligible } from '@yieldcircle/core/model/lite'
 import { go, liteHref, proHref, type Route } from '../../state/AppState'
 import { useSticky } from '../../state/sticky'
 import { GroupIcon, Sk, pct, usd, usdShort } from '../bits'
 import { Ticket } from '../Ticket'
 import { useAsideTop } from '../AssetPage'
-import { useLiteMenu } from './useLite'
+import { useLiteMenu } from '@yieldcircle/app/lite'
 import { LiteRowView } from './LiteBits'
 
-/** What Lite calls each category: the money, not the group code. */
-export const LITE_NAME: Record<string, { name: string; line: string }> = {
-  USD: { name: 'Dollars', line: 'Earn on dollars. Levered rows say ×, and the safest come first.' },
-  ETH: { name: 'Ether', line: 'Earn on ether and staked ether, in ether.' },
-  BTC: { name: 'Bitcoin', line: 'Earn on bitcoin, in bitcoin.' },
-  MORE: { name: 'More', line: 'Other coins and currencies: BNB, AVAX, SOL, the euro, gold.' },
-}
 /** How many of the best rows Earn shows before a category is picked. */
 const TOP_ROWS = 10
 

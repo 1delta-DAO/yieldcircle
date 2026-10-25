@@ -12,7 +12,7 @@
 import React from 'react'
 import { subjectOf } from '@yieldcircle/core/index/types'
 import { useApp, marketHref } from '../state/AppState'
-import { useFeedPage } from '../index/queries'
+import { useFeedPage } from '@yieldcircle/app/index/queries'
 import { useFollowers, useMyFollows, useProfiles } from '../social/queries'
 import { useSocialWrite } from '../social/sign'
 import { Ago, Who, describeBundle } from './social-bits'

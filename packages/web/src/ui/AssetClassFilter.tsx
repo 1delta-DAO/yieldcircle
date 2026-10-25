@@ -24,7 +24,7 @@
  */
 import React from 'react'
 import { useApp } from '../state/AppState'
-import { useAssetClasses } from '../index/queries'
+import { useAssetClasses } from '@yieldcircle/app/index/queries'
 import type { AssetClassFacet } from '@yieldcircle/core/index/api'
 import { ASSET_CLASS_ALIASES, ASSET_CLASSES, type AssetClass, type AssetClassMatch } from '@yieldcircle/core/model/assetClass'
 import { useSticky } from '../state/sticky'

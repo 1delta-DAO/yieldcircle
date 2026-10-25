@@ -34,7 +34,7 @@ try {
   const core = (p) => load(join(ROOT, 'packages/core/src', p))
   await load('/src/env.ts')
   const [{ fetchEarn, fetchOptimizerPairs }, { DEFAULTS }, { CHAINS, chainBuckets, prewarmBooks }, { EXPOSURE_ASSETS }, { FIXED_BOOK_PROTOCOLS }, { isEvmChain }] = await Promise.all([
-    core('sdk/api.ts'), load('/src/state/Settings.tsx'), load('/src/sdk/queries.ts'), core('model/assets.ts'), core('model/strategies.ts'), core('model/address.ts'),
+    core('sdk/api.ts'), load(join(ROOT, 'packages/app/src/state/Settings.tsx')), load(join(ROOT, 'packages/app/src/sdk/queries.ts')), core('model/assets.ts'), core('model/strategies.ts'), core('model/address.ts'),
   ])
   const all = CHAINS.map((c) => c.id)
   const take = async (f) => { seen.length = 0; await f(); return canon(seen[0]) }

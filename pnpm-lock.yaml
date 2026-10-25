@@ -56,6 +56,9 @@ importers:
       '@walletconnect/safe-json':
         specifier: '*'
         version: 1.0.2
+      '@yieldcircle/app':
+        specifier: workspace:*
+        version: link:../packages/app
       '@yieldcircle/core':
         specifier: workspace:*
         version: link:../packages/core
@@ -77,6 +80,9 @@ importers:
       expo-router:
         specifier: ~58.0.25
         version: 58.0.26(72a045f56d86671b910ebd0104661eec)
+      expo-sqlite:
+        specifier: ~58.0.13
+        version: 58.0.14(expo@58.0.19)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@5.0.10))(react@19.3.0)
       expo-status-bar:
         specifier: ~58.0.4
         version: 58.0.4(expo@58.0.19)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@5.0.10))(react@19.3.0)
@@ -114,6 +120,34 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
+
+  packages/app:
+    dependencies:
+      '@yieldcircle/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@tanstack/react-query':
+        specifier: 5.91.3
+        version: 5.91.3(react@19.3.0)
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.9.7
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.3.0
+      react:
+        specifier: ^19.2.4
+        version: 19.3.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@25.9.7)(lightningcss@1.33.0)(terser@5.51.2)
 
   packages/core:
     devDependencies:
@@ -142,6 +176,9 @@ importers:
       '@tanstack/react-query':
         specifier: 5.91.3
         version: 5.91.3(react@19.3.0)
+      '@yieldcircle/app':
+        specifier: workspace:*
+        version: link:../app
       '@yieldcircle/core':
         specifier: workspace:*
         version: link:../core
@@ -182,6 +219,9 @@ importers:
       vite:
         specifier: ^8.0.1
         version: 8.3.0(@types/node@25.9.7)(esbuild@0.28.2)(terser@5.51.2)
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
 
   packages/web:
     dependencies:
@@ -194,6 +234,9 @@ importers:
       '@tanstack/react-query':
         specifier: 5.91.3
         version: 5.91.3(react@19.3.0)
+      '@yieldcircle/app':
+        specifier: workspace:*
+        version: link:../app
       '@yieldcircle/core':
         specifier: workspace:*
         version: link:../core
@@ -237,6 +280,9 @@ importers:
       vitest:
         specifier: 3.2.4
         version: 3.2.4(@types/debug@4.1.13)(@types/node@25.9.7)(lightningcss@1.33.0)(terser@5.51.2)
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
 
 packages:
 
@@ -2617,6 +2663,9 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
+  await-lock@2.2.2:
+    resolution: {integrity: sha512-aDczADvlvTGajTDjcjpJMqRkOF6Qdz3YbPZm/PyW6tKPkx2hlYBzxMhEywM/tU72HrVZjgl5VCdRuMlA7pZ8Gw==}
+
   axios-retry@4.5.0:
     resolution: {integrity: sha512-aR99oXhpEDGo0UuAlYcn2iGRds30k366Zfa05XWScR9QaQD4JYiP3/1Qt1u7YlefUOK+cn0CcwoL1oefavQUlQ==}
     peerDependencies:
@@ -3346,6 +3395,13 @@ packages:
   expo-server@58.0.6:
     resolution: {integrity: sha512-6DBlSZwxk3J0y1j2s4XebAWNiwGaMp32NcWX7b2kJC2+EFf1g+pCcVmx8ylawt2tyLmbDHswm4MHOfrd4bqfvA==}
     engines: {node: ^22.13.0 || ^24.3.0 || ^26.0.0 || >=27.0.0}
+
+  expo-sqlite@58.0.14:
+    resolution: {integrity: sha512-OEZsNXYYOzWDkMORprUYRblJVfhO/TKloMWHm5bLzIhYMgs8UcdQZ/RFIMLQFciiaMoYZDsCZbveG47OKcDRXg==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+      react-native: '*'
 
   expo-status-bar@58.0.4:
     resolution: {integrity: sha512-e6JJHziSSNb1v1VSzmDrAPf6GFoPRdVOIDrTCcK3bHfbJEAZGZ3YZXfqlorZtUFDT0z6NcjaZf0mPWifJZcqew==}
@@ -9151,6 +9207,8 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
+  await-lock@2.2.2: {}
+
   axios-retry@4.5.0(axios@1.20.0):
     dependencies:
       axios: 1.20.0
@@ -9942,6 +10000,13 @@ snapshots:
       - '@types/react-dom'
 
   expo-server@58.0.6: {}
+
+  expo-sqlite@58.0.14(expo@58.0.19)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@5.0.10))(react@19.3.0):
+    dependencies:
+      await-lock: 2.2.2
+      expo: 58.0.19(@babel/core@7.29.7)(@expo/dom-webview@58.0.2)(@expo/metro-runtime@58.0.15)(bufferutil@4.1.0)(expo-router@58.0.26)(react-dom@19.3.0(react@19.3.0))(react-native-worklets@0.13.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@5.0.10))(react@19.3.0))(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@5.0.10))(react@19.3.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      react: 19.3.0
+      react-native: 0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@5.0.10)
 
   expo-status-bar@58.0.4(expo@58.0.19)(react-native@0.88.0(@babel/core@7.29.7)(@react-native/metro-config@0.88.0(@babel/core@7.29.7)(bufferutil@4.1.0)(utf-8-validate@5.0.10))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(utf-8-validate@5.0.10))(react@19.3.0):
     dependencies:

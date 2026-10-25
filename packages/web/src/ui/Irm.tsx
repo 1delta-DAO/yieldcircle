@@ -26,7 +26,7 @@
  *      not on it, and the foot says so wherever the row carries any.
  */
 import React from 'react'
-import { useIrm } from '../sdk/queries'
+import { useIrm } from '@yieldcircle/app/sdk/queries'
 import type { IrmCurve, IrmPoint } from '@yieldcircle/core/sdk/types'
 import { Popover, Sk, pct, usdShort } from './bits'
 

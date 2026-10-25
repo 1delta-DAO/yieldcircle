@@ -1,7 +1,7 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as idx from '@yieldcircle/core/index/api'
-import { useAccountPnlBook } from '../../index/pnl'
+import { useAccountPnlBook } from '@yieldcircle/app/index/pnl'
 import { useMyFollows, useProfiles } from '../../social/queries'
 import { go, useApp, walletHref } from '../../state/AppState'
 import { normAddr } from '@yieldcircle/core/model/address'
@@ -11,7 +11,7 @@ import { GROUPS } from '@yieldcircle/core/model/assets'
 import { Face } from '../social-bits'
 import { FollowButton, Who } from '../social-bits'
 import { Sk, Tok, pct, usd, usdShort } from '../bits'
-import { useLiteMenu } from './useLite'
+import { useLiteMenu } from '@yieldcircle/app/lite'
 import { openRow } from './LiteBits'
 
 const SORTS: { id: BoardSort; word: string; why: string }[] = [

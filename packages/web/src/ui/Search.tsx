@@ -27,7 +27,7 @@ import type { FindCatalogDoc, FindHit, FindKind } from '@yieldcircle/core/index/
 import { GROUPS, nameOf } from '@yieldcircle/core/model/assets'
 import { marketHref, tokenHref, useApp, walletHref } from '../state/AppState'
 import { feedHash } from '../state/feedLink'
-import { CHAINS, useRateHistory } from '../sdk/queries'
+import { CHAINS, useRateHistory } from '@yieldcircle/app/sdk/queries'
 import { steadyRate } from '@yieldcircle/core/model/rateHistory'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { Avg30 } from './Spark'

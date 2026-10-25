@@ -17,12 +17,12 @@
  * and most desks are not. That is a fact about the registry.
  */
 import React from 'react'
-import { useCurator, useCuratorAllocation, useCuratorHolders, useCuratorTxs } from '../index/queries'
+import { useCurator, useCuratorAllocation, useCuratorHolders, useCuratorTxs } from '@yieldcircle/app/index/queries'
 import { useProfiles } from '../social/queries'
 import type { AllocationSlice } from '@yieldcircle/core/index/api'
 import { indexChainLabel } from '@yieldcircle/core/index/types'
 import { tokenHref } from '../state/AppState'
-import { chainLabel } from '../sdk/queries'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { curatorLabel } from './CuratorFilter'
 import { prettyProtocol } from './ProtocolFilter'
 import { Rate } from './Rate'

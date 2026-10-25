@@ -1,26 +1,58 @@
 # Mobile — the Expo app (`mobile/`)
 
 The phone app: Expo SDK 58 (React Native 0.88, React 19.3 — the same React as
-the web), expo-router, wallets through **Reown AppKit** + its wagmi adapter,
-data and rules from **`@yieldcircle/core`**. It is a probe so far, not the
-product: one screen that proves the three things the app rests on.
+the web), expo-router, wallets through **Reown AppKit** + its wagmi adapter.
+It runs on the same code as the web below the screens:
 
-| On the screen | What it proves |
-|---|---|
-| **Connect** (`<AppKitButton />`) | a wallet connects over WalletConnect and hands the user back (`yieldcircle://`) |
-| **Wallet capabilities** | what the wallet answers to `wallet_getCapabilities` (EIP-5792) on the current chain — whether the one-signature ladder can batch, per wallet |
-| **Earn on Base** | core runs on Hermes: `fetchEarn` → `classifyEarn` with the default floors, against production |
+- **`@yieldcircle/core`** — the model, the API clients, the formatters, Lite's
+  rules (`model/lite.ts`), all plain TypeScript.
+- **`@yieldcircle/app`** (`packages/app`) — the React half both apps share: the
+  data hooks (`useCatalog`, `useBook`, rate history, the index's proofs and
+  trending, `useLiteMenu`, `liteCards`) and the settings. No DOM; who is
+  looking comes in through `SessionProvider` — the web fills it from its hash
+  route and paper account (`packages/web/src/state/session.tsx`), the phone from
+  the connected wallet (`mobile/src/session.tsx`). `localStorage` is the one
+  browser API it uses; the phone gets a synchronous one on SQLite
+  (`expo-sqlite/localStorage/install`, first in `app/_layout.tsx`).
+
+**What is on the phone** (2026-10-25):
+
+| | Lite | Pro |
+|---|---|---|
+| Home | balance and a day's earnings, streak, the idle nudge, three lenses of cards (proven · trending · most held) | your money, the best three rows per money |
+| Earn | four money tiles, the highest steady rates or a money's rows, "show all" | every row of a money, every venue and chain |
+| Board | the wallet board (best rate · most a day), tap for each position's PnL | the same board |
+| Feed · Borrow | — | "comes next" (the feed needs the social layer; borrowing comes with the ticket) |
+
+A row opens the **strategy screen**: what it is in words, the rate (amber on a
+spike), risk, kind, who runs it, chain, size, who holds it, yours. It is
+read-only — **Earn this** is disabled until the phone has the ticket, and says
+so. **You** (behind the balance chip, as on the web) has the wallet, your money
+per currency, the **Lite / Pro switch** (saved like the web's setting; `/`
+opens the saved mode) and the wallet probe (`app/probe.tsx`: what the wallet
+answers to `wallet_getCapabilities`).
 
 ```
 mobile/
-  app/_layout.tsx        polyfills → env → providers (AppKit, wagmi, React Query), the AppKit modal
-  app/index.tsx          the probe screen
+  app/_layout.tsx        polyfills → env → AppKit, wagmi, React Query, Settings, session; the AppKit modal
+  app/index.tsx          → /lite or /pro, by the saved mode
+  app/lite/  app/pro/    the two tab bars and their screens
+  app/strategy/[id].tsx  one strategy, read-only
+  app/you.tsx            wallet, your money, Lite / Pro
+  app/probe.tsx          the wallet-capabilities probe
+  src/session.tsx        the phone's SessionProvider: every chain, the connected wallet
+  src/mode.ts            Lite / Pro, in localStorage
+  src/ui/                bits (Tok, GroupIcon, RiskDot, Rate, Seg …), Lite rows and cards, Pro rows, the board
   src/env.ts             EXPO_PUBLIC_* → core's configureBackend (the web's src/env.ts, for the phone)
   src/appkit.ts          WagmiAdapter + createAppKit: the web's chain list, metadata, features off
   src/storage.ts         AsyncStorage behind AppKit, so a session survives a restart
   plugins/wallet-queries.js  Android <queries> so installed wallets are detected
   app.json · eas.json    identity, wallet schemes (iOS), build profiles
 ```
+
+**Not on the phone yet**, in the order they would come: the ticket (opening
+and closing a position: the web's `Ticket.tsx` + `useLadder.ts`), the social
+layer (profiles, follows, the feed, signed comments), paper accounts, Solana.
 
 ## Running it
 
@@ -40,6 +72,7 @@ is a secret and never reaches the app.
 | `pnpm mobile setup android` | **first time, in one go:** EAS login and project (once), the dev client built on EAS (an APK — install it from the link), then Metro. `ios` needs an Apple Developer account and the phone registered first (`pnpm mobile device`; see "On an iPhone") |
 | `pnpm mobile` | every day after: Metro with the keys; open the dev build on the phone (`pnpm mobile --tunnel` when the phone cannot reach this machine on the Wi-Fi) |
 | `pnpm mobile device` | register an iPhone (below) |
+| `pnpm mobile go [--tunnel]` | Expo Go instead of a dev build: no build, no Apple account (below) |
 | `pnpm mobile build android` | rebuild the dev client — only after a native change (a new native package, `app.json`) |
 | `pnpm mobile run android` | build and install locally instead of EAS (Android SDK + a phone on USB; `ios` needs a Mac) |
 | `pnpm mobile env` | what the app gets, masked |
@@ -51,6 +84,33 @@ your machine, so the EAS dev build needs no keys. Preview and production builds
 bundle the JS on EAS's servers, which never see the local `.env` — hence
 `env:push` (plaintext variables: `EXPO_PUBLIC_*` ships inside the app anyway).
 `pnpm typecheck` covers mobile with the rest.
+
+### Without a build: Expo Go
+
+`pnpm mobile go [--tunnel]` runs the app in **Expo Go** (free from the App
+Store, no Apple account, no EAS build). Wallets connect, the capabilities card
+and the earn list work; two things do not: the wallet cannot hand back
+(Expo Go is not `yieldcircle://` — switch back by hand) and installed wallets
+are not detected (react-native-compat's native half is missing; it logs
+"Application module is not available" once and carries on).
+
+What it took to get an iPhone onto it (2026-10-25), so nobody repeats it:
+
+- **The QR opens a chooser page** (the project has `expo-dev-client`): tap
+  **Expo Go**. "Development Build" asks an Expo Go server for a dev-client
+  link it cannot make — an empty 404 that Safari saves as a `.txt`.
+- **`karateduck` isolates Wi-Fi clients**: phone and laptop cannot reach each
+  other at all (no ARP answer), so the LAN address is unreachable. Use
+  `--tunnel`, or the iPhone's Personal Hotspot for the laptop (then no tunnel).
+- **With `--tunnel`, enter `exps://<host>`, not `exp://`**: the tunnel serves
+  https; `exp://` goes out as plain http and timed out ("gateway timeout")
+  although Safari reached the same host. The script prints the right address
+  for each run.
+- **The tunnel address is new on every start** — Expo Go's history entries from
+  an earlier run are dead tunnels ("gateway timeout" again).
+- **A cold bundle outlasts the tunnel's wait**: the script now builds the iOS
+  and Android bundles as soon as Metro is up ("bundle ready"); open the app
+  after that line.
 
 ### On an iPhone
 

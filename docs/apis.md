@@ -5,8 +5,8 @@ has **no backend of its own**; it reads three services:
 
 | Service | Base URL (env) | Default | What for | Client code |
 |---|---|---|---|---|
-| **1delta API** (worker-api / "allocator") | `VITE_BACKEND_BASE_URL` | `https://allocator.api.1delta.io` | catalogue, the connected user's positions + balances, every transaction built | core `vendor/allocator/http.ts` → core `sdk/api.ts` → web `src/sdk/queries.ts` |
-| **Position index** (`pos-indexer`) | `VITE_INDEX_BASE_URL` | `https://positions.1delta.io` | other wallets, feed, markets, hot/trending, board, curators, assets, idle-balance snapshots — the EVM chains | core `index/api.ts` → web `src/index/queries.ts` |
+| **1delta API** (worker-api / "allocator") | `VITE_BACKEND_BASE_URL` | `https://allocator.api.1delta.io` | catalogue, the connected user's positions + balances, every transaction built | core `vendor/allocator/http.ts` → core `sdk/api.ts` → app `sdk/queries.ts` |
+| **Position index** (`pos-indexer`) | `VITE_INDEX_BASE_URL` | `https://positions.1delta.io` | other wallets, feed, markets, hot/trending, board, curators, assets, idle-balance snapshots — the EVM chains | core `index/api.ts` → app `index/queries.ts` |
 | **Solana position index** (`pos-indexer/apps/sol-indexer`) | `VITE_SOL_INDEX_BASE_URL` | `https://sol-positions.1delta.io` | the same ledger questions for `solana`, a separate service until the merge ([`solana.md`](solana.md)) | core `index/api.ts` routes to it by chain / address shape / uid; it must answer the EVM index's shapes — no adapter here |
 | **Social service** (`pos-indexer/packages/social`) | `VITE_SOCIAL_BASE_URL` | `https://social.1delta.io` | threads, profiles, follows, ratings (EIP-712 signed writes); the **paper ledger** under `/paper/*` | `src/social/api.ts` → `src/social/queries.ts` (see [`social.md`](social.md)); paper: `src/social/paperApi.ts` (tickets/0006) |
 
@@ -48,10 +48,12 @@ core (packages/core/src — no React, no DOM; web, landing and mobile share it)
   sdk/api.ts                 one function per 1delta endpoint; wire names translated HERE only
   index/api.ts               one function per index endpoint (own tiny `get`, no envelope)
   model/*.ts                 pure functions turning responses into Strategy / Holding / uid
-web (packages/web/src)
-  env.ts                     the build's VITE_* URLs → configureBackend; imported first by every entry
+app (packages/app/src — React + React Query, no DOM; web and mobile share it)
   sdk/queries.ts             React Query hooks for the 1delta API (+ the index balance POST)
   index/queries.ts           React Query hooks for the index
+  book.ts · lite.ts          useBook (catalogue + holdings + idle per asset), useLiteMenu; who is looking from session.tsx
+web (packages/web/src)
+  env.ts                     the build's VITE_* URLs → configureBackend; imported first by every entry
   social/sign.ts             every signed social write; social/pending.ts queues follows + profile edits for ONE Batch signature
   ui/*                       components; call hooks, not fetch
 ```

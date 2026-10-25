@@ -12,7 +12,11 @@
   `index/api.ts` — is `packages/core` (`@yieldcircle/core/…`; no React, no DOM, guarded by
   `src/platform.test.ts`). A `src/…` path in these notes and in `docs/` is in core if it is one
   of those, else in `packages/web/src/…`.
-- The phone app is `mobile/` (Expo, AppKit + wagmi, `@yieldcircle/core`): how to run it, its
+- The React data layer both apps share is `packages/app` (`@yieldcircle/app/…`: `sdk/queries`,
+  `index/queries`, `index/pnl`, `book` = `useBook`, `lite` = `useLiteMenu`, `state/Settings`). It has
+  no DOM; who is looking comes from `SessionProvider` (web: `src/state/session.tsx`). A new data
+  hook goes there, not in `packages/web`, unless it needs the browser.
+- The phone app is `mobile/` (Expo, AppKit + wagmi, `@yieldcircle/core` + `@yieldcircle/app`): how to run it, its
   decisions and gaps in [`docs/mobile.md`](docs/mobile.md). Platform code (storage, URLs from
   `EXPO_PUBLIC_*`) stays in `mobile/src`; anything both apps need goes to core. Run everything from the repo root (the root `package.json`
   forwards); `scripts/`, `docs/`, `tickets/` and `brand/` stay at the root.

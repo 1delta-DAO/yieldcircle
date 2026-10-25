@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CHAINS } from '../sdk/queries'
+import { CHAINS } from '@yieldcircle/app/sdk/queries'
 import { chainsParam, readBoardChains, readLinkChains } from './feedLink'
 
 const eth = CHAINS.find((c) => c.label === 'Ethereum')!.id

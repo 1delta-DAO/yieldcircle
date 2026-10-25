@@ -1,4 +1,4 @@
-import { CHAINS } from '../sdk/queries'
+import { CHAINS } from '@yieldcircle/app/sdk/queries'
 import type { IssuerMatch } from '@yieldcircle/core/index/api'
 import { ASSET_CLASS_MATCHES, parseAssetClassParam, type AssetClassMatch } from '@yieldcircle/core/model/assetClass'
 

@@ -22,7 +22,7 @@ import React from "react";
 import { useApp } from "../state/AppState";
 import { go, levParam, marketHref, parseRoute } from "../state/AppState";
 import { feedHash, readFeedLink, sameFilters, type FeedFilters } from "../state/feedLink";
-import { useCuratorsByAccount, useFeedPage } from "../index/queries";
+import { useCuratorsByAccount, useFeedPage } from "@yieldcircle/app/index/queries";
 import type { TxBundle, TxLeg, TxSubject } from "@yieldcircle/core/index/types";
 import {
   useCounts,
@@ -44,7 +44,7 @@ import { CuratorMark, useCuratorFilter } from "./CuratorFilter";
 import { RateMark } from "./Rate";
 import { parseUid, protocolKeyOf, uidOf } from "@yieldcircle/core/model/uid";
 import { HIDES, isSoft, relaxFor, type HideCode } from "@yieldcircle/core/model/visibility";
-import { useSettings } from "../state/Settings";
+import { useSettings } from "@yieldcircle/app/state/Settings";
 import { Ago, Comments, Money, Who, describeBundle } from "./social-bits";
 import { ChainCorner } from "./ChainMark";
 import { indexChainLabel, subjectOf } from "@yieldcircle/core/index/types";
@@ -52,7 +52,7 @@ import { Sk, Tip, Tok, TxLink, pct, usdShort } from "./bits";
 import { Thread } from "./Thread";
 import { Talk } from "./Talk";
 import { ChainChip, LinkChainsToast } from "./ChainPicker";
-import { chainLabel } from "../sdk/queries";
+import { chainLabel } from "@yieldcircle/app/sdk/queries";
 import type { Strategy } from "@yieldcircle/core/model/strategies";
 
 type Tab = "following" | "menu" | "everyone" | "talk";

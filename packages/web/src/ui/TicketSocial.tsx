@@ -15,7 +15,7 @@
  * index follows.
  */
 import React from 'react'
-import { useHolders } from '../index/queries'
+import { useHolders } from '@yieldcircle/app/index/queries'
 import { useCounts, useProfiles } from '../social/queries'
 import { marketHref } from '../state/AppState'
 import { FollowButton, Money, Who } from './social-bits'

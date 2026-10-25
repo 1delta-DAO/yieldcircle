@@ -13,7 +13,7 @@ import { entryKey, useBatchSupported, usePending } from '../social/pending'
 import { useSocialWrite } from '../social/sign'
 import type { AuthorStake, Follow, Profile } from '../social/types'
 import type { AccountKind, TxBundle, UsdStatus } from '@yieldcircle/core/index/types'
-import { chainLabel } from '../sdk/queries'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { Tip, pct, usd, usdShort } from './bits'
 
 // ---------------------------------------------------------------- time

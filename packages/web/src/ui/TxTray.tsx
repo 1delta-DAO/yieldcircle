@@ -12,7 +12,7 @@
  */
 import React from 'react'
 import { useAccount } from 'wagmi'
-import { chainLabel } from '../sdk/queries'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { dismissTrace, isDone, isOk, useTraces, type Trace } from '../sdk/txTrace'
 import { useSolWallet } from '../wallet/solana'
 import { TxLink } from './bits'

@@ -28,7 +28,7 @@ try {
   await load('/src/env.ts')
   const [{ fetchEarn }, { classifyEarn, dedupe, capPerAsset }, { softHide }, { uidOf }, { DEFAULTS }, { CHAINS, chainBuckets }] = await Promise.all([
     core('sdk/api.ts'), core('model/strategies.ts'), core('model/visibility.ts'),
-    core('model/uid.ts'), load('/src/state/Settings.tsx'), load('/src/sdk/queries.ts'),
+    core('model/uid.ts'), load(join(ROOT, 'packages/app/src/state/Settings.tsx')), load(join(ROOT, 'packages/app/src/sdk/queries.ts')),
   ])
   const pages = await Promise.all(chainBuckets(CHAINS.map((c) => c.id)).map((ids) =>
     fetchEarn({ chainIds: ids, count: 1000, maxRiskScore: 5, minTvlUsd: DEFAULTS.minTvlUsd })))

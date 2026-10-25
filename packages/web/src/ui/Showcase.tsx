@@ -9,8 +9,8 @@
 import React from 'react'
 import showcase from '@yieldcircle/core/data/showcase.json'
 import { Character } from '../identity/character'
-import { useEarners } from '../index/queries'
-import { chainLabel } from '../sdk/queries'
+import { useEarners } from '@yieldcircle/app/index/queries'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { useViewport } from './useViewport'
 
 type Pick = (typeof showcase)[number]

@@ -43,12 +43,12 @@ import { ProfileSheet } from './ProfileSheet'
 import { useQueue } from '../social/pending'
 import { Positions, totalsOf } from './Positions'
 import { MyStats, StatsChip } from './Stats'
-import { useBook } from './useBook'
+import { useBook } from '@yieldcircle/app/book'
 import { TxInFlight, TxTray } from './TxTray'
 import { Sk, usd, usdShort } from './bits'
 import { gated, onAccessCode, openGate, useOnList, WAITLIST_HREF } from '../wallet/gate'
 import { usePaperSession } from '../wallet/paper'
-import { useDayLog } from './lite/useLite'
+import { useDayLog } from '@yieldcircle/app/lite'
 
 const ic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
 /**

@@ -19,7 +19,7 @@
  * this app claims.
  */
 import React from 'react'
-import { useChainMeta } from '../sdk/queries'
+import { useChainMeta } from '@yieldcircle/app/sdk/queries'
 
 export interface ChainInfo {
   id: string; name: string; short: string; color: string; explorer: string; explorerName: string

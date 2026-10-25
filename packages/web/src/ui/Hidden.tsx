@@ -13,8 +13,8 @@
  */
 import React from 'react'
 import { HIDES, relaxFor, restoreFor, widenedCodes, type HideCode } from '@yieldcircle/core/model/visibility'
-import { useSettings } from '../state/Settings'
-import type { HiddenRow, StructuralCount } from '../sdk/queries'
+import { useSettings } from '@yieldcircle/app/state/Settings'
+import type { HiddenRow, StructuralCount } from '@yieldcircle/app/sdk/queries'
 import { Info } from './bits'
 
 export function HiddenBar({ kind, rows, structural, busy }: { kind: 'simple' | 'loop'; rows: HiddenRow[]; structural: StructuralCount[]; busy?: boolean }) {

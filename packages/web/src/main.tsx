@@ -6,7 +6,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import { wagmiConfig } from './wallet/wagmi'
 import { AppProvider } from './state/AppState'
-import { SettingsProvider } from './state/Settings'
+import { SettingsProvider } from '@yieldcircle/app/state/Settings'
+import { SessionBridge } from './state/session'
 import { PaperProvider } from './state/Paper'
 import { PaperSignInHost } from './ui/PaperSignIn'
 import { initTxTrace } from './sdk/txTrace'
@@ -23,7 +24,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={qc}>
-        <SettingsProvider><AppProvider><PaperProvider><App /><GateBridge /><PaperSignInHost /></PaperProvider></AppProvider></SettingsProvider>
+        <SettingsProvider><AppProvider><PaperProvider><SessionBridge><App /><GateBridge /><PaperSignInHost /></SessionBridge></PaperProvider></AppProvider></SettingsProvider>
       </QueryClientProvider>
     </WagmiProvider>
   </React.StrictMode>,

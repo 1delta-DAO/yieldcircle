@@ -2,13 +2,14 @@ import React from 'react'
 import { go, walletHref } from '../../state/AppState'
 import { canonUid, uidOf } from '@yieldcircle/core/model/uid'
 import { isSpike, seriesFor, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
-import { familyOf, leverTag, splitTitle, type LiteRow } from '@yieldcircle/core/model/lite'
+import { familyOf, heldBy, leverTag, splitTitle, type LiteRow } from '@yieldcircle/core/model/lite'
+export { heldBy }
 import { GROUPS } from '@yieldcircle/core/model/assets'
 import type { Proof } from '@yieldcircle/core/model/activity'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import type { TxBundle } from '@yieldcircle/core/index/types'
 import { subjectOf } from '@yieldcircle/core/index/types'
-import { useFeedPage } from '../../index/queries'
+import { useFeedPage } from '@yieldcircle/app/index/queries'
 import { useMyFollows, useProfiles } from '../../social/queries'
 import { Ago, Who, describeBundle } from '../social-bits'
 import { GroupIcon, RiskDot, Sk, Tok, Toks, pct, usdShort } from '../bits'
@@ -48,10 +49,6 @@ export function LiteRate({ s, get }: { s: Strategy; get: HistoryGet }) {
   return <b className={`lite-rate ${spike ? 'warn' : s.rate >= 3 ? 'ok' : ''}`} title={spike ? 'Higher than this month’s usual: the steady rate is what the list ranks by' : undefined}>{pct(s.rate)}</b>
 }
 
-/** "12 people · $4.1m": who holds it, read off the chain (wallets ≥ $1k), or nothing. */
-export function heldBy(p: Proof | null) {
-  return p && p.wallets > 0 ? `${p.wallets}${p.wallets >= 3 ? '+' : ''} ${p.wallets === 1 ? 'person runs' : 'people run'} this · ${usdShort(p.totalUsd)}` : ''
-}
 
 /** One list row: face · what it is · held by · rate · risk · lever · yours. */
 export function LiteRowView({ r, get, proof, on, yoursUsd }: { r: LiteRow; get: HistoryGet; proof: Proof | null; on?: boolean; yoursUsd?: number }) {

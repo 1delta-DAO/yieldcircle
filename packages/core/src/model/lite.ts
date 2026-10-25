@@ -9,6 +9,8 @@ import { isSavings } from './nature'
 import { liqBuffer } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import type { Holding } from './positions'
+import { usdShort } from './format'
+import type { Proof } from './activity'
 
 /** The categories Lite has: no Stocks, no Borrow (owner's call, 2026-10-23). */
 export const LITE_GROUPS: GroupId[] = ['USD', 'ETH', 'BTC', 'MORE']
@@ -451,3 +453,16 @@ export function pnlSummary(b: { total: { pnlUsd: number; yieldUsd: number | null
 }
 /** `+$312` / `−$40`, whole dollars past ten; a zero is `$0`, not `+$0.00`. */
 export const signedMoney = (v: number) => (Math.abs(v) < 0.005 ? '$0' : (v < 0 ? '−' : '+') + money(Math.abs(v)))
+
+/** "12 people · $4.1m": who holds it, read off the chain (wallets ≥ $1k), or nothing. */
+export function heldBy(p: Proof | null) {
+  return p && p.wallets > 0 ? `${p.wallets}${p.wallets >= 3 ? '+' : ''} ${p.wallets === 1 ? 'person runs' : 'people run'} this · ${usdShort(p.totalUsd)}` : ''
+}
+
+/** What Lite calls each category: the money, not the group code. */
+export const LITE_NAME: Record<string, { name: string; line: string }> = {
+  USD: { name: 'Dollars', line: 'Earn on dollars. Levered rows say ×, and the safest come first.' },
+  ETH: { name: 'Ether', line: 'Earn on ether and staked ether, in ether.' },
+  BTC: { name: 'Bitcoin', line: 'Earn on bitcoin, in bitcoin.' },
+  MORE: { name: 'More', line: 'Other coins and currencies: BNB, AVAX, SOL, the euro, gold.' },
+}

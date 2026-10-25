@@ -10,9 +10,9 @@
  * position the index has not drawn yet is counted as missing, never as zero.
  */
 import React from 'react'
-import { pnlWaiting, unsupportedLine, useAccountPnlBook, strategyLabel, type AccountPnlBook, type PnlBookPoint, type PnlBookStrategy } from '../index/pnl'
+import { pnlWaiting, unsupportedLine, useAccountPnlBook, strategyLabel, type AccountPnlBook, type PnlBookPoint, type PnlBookStrategy } from '@yieldcircle/app/index/pnl'
 import { indexChainLabel } from '@yieldcircle/core/index/types'
-import { chainLabel } from '../sdk/queries'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { go } from '../state/AppState'
 import { ProtocolLogo, Sk, pct, protocolIconUrls, usd, usdShort } from './bits'
 import { prettyProtocol } from './ProtocolFilter'

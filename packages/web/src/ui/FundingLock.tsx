@@ -1,5 +1,5 @@
 import { dateOf, type LoopStrategy } from '@yieldcircle/core/model/strategies'
-import { useFundingLock } from '../sdk/queries'
+import { useFundingLock } from '@yieldcircle/app/sdk/queries'
 import { Info, pct, usd } from './bits'
 
 const signedUsd = (x: number) => `${x >= 0 ? '+' : '−'}${usd(Math.abs(x))}`

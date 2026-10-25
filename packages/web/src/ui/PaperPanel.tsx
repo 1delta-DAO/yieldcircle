@@ -13,7 +13,7 @@ import { signedMoney } from '@yieldcircle/core/model/lite'
 import { usePaperDaily } from '../social/queries'
 import { costWord, usePaperLedgerFor } from './PaperMoves'
 import { HealthPill, Sk } from './bits'
-import { chainLabel } from '../sdk/queries'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { num, pct, usd } from './bits'
 
 const DAYS = [0, 7, 30, 90]

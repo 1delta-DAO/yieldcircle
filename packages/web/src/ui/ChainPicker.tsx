@@ -19,7 +19,7 @@
  */
 import React from 'react'
 import { useApp } from '../state/AppState'
-import { CHAINS, chainLabel } from '../sdk/queries'
+import { CHAINS, chainLabel } from '@yieldcircle/app/sdk/queries'
 import { ChainMark } from './ChainMark'
 import { Popover } from './bits'
 

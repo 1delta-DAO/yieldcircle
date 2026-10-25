@@ -12,7 +12,7 @@
  * the same reason; the numbers beside them are exact.
  */
 import React from 'react'
-import { bookAprAt, bookDepth, useLendingBooks } from '../sdk/queries'
+import { bookAprAt, bookDepth, useLendingBooks } from '@yieldcircle/app/sdk/queries'
 import type { LendingBook } from '@yieldcircle/core/sdk/types'
 import { Popover, Sk, num, pct, usdShort } from './bits'
 

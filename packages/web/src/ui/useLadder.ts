@@ -4,7 +4,7 @@ import { isSvmTx, type AnyTx, type ApiTx, type LoopActions } from '@yieldcircle/
 import { base58Encode, isSvmChain } from '@yieldcircle/core/model/address'
 import { nativeSymbol, WRAPPED_NATIVE } from '@yieldcircle/core/model/positions'
 import { venueLabel } from '@yieldcircle/core/model/strategies'
-import { useLiveBalances } from '../sdk/liveBalances'
+import { useLiveBalances } from '@yieldcircle/app/sdk/liveBalances'
 import { baselineOf, hasLanded, isDone, traceTx, useTrace, type Baseline, type Moves } from '../sdk/txTrace'
 import { isRemote, openWallet } from '../wallet/deeplink'
 import { isRejection } from '../wallet/errors'

@@ -1,20 +1,18 @@
-import { useApp } from '../state/AppState'
+import { useSession } from './session'
 import { isEvmAddr, isSolAddr } from '@yieldcircle/core/model/address'
-import { useBalancesPerChain, useCatalog, useEarnPositions, useFixedRateCatalog } from '../sdk/queries'
+import { useBalancesPerChain, useCatalog, useEarnPositions, useFixedRateCatalog } from './sdk/queries'
 import { books, holdingsFrom, idleFrom, mergeIdle, type AssetBook, type Holding, type Idle } from '@yieldcircle/core/model/positions'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
-import { usePaper } from '../state/Paper'
 
 /**
  * Everything a screen needs in one hook: the curated catalogue, the account's holdings and idle
  * balances (per selected chain), and the per-asset books that combine them.
  */
 export function useBook() {
-  const { chainIds, account, solSigner, viewAs } = useApp()
+  const { chainIds, account, solSigner, viewAs, paper } = useSession()
   // a paper account's money is its ledger (tickets/0006): nothing is read from the chain for it,
   // and nothing about it is sent to the index — every screen below gets the same shapes
-  const paper = usePaper()
-  const onPaper = paper.active && !viewAs
+  const onPaper = !!paper?.active && !viewAs
   // one address per VM: `account` is the EVM wallet when both are connected, so Solana reads the
   // Solana wallet — unless the page is viewing someone else, whose other VM we do not know
   const accounts = onPaper ? {} : { evm: isEvmAddr(account) ? account : undefined, sol: isSolAddr(account) ? account : viewAs ? undefined : solSigner }
@@ -22,18 +20,18 @@ export function useBook() {
   const all: Strategy[] = [...cat.simple, ...cat.loops]
   // one balance read per selected chain, for every address the catalogue knows there, sent once that chain has settled
   const bals = useBalancesPerChain(accounts, chainIds.map((c) => ({ chainId: c, addresses: cat.addresses[c] ?? [], extra: cat.extraAddresses[c], ready: cat.settled.has(c) })))
-  const idle: Idle[] = onPaper ? paper.idle(chainIds) : bals.flatMap((b, i) => (b.data ? idleFrom(b.data.items, chainIds[i]) : []))
+  const idle: Idle[] = onPaper ? paper!.idle(chainIds) : bals.flatMap((b, i) => (b.data ? idleFrom(b.data.items, chainIds[i]) : []))
   const idleMerged = mergeIdle(idle)
   const pos = useEarnPositions(accounts, chainIds)
   // the Fixed rate shelf (tickets/0013) — its own request; its rows also date the book loans the wallet holds
   const fixed = useFixedRateCatalog(chainIds)
   const books0 = new Map(fixed.all.map((s) => [s.earnUid.toLowerCase(), s]))
   const dated = (h: Holding): Holding => { const s = h.kind === 'simple' && h.earnUid ? books0.get(h.earnUid.toLowerCase()) : undefined; return s?.maturity ? { ...h, maturity: s.maturity, bookLoan: true } : h }
-  const holdings: Holding[] = (onPaper ? paper.holdings.filter((h) => chainIds.includes(h.chainId)) : pos.anyData ? holdingsFrom(pos.items) : []).map(dated)
+  const holdings: Holding[] = (onPaper ? paper!.holdings.filter((h) => chainIds.includes(h.chainId)) : pos.anyData ? holdingsFrom(pos.items) : []).map(dated)
   const bk: AssetBook[] = books(holdings, idleMerged)
   return {
     ...cat, all, fixed, idle, idlePerChain: idle, books: bk, holdings,
-    positionsLoading: onPaper ? !paper.ledger : !!(accounts.evm || accounts.sol) && (pos.isLoading || bals.some((b) => b.isLoading || (!b.data && b.fetchStatus === 'idle' && !b.isFetched))),
+    positionsLoading: onPaper ? !paper!.ledger : !!(accounts.evm || accounts.sol) && (pos.isLoading || bals.some((b) => b.isLoading || (!b.data && b.fetchStatus === 'idle' && !b.isFetched))),
     positionsError: onPaper ? null : pos.error as Error | null,
     account,
     /** the book on screen is the paper account's (tickets/0006) */

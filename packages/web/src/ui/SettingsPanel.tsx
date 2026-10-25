@@ -12,7 +12,7 @@
  */
 import React from 'react'
 import { PaperSettings } from './PaperPanel'
-import { AUTO_SLIPPAGE_BP, DEFAULTS, FILTER_KEYS, NO_CAP, slippageFor, useSettings, type Settings } from '../state/Settings'
+import { AUTO_SLIPPAGE_BP, DEFAULTS, FILTER_KEYS, NO_CAP, slippageFor, useSettings, type Settings } from '@yieldcircle/app/state/Settings'
 
 const MONEY = (x: number) => (x === 0 ? 'Any' : x >= 1e6 ? `$${x / 1e6}m+` : `$${x / 1e3}k+`)
 

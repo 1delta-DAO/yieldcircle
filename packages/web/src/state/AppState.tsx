@@ -3,7 +3,7 @@ import { useAccount } from 'wagmi'
 import { isAddr, isEvmAddr, isSvmChain, normAddr } from '@yieldcircle/core/model/address'
 import { canonGroup } from '@yieldcircle/core/model/assetGroup'
 import { useSolWallet } from '../wallet/solana'
-import { CHAINS } from '../sdk/queries'
+import { CHAINS } from '@yieldcircle/app/sdk/queries'
 import { readFeedLink, readLinkChains } from './feedLink'
 import { readMode, writeMode, type AppMode } from './mode'
 

@@ -8,7 +8,7 @@ import { bookOf, starterRef, tokenKey, type PaperBook, type PaperLedger, type Pa
 import { ledgerMeta, metaKey, type TokenMeta } from '@yieldcircle/core/model/paperView'
 import { usePaperBook, usePaperOps } from '../social/queries'
 import { missingRoute, usePaper } from '../state/Paper'
-import { chainLabel } from '../sdk/queries'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { Ago } from './social-bits'
 import { Sk, num, usdShort } from './bits'
 import { marketHref } from '../state/AppState'

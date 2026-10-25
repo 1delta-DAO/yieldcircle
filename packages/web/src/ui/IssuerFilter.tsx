@@ -25,7 +25,7 @@
  */
 import React from 'react'
 import { useApp } from '../state/AppState'
-import { useIssuers } from '../index/queries'
+import { useIssuers } from '@yieldcircle/app/index/queries'
 import type { IssuerMatch } from '@yieldcircle/core/index/api'
 import { useSticky } from '../state/sticky'
 import { Tip } from './bits'

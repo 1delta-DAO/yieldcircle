@@ -25,8 +25,20 @@ const sources = (dir: string): string[] =>
 function browserReads(file: string): string[] {
   const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
   const hits: string[] = []
+  // a name declared in an enclosing scope (`window` the time span in index/queries.ts) is that
+  // binding, not the global: walk out from the use, through each function's parameters and each
+  // block's declarations
+  const names = (b: ts.BindingName): string[] => (ts.isIdentifier(b) ? [b.text] : b.elements.flatMap((e) => (ts.isOmittedExpression(e) ? [] : names(e.name))))
+  const declaresIn = (scope: ts.Node, name: string): boolean => {
+    if (ts.isFunctionLike(scope) && scope.parameters.some((q) => names(q.name).includes(name))) return true
+    const stmts = ts.isSourceFile(scope) || ts.isBlock(scope) || ts.isModuleBlock(scope) ? scope.statements : undefined
+    return !!stmts?.some((st) =>
+      (ts.isVariableStatement(st) && st.declarationList.declarations.some((d) => names(d.name).includes(name))) ||
+      ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) && st.name?.text === name))
+  }
+  const isLocal = (n: ts.Identifier) => { for (let p: ts.Node | undefined = n.parent; p; p = p.parent) if (declaresIn(p, n.text)) return true; return false }
   const visit = (n: ts.Node) => {
-    if (ts.isIdentifier(n) && BROWSER_ONLY.has(n.text)) {
+    if (ts.isIdentifier(n) && BROWSER_ONLY.has(n.text) && !isLocal(n)) {
       const p = n.parent
       const isName =
         (ts.isPropertyAccessExpression(p) && p.name === n) ||

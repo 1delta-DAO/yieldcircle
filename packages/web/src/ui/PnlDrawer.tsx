@@ -17,10 +17,10 @@
  */
 import React from 'react'
 import { Drawer } from './Drawer'
-import { usePositionSeries } from '../index/queries'
+import { usePositionSeries } from '@yieldcircle/app/index/queries'
 import type { PositionSeries, SeriesEvent, SeriesInterval } from '@yieldcircle/core/index/api'
 import { Sk, Tok, TxLink, pct, usd, usdShort } from './bits'
-import { chainLabel } from '../sdk/queries'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { marketHref } from '../state/AppState'
 import { moneyOf } from '@yieldcircle/core/model/desk'
 import { protocolKeyOf } from '@yieldcircle/core/model/uid'

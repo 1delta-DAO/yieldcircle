@@ -12,24 +12,20 @@
 import React from 'react'
 import { GROUPS, nameOf, whatIs, type GroupId } from '@yieldcircle/core/model/assets'
 import { go } from '../state/AppState'
-import { useBook } from './useBook'
+import { useBook } from '@yieldcircle/app/book'
 import { GroupIcon, HealthPill, KindPill, LegsPill, MaturityNote, Sk, Tok, amt, deskLogos, pct, usd, usdShort } from './bits'
 import type { AssetBook, Holding } from '@yieldcircle/core/model/positions'
-import { chainLabel, useBorrowOffers } from '../sdk/queries'
+import { chainLabel, useBorrowOffers } from '@yieldcircle/app/sdk/queries'
 import { PaperPanel } from './PaperPanel'
 import { useApp } from '../state/AppState'
 import { borrowRoom } from './BorrowList'
+import { totalsOf } from '@yieldcircle/core/model/positions'
+// the sum is core's (the phone shows the same totals); kept exported here for the web's callers
+export { totalsOf }
 
 type Book = ReturnType<typeof useBook>
 
 /** The four numbers the chip and the sheet's head both show. */
-export function totalsOf(b: Book) {
-  const tot = b.books.reduce((a, x) => a + x.totalUsd, 0)
-  const idle = b.books.reduce((a, x) => a + x.idleUsd, 0)
-  const work = b.books.reduce((a, x) => a + x.atWorkUsd, 0)
-  const yearly = b.books.reduce((a, x) => a + x.yearlyUsd, 0)
-  return { tot, idle, work, yearly }
-}
 
 export function Positions({ b }: { b: Book }) {
   const byGroup = (g: GroupId) => b.books.filter((x) => x.group === g)

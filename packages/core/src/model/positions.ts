@@ -340,3 +340,12 @@ export function books(allHoldings: Holding[], idle: Idle[]): AssetBook[] {
   }
   return out.filter((b) => b.totalUsd >= DUST_USD).sort((a, b) => b.totalUsd - a.totalUsd)
 }
+
+/** A book's totals across every money: all of it, idle, at work, and what it earns a year. */
+export function totalsOf(b: { books: AssetBook[] }) {
+  const tot = b.books.reduce((a, x) => a + x.totalUsd, 0)
+  const idle = b.books.reduce((a, x) => a + x.idleUsd, 0)
+  const work = b.books.reduce((a, x) => a + x.atWorkUsd, 0)
+  const yearly = b.books.reduce((a, x) => a + x.yearlyUsd, 0)
+  return { tot, idle, work, yearly }
+}

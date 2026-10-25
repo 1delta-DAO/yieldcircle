@@ -1,23 +1,15 @@
 import React from 'react'
 import { useApp, liteHref } from '../../state/AppState'
-import { useTrending } from '../../index/queries'
+import { useTrending } from '@yieldcircle/app/index/queries'
 import { useProfiles } from '../../social/queries'
-import { recommendAll } from '@yieldcircle/core/model/activity'
-import { canonUid, uidOf } from '@yieldcircle/core/model/uid'
 import { leverTag, type LiteRow } from '@yieldcircle/core/model/lite'
 import { ConnectButton } from '../../wallet/ConnectButton'
 import { PaperOffer } from '../PaperPanel'
 import { totalsOf } from '../Positions'
 import { Sk, pct, usd, usdShort } from '../bits'
-import { useDayLog, useLiteMenu } from './useLite'
+import { LENSES, liteCards, useDayLog, useLiteMenu, type Lens } from '@yieldcircle/app/lite'
 import { FollowedMoves, LiteCard, LiteCardSk, openRow } from './LiteBits'
 
-type Lens = 'proven' | 'trending' | 'held'
-const LENSES: { id: Lens; word: string; why: string }[] = [
-  { id: 'proven', word: 'Proven', why: 'held by a crowd of real wallets, and paying for the attention it asks' },
-  { id: 'trending', word: 'Trending', why: 'where money moved in over the last week' },
-  { id: 'held', word: 'Most held', why: 'the most money real wallets have in it' },
-]
 
 /**
  * Lite's home (docs/lite.md §1): your balance and what it earns a day, then cards to copy through
@@ -32,7 +24,7 @@ export function LiteHome() {
   const day = useDayLog(b)
   const [lens, setLens] = React.useState<Lens>('proven')
   const trending = useTrending('7d', chainIds)
-  const cards = React.useMemo(() => pick(lens, L.rows, L, trending.markets), [lens, L.rows, trending.markets, L.proofsHeld]) // eslint-disable-line react-hooks/exhaustive-deps
+  const cards = React.useMemo(() => liteCards(lens, L.rows, L, trending.markets), [lens, L.rows, trending.markets, L.proofsHeld]) // eslint-disable-line react-hooks/exhaustive-deps
   const { profile } = useProfiles(cards.map((r) => L.proof(r.s)?.best?.account).filter((a): a is string => !!a))
   const loading = (b.isLoading && !L.rows.length) || (lens === 'trending' && trending.isLoading)
   // the money that sits idle, and the best row in its own category to put it in
@@ -81,25 +73,4 @@ export function LiteHome() {
       <p className="lite-more t50"><a href={liteHref('earn')}>Every category ›</a></p>
     </div>
   )
-}
-
-/** The cards each lens shows, out of Lite's own rows only — six at most, one per row. */
-function pick(lens: Lens, rows: LiteRow[], L: ReturnType<typeof useLiteMenu>, trending: { marketUid?: string | null; netUsd: number }[]): LiteRow[] {
-  const by = new Map(rows.map((r) => [r.s.id, r]))
-  if (lens === 'proven') {
-    // the beginner page's own recommender (model/activity.ts), over Lite's rows, per money
-    const out: LiteRow[] = []
-    for (const g of ['USD', 'ETH', 'BTC', 'MORE'] as const) {
-      const rec = recommendAll(rows.filter((r) => r.s.group === g).map((r) => r.s), L.book, L.rank)
-      for (const band of ['passive', 'medium', 'active'] as const) for (const p of rec[band]) { const r = by.get(p.s.id); if (r && !out.includes(r)) out.push(r) }
-    }
-    // a crowd's proof first, then the rest in the recommender's order (a stable sort keeps it)
-    const crowd = (r: LiteRow) => ((L.proof(r.s)?.wallets ?? 0) >= 3 ? 1 : 0)
-    return out.sort((a, b) => crowd(b) - crowd(a)).slice(0, 6)
-  }
-  if (lens === 'held') return rows.filter((r) => (L.proof(r.s)?.totalUsd ?? 0) > 0).sort((a, b) => (L.proof(b.s)?.totalUsd ?? 0) - (L.proof(a.s)?.totalUsd ?? 0)).slice(0, 6)
-  const at = (u: string | null | undefined) => (u ? (canonUid(u) ?? u).toLowerCase() : '')
-  const rank = new Map<string, number>()
-  for (const m of trending) if (m.netUsd > 0) { const k = at(m.marketUid); if (k && !rank.has(k)) rank.set(k, m.netUsd) }
-  return rows.map((r) => ({ r, n: rank.get(at(uidOf(r.s))) ?? 0 })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n).map((x) => x.r).slice(0, 6)
 }

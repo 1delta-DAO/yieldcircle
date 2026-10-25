@@ -17,8 +17,8 @@ export function PhoneSession({ children }: { children: React.ReactNode }) {
   const { address, isConnected } = useAccount()
   const value = React.useMemo(() => {
     const account = VIEW_AS ?? address?.toLowerCase()
-    // no Solana wallet on the phone yet: an EVM chain's signer is the connected account, Solana has none
-    return { chainIds: ALL, account, viewAs: VIEW_AS, paper: null, isConnected, actorOn: (chainId: string | undefined) => (isSvmChain(chainId) ? undefined : address?.toLowerCase()) }
+    // no Solana wallet on the phone yet: an EVM chain acts for the account read (the web's `actorOn`), Solana has none
+    return { chainIds: ALL, account, viewAs: VIEW_AS, paper: null, isConnected, actorOn: (chainId: string | undefined) => (isSvmChain(chainId) ? undefined : account) }
   }, [address, isConnected])
   return <SessionProvider value={value}>{children}</SessionProvider>
 }

@@ -42,12 +42,13 @@ export function Sec({ children, plain, style }: { children: React.ReactNode; pla
 export const Lbl = ({ children }: { children: React.ReactNode }) => <Txt s={12} w={600} c={C.tx50} style={{ marginBottom: 6 }}>{children}</Txt>
 
 /** The amount (`.amt`): typed as the web types it — a comma or a dot, the text kept as typed — the unit and Max beside it. */
-export function AmountBox({ unit, value, onChange, onMax }: { unit: string; value: Amount; onChange: (a: Amount) => void; onMax?: () => void }) {
+/** `soft`: the Get sheet's (`.get .amt`) — filled, borderless, smaller. */
+export function AmountBox({ unit, value, onChange, onMax, soft }: { unit: string; value: Amount; onChange: (a: Amount) => void; onMax?: () => void; soft?: boolean }) {
   const [text, setText] = React.useState(value.text)
   const emitted = React.useRef(value.text)
   React.useEffect(() => { if (value.text !== emitted.current) { emitted.current = value.text; setText(value.text) } }, [value.text])
   return (
-    <View style={st.amt}>
+    <View style={[st.amt, soft && st.amtSoft]}>
       {unit === '$' && <Txt s={13} mono c={C.tx50}>$</Txt>}
       <TextInput
         value={text}
@@ -56,7 +57,7 @@ export function AmountBox({ unit, value, onChange, onMax }: { unit: string; valu
         accessibilityLabel="Amount"
         onChangeText={(raw) => { const r = raw.replace(/[^0-9.,\s]/g, ''); setText(r); const t = normaliseDecimal(r); const c = t === '' || t === '.' ? '0' : t; emitted.current = c; onChange({ text: c }) }}
         onBlur={() => { const t = normaliseDecimal(text); setText(t === '' || t === '.' ? '0' : t.endsWith('.') ? t.slice(0, -1) : t) }}
-        style={st.input}
+        style={[st.input, soft && { fontSize: 16 }]}
         placeholderTextColor={C.tx40}
       />
       {unit !== '$' && <Txt s={13} mono c={C.tx50}>{unit}</Txt>}
@@ -146,10 +147,10 @@ export function LossAck({ v, what, advice }: { v: ValueCheck; what: string; advi
 }
 
 /** The way in when the wallet is short (`GetLine`, `.getline`): a card with a swap mark, what to do, and "Get X →". */
-export function GetLine({ account, short, symbol }: { account?: string; short: boolean; symbol: string }) {
+export function GetLine({ account, short, symbol, onOpen }: { account?: string; short: boolean; symbol: string; onOpen: () => void }) {
   if (!account) return null
   return (
-    <Pressable onPress={() => router.push('/get')} style={({ pressed }) => [st.getline, pressed && { backgroundColor: C.b400 }]}>
+    <Pressable onPress={onOpen} style={({ pressed }) => [st.getline, pressed && { backgroundColor: C.b400 }]}>
       <View style={st.glIc}>
         <Svg width={18} height={18} viewBox="0 0 20 20" fill="none" stroke={C.tx70} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><Path d="M3 7h11l-3-3M17 13H6l3 3" /></Svg>
       </View>
@@ -256,6 +257,7 @@ const st = StyleSheet.create({
   x: { width: 32, height: 32, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: -4, marginRight: -6 },
   sec: { paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.line },
   amt: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 12, backgroundColor: '#000', borderWidth: 1, borderColor: C.line2, borderRadius: 12 },
+  amtSoft: { minHeight: 42, borderWidth: 0, borderRadius: 14, backgroundColor: C.b300 },
   input: { flex: 1, color: C.tx, fontFamily: 'IBMPlexMono_400Regular', fontSize: 20, paddingVertical: 6, paddingHorizontal: 2 },
   max: { minHeight: 32, paddingHorizontal: 6, justifyContent: 'center' },
   pctb: { minHeight: 30, paddingVertical: 2, paddingHorizontal: 12, borderWidth: 1, borderColor: C.line2, borderRadius: 5, justifyContent: 'center' },

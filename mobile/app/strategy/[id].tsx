@@ -5,12 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { brandOf, holdingLine, leverTag, liteModes, moneyWord, plainName, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
 import { usd, usdShort } from '@yieldcircle/core/model/format'
+import { owedOf } from '@yieldcircle/core/model/borrow'
 import { C } from '../../src/theme'
 import { Sk, Tok, Toks } from '../../src/ui/bits'
 import { Who } from '../../src/ui/Character'
 import { Txt } from '../../src/ui/Txt'
 import { Details, Sec, TicketHead, Trust } from '../../src/ticket/parts'
-import { DepositBody, LoopBody, ManageLoopBody, WithdrawBody } from '../../src/ticket/bodies'
+import { DepositBody, LoanBody, LoopBody, ManageLoopBody, WithdrawBody } from '../../src/ticket/bodies'
 
 /**
  * Lite's ticket (the web's `LiteTicket`, docs/lite.md §5), as a sheet: what it is in words, then one
@@ -47,6 +48,17 @@ export default function TicketScreen() {
     )
   }
   const h = holding
+  // a loan (from You): Lite opens none, but pays one back
+  if (byKey?.kind === 'borrow') {
+    const ln = holdingLine(byKey)
+    return (
+      <Frame insets={insets}>
+        <TicketHead face={<Toks a={byKey.symbol} b={byKey.debtSymbol ?? 'USD'} logoA={byKey.logo} />} title={`${moneyWord(byKey.asset, byKey.group)} loan`} sub={`owes ${usd(owedOf(byKey))} · ${ln.text.replace(/^A loan · /, '')}`} subTone={ln.tone} onClose={close} />
+        <LoanBody h={byKey} idle={b.idlePerChain} />
+        <Details what="Borrow more, or take collateral out" onOpen={() => router.push('/details')} />
+      </Frame>
+    )
+  }
   const n = s ? plainName(s) : null
   const title = n?.title ?? (h ? moneyWord(h.asset, h.group) : '')
   const line = h ? holdingLine(h) : null

@@ -200,7 +200,7 @@ function Position({ h, s, account }: { h: Holding; s: Strategy | null; account: 
   const shareable = !!s && liteEligible(s) && h.kind !== 'borrow' && !h.directional
   const open = () => {
     // a price bet (a debt in another money) and loans are Pro's on the phone for now
-    if (h.directional || h.kind === 'borrow') return router.push('/details')
+    if (h.directional) return router.push('/details')
     openStrategy(s ?? ({ id: '_' } as Strategy), { h: h.key })
   }
   const share = async () => {

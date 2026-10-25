@@ -1,20 +1,24 @@
 import React from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
-import { heldRaw, portion } from '@yieldcircle/core/model/amount'
+import { fromUnits, heldRaw, portion } from '@yieldcircle/core/model/amount'
+import { dropOf, offerFromHolding, type BorrowOffer } from '@yieldcircle/core/model/borrow'
 import { debtWord, depositLines, leverTag, loopLines, moneyWord, bufferOfHealth } from '@yieldcircle/core/model/lite'
 import { liqBuffer, netAprAtLeverage } from '@yieldcircle/core/model/leverage'
 import { num, pct, usd, cents } from '@yieldcircle/core/model/format'
 import type { LoopStrategy, SimpleStrategy } from '@yieldcircle/core/model/strategies'
 import type { Holding, Idle } from '@yieldcircle/core/model/positions'
-import { NO_ROUTE } from '@yieldcircle/core/model/ticket'
+import { NO_ROUTE, floor6, getForms } from '@yieldcircle/core/model/ticket'
+import { normAddr } from '@yieldcircle/core/model/address'
 import { useSimpleTicket } from '@yieldcircle/app/tickets/simple'
 import { useLoopTicket } from '@yieldcircle/app/tickets/loop'
 import { useWithdrawTicket } from '@yieldcircle/app/tickets/withdraw'
 import { useManageLoop } from '@yieldcircle/app/tickets/manageLoop'
+import { useRepayTicket } from '@yieldcircle/app/tickets/repay'
 import { C } from '../theme'
 import { Sk } from '../ui/bits'
 import { Txt } from '../ui/Txt'
 import { Action, AmountBox, AmtSub, Cells, GetLine, Lbl, Lines, LossAck, Plain, Presets, Sec } from './parts'
+import { GetSheet } from './get'
 
 /**
  * Lite's ticket bodies, the web's `lite` branches of `SimpleTicket`, `LoopTicket`, `ManageTicket`
@@ -32,7 +36,9 @@ export function DepositBody({ s, idle, allIdle, into }: { s: SimpleStrategy; idl
         <AmountBox unit={t.unit} value={t.amt} onChange={t.setAmt} onMax={t.idle ? () => t.setAmt(portion(t.idle!, 100, t.chosen.decimals)) : undefined} />
         {t.idle && t.idle.amount > 0 && <Presets onPick={(p) => t.setAmt(portion(t.idle!, p, t.chosen.decimals))} />}
         <AmtSub left={t.unit === '$' ? '' : `≈ ${usd(t.amtUsd)}`} right={t.account ? `You have ${t.idle ? `${num(t.idle.amount, 4)} ${t.idle.symbol}` : `no ${t.chosen.symbol}`} here` : ''} warn={t.more ? 'more than you have' : undefined} />
-        <GetLine account={t.account} short={!t.idle || t.more} symbol={t.chosen.symbol} />
+        <GetLine account={t.account} short={!t.idle || t.more} symbol={t.chosen.symbol} onOpen={() => t.setGetOpen(true)} />
+        {t.getOpen && <GetSheet targets={t.opts.map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price: t.price, logo: o.role === 'token' ? s.logo : undefined, have: t.balOf(o.address)?.amount ?? 0 }))} want={t.amount} sources={allIdle}
+          onTarget={(x) => t.setRole(t.opts.find((o) => o.address === x.address)?.role ?? null)} onClose={() => t.setGetOpen(false)} />}
       </Sec>
       <Lines l={depositLines({ rate: s.rate, amountUsd: t.amtUsd, exitWord: t.exit.word, exitWhen: t.exit.when, tight: t.tight, maturity: s.maturity, booked: !!s.booked, rewards: s.rewards })} />
       <Action ladder={t.ladder} label={`Put ${t.unit === '$' ? usd(t.amtUsd) : `${num(t.amount, 4)} ${t.chosen.symbol}`} to work`} account={t.account} isConnected={t.isConnected} disabled={!(t.amount > 0)} chainId={s.chainId} />
@@ -52,7 +58,9 @@ export function LoopBody({ s, idle, allIdle, holding, copyLev }: { s: LoopStrate
         <AmountBox unit={unit} value={t.amt} onChange={t.setAmt} onMax={t.bal && t.chosen ? () => t.setAmt(portion(t.bal!, 100, t.chosen!.decimals)) : undefined} />
         {t.bal && t.chosen && t.bal.amount > 0 && <Presets onPick={(p) => t.setAmt(portion(t.bal!, p, t.chosen!.decimals))} />}
         <AmtSub left={`≈ ${usd(t.E)}`} right={t.account ? `You have ${t.bal ? `${num(t.bal.amount, 4)} ${t.chosen?.symbol}` : `no ${t.chosen?.symbol ?? ''}`} here` : ''} warn={t.more ? 'more than you have' : undefined} />
-        {t.chosen && <GetLine account={t.account} short={!t.bal || t.more} symbol={t.chosen.symbol} />}
+        {t.chosen && <GetLine account={t.account} short={!t.bal || t.more} symbol={t.chosen.symbol} onOpen={() => t.setGetOpen(true)} />}
+        {t.getOpen && t.chosen && <GetSheet targets={getForms(t.opts, t.chosen, s.chainId).map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price: o.price || t.price || 0, logo: o.logo, have: t.balOf(o.address, o.symbol)?.amount ?? 0 }))} want={t.amount} sources={allIdle}
+          onTarget={(x) => t.setPayAddr(t.opts.find((o) => normAddr(o.address) === normAddr(x.address))?.address ?? null)} onClose={() => t.setGetOpen(false)} />}
         {t.short && <Txt s={12.5} c={C.warn} style={{ marginTop: 8 }}><Txt s={12.5} w={700} c={C.warn}>Too big for one lender.</Txt> {t.short.message}</Txt>}
       </Sec>
       <Lines l={loopLines({ net: t.net, amountUsd: t.E, lev: t.L, drop: t.drop, holds: moneyWord(s.asset, s.group), debt: debtWord(s), dollarDebt: s.group === 'USD', expiry: s.expiry, cost: t.econ ? t.cost : null, payback: t.payback, quoting: t.q.isFetching && t.amount > 0 })} />
@@ -138,6 +146,59 @@ export function ManageLoopBody({ s, h, close }: { s: LoopStrategy | null; h: Hol
   )
 }
 
+/**
+ * A loan (the web's `LiteLoanTicket`): Lite opens none, but a reader who holds one can end it — pay
+ * it all back and take the collateral home, or pay part of it back to move away from liquidation.
+ * Short of the coin it owes, the Get sheet buys it in place.
+ */
+export function LoanBody({ h, idle }: { h: Holding; idle: Idle[] }) {
+  const o = React.useMemo(() => offerFromHolding(h), [h])
+  const [pane, setPane] = React.useState<'all' | 'some'>((bufferOfHealth(h.health) ?? 1) < 0.1 ? 'some' : 'all')
+  if (!o) return <Sec><Plain tone="warn">This loan can’t be read well enough to pay back here. Open it in Details.</Plain></Sec>
+  return (
+    <>
+      <Sec>
+        <View style={st.modes}>
+          {(['all', 'some'] as const).map((x) => (
+            <Pressable key={x} onPress={() => setPane(x)} style={[st.mode, pane === x && st.modeOn]}>
+              <Txt s={13} c={pane === x ? C.primary : C.tx50}>{x === 'all' ? 'Pay back all' : 'Pay back some'}</Txt>
+            </Pressable>
+          ))}
+        </View>
+      </Sec>
+      <RepayBody key={h.key + pane} o={o} h={h} idle={idle} lite={pane} />
+    </>
+  )
+}
+
+function RepayBody({ o, h, idle, lite }: { o: BorrowOffer; h: Holding; idle: Idle[]; lite: 'all' | 'some' }) {
+  const t = useRepayTicket(o, h, idle, lite)
+  const [getOpen, setGetOpen] = React.useState(false)
+  return (
+    <>
+      <Sec>
+        {lite === 'some' && <>
+          <Lbl>How much to pay back <Txt s={12} w={600} c={C.tx50}>· of {usd(t.owedUsd - t.otherDebtUsd)}</Txt></Lbl>
+          <AmountBox unit={o.debt.symbol} value={t.repayAmt} onChange={t.setRepay} onMax={() => t.setRepay(fromUnits(t.owed))} />
+          <Presets onPick={(p) => t.setRepay(fromUnits(p === 100 ? t.owed : floor6(t.owed * p / 100)))} />
+        </>}
+        {lite === 'all' && <Plain>You pay back the {usd(t.owedUsd - t.otherDebtUsd)} you owe, interest to the block included, and your {num(t.held, 4)} {o.collateral.symbol} comes back to your wallet.</Plain>}
+        {!!t.account && <AmtSub right={`You have ${num(t.debtBal?.amount ?? 0, 2)} ${o.debt.symbol}`} warn={t.shortDebt ? 'not enough' : undefined} />}
+        {t.shortDebt && <GetLine account={t.account} short symbol={o.debt.symbol} onOpen={() => setGetOpen(true)} />}
+        {getOpen && o.debt.address && <GetSheet targets={[{ chainId: o.chainId, address: o.debt.address, symbol: o.debt.symbol, decimals: o.debt.decimals, price: t.debtPrice, logo: o.debt.logo, have: t.debtBal?.amount ?? 0 }]}
+          want={Math.max(0, t.r - (t.debtBal?.amount ?? 0))} sources={idle} onClose={() => setGetOpen(false)} />}
+      </Sec>
+      <Cells hero={lite === 'all'
+        ? { k: 'Back to you', v: usd(t.w * t.price), s: `${num(t.w, 4)} ${o.collateral.symbol}` }
+        : { k: 'Owed after', v: usd(t.debtAfter), s: t.debtAfter > 0 ? `${pct(dropOf(t.collAfter, t.debtAfter, t.liq) * 100, 0)} from liquidation after` : 'nothing owed' }} cells={[]} />
+      <Action ladder={t.ladder} label={lite === 'all' ? `Pay back ${usd(t.r * t.debtPrice)} and take it home` : `Pay back ${usd(t.r * t.debtPrice)}`} account={t.account} isConnected={t.isConnected} disabled={!!t.liteBlocked} blockedNote={t.liteBlocked ?? undefined} chainId={o.chainId} />
+    </>
+  )
+}
+
 const st = StyleSheet.create({
   safer: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: C.b300, borderWidth: 1, borderColor: 'transparent' },
+  modes: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  mode: { minHeight: 32, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: 'transparent', justifyContent: 'center' },
+  modeOn: { borderColor: C.primary, backgroundColor: '#062830' },
 })

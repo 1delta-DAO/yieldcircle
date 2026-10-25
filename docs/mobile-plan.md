@@ -109,5 +109,22 @@ with its step ladder, trust line, Details), its four bodies, and You (stats,
 what you made with its line and split, every position opening its ticket,
 Share, Lite / Pro), each compared with the web side by side.
 
-Not yet on the phone: Get (swap / bridge in), loans (pay back), Details (Pro's
-ticket) and the profile sheet — they open a "comes next" note.
+**2026-10-25 — Get and loans.** Two more controllers in `@yieldcircle/app`:
+`tickets/get.ts` (`useGetAsset`: sources, quotes, destination gas, approve /
+switch / send, batched gas legs, paper) and `tickets/repay.ts`
+(`useRepayTicket`); the gas rule's store moved to `app/state/gasPref.ts`, and
+the platform gained `gated()` (the web's closed beta; the phone returns
+`false`). The web's `GetAsset` and `RepayPane` draw on them — their text
+recorded before and after, unchanged but for live quotes.
+
+On the phone: the Get sheet (`mobile/src/ticket/get.tsx`, over the ticket so
+the form bought flows back to it — receive-as, pay with, other token by
+address, amount and presets, the route and its picker, the gas card, pay →
+receive → price impact, the loss confirmation, the status once sent), opened
+from every Get line; and the loan sheet (`LoanBody`: pay back all / some, a
+Get line for the coin owed when short), opened from a loan on You. The
+phone's `actorOn` now acts for the account read, as the web's does, so `?as=`
+quotes in the browser render.
+
+Not yet on the phone: Details (Pro's ticket) and the profile sheet — they open
+a "comes next" note.

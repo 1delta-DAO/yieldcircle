@@ -43,7 +43,6 @@ export default function RootLayout() {
                 <Stack.Screen name="strategy/[id]" options={{ presentation: 'modal', headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
                 <Stack.Screen name="you" options={{ headerShown: false }} />
                 <Stack.Screen name="details" options={{ ...header, headerShown: true, title: 'Details' }} />
-                <Stack.Screen name="get" options={{ ...header, headerShown: true, title: 'Get' }} />
                 <Stack.Screen name="probe" options={{ ...header, headerShown: true, title: 'Wallet probe' }} />
               </Stack>
               {/* absolute: with Expo Router the modal does not open on Android otherwise (Reown's documented workaround) */}

@@ -116,3 +116,8 @@ export function getForms<T extends { role: string; address: string; symbol: stri
   const wrapped = opts.find((o) => o.role !== 'native' && wrapsNative(chainId, o.address))
   return coin && wrapped && (chosen === coin || chosen === wrapped) ? [coin, wrapped] : [chosen]
 }
+
+/** a balance as an amount to send: rounded DOWN, never a hair over what is held */
+export const floor6 = (x: number) => Math.floor(x * 1e6) / 1e6
+/** collateral to put up: rounded UP, never a hair under what is needed */
+export const ceil6 = (x: number) => Math.ceil(x * 1e6) / 1e6

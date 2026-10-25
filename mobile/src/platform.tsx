@@ -37,6 +37,8 @@ const PHONE: Platform = {
   // Solana comes with AppKit's Solana adapter (docs/mobile-plan.md phase 7)
   useSol: NO_SOL,
   solSignAndSend: async () => { throw new Error('Solana wallets are not on the phone yet') },
+  // the web's closed-beta gate is a cookie the gate service sets; the phone has no gate yet (owner's call)
+  gated: () => false,
 }
 
 export function PhonePlatform({ children }: { children: React.ReactNode }) {

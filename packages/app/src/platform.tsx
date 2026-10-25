@@ -19,6 +19,8 @@ export interface Platform {
   useSol: () => { account?: { address: string } | null }
   /** sign and send one serialized Solana transaction with the connected Solana wallet → its signature */
   solSignAndSend: (tx: Uint8Array) => Promise<Uint8Array>
+  /** real trading is behind the closed beta here (tickets/0002): a swap or bridge with a real wallet is refused */
+  gated: () => boolean
 }
 
 const Ctx = React.createContext<Platform | null>(null)

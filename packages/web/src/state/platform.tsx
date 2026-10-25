@@ -3,6 +3,7 @@ import { PlatformProvider, type Platform } from '@yieldcircle/app/platform'
 import { isRemote, openWallet } from '../wallet/deeplink'
 import { useSwitchTo } from '../wallet/useSwitchTo'
 import { solSignAndSend, useSolWallet } from '../wallet/solana'
+import { realTradingGated } from '../wallet/gate'
 
 /** The web's side of the shared ticket machinery (`@yieldcircle/app/platform`): sessionStorage, its deep links, the Wallet Standard. */
 const WEB: Platform = {
@@ -16,6 +17,7 @@ const WEB: Platform = {
   useSwitchTo,
   useSol: useSolWallet,
   solSignAndSend,
+  gated: realTradingGated,
 }
 
 export function WebPlatform({ children }: { children: React.ReactNode }) {

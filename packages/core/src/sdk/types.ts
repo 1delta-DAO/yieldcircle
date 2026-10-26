@@ -201,6 +201,12 @@ export interface TradeEconomics {
   carryPerDayUsd: { total: number; base: number } | null
   breakEvenDays: { total: number | null; base: number | null }
   horizonDays: number | null
+  /**
+   * How old the USD prices are that the slippage was measured against. `stale` → the API EXCLUDED
+   * slippage from the entry cost (a stopped price feed reads a fair fill as a loss): show the swap
+   * as unpriced, never as free. Absent on an API without it.
+   */
+  referencePrices?: { asOf: string | null; ageHours: number | null; stale: boolean }
   notes: string[]
 }
 export interface LoopQuoteData {

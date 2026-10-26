@@ -63,7 +63,7 @@ export function LoopBody({ s, idle, allIdle, holding, copyLev }: { s: LoopStrate
           onTarget={(x) => t.setPayAddr(t.opts.find((o) => normAddr(o.address) === normAddr(x.address))?.address ?? null)} onClose={() => t.setGetOpen(false)} />}
         {t.short && <Txt s={12.5} c={C.warn} style={{ marginTop: 8 }}><Txt s={12.5} w={700} c={C.warn}>Too big for one lender.</Txt> {t.short.message}</Txt>}
       </Sec>
-      <Lines l={loopLines({ net: t.net, amountUsd: t.E, lev: t.L, drop: t.drop, holds: moneyWord(s.asset, s.group), debt: debtWord(s), dollarDebt: s.group === 'USD', expiry: s.expiry, cost: t.econ ? t.cost : null, payback: t.payback, quoting: t.q.isFetching && t.amount > 0 })} />
+      <Lines l={loopLines({ net: t.net, amountUsd: t.E, lev: t.L, drop: t.drop, holds: moneyWord(s.asset, s.group), debt: debtWord(s), dollarDebt: s.group === 'USD', expiry: s.expiry, cost: t.econ ? t.cost : null, payback: t.payback, quoting: t.q.isFetching && t.amount > 0, staleHours: t.staleRef ? t.staleRef.ageHours ?? 0 : null })} />
       {t.econ && <View style={{ paddingHorizontal: 16 }}><LossAck v={t.vc} what="Opening this loop" advice="Lower the amount, or open Details for a lower leverage: the swap is sized on the whole position." /></View>}
       {t.noRoute && <Txt s={12.5} c={C.bad} style={{ marginHorizontal: 16, marginVertical: 10 }}>{NO_ROUTE}</Txt>}
       <Action ladder={t.ladder} label={`Open ${leverTag(t.L)} loop · ${usd(t.E)}`} account={t.account} isConnected={t.isConnected}

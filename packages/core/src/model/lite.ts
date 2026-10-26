@@ -173,7 +173,7 @@ export function earnLine(rate: number, amountUsd: number, more?: string): Line {
  * 7.0% under the dollar". The cost is the quote's entry cost and how long the loop takes to earn
  * it back; until a quote is in, it says so instead of a number.
  */
-export function loopLines(p: { net: number; amountUsd: number; lev: number; drop: number; holds: string; debt: string; dollarDebt: boolean; expiry?: number; cost: number | null; payback: number | null; quoting: boolean }): ThreeLines {
+export function loopLines(p: { net: number; amountUsd: number; lev: number; drop: number; holds: string; debt: string; dollarDebt: boolean; expiry?: number; cost: number | null; payback: number | null; quoting: boolean; /** the quote's reference prices are this many hours old: the swap could not be valued */ staleHours?: number | null }): ThreeLines {
   const earn = earnLine(p.net, p.amountUsd, leverTag(p.lev) + ' levered')
   // "Ethena's dollar", "ether.fi's ether": whose coin can fall, against the plain money it borrows
   const { short, via } = splitTitle(p.holds)
@@ -186,7 +186,9 @@ export function loopLines(p: { net: number; amountUsd: number; lev: number; drop
     s: `${under}: the loop is liquidated${p.expiry ? `. It ends on ${dayMonth(p.expiry)}: close or roll it then` : ''}`,
     tone: p.drop < 0.05 ? 'bad' : p.drop < 0.1 ? 'warn' : '',
   }
-  const cost: Line = p.cost == null
+  const cost: Line = p.staleHours != null && p.cost != null
+    ? { k: 'Costs', v: 'Swap not priced', s: `our prices are ${Math.round(p.staleHours)} h old, so the fill could not be checked — fees and network come to ${money(p.cost)}`, tone: 'warn' }
+    : p.cost == null
     ? { k: 'Costs', v: p.quoting ? 'Pricing the entry…' : p.amountUsd > 0 ? 'No quote at this size' : '—', s: 'the swap that builds the loop', tone: '' }
     : { k: 'Costs', v: `${money(p.cost)} to enter`, s: p.payback == null ? 'never earned back at this rate' : `earned back in ${daysPlain(p.payback)}`, tone: p.payback == null ? 'bad' : p.payback > 30 ? 'warn' : '' }
   return { earn, lose, cost }

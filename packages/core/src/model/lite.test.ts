@@ -102,6 +102,12 @@ describe('the three lines', () => {
     expect(l.cost.v).toBe('$0.80 to enter')
     expect(l.cost.s).toBe('earned back in 2 days')
   })
+  it('stale reference prices: the swap reads as unpriced, never as free or as a loss', () => {
+    const l = loopLines({ net: 52, amountUsd: 1000, lev: 5.6, drop: 0.044, holds: 'Dollars via Apyx', debt: 'dollars', dollarDebt: true, cost: 0.2, payback: 0.1, quoting: false, staleHours: 41.7 })
+    expect(l.cost.v).toBe('Swap not priced')
+    expect(l.cost.s).toContain('42 h old')
+    expect(l.cost.tone).toBe('warn')
+  })
   it('an ether loop is liquidated against ether, not a dollar', () => {
     const l = loopLines({ net: 4, amountUsd: 0, lev: 6, drop: 0.12, holds: 'Ether via Lido', debt: 'ether', dollarDebt: false, cost: null, payback: null, quoting: true })
     expect(l.lose.s).toMatch(/^against plain ether/)

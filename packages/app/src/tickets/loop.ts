@@ -217,11 +217,14 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
     // the open's own build, unsigned, on either chain: the same call the quote makes
     true)
   // the open at market prices: your equity right after it is what you put in less the entry cost (`ValueCheck.tsx`)
-  const vc = useValueCheck(E, econ && E > 0 ? E - cost : 0, `${key}|${cost}`)
+  // …unless the prices the API measured it against are stale: then the swap is UNPRICED (the API left
+  // its slippage out of `cost`), so the check reads 'unk' rather than a loss or a free entry
+  const staleRef = econ?.referencePrices?.stale ? econ.referencePrices : null
+  const vc = useValueCheck(staleRef ? 0 : E, econ && E > 0 && !staleRef ? E - cost : 0, `${key}|${cost}`)
   const more = !!bal && amount > bal.amount
   // the hero's two answers: the net, and how far from the line — in a word, the distance and the health factor
   const hfShown = simHf ?? hf, safe = safetyOf(drop)
   const rewardsNow = loopRewards(s, L)
   const fixedNote = term ? `fixed to ${ends}` : tenor ? `fixed for ${tenorWord(tenor)}` : s.dueAt ? `fixed to ${due}` : ''
-  return { account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, more, hfShown, safe, rewardsNow, fixedNote }
+  return { account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote }
 }

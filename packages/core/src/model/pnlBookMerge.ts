@@ -1,8 +1,5 @@
 import type { AccountPnlBook, PnlBookPoint } from '../index/types'
 
-/** how many strategies keep their own line, as each index draws them (`BOOK_SERIES_STRATEGIES`) */
-const LINES = 8
-
 /**
  * Several wallets' PnL books as one (tickets/0018): an owner with an EVM and a Solana wallet has a
  * book on each index, and "What you made" is over both. Folded by the index's own rules
@@ -24,8 +21,9 @@ export function mergeBooks(books: readonly AccountPnlBook[]): AccountPnlBook | n
   const shared = books.filter((b) => b.coverage.equityShare != null)
   const eq = shared.reduce((t, b) => t + Math.abs(b.total.equityUsd), 0)
   const equityShare = shared.length === 0 ? null : eq > 0 ? shared.reduce((t, b) => t + b.coverage.equityShare! * Math.abs(b.total.equityUsd), 0) / eq : shared[0].coverage.equityShare
+  // every line an index drew is kept: a small strategy re-ranked below the eighth still has its own
+  // (a chart that shows a few caps itself)
   const strategies = books.flatMap((b) => b.strategies).sort((x, y) => Math.abs(y.pnlUsd) - Math.abs(x.pnlUsd))
-    .map((s, i) => (i < LINES ? s : { ...s, series: null }))
   const requested = books.map((b) => b.requestedAt).filter((t): t is string => !!t).sort()
   const anyUnsupported = books.some((b) => b.unsupported != null)
   return {

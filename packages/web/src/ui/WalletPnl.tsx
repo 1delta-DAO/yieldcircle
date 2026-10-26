@@ -13,6 +13,7 @@ import React from 'react'
 import { pnlWaiting, unsupportedLine, useAccountPnlBook, strategyLabel, type AccountPnlBook, type PnlBookFigure, type PnlBookPoint, type PnlBookStrategy } from '@yieldcircle/app/index/pnl'
 import { indexChainLabel } from '@yieldcircle/core/index/types'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
+import { usePositionSeries } from '@yieldcircle/app/index/queries'
 import { go } from '../state/AppState'
 import { ProtocolLogo, Sk, pct, protocolIconUrls, usd, usdShort } from './bits'
 import { prettyProtocol } from './ProtocolFilter'
@@ -37,8 +38,10 @@ function openPnl(posKey: string) {
 
 /** The charted strategies' hues by strategy key, in the breakdown's order: the chart's lines and the cards' swatches. */
 export function strategyHues(b: AccountPnlBook): Map<string, string> {
-  return new Map(b.strategies.filter((s) => s.series && s.series.length > 1).map((s, i) => [s.key, HUES[i % HUES.length]]))
+  return new Map(chartedOf(b).map((s, i) => [s.key, HUES[i % HUES.length]]))
 }
+/** The strategies the By-strategy chart draws: the biggest with a line, one per hue (a merged book keeps every line). */
+const chartedOf = (b: AccountPnlBook) => b.strategies.filter((s) => s.series && s.series.length > 1).slice(0, HUES.length)
 export type PnlBy = 'total' | 'strategy'
 /**
  * `own`: the connected wallet's own page — its records are asked for and the book re-read while they are drawn (tickets/0093).
@@ -110,7 +113,7 @@ function Book({ b, addr, cards }: { b: AccountPnlBook; addr: string; cards?: { b
     if (moved.current) card.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
     moved.current = true
   }, [focus])
-  const charted = b.strategies.filter((s) => s.series && s.series.length > 1)
+  const charted = chartedOf(b)
   const fs = focus ? b.strategies.find((s) => s.key === focus) : undefined
   if (fs) return <div ref={card} className="card wpnl"><StrategyView b={b} s={fs} onBack={() => setFocus(null)} /></div>
   const t = b.total
@@ -172,7 +175,13 @@ function strategySub(s: PnlBookStrategy): string {
 /** One strategy, opened from the table: its header, the book's figures and chart for it alone, and back. */
 function StrategyView({ b, s, onBack }: { b: AccountPnlBook; s: PnlBookStrategy; onBack: () => void }) {
   const k = topPosition(b, s)
-  const pts = s.series && s.series.length > 1 ? s.series : null
+  // its own line, else — one position, which the index draws a line for whatever its rank — that
+  // position's (PnL only: a position's points carry no yield split)
+  const own = s.series && s.series.length > 1 ? s.series : null
+  const one = !own && s.positions === 1 && k ? k : undefined
+  const ps = usePositionSeries(one?.split('|')[1], one)
+  const posPts = React.useMemo(() => (ps.data?.points ?? []).map((p) => ({ t: p.t, pnl: p.pnl, yield: p.pnl, nav: p.nav ?? 0 })), [ps.data])
+  const pts = own ?? (posPts.length > 1 ? posPts : null)
   // its span: the index's own, else since it opened, else its drawn line's
   const from = s.since ?? pts?.[0].t ?? null
   const span = s.openDays != null && s.openDays > 0 ? Math.max(1, s.openDays) : from ? Math.max(1, (Date.now() - Date.parse(from)) / 86_400_000) : null
@@ -188,8 +197,9 @@ function StrategyView({ b, s, onBack }: { b: AccountPnlBook; s: PnlBookStrategy;
       </div>
       <Figures f={s} span={span} many={s.positions > 1} />
       {pts
-        ? <Chart lines={[{ id: 'pnl', name: 'Total PnL', pts, v: (p) => p.pnl, main: true }, { id: 'yield', name: 'Yield', pts, v: (p) => p.yield, dashed: true }]} />
-        : <div className="t50 wpnl-wait">The index draws a day-by-day line for the biggest {b.strategies.filter((x) => x.series).length || 8} strategies only; this one’s figures are above.</div>}
+        ? <Chart lines={[{ id: 'pnl', name: 'Total PnL', pts, v: (p) => p.pnl, main: true }, ...(own ? [{ id: 'yield', name: 'Yield', pts, v: (p: PnlBookPoint) => p.yield, dashed: true }] : [])]} />
+        : one && ps.isLoading ? <Sk w={260} h={120} />
+        : <div className="t50 wpnl-wait">{s.positions > 1 ? `The index draws a day-by-day line for the biggest strategies only, and this one’s ${s.positions} positions are not summed into one here; its figures are above, each position’s line one tap away.` : 'No day-by-day line for it yet: the index is still drawing its record. Its figures are above.'}</div>}
       <div className="wpnl-foot">
         <button type="button" className="linklike" onClick={onBack}>‹ All strategies</button>
         {k && <button type="button" className="linklike" onClick={() => openPnl(k)}>{s.positions > 1 ? 'Its biggest position’s history ›' : 'The position’s history ›'}</button>}

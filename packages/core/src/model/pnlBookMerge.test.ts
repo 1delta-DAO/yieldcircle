@@ -30,11 +30,11 @@ describe('mergeBooks', () => {
     expect(m.coverage).toMatchObject({ positions: 4, withPnl: 3, pending: 1, unranked: { stale: 3 }, withLine: undefined, equityShare: 0.7 })
   })
 
-  it('re-ranks the strategies and keeps eight lines', () => {
+  it('re-ranks the strategies and keeps every line drawn', () => {
     const many = (pre: string, n: number) => Array.from({ length: n }, (_, i) => strat(`${pre}${i}`, (i + 1) * (pre === 'e' ? 1 : -10)))
     const m = mergeBooks([book('0xa', 0, 1, [], { strategies: many('e', 6) }), book('Sol1', 0, 1, [], { strategies: many('s', 6) })])!
     expect(m.strategies.map((s) => s.key).slice(0, 3)).toEqual(['s5', 's4', 's3'])
-    expect(m.strategies.filter((s) => s.series).length).toBe(8)
+    expect(m.strategies.filter((s) => s.series).length).toBe(12)
   })
 })
 

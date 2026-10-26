@@ -29,8 +29,17 @@ function openPnl(who: string, posKey: string) {
   history.replaceState({ ...(history.state ?? {}), pnl: true }, '')
 }
 
-/** `own`: the connected wallet's own page — its records are asked for and the book re-read while they are drawn (tickets/0093). */
-export function WalletPnl({ addr, own = false }: { addr: string; own?: boolean }) {
+/** The charted strategies' hues by strategy key, in the breakdown's order: the chart's lines and the cards' swatches. */
+export function strategyHues(b: AccountPnlBook): Map<string, string> {
+  return new Map(b.strategies.filter((s) => s.series && s.series.length > 1).map((s, i) => [s.key, HUES[i % HUES.length]]))
+}
+export type PnlBy = 'total' | 'strategy'
+/**
+ * `own`: the connected wallet's own page — its records are asked for and the book re-read while they are drawn (tickets/0093).
+ * `cards`: the page lists the positions as cards carrying their own figures (Wallet.tsx, tickets/0017):
+ * no strategy table here, and the Total / By strategy choice is the page's, so the cards can wear the hues.
+ */
+export function WalletPnl({ addr, own = false, cards }: { addr: string; own?: boolean; cards?: { by: PnlBy; onBy: (by: PnlBy) => void } }) {
   const q = useAccountPnlBook(addr, { own })
   const b = q.data
   if (q.isLoading) return <section className="sec"><div className="sec-h"><h2>What it made</h2></div><div className="card"><div className="empty"><Sk w={260} /></div></div></section>
@@ -45,10 +54,10 @@ export function WalletPnl({ addr, own = false }: { addr: string; own?: boolean }
       {b.coverage.withPnl === 0 ? (
         <div className="card"><div className="empty">
           No lifetime record yet. The index draws one per position in the background
-          {waitingWords(b)}; each position’s own history is under its <b>PnL</b> button below.
+          {waitingWords(b)}; each position’s own history opens from its card below.
           {unsupportedLine(b) ? ` ${unsupportedLine(b)}.` : ''}
         </div></div>
-      ) : <Book b={b} addr={addr} />}
+      ) : <Book b={b} addr={addr} cards={cards} />}
     </section>
   )
 }
@@ -77,8 +86,9 @@ function Coverage({ b }: { b: AccountPnlBook }) {
   )
 }
 
-function Book({ b, addr }: { b: AccountPnlBook; addr: string }) {
-  const [by, setBy] = React.useState<'total' | 'strategy'>('total')
+function Book({ b, addr, cards }: { b: AccountPnlBook; addr: string; cards?: { by: PnlBy; onBy: (by: PnlBy) => void } }) {
+  const [own, setOwn] = React.useState<PnlBy>('total')
+  const by = cards?.by ?? own, setBy = cards?.onBy ?? setOwn
   const charted = b.strategies.filter((s) => s.series && s.series.length > 1)
   const t = b.total
   return (
@@ -111,7 +121,7 @@ function Book({ b, addr }: { b: AccountPnlBook; addr: string }) {
             : charted.map((s, i) => ({ id: s.key, name: strategyLabel(s), pts: s.series!, v: (p: PnlBookPoint) => p.pnl, hue: HUES[i % HUES.length] }))} />
         </>
       )}
-      <Strategies b={b} addr={addr} hues={by === 'strategy' ? new Map(charted.map((s, i) => [s.key, HUES[i % HUES.length]])) : null} />
+      {!cards && <Strategies b={b} addr={addr} hues={by === 'strategy' ? strategyHues(b) : null} />}
     </div>
   )
 }

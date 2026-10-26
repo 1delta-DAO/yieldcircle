@@ -18,7 +18,9 @@ import { maturityClock, ptMaturityOf, termClock, type Strategy } from '@yieldcir
 import { useAccount } from 'wagmi'
 import { go, levParam, marketHref, parseRoute, useApp, useRoute, walletHref } from '../state/AppState'
 import { PnlDrawer } from './PnlDrawer'
-import { WalletPnl } from './WalletPnl'
+import { WalletPnl, strategyHues, type PnlBy } from './WalletPnl'
+import { useAccountPnlBook, type PnlBookPosition } from '@yieldcircle/app/index/pnl'
+import { bookKey, cardPnlState, joinBook, showableApr } from '@yieldcircle/core/model/bookJoin'
 import { WalletClosed } from './WalletClosed'
 import type { AccountSyncReport } from '@yieldcircle/core/index/api'
 import { useAccountFlows, useAccountSync, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '@yieldcircle/app/index/queries'
@@ -155,6 +157,22 @@ export function Wallet({ addr }: { addr: string }) {
       .reduce<PositionGroup | null>((a, g) => (a == null || g.netAprPct! > a.netAprPct! ? g : a), null)
     return { ...c, best, bestShare: best && c.navUsd > 0 ? best.equityUsd / c.navUsd : null }
   }, [pos.data, rows, groups, cut])
+  /**
+   * What each position made (tickets/0017): the PnL book joined onto the cards by netting key,
+   * so a position is one card with its rate now and its lifetime figure, not a card here and a
+   * strategy row in What it made. The book is the one WalletPnl reads (same query, cached).
+   */
+  const showPnl = !paperEvm && isAddr(addr) && !hidden && !syncing
+  const pnlQ = useAccountPnlBook(showPnl ? addr : undefined, { own: isMe })
+  const [pnlBy, setPnlBy] = React.useState<PnlBy>('total')
+  const [order, setOrder] = useCardOrder()
+  const cardPnl = React.useMemo<CardPnlCtx | null>(() => {
+    if (!showPnl) return null
+    const b = pnlQ.data
+    if (!b) return pnlQ.isLoading ? { loading: true, byKey: new Map(), hues: null, orphans: [] } : null
+    const { byKey, orphans } = joinBook(groupsOrLegs(rows, groups).map((g) => g.key), b.positions)
+    return { loading: false, byKey, hues: pnlBy === 'strategy' ? strategyHues(b) : null, orphans }
+  }, [showPnl, pnlQ.data, pnlQ.isLoading, rows, groups, pnlBy])
   // a paper account: its history and flows from the paper ledger, never from the index
   const ph = usePaperHistory(paperEvm, inScope)
   const pl = usePaperLedgerFor(paperEvm)
@@ -269,18 +287,24 @@ export function Wallet({ addr }: { addr: string }) {
       </>}
 
       {/* what it made: lifetime PnL off the index's records (your own only after the sync) */}
-      {!paperEvm && isAddr(addr) && !hidden && !syncing && <WalletPnl addr={addr} own={isMe} />}
+      {!paperEvm && isAddr(addr) && !hidden && !syncing && <WalletPnl addr={addr} own={isMe} cards={{ by: pnlBy, onBy: setPnlBy }} />}
 
       <section className="sec">
         {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} inScope={inScope} /></> : <>
-        <div className="sec-h"><h2>Positions</h2><span className="sub">{hidden ? 'Your own positions come from the live path, not the index.' : syncing ? 'syncing your positions with the chain…' : isMe && sync.data ? <SyncNote s={sync.data} /> : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago{checking ? ' · checking the chain for positions it has not read…' : ''}</> : checking ? 'checking the chain for positions the index has not read…' : 'from the index'}</span></div>
+        <div className="sec-h"><h2>Positions</h2>{cardPnl && cardPnl.byKey.size > 1 && (
+          <div className="seg sm book-order" role="group" aria-label="order the positions by">
+            <button aria-pressed={order === 'value'} onClick={() => setOrder('value')}>Value</button>
+            <button aria-pressed={order === 'pnl'} onClick={() => setOrder('pnl')}>PnL</button>
+          </div>
+        )}<span className="sub">{hidden ? 'Your own positions come from the live path, not the index.' : syncing ? 'syncing your positions with the chain…' : isMe && sync.data ? <SyncNote s={sync.data} /> : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago{checking ? ' · checking the chain for positions it has not read…' : ''}</> : checking ? 'checking the chain for positions the index has not read…' : 'from the index'}</span></div>
         {hidden ? (
           <div className="note">The index is for <b>other</b> wallets and for history — never for the connected user’s own positions. Yours are behind the balance in the top right, read live.</div>
         ) : (
           <div className="card">
             {(syncing || waiting || pos.isLoading) && <div className="empty"><Sk w={220} /></div>}
             {!syncing && !waiting && !pos.isLoading && !rows.length && <div className="empty">The index has no open position for this wallet on {allChains ? 'the chains it follows' : chainLabelFor()}.</div>}
-            {rows.length > 0 && <Book rows={rows} groups={groups} navUsd={carry.navUsd} copyOf={copyOf} who={addr} />}
+            {rows.length > 0 && <Book rows={rows} groups={groups} navUsd={carry.navUsd} copyOf={copyOf} who={addr} pnl={cardPnl} order={order} />}
+            {cardPnl && cardPnl.orphans.length > 0 && !syncing && !waiting && !pos.isLoading && <Orphans ps={cardPnl.orphans} allChains={allChains} />}
           </div>
         )}
         </>}
@@ -517,9 +541,19 @@ function groupsOrLegs(rows: IndexPosition[], groups?: PositionGroup[]): Position
 const navShare = (equityUsd: number, navUsd: number | null | undefined) =>
   navUsd != null && navUsd > 0 ? ` · ${pct((Math.abs(equityUsd) / navUsd) * 100, 1)} of NAV` : ''
 
-function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; groups?: PositionGroup[]; navUsd?: number | null; copyOf?: (legs: IndexPosition[]) => Copyable; who: string }) {
+function Book({ rows, groups, navUsd, copyOf, who, pnl, order = 'value' }: {
+  rows: IndexPosition[]; groups?: PositionGroup[]; navUsd?: number | null; copyOf?: (legs: IndexPosition[]) => Copyable; who: string
+  /** each card's lifetime figure from the PnL book; null when there is no book to read */
+  pnl?: CardPnlCtx | null; order?: CardOrder
+}) {
   const byLeg = new Map(rows.map((r) => [`${r.marketUid}|${r.side}|${r.posId}`, r]))
-  const gs = groupsOrLegs(rows, groups)
+  const recOf = (g: PositionGroup) => pnl?.byKey.get(bookKey(g.key))
+  const gs = [...groupsOrLegs(rows, groups)]
+  // by PnL: the biggest movers either way first (the strategy table's order), the cards with no figure last
+  if (order === 'pnl' && pnl) {
+    const mag = (g: PositionGroup) => { const p = recOf(g); return cardPnlState(p) === 'ok' ? Math.abs(p!.pnlUsd!) : -1 }
+    gs.sort((a, b) => mag(b) - mag(a))
+  }
   return (
     <div className="book">
       {gs.map((g) => {
@@ -528,9 +562,13 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
         const c = copyOf?.(found) ?? null
         const st = c && 'st' in c ? c.st : null
         const open = () => openPnl(who, g.key)
+        const rec = recOf(g)
+        const hue = rec && pnl?.hues?.get(rec.strategyKey)
+        const pnlCell = pnl ? <PnlCell p={rec} loading={pnl.loading} /> : null
+        const swatch = hue ? <i className="wpnl-sw" style={{ background: hue }} aria-hidden /> : null
         if (found.length === 1) {
           const r = found[0]
-          return <PosCard key={g.key} lead={r} onOpen={open} action={<>{c && <CopyCell c={c} who={who} />}<PnlButton who={who} posKey={g.key} /></>}
+          return <PosCard key={g.key} lead={r} onOpen={open} pnl={pnlCell} swatch={swatch} action={c && <CopyCell c={c} who={who} />}
             name={<a className="mkt" href={marketHref(r.marketUid)} onClick={(e) => e.stopPropagation()}>{r.marketName ?? r.symbol}</a>}
             venue={<Lender r={r} />}
             pills={<>{r.side === 'borrow' && <span className="pill k-borrow">debt</span>}<ClassChip x={r} /></>}
@@ -543,7 +581,7 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
         // the debt's own fixed term, the earliest when several loans share the group
         const termLeg = s.debt.reduce<IndexPosition | null>((m, r) => r.termEndsAt && (!m || r.termEndsAt < m.termEndsAt!) ? r : m, null)
         const term = termLeg ? termClock(termLeg.termEndsAt!, termLeg.termDays) : null
-        return <PosCard key={g.key} lead={lead} onOpen={open} action={<>{c && <CopyCell c={c} who={who} lev={g.leverage} />}<PnlButton who={who} posKey={g.key} /></>}
+        return <PosCard key={g.key} lead={lead} onOpen={open} pnl={pnlCell} swatch={swatch} action={c && <CopyCell c={c} who={who} lev={g.leverage} />}
           name={<span title={s.basket ? composition(s) : undefined}>{groupLabel(s)}</span>}
           venue={<Lender r={lead} />}
           pills={<>{g.leverage != null && g.leverage > 1.05 && <span className="pill loop">{g.leverage.toFixed(2)}×</span>}{s.basket && <span className="pill" title="several assets share this account's one health factor">cross-margin</span>}</>}
@@ -566,20 +604,26 @@ function Book({ rows, groups, navUsd, copyOf, who }: { rows: IndexPosition[]; gr
  * looped position carries its legs inside the card, each tagged with its side,
  * so collateral and debt read as parts of one thing rather than as two rows.
  */
-function PosCard({ lead, name, venue, pills, meta, value, valueSub, rate, action, legs, onOpen }: {
+function PosCard({ lead, name, venue, pills, meta, value, valueSub, rate, pnl, swatch, action, legs, onOpen }: {
   lead: IndexPosition; name: React.ReactNode; venue: React.ReactNode; pills?: React.ReactNode; meta: React.ReactNode
-  value: React.ReactNode; valueSub?: React.ReactNode; rate: React.ReactNode; action: React.ReactNode; legs?: IndexPosition[]; onOpen: () => void
+  value: React.ReactNode; valueSub?: React.ReactNode; rate: React.ReactNode
+  /** what it made since it opened (`PnlCell`); null when the page has no PnL book */
+  pnl?: React.ReactNode
+  /** the strategy's hue while What it made draws By strategy */
+  swatch?: React.ReactNode
+  action: React.ReactNode; legs?: IndexPosition[]; onOpen: () => void
 }) {
   return (
     <div className="posc">
       <div className="posc-h" role="button" tabIndex={0} title="value, money in and PnL since this position opened" onClick={onOpen} onKeyDown={(e) => { if (e.key === 'Enter') onOpen() }}>
         <TokLink group={lead.assetGroup} sym={lead.symbol ?? '?'} logo={lead.assetLogo ?? undefined} />
         <div className="posc-n">
-          <span className="t"><b>{name}</b><span className="venue">{venue}</span>{pills}</span>
+          <span className="t">{swatch}<b>{name}</b><span className="venue">{venue}</span>{pills}</span>
           <small>{meta}</small>
         </div>
         <div className="posc-v"><b>{value}</b>{valueSub && <small>{valueSub}</small>}</div>
-        <div className="posc-r">{rate}</div>
+        <div className="posc-r">{rate}<small>now</small></div>
+        <div className="posc-p">{pnl}</div>
         <div className="posc-a" onClick={(e) => e.stopPropagation()}>{action}</div>
       </div>
       {legs && legs.length > 0 && (
@@ -699,12 +743,55 @@ function openPnl(who: string, posKey: string) {
   history.replaceState({ ...(history.state ?? {}), pnl: true }, '')
 }
 
-/** Opens the position's PnL history, without following the card's own click. */
-function PnlButton({ who, posKey }: { who: string; posKey: string }) {
+type CardOrder = 'value' | 'pnl'
+const ORDER_KEY = 'yieldcircle.walletOrder'
+/** The cards' order, a per-viewer preference. */
+function useCardOrder(): [CardOrder, (o: CardOrder) => void] {
+  const [o, setO] = React.useState<CardOrder>(() => { try { return localStorage.getItem(ORDER_KEY) === 'pnl' ? 'pnl' : 'value' } catch { return 'value' } })
+  return [o, (v) => { setO(v); try { localStorage.setItem(ORDER_KEY, v) } catch { /* private mode */ } }]
+}
+
+interface CardPnlCtx {
+  loading: boolean
+  /** the book's record per card, by `bookKey(group key)` */
+  byKey: Map<string, PnlBookPosition>
+  hues: Map<string, string> | null
+  /** records with no card on this page */
+  orphans: PnlBookPosition[]
+}
+
+const signedShort = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '') + usdShort(Math.abs(v))
+const dayShort = (t: string) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit', timeZone: 'UTC' })
+
+/**
+ * What the position made since it opened, from the index's record: the figure, and its yearly
+ * rate where that means something (`showableApr`), else the date it counts from. A position
+ * with no figure says why in a word, never $0. The card's own click opens the history.
+ */
+function PnlCell({ p, loading }: { p: PnlBookPosition | undefined; loading: boolean }) {
+  if (loading) return <Sk w={56} />
+  const st = cardPnlState(p)
+  if (st === 'ok') {
+    const v = p!.pnlUsd!
+    const tip = `${signedShort(v)} since ${p!.since ? dayShort(p!.since) : 'it opened'}${p!.yieldUsd != null ? ` · yield ${signedShort(p!.yieldUsd)} · price move ${signedShort(v - p!.yieldUsd)}` : ''}`
+      + (showableApr(p!.pnlAprPct) ? '' : p!.pnlAprPct != null ? ` · ${pct(p!.pnlAprPct, 0)} a year: a short span or a thin base blows the yearly rate up` : '')
+    return <span title={tip}><b className={v < 0 ? 'bad' : 'ok'}>{signedShort(v)}</b><small>{showableApr(p!.pnlAprPct) ? `${pct(p!.pnlAprPct, 1)} a yr` : p!.since ? `since ${dayShort(p!.since)}` : 'since opened'}</small></span>
+  }
+  const [word, why] = st === 'drawing' ? ['drawing…', 'the index is drawing this position’s record now']
+    : st === 'waiting' ? ['waiting', 'the index has not drawn this position’s record yet']
+    : st === 'unranked' ? ['no record', `the index holds no reliable record for this position (${p?.status ?? 'unknown'})`]
+    : ['—', 'not in the PnL book: under the size the index draws records for, or not on its board yet']
+  return <span className="t40" title={why}><b className="pnl-none">{word}</b><small>made</small></span>
+}
+
+/** Records the book has that no card here shows: the chain filter's cut, or a key the two routes spell differently. */
+function Orphans({ ps, allChains }: { ps: PnlBookPosition[]; allChains: boolean }) {
+  const sum = ps.reduce((t, p) => t + (cardPnlState(p) === 'ok' ? p.pnlUsd! : 0), 0)
+  const n = ps.length
   return (
-    <button className="btn sm pnl-btn" title="value, money in and PnL since this position opened" onClick={(e) => { e.stopPropagation(); openPnl(who, posKey) }}>
-      PnL
-    </button>
+    <div className="t50 book-orphans">
+      {n} more position{n === 1 ? '' : 's'} {allChains ? 'in the PnL book with no card here' : 'on other chains'} · {signedShort(sum)} made · counted in What it made above
+    </div>
   )
 }
 

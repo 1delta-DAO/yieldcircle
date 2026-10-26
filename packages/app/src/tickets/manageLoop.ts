@@ -58,7 +58,7 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   const maxL = loan ? Lnow : s ? Math.max(Lnow, Math.floor(s.maxLev * 100) / 100) : Lnow
   // ...and it starts on the tier the open ticket would: "Now" is a plain deposit, which is not what was asked for
   const safer = lite && !closeFirst ? saferTargets(Lnow, liqLtv, minL) : []
-  const [L0, setL] = React.useState<number>(() => (closeFirst && !putUp ? 1 : lite && safer.length ? safer[Math.min(1, safer.length - 1)].L : putUp ? Math.min(maxL, s!.tiers[isSavings(s!.nature) ? DEFAULT_TIER : 'defensive']) : +Lnow.toFixed(2)))
+  const [L0, setL] = React.useState<number>(() => (closeFirst && !putUp ? 1 : putUp ? Math.min(maxL, s!.tiers[isSavings(s!.nature) ? DEFAULT_TIER : 'defensive']) : +Lnow.toFixed(2)))
   const L = Math.max(minL, L0)
   const same = Math.abs(L - Lnow) < 0.02
   // nothing to close on a deposit: taking it out is the deposit's own Withdraw

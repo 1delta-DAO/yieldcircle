@@ -50,7 +50,7 @@ export function LiteYou() {
   const selS = sel ? L.runs(sel) ?? null : null
   return (
     <>
-    <div className={`asset lite-asset lite-you${open ? '' : ' noticket'}`}>
+    <div className={`lite-split lite-you${open ? ' withticket' : ''}`}>
     <div className="main">
       <div className="feed-h"><h1>You</h1>{b.paper && <span className="pill paper">paper</span>}</div>
       <div className="lstats">

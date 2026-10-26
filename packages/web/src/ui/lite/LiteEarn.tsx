@@ -47,7 +47,7 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   const work = yours.reduce((a, x) => a + x.atWorkUsd, 0), yearly = yours.reduce((a, x) => a + x.yearlyUsd, 0), idle = yours.reduce((a, x) => a + x.idleUsd, 0)
   return (
     <>
-      <div className={`lite-earn${ticketOpen ? ' withticket' : ''}`}>
+      <div className={`lite-split lite-earn${ticketOpen ? ' withticket' : ''}`}>
         <div className="main">
           <div className="feed-h"><h1>Earn</h1><span className="sp" /><span className="t50 hide-m">best rates, in plain words</span></div>
           <div className={`ltiles${group ? ' picked' : ''}`} role="tablist" aria-label="Which money">

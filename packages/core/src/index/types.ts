@@ -530,3 +530,86 @@ export interface IndexChainBalances {
   unknownAssets?: string[]
 }
 export interface IndexBalances { account: string; chains: IndexChainBalances[]; enrolled: string[]; notCovered: string[] }
+
+/**
+ * A wallet's lifetime PnL book (`GET /accounts/:account/pnl`, pos-indexer docs/lifetime-pnl.md
+ * "The wallet book"); both indexes answer it, each for its own addresses. `model/pnlBookMerge.ts`
+ * folds several into one (an owner with an EVM and a Solana wallet).
+ */
+export interface PnlBookPoint {
+  t: string
+  pnl: number
+  yield: number
+  nav: number
+}
+export interface PnlBookFigure {
+  pnlUsd: number
+  yieldUsd: number
+  directionalUsd: number
+  pnlAprPct: number | null
+  yieldAprPct: number | null
+  capitalDays: number
+  /** the longest open span among the positions (days); absent on an older index */
+  openDays?: number | null
+  positions: number
+}
+export interface PnlBookStrategy extends PnlBookFigure {
+  key: string
+  kind: 'loop' | 'deposit' | 'position'
+  protocol: string | null
+  lenderKeys: string[]
+  chains: string[]
+  held: string[]
+  debt: string[]
+  /** the biggest held leg's market name (a curated vault's own name) */
+  market?: string | null
+  equityUsd: number
+  since: string | null
+  /** the strategy's own line (the index draws it for the biggest few only) */
+  series: PnlBookPoint[] | null
+}
+export interface PnlBookPosition {
+  key: string
+  chainId: string
+  strategyKey: string
+  equityUsd: number | null
+  pnlUsd: number | null
+  yieldUsd: number | null
+  pnlAprPct: number | null
+  yieldAprPct: number | null
+  since: string | null
+  exact: boolean | null
+  /** ok, or why it has no figure: `pending` = not drawn yet, else the record's status */
+  status: string
+  flags: string[]
+  /** 1 = the index draws it next (its place among every wallet asked for); null/absent = not asked for, or drawn (EVM index, tickets/0093) */
+  queuePosition?: number | null
+}
+/** A leg the wallet's last sync named that the index will never draw: its chain or its lender is not followed. */
+export interface UnsupportedLeg {
+  chainId: string
+  lender: string
+  marketUid: string | null
+  /** `chain` = a chain the index does not follow; else why the lender is not followed */
+  reason: string
+}
+export interface AccountPnlBook {
+  account: string
+  total: PnlBookFigure & { equityUsd: number }
+  coverage: {
+    positions: number
+    withPnl: number
+    /** of those, with a stored daily line; the rest are in the line's last point only */
+    withLine?: number
+    pending: number
+    unranked: Record<string, number>
+    equityShare: number | null
+  }
+  series: PnlBookPoint[]
+  strategies: PnlBookStrategy[]
+  positions: PnlBookPosition[]
+  /** when this wallet's records were last asked for (`?request=1`, the sync); absent on an older index */
+  requestedAt?: string | null
+  /** what the last sync named that the index will never draw a record for; absent on an older index */
+  unsupported?: UnsupportedLeg[]
+}

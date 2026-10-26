@@ -1,7 +1,7 @@
 /**
  * What a wallet has MADE (pos-indexer tickets/0084, the wallet book): the
- * lifetime PnL of its open positions summed, the line it drew getting there,
- * and the same per strategy — the number the board ranks a wallet by, shown
+ * lifetime PnL of its open positions summed, and the line it drew getting there
+ * (per strategy on the chart's toggle) — the number the board ranks a wallet by, shown
  * where the wallet is. Total PnL counts every price move; Yield takes out each
  * position's money moving against the dollar (ETH going up is not farming).
  *
@@ -10,12 +10,8 @@
  * position the index has not drawn yet is counted as missing, never as zero.
  */
 import React from 'react'
-import { pnlWaiting, unsupportedLine, useAccountPnlBook, strategyLabel, type AccountPnlBook, type PnlBookPoint, type PnlBookStrategy } from '@yieldcircle/app/index/pnl'
-import { indexChainLabel } from '@yieldcircle/core/index/types'
-import { chainLabel } from '@yieldcircle/app/sdk/queries'
-import { go } from '../state/AppState'
-import { ProtocolLogo, Sk, pct, protocolIconUrls, usd, usdShort } from './bits'
-import { prettyProtocol } from './ProtocolFilter'
+import { pnlWaiting, unsupportedLine, useAccountPnlBook, strategyLabel, type AccountPnlBook, type PnlBookPoint } from '@yieldcircle/app/index/pnl'
+import { Sk, pct, usd, usdShort } from './bits'
 
 /** one hue per charted strategy, in the breakdown's order */
 const HUES = ['#60a5fa', '#f59e0b', '#a78bfa', '#34d399', '#f472b6', '#22d3ee', '#facc15', '#fb7185']
@@ -23,11 +19,6 @@ const signed = (v: number | null | undefined) => (v == null ? '—' : (v > 0 ? '
 const signedShort = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '') + usdShort(Math.abs(v))
 const day = (t: string) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit', timeZone: 'UTC' })
 
-/** Opens a position's PnL drawer over the wallet page (Wallet.tsx `openPnl`'s twin). */
-function openPnl(who: string, posKey: string) {
-  go(`w/${who}`, { pos: posKey })
-  history.replaceState({ ...(history.state ?? {}), pnl: true }, '')
-}
 
 /** The charted strategies' hues by strategy key, in the breakdown's order: the chart's lines and the cards' swatches. */
 export function strategyHues(b: AccountPnlBook): Map<string, string> {
@@ -36,11 +27,17 @@ export function strategyHues(b: AccountPnlBook): Map<string, string> {
 export type PnlBy = 'total' | 'strategy'
 /**
  * `own`: the connected wallet's own page — its records are asked for and the book re-read while they are drawn (tickets/0093).
- * `cards`: the page lists the positions as cards carrying their own figures (Wallet.tsx, tickets/0017):
- * no strategy table here, and the Total / By strategy choice is the page's, so the cards can wear the hues.
+ * Each position's own figure is on the page's own list (Wallet.tsx's cards, Lite You's rows —
+ * tickets/0017), so there is no strategy table here. `cards`: the Total / By strategy choice is the
+ * page's, so its cards can wear the hues.
  */
-export function WalletPnl({ addr, own = false, cards }: { addr: string; own?: boolean; cards?: { by: PnlBy; onBy: (by: PnlBy) => void } }) {
-  const q = useAccountPnlBook(addr, { own })
+export function WalletPnl({ addr, own = false, cards, book }: {
+  addr: string; own?: boolean; cards?: { by: PnlBy; onBy: (by: PnlBy) => void }
+  /** a book read by the caller — You's, merged over the owner's EVM and Solana wallets (tickets/0018) — instead of `addr`'s own */
+  book?: { data: AccountPnlBook | null | undefined; isLoading: boolean }
+}) {
+  const own1 = useAccountPnlBook(book ? undefined : addr, { own })
+  const q = book ?? own1
   const b = q.data
   if (q.isLoading) return <section className="sec"><div className="sec-h"><h2>What it made</h2></div><div className="card"><div className="empty"><Sk w={260} /></div></div></section>
   // an older index (no route), an error, or a wallet with nothing on the board: say nothing here
@@ -121,7 +118,6 @@ function Book({ b, addr, cards }: { b: AccountPnlBook; addr: string; cards?: { b
             : charted.map((s, i) => ({ id: s.key, name: strategyLabel(s), pts: s.series!, v: (p: PnlBookPoint) => p.pnl, hue: HUES[i % HUES.length] }))} />
         </>
       )}
-      {!cards && <Strategies b={b} addr={addr} hues={by === 'strategy' ? strategyHues(b) : null} />}
     </div>
   )
 }
@@ -196,49 +192,6 @@ function Chart({ lines }: { lines: Line[] }) {
         <span className="sp" />
         <span className="mono">{day(new Date(t0).toISOString())} → now</span>
       </div>
-    </div>
-  )
-}
-
-/** Each strategy's lifetime PnL as a bar from zero, its yield and APR; a click opens its biggest position. */
-function Strategies({ b, addr, hues }: { b: AccountPnlBook; addr: string; hues: Map<string, string> | null }) {
-  const max = Math.max(1e-9, ...b.strategies.map((s) => Math.abs(s.pnlUsd)))
-  const [all, setAll] = React.useState(false)
-  const shown = all ? b.strategies : b.strategies.slice(0, 8)
-  const top = (s: PnlBookStrategy) =>
-    b.positions.filter((p) => p.strategyKey === s.key && p.status === 'ok').sort((x, y) => (y.equityUsd ?? 0) - (x.equityUsd ?? 0))[0]?.key
-  return (
-    <div className="wpnl-strats">
-      <div className="wpnl-sh t50"><span>Strategy</span><span /><span className="num">PnL</span><span className="num">Yield</span><span className="num">APR</span></div>
-      {shown.map((s) => {
-        const k = top(s)
-        const w = (Math.abs(s.pnlUsd) / max) * 50
-        return (
-          <button key={s.key} className="wpnl-srow" onClick={() => k && openPnl(addr, k)} disabled={!k}
-            title={`${strategyLabel(s)} — ${s.positions} position${s.positions === 1 ? '' : 's'}${s.since ? ` since ${day(s.since)}` : ''}; open its biggest position’s PnL history`}>
-            <span className="wpnl-sname">
-              {hues?.get(s.key) && <i className="wpnl-sw" style={{ background: hues.get(s.key) }} />}
-              {s.protocol && <ProtocolLogo urls={protocolIconUrls(s.protocol)} name={prettyProtocol(s.protocol)} />}
-              <b className="wpnl-one">{strategyLabel(s)}</b>
-              <small className="t50 wpnl-one">
-                {s.kind === 'loop' ? 'loop' : s.kind === 'deposit' ? 'deposit' : 'position'}
-                {s.market && s.market !== strategyLabel(s) ? ` · ${s.market}` : s.protocol?.startsWith('vault.') ? ` · ${s.held.join(' + ')}` : ''}
-                {s.protocol ? ` · ${prettyProtocol(s.protocol)}` : ''}
-                {' · '}{s.chains.map((c) => indexChainLabel(c, chainLabel)).join(', ')}
-                {s.positions > 1 ? ` · ${s.positions} positions` : ''}
-                {` · ${usdShort(s.equityUsd)} now`}
-              </small>
-            </span>
-            <span className="wpnl-bar" aria-hidden>
-              <i className={s.pnlUsd < 0 ? 'neg' : 'pos'} style={s.pnlUsd < 0 ? { right: '50%', width: `${w}%` } : { left: '50%', width: `${w}%` }} />
-            </span>
-            <b className={`num ${s.pnlUsd < 0 ? 'bad' : 'ok'}`}>{signedShort(s.pnlUsd)}</b>
-            <span className={`num ${s.yieldUsd < 0 ? 'bad' : ''}`}>{signedShort(s.yieldUsd)}</span>
-            <span className="num" title={`yield ${pct(s.yieldAprPct)} APR`}>{pct(s.pnlAprPct)}</span>
-          </button>
-        )
-      })}
-      {b.strategies.length > 8 && <button className="linklike wpnl-more" onClick={() => setAll(!all)}>{all ? 'fewer' : `all ${b.strategies.length} strategies`}</button>}
     </div>
   )
 }

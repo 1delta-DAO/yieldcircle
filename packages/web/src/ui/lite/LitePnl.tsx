@@ -1,12 +1,12 @@
 import React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { pnlWaiting, unsupportedLine, useAccountPnlBook, type AccountPnlBook } from '@yieldcircle/app/index/pnl'
+import { pnlWaiting, unsupportedLine, useAccountsPnlBook, type AccountPnlBook } from '@yieldcircle/app/index/pnl'
+import type { Accounts } from '@yieldcircle/app/book'
 import { useAccountSync } from '@yieldcircle/app/index/queries'
-import { isEvmAddr } from '@yieldcircle/core/model/address'
+import { isSolAddr } from '@yieldcircle/core/model/address'
 import { usePaperDaily } from '../../social/queries'
 import { usePaper } from '../../state/Paper'
-import { boardPositions, pnlSummary, signedMoney, type LiteRow } from '@yieldcircle/core/model/lite'
-import { bookKeyOf } from '@yieldcircle/core/model/uid'
+import { pnlSummary, signedMoney } from '@yieldcircle/core/model/lite'
 import { Sk, pct, usdShort } from '../bits'
 import { LiteDetailsDrawer } from './LiteTicketBits'
 import { WalletPnl } from '../WalletPnl'
@@ -17,47 +17,46 @@ import { proHref, walletHref } from '../../state/AppState'
 
 /**
  * What you made (docs/lite.md §6), for Lite: one number, one bar, one sentence — the lifetime PnL
- * of your open positions, how much of it was farming and how much the coin's price, and each
- * position's own figure, best first. The same index record Pro's wallet page shows in full
- * (`WalletPnl`); "Every number" opens that page's version in a drawer. A paper account has its
+ * of your open positions, and how much of it was farming and how much the coin's price. Each
+ * position's own figure is on its row in Your money (`useHoldingPnl`), not listed here a second
+ * time (tickets/0017). The same index record Pro's wallet page shows in full (`WalletPnl`);
+ * "Every number" opens that page's version in a drawer. A paper account has its
  * own ledger: what the strategies earned, and its daily line.
  */
-export function LitePnl({ account, paper, rows, positions }: { account: string; paper: boolean; rows: LiteRow[]; /** how many positions the live book holds once it has settled, to say how many the index has not read; absent while chains are still answering */ positions?: number }) {
-  return paper ? <PaperMade account={account} /> : <RealMade account={account} rows={rows} positions={positions} />
+export function LitePnl({ account, accounts, paper, positions }: { account: string; /** every wallet of the owner's, one per VM (`useBook`) — what they made is summed over all of them */ accounts: Accounts; paper: boolean; /** how many positions the live book holds once it has settled, to say how many the index has not read; absent while chains are still answering */ positions?: number }) {
+  return paper ? <PaperMade account={account} /> : <RealMade account={account} accounts={accounts} positions={positions} />
 }
 
-function RealMade({ account, rows, positions }: { account: string; rows: LiteRow[]; positions?: number }) {
-  // You is the owner's own page: its records are asked for, and the book re-read while they are drawn
-  const q = useAccountPnlBook(account, { own: true })
+function RealMade({ account, accounts, positions }: { account: string; accounts: Accounts; positions?: number }) {
+  // You is the owner's own page: its records are asked for, and the book re-read while they are drawn.
+  // Both wallets' books (tickets/0018): a Solana position is in the Solana index's book, and on
+  // that index the `request` here is the only thing that draws it ahead of the board
+  const q = useAccountsPnlBook(accounts, { own: true })
   // the index draws a record only for positions it has read. Pro's wallet page hands it the live
   // book's legs as hints (`useAccountSync`, docs/apis.md: hints, never shown), so a position the
   // ledger never saw gets read; You does the same, and re-reads the book once the sync lands
-  const sync = useAccountSync(isEvmAddr(account) ? account : undefined)
+  // (the EVM index only: the Solana one takes no hints)
+  const evm = accounts.evm
+  const sync = useAccountSync(evm)
   const qc = useQueryClient()
-  React.useEffect(() => { if (sync.data) void qc.invalidateQueries({ queryKey: ['pnl-book', account.toLowerCase()] }) }, [sync.data, account, qc])
+  React.useEffect(() => { if (sync.data && evm) void qc.invalidateQueries({ queryKey: ['pnl-book', evm.toLowerCase()] }) }, [sync.data, evm, qc])
   const [more, setMore] = React.useState(false)
-  const liteByKey = React.useMemo(() => {
-    const m = new Map<string, LiteRow>()
-    for (const r of rows) { const k = bookKeyOf(r.s); if (k) m.set(k.toLowerCase(), r) }
-    return m
-  }, [rows])
   const b = q.data
   const s = b ? pnlSummary(b) : null
   if (q.isLoading) return <section className="sec lite-sec"><div className="sec-h"><h2>What you made</h2></div><div className="lpnl"><Sk w={160} h={34} /><Sk w={240} h={12} /></div></section>
-  const syncing = !!isEvmAddr(account) && !sync.data && !sync.isError
+  const syncing = !!evm && !sync.data && !sync.isError
   // no book, or one with nothing in it: say so while there is money at work, instead of a blank
   if (!b || !b.coverage.positions) return positions ? (
     <section className="sec lite-sec">
       <div className="sec-h"><h2>What you made</h2><span className="sub">since each position opened · from the index’s records</span></div>
-      <div className="lpnl"><div className="empty t50">{pnlNotReadYet(positions, syncing, q.isError)}</div></div>
+      <div className="lpnl"><div className="empty t50">{pnlNotReadYet(positions, syncing, q.isError)}{!q.isError && q.failed.length ? ` Not in this yet: ${q.failed.map(unreadWallet).join(' · ')}.` : ''}</div></div>
     </section>
   ) : null
-  const ps = boardPositions(b, (k) => liteByKey.get(k.toLowerCase())?.title ?? null)
   return (
     <section className="sec lite-sec">
       <div className="sec-h"><h2>What you made</h2><span className="sub">since each position opened · from the index’s records</span></div>
       <div className="lpnl">
-        {!s ? <div className="empty t50"><Waiting b={b} live={positions} syncing={syncing} gaps={sync.data?.synced === false || sync.data?.state === 'gaps'} /></div> : <>
+        {!s ? <div className="empty t50"><Waiting b={b} live={positions} syncing={syncing} gaps={sync.data?.synced === false || sync.data?.state === 'gaps'} failed={q.failed} /></div> : <>
           <div className="lpnl-top">
             <b className={`lpnl-v ${s.total >= 0 ? 'ok' : 'bad'}`}>{signedMoney(s.total)}</b>
             <span className="lpnl-s t50">{s.aprPct != null ? `${pct(s.aprPct, 1)} a year on what was in` : ''}{s.on < s.of ? ` · on ${s.on} of ${s.of} positions` : ''}</span>
@@ -77,24 +76,13 @@ function RealMade({ account, rows, positions }: { account: string; rows: LiteRow
           <p className="lpnl-word">{s.word}</p>
           {(() => {
             const w = pnlWaiting(b)
-            const bits = [w.drawing ? `${w.drawing} drawing now` : '', w.waiting ? `${w.waiting} waiting` : '', unsupportedLine(b)].filter(Boolean)
+            const bits = [w.drawing ? `${w.drawing} drawing now` : '', w.waiting ? `${w.waiting} waiting` : '', unsupportedLine(b), ...q.failed.map(unreadWallet)].filter(Boolean)
             return bits.length ? <p className="lpnl-word t50">Not in this figure: {bits.join(' · ')}.</p> : null
           })()}
           {b.series.length > 1 && <Spark pts={b.series.map((p) => p.pnl)} up={s.total >= 0} />}
-          {ps.length > 0 && (
-            <div className="lpnl-pos">
-              {ps.slice(0, 4).map((p) => (
-                <div key={p.key} className="lpnl-p">
-                  <span className="lpnl-pn"><b>{p.title}</b><small className="t50">{p.sub}{p.equityUsd != null ? ` · ${usdShort(p.equityUsd)} in it` : ''}</small></span>
-                  <b className={p.pnlUsd >= 0 ? 'ok' : 'bad'}>{signedMoney(p.pnlUsd)}</b>
-                </div>
-              ))}
-              {ps.length > 4 && <div className="lpnl-p t50"><small>and {ps.length - 4} more</small></div>}
-            </div>
-          )}
-          <button type="button" className="lite-details lpnl-more" onClick={() => setMore(true)}><span><b>Every number</b><small>the day-by-day line, yield against price, each strategy</small></span><span aria-hidden>›</span></button>
+          <button type="button" className="lite-details lpnl-more" onClick={() => setMore(true)}><span><b>Every number</b><small>the day-by-day line, yield against price, by strategy</small></span><span aria-hidden>›</span></button>
           <LiteDetailsDrawer open={more} onClose={() => setMore(false)} pro={proHref(walletHref(account))}>
-            <div className="lpnl-full"><WalletPnl addr={account} own /></div>
+            <div className="lpnl-full"><WalletPnl addr={account} own book={q} /></div>
           </LiteDetailsDrawer>
         </>}
       </div>
@@ -102,8 +90,11 @@ function RealMade({ account, rows, positions }: { account: string; rows: LiteRow
   )
 }
 
+/** A wallet whose book did not answer, in words. */
+const unreadWallet = (a: string) => `your ${isSolAddr(a) ? 'Solana' : 'EVM'} wallet’s record (the index did not answer just now)`
+
 /** Why there is nothing yet, in one line: what is being drawn, what the index has not read, what it will never draw. */
-function Waiting({ b, live, syncing, gaps }: { b: AccountPnlBook; live?: number; syncing: boolean; gaps: boolean }) {
+function Waiting({ b, live, syncing, gaps, failed }: { b: AccountPnlBook; live?: number; syncing: boolean; gaps: boolean; /** wallets whose book did not answer */ failed: string[] }) {
   const w = pnlWaiting(b)
   const known = b.coverage.positions
   // the venues the index does not follow are not "unread": they are never read
@@ -113,6 +104,7 @@ function Waiting({ b, live, syncing, gaps }: { b: AccountPnlBook; live?: number;
     w.waiting ? `${w.waiting} position${w.waiting === 1 ? '' : 's'} waiting to be drawn — the index draws each within a few hours of reading it` : '',
     unread ? `${unread} of your ${live} the index has not read yet${syncing ? ' — syncing them now' : gaps ? ' — some it could not read; the balance above has the live numbers' : ''}` : '',
     unsupportedLine(b),
+    ...failed.map(unreadWallet),
   ].filter(Boolean)
   return <>No record yet. {bits.length ? bits.join(' · ') + '.' : 'The index draws one per position within a few hours of opening.'}</>
 }

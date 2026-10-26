@@ -7,90 +7,17 @@
  * its PnL lane, docs/sol-lifetime-pnl.md), each for its own addresses.
  */
 import { useState } from 'react'
+import type { AccountPnlBook, PnlBookPosition, PnlBookStrategy } from '@yieldcircle/core/index/types'
 import { useQuery } from '@tanstack/react-query'
 import { indexForAddr } from '@yieldcircle/core/index/api'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import { pnlOfHolding } from '@yieldcircle/core/model/holdingPnl'
 import { useSession } from '../session'
+import { accountsOf, type Accounts } from '../book'
+import { mergeBooks } from '@yieldcircle/core/model/pnlBookMerge'
 import { isEvmAddr, isSolAddr } from '@yieldcircle/core/model/address'
 
-export interface PnlBookPoint {
-  t: string
-  pnl: number
-  yield: number
-  nav: number
-}
-export interface PnlBookFigure {
-  pnlUsd: number
-  yieldUsd: number
-  directionalUsd: number
-  pnlAprPct: number | null
-  yieldAprPct: number | null
-  capitalDays: number
-  /** the longest open span among the positions (days); absent on an older index */
-  openDays?: number | null
-  positions: number
-}
-export interface PnlBookStrategy extends PnlBookFigure {
-  key: string
-  kind: 'loop' | 'deposit' | 'position'
-  protocol: string | null
-  lenderKeys: string[]
-  chains: string[]
-  held: string[]
-  debt: string[]
-  /** the biggest held leg's market name (a curated vault's own name) */
-  market?: string | null
-  equityUsd: number
-  since: string | null
-  /** the strategy's own line (the index draws it for the biggest few only) */
-  series: PnlBookPoint[] | null
-}
-export interface PnlBookPosition {
-  key: string
-  chainId: string
-  strategyKey: string
-  equityUsd: number | null
-  pnlUsd: number | null
-  yieldUsd: number | null
-  pnlAprPct: number | null
-  yieldAprPct: number | null
-  since: string | null
-  exact: boolean | null
-  /** ok, or why it has no figure: `pending` = not drawn yet, else the record's status */
-  status: string
-  flags: string[]
-  /** 1 = the index draws it next (its place among every wallet asked for); null/absent = not asked for, or drawn (EVM index, tickets/0093) */
-  queuePosition?: number | null
-}
-/** A leg the wallet's last sync named that the index will never draw: its chain or its lender is not followed. */
-export interface UnsupportedLeg {
-  chainId: string
-  lender: string
-  marketUid: string | null
-  /** `chain` = a chain the index does not follow; else why the lender is not followed */
-  reason: string
-}
-export interface AccountPnlBook {
-  account: string
-  total: PnlBookFigure & { equityUsd: number }
-  coverage: {
-    positions: number
-    withPnl: number
-    /** of those, with a stored daily line; the rest are in the line's last point only */
-    withLine?: number
-    pending: number
-    unranked: Record<string, number>
-    equityShare: number | null
-  }
-  series: PnlBookPoint[]
-  strategies: PnlBookStrategy[]
-  positions: PnlBookPosition[]
-  /** when this wallet's records were last asked for (`?request=1`, the sync); absent on an older index */
-  requestedAt?: string | null
-  /** what the last sync named that the index will never draw a record for; absent on an older index */
-  unsupported?: UnsupportedLeg[]
-}
+export type { AccountPnlBook, PnlBookFigure, PnlBookPoint, PnlBookPosition, PnlBookStrategy, UnsupportedLeg } from '@yieldcircle/core/index/types'
 
 export async function accountPnlBook(account: string, { request = false }: { request?: boolean } = {}): Promise<AccountPnlBook | null> {
   // `request=1`: someone is looking — either index draws this wallet's records ahead of its board (tickets/0093)
@@ -122,6 +49,26 @@ export function useAccountPnlBook(account: string | undefined, { own = false }: 
     retry: 1,
     refetchInterval: (q) => (own && (q.state.data?.coverage.pending ?? 0) > 0 && Date.now() - since < PNL_POLL_FOR_MS ? PNL_POLL_EVERY_MS : false),
   })
+}
+
+/**
+ * What several wallets made, as one book (tickets/0018): each wallet's book from its own index
+ * (`useAccountPnlBook`, same cache and polling), folded by `mergeBooks`. Loading while any is;
+ * a wallet whose book failed is named in `failed` and left out — never a silent partial.
+ */
+export function useAccountsPnlBook(accounts: Accounts, { own = false }: { own?: boolean } = {}) {
+  const e = useAccountPnlBook(accounts.evm, { own })
+  const s = useAccountPnlBook(accounts.sol, { own })
+  const qs = [e, s]
+  const got = qs.map((q) => q.data).filter((b): b is AccountPnlBook => !!b)
+  const failed = [accounts.evm && e.isError ? accounts.evm : null, accounts.sol && s.isError ? accounts.sol : null].filter((a): a is string => !!a)
+  const asked = [accounts.evm, accounts.sol].filter(Boolean).length
+  return {
+    data: got.length ? mergeBooks(got) : asked && qs.every((q) => !q.isLoading) ? null : undefined,
+    isLoading: qs.some((q) => q.isLoading),
+    isError: asked > 0 && failed.length === asked,
+    failed,
+  }
 }
 
 /** A lender key as words, for a sentence: `SOLV` → Solv, `AAVE_V3` → Aave V3. */
@@ -171,11 +118,14 @@ export function strategyLabel(s: Pick<PnlBookStrategy, 'held' | 'debt' | 'market
 }
 
 /**
- * One live position's own PnL from the account's book (`pnlOfHolding`): what it made since it was
- * opened, and that a year on what was in. The book is the one You reads (one query, cached).
+ * One live position's own PnL from its wallet's book (`pnlOfHolding`): what it made since it was
+ * opened, and that a year on what was in. The book is the one of the holding's own VM — a Solana
+ * position is in the Solana wallet's book on the Solana index (tickets/0018) — and the one You
+ * reads (one query, cached).
  */
 export function useHoldingPnl(h: Holding | null | undefined): PnlBookPosition | null {
-  const { account } = useSession()
-  const q = useAccountPnlBook(h && !h.key.startsWith('paper:') ? account : undefined)
+  const accounts = accountsOf(useSession())
+  const account = h && !h.key.startsWith('paper:') ? (h.chainId === 'solana' ? accounts.sol : accounts.evm) : undefined
+  const q = useAccountPnlBook(account)
   return h ? pnlOfHolding(q.data?.positions, h) : null
 }

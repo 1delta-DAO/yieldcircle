@@ -1,21 +1,33 @@
-import { useSession } from './session'
+import { useSession, type Session } from './session'
 import { isEvmAddr, isSolAddr } from '@yieldcircle/core/model/address'
 import { useBalancesPerChain, useCatalog, useEarnPositions, useFixedRateCatalog } from './sdk/queries'
 import { books, holdingsFrom, idleFrom, mergeIdle, type AssetBook, type Holding, type Idle } from '@yieldcircle/core/model/positions'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
+
+/** The wallets whose money the screens show, one address per VM. */
+export interface Accounts { evm?: string; sol?: string }
+/**
+ * Whose book it is: `account` is the EVM wallet when both are connected, so Solana reads the
+ * Solana wallet — unless the page is viewing someone else, whose other VM we do not know. The one
+ * rule for the positions (`useBook`) and for what they made (`useAccountsPnlBook`, tickets/0018).
+ * A paper account reads nothing from the chain: no wallets.
+ */
+export function accountsOf(s: Pick<Session, 'account' | 'solSigner' | 'viewAs' | 'paper'>): Accounts {
+  if (s.paper?.active && !s.viewAs) return {}
+  return { evm: isEvmAddr(s.account) ? s.account : undefined, sol: isSolAddr(s.account) ? s.account : s.viewAs ? undefined : s.solSigner }
+}
 
 /**
  * Everything a screen needs in one hook: the curated catalogue, the account's holdings and idle
  * balances (per selected chain), and the per-asset books that combine them.
  */
 export function useBook() {
-  const { chainIds, account, solSigner, viewAs, paper } = useSession()
+  const session = useSession()
+  const { chainIds, account, viewAs, paper } = session
   // a paper account's money is its ledger (tickets/0006): nothing is read from the chain for it,
   // and nothing about it is sent to the index — every screen below gets the same shapes
   const onPaper = !!paper?.active && !viewAs
-  // one address per VM: `account` is the EVM wallet when both are connected, so Solana reads the
-  // Solana wallet — unless the page is viewing someone else, whose other VM we do not know
-  const accounts = onPaper ? {} : { evm: isEvmAddr(account) ? account : undefined, sol: isSolAddr(account) ? account : viewAs ? undefined : solSigner }
+  const accounts = accountsOf(session)
   const cat = useCatalog(chainIds)
   const all: Strategy[] = [...cat.simple, ...cat.loops]
   // one balance read per selected chain, for every address the catalogue knows there, sent once that chain has settled
@@ -34,6 +46,8 @@ export function useBook() {
     positionsLoading: onPaper ? !paper!.ledger : !!(accounts.evm || accounts.sol) && (pos.isLoading || bals.some((b) => b.isLoading || (!b.data && b.fetchStatus === 'idle' && !b.isFetched))),
     positionsError: onPaper ? null : pos.error as Error | null,
     account,
+    /** the wallets read, one per VM (`accountsOf`) */
+    accounts,
     /** the book on screen is the paper account's (tickets/0006) */
     paper: onPaper,
   }

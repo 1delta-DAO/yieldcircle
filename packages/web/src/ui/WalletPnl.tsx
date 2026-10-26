@@ -10,7 +10,7 @@
  * position the index has not drawn yet is counted as missing, never as zero.
  */
 import React from 'react'
-import { pnlWaiting, unsupportedLine, useAccountPnlBook, strategyLabel, type AccountPnlBook, type PnlBookPoint, type PnlBookStrategy } from '@yieldcircle/app/index/pnl'
+import { pnlWaiting, unsupportedLine, useAccountPnlBook, strategyLabel, type AccountPnlBook, type PnlBookFigure, type PnlBookPoint, type PnlBookStrategy } from '@yieldcircle/app/index/pnl'
 import { indexChainLabel } from '@yieldcircle/core/index/types'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { go } from '../state/AppState'
@@ -102,21 +102,21 @@ function Coverage({ b }: { b: AccountPnlBook }) {
 function Book({ b, addr, cards }: { b: AccountPnlBook; addr: string; cards?: { by: PnlBy; onBy: (by: PnlBy) => void } }) {
   const [own, setOwn] = React.useState<PnlBy>('total')
   const by = cards?.by ?? own, setBy = cards?.onBy ?? setOwn
+  // one strategy opened from the table: the same figures and chart, for it alone, in this card
+  const [focus, setFocus] = React.useState<string | null>(null)
+  const card = React.useRef<HTMLDivElement>(null)
+  const moved = React.useRef(false)
+  React.useEffect(() => {
+    if (moved.current) card.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    moved.current = true
+  }, [focus])
   const charted = b.strategies.filter((s) => s.series && s.series.length > 1)
+  const fs = focus ? b.strategies.find((s) => s.key === focus) : undefined
+  if (fs) return <div ref={card} className="card wpnl"><StrategyView b={b} s={fs} onBack={() => setFocus(null)} /></div>
   const t = b.total
   return (
-    <div className="card wpnl">
-      <div className="wpnl-top">
-        <Fig k="Total PnL" v={signed(t.pnlUsd)} c={t.pnlUsd < 0 ? 'bad' : 'ok'} s={`${pct(t.pnlAprPct)} lifetime APR`} tip="every gain and loss since each position opened, price moves included" />
-        <Fig k="Yield" v={signed(t.yieldUsd)} c={t.yieldUsd < 0 ? 'bad' : 'ok'} s={`${pct(t.yieldAprPct)} APR`} tip="the PnL without each position’s money moving against the dollar: what farming made, not what holding ETH or BTC made" />
-        <Fig k="Price move" v={signed(t.directionalUsd)} c="" s="the money vs the dollar" tip="Total PnL − Yield: the part that came from the held money’s own price" />
-        {(() => {
-          const d = spanDays(b)
-          return d == null
-            ? <Fig k="Capital" v="—" c="" s="span not known yet" tip="the average capital the APR is over needs the positions’ open span, which this index does not state yet" />
-            : <Fig k="Capital" v={usdShort(t.capitalDays / d)} c="" s={`avg over ${Math.round(d)} day${Math.round(d) === 1 ? '' : 's'}`} tip="the average capital the APR is over: Σ capital-days ÷ the longest position’s span" />
-        })()}
-      </div>
+    <div ref={card} className="card wpnl">
+      <Figures f={t} span={spanDays(b)} many />
       {b.series.length < 2 && <div className="t50 wpnl-wait">The day-by-day line is still being drawn — the index redraws each position’s record in the background, biggest first.</div>}
       {b.series.length > 1 && b.coverage.withLine != null && b.coverage.withLine < b.coverage.withPnl && (
         <div className="t50 wpnl-wait">The chart covers {b.coverage.withLine} of {b.coverage.withPnl} positions: the index is still redrawing the other {b.coverage.withPnl - b.coverage.withLine} with a day-by-day line, and they count in the figures above only.</div>
@@ -134,8 +134,67 @@ function Book({ b, addr, cards }: { b: AccountPnlBook; addr: string; cards?: { b
             : charted.map((s, i) => ({ id: s.key, name: strategyLabel(s), pts: s.series!, v: (p: PnlBookPoint) => p.pnl, hue: HUES[i % HUES.length] }))} />
         </>
       )}
-      {!cards && <Strategies b={b} hues={by === 'strategy' ? strategyHues(b) : null} />}
+      {!cards && <Strategies b={b} hues={by === 'strategy' ? strategyHues(b) : null} onOpen={setFocus} />}
     </div>
+  )
+}
+
+/** The four figures over a book or one strategy: what it made, how much was farming, the price part, the capital. */
+function Figures({ f, span, many }: { f: PnlBookFigure; span: number | null; /** over several positions: the capital is averaged over the longest one's span */ many?: boolean }) {
+  return (
+    <div className="wpnl-top">
+      <Fig k="Total PnL" v={signed(f.pnlUsd)} c={f.pnlUsd < 0 ? 'bad' : 'ok'} s={`${pct(f.pnlAprPct)} lifetime APR`} tip="every gain and loss since each position opened, price moves included" />
+      <Fig k="Yield" v={signed(f.yieldUsd)} c={f.yieldUsd < 0 ? 'bad' : 'ok'} s={`${pct(f.yieldAprPct)} APR`} tip="the PnL without each position’s money moving against the dollar: what farming made, not what holding ETH or BTC made" />
+      <Fig k="Price move" v={signed(f.directionalUsd)} c="" s="the money vs the dollar" tip="Total PnL − Yield: the part that came from the held money’s own price" />
+      {span == null
+        ? <Fig k="Capital" v="—" c="" s="span not known yet" tip="the average capital the APR is over needs the positions’ open span, which this index does not state yet" />
+        : <Fig k="Capital" v={usdShort(f.capitalDays / span)} c="" s={`avg over ${Math.round(span)} day${Math.round(span) === 1 ? '' : 's'}`} tip={`the average capital the APR is over: Σ capital-days ÷ ${many ? 'the longest position’s span' : 'its span'}`} />}
+    </div>
+  )
+}
+
+/** The biggest drawn position of a strategy: what its row opens. */
+const topPosition = (b: AccountPnlBook, s: PnlBookStrategy) =>
+  b.positions.filter((p) => p.strategyKey === s.key && p.status === 'ok').sort((x, y) => (y.equityUsd ?? 0) - (x.equityUsd ?? 0))[0]?.key
+
+/** What a strategy is, in one line: kind, market, venue, chains, how many positions, what is in it now. */
+function strategySub(s: PnlBookStrategy): string {
+  return [
+    s.kind === 'loop' ? 'loop' : s.kind === 'deposit' ? 'deposit' : 'position',
+    s.market && s.market !== strategyLabel(s) ? s.market : s.protocol?.startsWith('vault.') ? s.held.join(' + ') : '',
+    s.protocol ? prettyProtocol(s.protocol) : '',
+    s.chains.map((c) => indexChainLabel(c, chainLabel)).join(', '),
+    s.positions > 1 ? `${s.positions} positions` : '',
+    `${usdShort(s.equityUsd)} now`,
+  ].filter(Boolean).join(' · ')
+}
+
+/** One strategy, opened from the table: its header, the book's figures and chart for it alone, and back. */
+function StrategyView({ b, s, onBack }: { b: AccountPnlBook; s: PnlBookStrategy; onBack: () => void }) {
+  const k = topPosition(b, s)
+  const pts = s.series && s.series.length > 1 ? s.series : null
+  // its span: the index's own, else since it opened, else its drawn line's
+  const from = s.since ?? pts?.[0].t ?? null
+  const span = s.openDays != null && s.openDays > 0 ? Math.max(1, s.openDays) : from ? Math.max(1, (Date.now() - Date.parse(from)) / 86_400_000) : null
+  return (
+    <>
+      <div className="wpnl-head">
+        <button type="button" className="wpnl-back" onClick={onBack} aria-label="All strategies" title="All strategies">‹</button>
+        {s.protocol && <ProtocolLogo urls={protocolIconUrls(s.protocol)} name={prettyProtocol(s.protocol)} />}
+        <span className="wpnl-hname">
+          <b className="wpnl-one">{strategyLabel(s)}</b>
+          <small className="t50 wpnl-one">{strategySub(s)}{s.since ? ` · since ${day(s.since)}` : ''}</small>
+        </span>
+      </div>
+      <Figures f={s} span={span} many={s.positions > 1} />
+      {pts
+        ? <Chart lines={[{ id: 'pnl', name: 'Total PnL', pts, v: (p) => p.pnl, main: true }, { id: 'yield', name: 'Yield', pts, v: (p) => p.yield, dashed: true }]} />
+        : <div className="t50 wpnl-wait">The index draws a day-by-day line for the biggest {b.strategies.filter((x) => x.series).length || 8} strategies only; this one’s figures are above.</div>}
+      <div className="wpnl-foot">
+        <button type="button" className="linklike" onClick={onBack}>‹ All strategies</button>
+        {k && <button type="button" className="linklike" onClick={() => openPnl(k)}>{s.positions > 1 ? 'Its biggest position’s history ›' : 'The position’s history ›'}</button>}
+      </div>
+    </>
   )
 }
 
@@ -213,35 +272,25 @@ function Chart({ lines }: { lines: Line[] }) {
   )
 }
 
-/** Each strategy's lifetime PnL as a bar from zero, its yield and APR; a click opens its biggest position. */
-function Strategies({ b, hues }: { b: AccountPnlBook; hues: Map<string, string> | null }) {
+/** Each strategy's lifetime PnL as a bar from zero, its yield and APR; a click opens the strategy in the card (`StrategyView`). */
+function Strategies({ b, hues, onOpen }: { b: AccountPnlBook; hues: Map<string, string> | null; onOpen: (key: string) => void }) {
   const max = Math.max(1e-9, ...b.strategies.map((s) => Math.abs(s.pnlUsd)))
   const [all, setAll] = React.useState(false)
   const shown = all ? b.strategies : b.strategies.slice(0, 8)
-  const top = (s: PnlBookStrategy) =>
-    b.positions.filter((p) => p.strategyKey === s.key && p.status === 'ok').sort((x, y) => (y.equityUsd ?? 0) - (x.equityUsd ?? 0))[0]?.key
   if (!b.strategies.length) return null
   return (
     <div className="wpnl-strats">
       <div className="wpnl-sh t50"><span>Strategy</span><span /><span className="num">PnL</span><span className="num">Yield</span><span className="num">APR</span></div>
       {shown.map((s) => {
-        const k = top(s)
         const w = (Math.abs(s.pnlUsd) / max) * 50
         return (
-          <button key={s.key} className="wpnl-srow" onClick={() => k && openPnl(k)} disabled={!k}
-            title={`${strategyLabel(s)} — ${s.positions} position${s.positions === 1 ? '' : 's'}${s.since ? ` since ${day(s.since)}` : ''}; open its biggest position’s PnL history`}>
+          <button key={s.key} className="wpnl-srow" onClick={() => onOpen(s.key)}
+            title={`${strategyLabel(s)} — ${s.positions} position${s.positions === 1 ? '' : 's'}${s.since ? ` since ${day(s.since)}` : ''}; open its figures and line`}>
             <span className="wpnl-sname">
               {hues?.get(s.key) && <i className="wpnl-sw" style={{ background: hues.get(s.key) }} />}
               {s.protocol && <ProtocolLogo urls={protocolIconUrls(s.protocol)} name={prettyProtocol(s.protocol)} />}
               <b className="wpnl-one">{strategyLabel(s)}</b>
-              <small className="t50 wpnl-one">
-                {s.kind === 'loop' ? 'loop' : s.kind === 'deposit' ? 'deposit' : 'position'}
-                {s.market && s.market !== strategyLabel(s) ? ` · ${s.market}` : s.protocol?.startsWith('vault.') ? ` · ${s.held.join(' + ')}` : ''}
-                {s.protocol ? ` · ${prettyProtocol(s.protocol)}` : ''}
-                {' · '}{s.chains.map((c) => indexChainLabel(c, chainLabel)).join(', ')}
-                {s.positions > 1 ? ` · ${s.positions} positions` : ''}
-                {` · ${usdShort(s.equityUsd)} now`}
-              </small>
+              <small className="t50 wpnl-one">{strategySub(s)}</small>
             </span>
             <span className="wpnl-bar" aria-hidden>
               <i className={s.pnlUsd < 0 ? 'neg' : 'pos'} style={s.pnlUsd < 0 ? { right: '50%', width: `${w}%` } : { left: '50%', width: `${w}%` }} />

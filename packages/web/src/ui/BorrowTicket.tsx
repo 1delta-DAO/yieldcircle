@@ -446,6 +446,70 @@ export function LiteLoanTicket({ h, idle, onClose }: { h: Holding; idle: Idle[];
   )
 }
 
+/**
+ * Lite's two plain moves on a held loop (`liteModes`): part of the debt paid from the wallet, or more
+ * collateral put in from it — one lending action each, on the loop's own account: no swap, no new
+ * borrowing, nothing comes out, and both move it away from liquidation. Pay back is the loan
+ * ticket's own pane.
+ */
+export function LitePayBack({ h, idle }: { h: Holding; idle: Idle[] }) {
+  const o = React.useMemo(() => offerFromHolding(h), [h])
+  if (!o) return <Unreadable />
+  return <RepayPane key={h.key + ':payback'} o={o} h={h} idle={idle} lite="some" />
+}
+export function LiteTopUp({ h, idle }: { h: Holding; idle: Idle[] }) {
+  const o = React.useMemo(() => offerFromHolding(h), [h])
+  if (!o) return <Unreadable />
+  return <TopUpPane key={h.key + ':topup'} o={o} h={h} idle={idle} />
+}
+const Unreadable = () => <div className="tsec"><div className="caution">This position can’t be read well enough to change here. Open it in Details.</div></div>
+
+function TopUpPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] }) {
+  const { account, isConnected, actorOn } = useApp()
+  const actor = actorOn(o.chainId)
+  // put in the collateral token or — into a market of the chain's wrapped coin — the coin itself
+  const opts = React.useMemo(() => {
+    const token = { role: 'token' as const, address: normAddr(o.collateral.address), symbol: o.collateral.symbol, decimals: o.collateral.decimals }
+    return wrapsNative(o.chainId, o.collateral.address) ? [{ role: 'native' as const, address: nativeAsset(o.chainId), symbol: nativeSymbol(o.chainId), decimals: nativeDecimals(o.chainId) }, token] : [token]
+  }, [o.id])
+  const balOf = (address: string) => idle.find((i) => i.chainId === o.chainId && sameToken(i.address, address))
+  const chosen = [...opts].sort((a, b) => (balOf(b.address)?.amount ?? 0) - (balOf(a.address)?.amount ?? 0))[0]
+  const bal = balOf(chosen.address)
+  const [amt, setAmt] = useStickyAmount(`b:${h.key}:topup`, () => fromUnits(0))
+  const put = unitsOf(amt)
+  // as sent: Max is the exact balance, a typed amount its text capped at it (tickets/0014)
+  const putRaw = payRaw(amt, chosen.decimals, bal)
+  const price = h.amount > 0 && h.collateralUsd ? h.collateralUsd / h.amount : o.collateral.price ?? bal?.price ?? 0
+  const heldUsd = collateralOf(h), owedUsd = owedOf(h)
+  const liq = h.health && owedUsd > 0 && heldUsd > 0 ? (h.health * owedUsd) / heldUsd : o.liqLtv
+  const collAfter = heldUsd + put * price
+  const levOf = (c: number) => (c - owedUsd > 0 ? c / (c - owedUsd) : 0)
+  const short = !!account && put > 0 && (!bal || bal.amount < put - 1e-9)
+  const blocked = !(put > 0) ? `Put some ${chosen.symbol} in` : short ? `You have ${num(bal?.amount ?? 0, 4)} ${chosen.symbol}` : null
+  const build = async () => {
+    const env = await lendingAction('deposit', { operator: actor!, accountId: h.accountId, marketUid: o.collateral.uid, amountRaw: putRaw, payAsset: chosen.role === 'native' ? chosen.address : undefined })
+    return stepsFrom(env.actions, 'Top up', o.chainId)
+  }
+  const key = [h.key, 'topup', putRaw, chosen.role, actor ?? ''].join('|')
+  const ladder = useTicketLadder(key, o.chainId, build, [o.collateral.uid], [{ address: chosen.address, symbol: chosen.symbol }])
+  return (
+    <>
+      <div className="tsec">
+        <span className="lbl">How much {chosen.symbol} to put in <span className="t50">· {num(h.amount, 4)} in it now</span></span>
+        <AmountBox unit={chosen.symbol} value={amt} onChange={setAmt} onMax={bal ? () => setAmt(portion(bal, 100, chosen.decimals)) : undefined} />
+        <LitePresets onPick={(p) => bal && setAmt(portion(bal, p, chosen.decimals))} />
+        <div className="amt-sub"><span>≈ {usd(put * price)}</span><span>{account ? <>You have {num(bal?.amount ?? 0, 4)} {chosen.symbol}{short && <span className="warn"> · not enough</span>}</> : ''}</span></div>
+        <div className="plain t50" style={{ fontSize: 12, marginTop: 6 }}>It goes in beside what the loop holds: no swap, nothing borrowed. The debt stays as it is, so the loop gets safer and earns on more of your own money.</div>
+      </div>
+      <div className="tsec"><div className="cells">
+        <div className="c hero"><span className="k">From liquidation after</span><span className="v">{owedUsd > 0 ? pct(dropOf(collAfter, owedUsd, liq) * 100, 1) : '—'}</span><span className="s">{owedUsd > 0 ? `was ${pct(dropOf(heldUsd, owedUsd, liq) * 100, 1)}` : 'nothing owed'}</span></div>
+        <div className="c"><span className="k">Leverage after</span><span className="v">×{num(levOf(collAfter), 1)}</span><span className="s">was ×{num(levOf(heldUsd), 1)}</span></div>
+      </div></div>
+      <Action ladder={ladder} label={put > 0 ? `Put in ${num(put, 4)} ${chosen.symbol}` : 'Top up'} account={account} isConnected={isConnected} disabled={!!blocked} blockedNote={blocked ?? undefined} chainId={o.chainId} fee="deposit" />
+    </>
+  )
+}
+
 // ----------------------------------------------------------------- Pay back
 function RepayPane({ o, h, idle, lite }: { o: BorrowOffer; h: Holding; idle: Idle[]; /** Lite: all of it back and the collateral home, or part of the debt only */ lite?: 'all' | 'some' }) {
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/repay`)

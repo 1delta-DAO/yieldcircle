@@ -468,20 +468,27 @@ export const LITE_NAME: Record<string, { name: string; line: string }> = {
 }
 
 /** The Lite ticket's actions on a strategy and, when the wallet holds it, its position (docs/lite.md §5). */
-export type LiteMode = 'add' | 'reduce' | 'close'
+export type LiteMode = 'add' | 'reduce' | 'topup' | 'payback' | 'close'
 /**
  * Which tabs Lite's ticket shows and which it opens on. Adding is opening Lite's own strategy: only
- * on a row Lite offers. A held loop is added to, made safer or closed; a deposit added to or
- * withdrawn from — and a position close to the line opens on "Lower risk". `mode0`: what the link
- * asked for (`add`, `close`, anything else is a reduce).
+ * on a row Lite offers. A held loop is added to, made safer, topped up, paid down or closed; a
+ * deposit added to or withdrawn from — and a position close to the line opens on "Lower risk".
+ * `mode0`: what the link asked for (`add`, `close`, anything else is a reduce).
+ *
+ * "Top up" and "Pay back" are the two plain moves on a loop: more of its collateral in from the
+ * wallet, or part of its debt paid from the wallet — one lending action each, no swap, no new
+ * borrowing, both make it safer. Only on a real position the app can name both legs of (a paper
+ * loop's ledger takes neither: it adds to and pays back loans only).
  */
 export function liteModes(s: Strategy | null, h: Holding | null, mode0?: string): { canAdd: boolean; isLoop: boolean; start: LiteMode; tabs: { id: LiteMode; word: string }[] } {
   const canAdd = !!s && liteEligible(s)
   const isLoop = (s?.kind ?? h?.kind) === 'loop'
   const risky = (bufferOfHealth(h?.health) ?? 1) < 0.1
   const start: LiteMode = !h ? 'add' : mode0 === 'close' ? 'close' : mode0 && mode0 !== 'add' ? 'reduce' : canAdd && !risky ? 'add' : 'reduce'
+  const plain = !!h && !h.paper && !h.subAccount?.unsupported && !!h.collateralUid && !!h.debtUid && !!h.collateralAddress && !!h.debtAddress
   const tabs: { id: LiteMode; word: string }[] = !h ? [] : isLoop
-    ? [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Lower risk' }, { id: 'close', word: 'Close' }]
+    ? [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Lower risk' },
+      ...(plain ? [{ id: 'topup' as const, word: 'Top up' }, { id: 'payback' as const, word: 'Pay back' }] : []), { id: 'close', word: 'Close' }]
     : [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Withdraw' }]
   return { canAdd, isLoop, start, tabs }
 }

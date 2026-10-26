@@ -43,6 +43,7 @@ import { TicketSocial } from './TicketSocial'
 import { AssetLink } from './TokenPage'
 import { bufferOfHealth, brandOf, debtWord, depositLines, holdingLine, leverTag, liteEligible, liteModes, loopLines, moneyWord, plainName, saferTargets, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
 import { proHref } from '../state/AppState'
+import { LitePayBack, LiteTopUp } from './BorrowTicket'
 import { LiteDetails, LiteDetailsDrawer, LiteLines, LitePresets } from './lite/LiteTicketBits'
 import { CLOSE_INTEREST_PAD, DAY_S, NATIVE_MAX_ROUNDS, NO_NATIVE_DEPOSIT, NO_NATIVE_WITHDRAW, NO_ROUTE, closeKeepPad, dayMonth, dayOf, daysWord, defaultTenor, defaultTerm, getForms, hasRoute, nativeMaxRounds, payOptions, paysNative, safetyOf, sameToken, startsAny, tenorWord, type PayOption, type PayRole } from '@yieldcircle/core/model/ticket'
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
@@ -164,6 +165,8 @@ function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, on
       {copy && s && <CopyBanner who={copy} s={s} lev={copyLev} />}
       {h && mode !== 'add'
         ? (h.subAccount?.unsupported ? <CannotManage h={h} />
+          : mode === 'topup' ? <LiteTopUp h={h} idle={idle} />
+          : mode === 'payback' ? <LitePayBack h={h} idle={idle} />
           : isLoop ? <ManageLoop key={h.key + mode} s={s?.kind === 'loop' ? s : null} h={h} closeFirst={mode === 'close'} />
           : <ManageTicket key={h.key} s={s?.kind === 'simple' ? s : null} h={h} mode="reduce" />)
         : s?.kind === 'simple' ? <SimpleTicket key={into?.key} s={s} idle={chainIdle} allIdle={idle} into={into} />

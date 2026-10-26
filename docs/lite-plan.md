@@ -343,8 +343,15 @@ Changes against the plan above, and why:
     You now opens each on its own Lite ticket (`#/lite/you?h=…`,
     `LiteHoldingTicket`, `LiteLoanTicket`). A loop gets Add (only when Lite offers
     it, at the position's own leverage capped at Balanced), Lower risk (the
-    leverage that leaves 5 %, 10 % or 20 % to liquidation, `saferTargets`) and
-    Close. A deposit gets Add and Withdraw (25 %, 50 %, all). A loan gets Pay back
+    leverage that leaves 5 %, 10 % or 20 % to liquidation, `saferTargets`), Top
+    up, Pay back and Close. Top up and Pay back (2026-10-26) are the two moves
+    with no swap: more collateral in from the wallet (`lending/deposit`), or part
+    of the debt paid from it (`lending/repay`, the loan ticket's own pane). Each is
+    one lending action on the loop's own account, and both make it safer. They
+    show only on a real position whose two legs are named; a paper loop doesn't
+    get them, because the ledger adds to and pays back loans only. Checked on
+    Solana against a Kamino obligation on 2026-10-26: both routes build the
+    klend instruction and simulate. A deposit gets Add and Withdraw (25 %, 50 %, all). A loan gets Pay back
     all, which returns the collateral, and Pay back some. A position within 10 %
     of liquidation opens on Lower risk, and its row says how far it is. Only a
     price bet still opens in Pro.

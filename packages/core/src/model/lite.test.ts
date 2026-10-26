@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
+import { pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
+import type { Holding } from './positions'
 
 // the fields the Lite rules read; the rest of a row is irrelevant to them
 const base = { chainId: '1', venue: 'Aave V3', venueKey: 'AAVE_V3', holds: 'USDC', nature: 'savings' as const, riskLabel: 'low', rated: true, riskScore: 2, risk: 1 as const, tvlUsd: 50_000_000, rate: 5 }
@@ -221,5 +222,25 @@ describe('what you made', () => {
     expect(pnlSummary(book(10, null, null))!.split).toBeNull()
     expect(signedMoney(-40)).toBe('−$40')
     expect(signedMoney(0)).toBe('$0')
+  })
+})
+
+describe('liteModes', () => {
+  const held = (more: Partial<Holding> = {}) => ({
+    key: 'k', kind: 'loop', chainId: 'solana', health: 1.2, collateralUid: 'KAMINO_X:solana:a', debtUid: 'KAMINO_X:solana:b',
+    collateralAddress: 'a', debtAddress: 'b', ...more,
+  } as unknown as Holding)
+  const ids = (h: Holding, s: Strategy | null = null) => liteModes(s, h).tabs.map((t) => t.id)
+
+  it('offers a held loop the plain top-up and pay-back beside Lower risk and Close', () => {
+    expect(ids(held())).toEqual(['reduce', 'topup', 'payback', 'close'])
+  })
+  it('never on paper, an unmanaged sub-account, or a loop whose legs are not both named', () => {
+    expect(ids(held({ paper: true }))).toEqual(['reduce', 'close'])
+    expect(ids(held({ subAccount: { id: '1', label: 'Multiply', count: 1, unsupported: 'no build' } }))).toEqual(['reduce', 'close'])
+    expect(ids(held({ debtUid: undefined }))).toEqual(['reduce', 'close'])
+  })
+  it('leaves a deposit as it was', () => {
+    expect(ids(held({ kind: 'simple' }))).toEqual(['reduce'])
   })
 })

@@ -44,6 +44,8 @@ const FLAG_WORDS: Record<string, string> = {
   'price-despiked': 'a price point that broke from both its neighbours (another source’s odd hour) was replaced by theirs',
   'price-mixed': 'the price record alternated with a second source at another level; those hours were dropped and the token’s own track kept',
   'flow-repriced': 'a move’s stored value came off the dropped source’s hour; it is valued at the token’s own track instead',
+  sampled: 'the balance is read off the chain at every midnight: moves the protocol makes with no event (Alchemix redemptions) land on the day they happened',
+  redemption: 'a Transmuter redemption repaid part of the debt with the collateral at par: booked as PnL (its fee), not as a withdrawal',
 }
 const KIND_CLASS: Record<string, string> = {
   deposit: 'k-in', transfer_in: 'k-in', repay: 'k-in',

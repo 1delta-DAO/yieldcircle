@@ -5,6 +5,7 @@ import type { EarnPositionsResponse } from '@yieldcircle/core/sdk/types'
 import { isEvmAddr, isSolAddr, normAddr } from '@yieldcircle/core/model/address'
 import * as api from '@yieldcircle/core/index/api'
 import { useProofsFor } from './proofStore'
+import { parseFind } from '@yieldcircle/core/search/rank'
 import type { RecentQuery } from '@yieldcircle/core/index/api'
 import type { TxBundle } from '@yieldcircle/core/index/types'
 
@@ -430,4 +431,52 @@ export const mergeTxs = (...lists: (TxBundle[] | undefined)[]): TxBundle[] => {
   const by = new Map<string, TxBundle>()
   for (const l of lists) for (const t of l ?? []) by.set(`${t.chainId}:${t.txHash}`, t)
   return [...by.values()].sort((a, b) => Date.parse(b.blockTs) - Date.parse(a.blockTs))
+}
+
+/**
+ * People by name (docs/lite-social-search.md §4.1): the `/find` answer's people only — signed
+ * profiles, X handles, ENS / Basenames, `.sol` names, the index's labels — with a typed address
+ * answered at once, before any request. Lite's search and the phone app's read it; Pro's header
+ * search keeps its own catalogue tier for the other kinds.
+ */
+export function usePeopleFind(q: string, debounceMs = 150) {
+  const needle = q.trim()
+  const [debounced, setDebounced] = useState(needle)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(needle), debounceMs)
+    return () => clearTimeout(t)
+  }, [needle, debounceMs])
+  const parsed = parseFind(debounced)
+  const ask = debounced.length >= 2 && parsed.type === 'text'
+  const r = useQuery({
+    enabled: ask,
+    queryKey: ['find', debounced, 'wallet'],
+    queryFn: ({ signal }) => api.find({ q: debounced, kinds: 'wallet', per: 16 }, signal),
+    staleTime: 30_000,
+    retry: false,
+    placeholderData: (prev) => prev,
+  })
+  const typed = parseFind(needle)
+  const hits: api.FindHit[] = typed.type === 'address'
+    ? [{ docId: `wallet:${typed.address}`, kind: 'wallet', key: typed.address, title: typed.address, subtitle: null, icon: null, chainIds: [], weightUsd: 0, flags: {}, match: { term: typed.address, source: 'address', exact: true, typo: false }, score: 50 }]
+    : r.data && r.data.q === needle ? (r.data.groups.find((g) => g.kind === 'wallet')?.hits ?? []).filter(isPerson).slice(0, 8) : []
+  return { hits, loading: ask && (r.isFetching || debounced !== needle), fuzzy: !!r.data?.fuzzy }
+}
+
+/** a token, a router, a vault or an exchange is found by name too, but is nobody to follow */
+const NOT_PEOPLE = new Set(['contract', 'router', 'deployer', 'protocol', 'dex', 'wrapper', 'burn', 'cex', 'curator'])
+const isPerson = (h: api.FindHit) => !NOT_PEOPLE.has(String(h.flags.accountKind ?? ''))
+
+/**
+ * The wallet board by dollars a day, top 100 — the one request the header's rank, Lite's "top
+ * earners" and the "Everyone" moves all read (`earners-me`, pre-warmed by the index).
+ */
+export function useTopEarners(enabled = true) {
+  return useQuery({
+    enabled,
+    queryKey: ['earners-me'],
+    queryFn: () => api.walletEarners({ sort: 'perDay', people: true, limit: 100 }),
+    staleTime: 5 * MIN,
+    retry: false,
+  })
 }

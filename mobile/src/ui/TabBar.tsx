@@ -1,8 +1,9 @@
 import { Pressable, StyleSheet, View } from 'react-native'
+import { router } from 'expo-router'
 import type { Tabs } from 'expo-router'
 import type React from 'react'
 import { C } from '../theme'
-import { IconBoard, IconBorrow, IconEarn, IconFeed, IconHome } from './icons'
+import { IconBoard, IconBorrow, IconEarn, IconFeed, IconHome, IconSearch } from './icons'
 import { Txt } from './Txt'
 
 /** What expo-router's `Tabs` hands a custom bar (react-navigation's BottomTabBarProps, which expo-router bundles). */
@@ -12,9 +13,10 @@ const ICONS = { index: IconHome, feed: IconFeed, earn: IconEarn, borrow: IconBor
 
 /**
  * The web's bottom tab bar (app.css `.tabbar` + the refit at its end): icon over word, the active
- * one in the primary colour with its icon on a pill.
+ * one in the primary colour with its icon on a pill. Lite's ends on a round search button after the
+ * tabs (docs/lite-social-search.md §4.1): Pro's search is in its top bar.
  */
-export function TabBar({ state, descriptors, navigateToTab, insets }: TabBarProps) {
+export function TabBar({ state, descriptors, navigateToTab, insets, search }: TabBarProps & { search?: boolean }) {
   return (
     <View style={[st.bar, { paddingBottom: insets.bottom }]}>
       {state.routes.map((r, i) => {
@@ -35,6 +37,13 @@ export function TabBar({ state, descriptors, navigateToTab, insets }: TabBarProp
           </Pressable>
         )
       })}
+      {search && (
+        <View style={st.searchSlot}>
+          <Pressable onPress={() => router.push('/search')} style={({ pressed }) => [st.search, pressed && { backgroundColor: C.b400 }]} accessibilityLabel="Search" accessibilityRole="search">
+            <IconSearch color={C.tx70} size={20} />
+          </Pressable>
+        </View>
+      )}
     </View>
   )
 }
@@ -42,5 +51,7 @@ export function TabBar({ state, descriptors, navigateToTab, insets }: TabBarProp
 const st = StyleSheet.create({
   bar: { flexDirection: 'row', paddingHorizontal: 8, backgroundColor: 'rgba(0,0,0,0.92)', borderTopWidth: 1, borderTopColor: C.line },
   item: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  searchSlot: { width: 64, alignItems: 'center', justifyContent: 'center' },
+  search: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: C.b300, borderWidth: 1, borderColor: C.line },
   icon: { width: 48, height: 28, paddingVertical: 4, paddingHorizontal: 14, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 })

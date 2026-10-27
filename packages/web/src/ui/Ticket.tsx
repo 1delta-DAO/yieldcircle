@@ -41,7 +41,7 @@ import { NATURES, isSavings } from '@yieldcircle/core/model/nature'
 import { SayWhy } from './SayWhy'
 import { TicketSocial } from './TicketSocial'
 import { AssetLink } from './TokenPage'
-import { bufferOfHealth, brandOf, debtWord, depositLines, holdingLine, leverTag, liteEligible, liteModes, loopLines, moneyWord, plainName, saferTargets, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
+import { heldBy, bufferOfHealth, brandOf, debtWord, depositLines, holdingLine, leverTag, liteEligible, liteModes, loopLines, moneyWord, plainName, saferTargets, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
 import { proHref } from '../state/AppState'
 import { LitePayBack, LiteTopUp } from './BorrowTicket'
 import { LiteDetails, LiteDetailsDrawer, LiteLines, LitePresets } from './lite/LiteTicketBits'
@@ -49,6 +49,8 @@ import { CLOSE_INTEREST_PAD, DAY_S, NATIVE_MAX_ROUNDS, NO_NATIVE_DEPOSIT, NO_NAT
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { pnlLine } from '@yieldcircle/core/model/holdingPnl'
 import { useSharePosition } from './lite/share'
+import { LiteWho } from './lite/LiteSocial'
+import { useLiteMenu } from '@yieldcircle/app/lite'
 export { safetyOf, sameToken }
 
 /**
@@ -145,6 +147,9 @@ function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, on
   // a position held as a Lite strategy is shared from here (a Copy link)
   const sh = useSharePosition(s, h)
   const chainIdle = s ? idle.filter((i) => i.chainId === s.chainId) : []
+  // who is in it (docs/lite-social-search.md §4.2): the holders of the market it sits in, its thread
+  const { uid, thread } = React.useContext(TicketCtx)
+  const L = useLiteMenu()
   const lev = s?.kind === 'loop' ? (h?.leverage && h.leverage > 1.05 ? h.leverage : copyLev && copyLev > 1.05 ? copyLev : s.tiers.balanced) : h?.kind === 'loop' ? h.leverage ?? 1 : 0
   // Details: the same position (or row) on Pro's own page, where every tier, route and number is
   const detailsHref = h ? proHref(`#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: mode === 'add' ? 'add' : isLoop ? 'manage' : 'reduce' })}`) : proHref()
@@ -174,6 +179,7 @@ function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, on
         : null}
       {s && <div className="tsec lite-trust"><span>{trustKind(s)} · {usdShort(s.tvlUsd)} in it</span><span className="sp" /><span className="t50">{brandOf(s)}</span></div>}
       {!s && h && <div className="tsec lite-trust"><span>Not one of Lite’s picks: you can take it out or make it safer here</span></div>}
+      {s && mode === 'add' && <LiteWho s={s} uid={uid} thread={thread ?? null} heldBy={heldBy(L.proof(s))} />}
       <LiteDetails onOpen={() => setDetails(true)} what={isLoop ? 'Any leverage, the route, every number' : 'Any amount, the venue, the history'} />
       <LiteDetailsDrawer open={details} onClose={() => setDetails(false)} pro={details ? detailsHref : undefined}>
         {s ? <Ticket s={s} idle={idle} holdings={holdings} pick={h?.key} mode={mode === 'add' ? 'add' : isLoop ? 'manage' : 'reduce'} copy={copy} copyLev={copyLev} onClose={() => setDetails(false)} />

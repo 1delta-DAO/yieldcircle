@@ -25,7 +25,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as idx from '@yieldcircle/core/index/api'
 import type { FindCatalogDoc, FindHit, FindKind } from '@yieldcircle/core/index/api'
 import { GROUPS, nameOf } from '@yieldcircle/core/model/assets'
-import { marketHref, tokenHref, useApp, walletHref } from '../state/AppState'
+import { marketHref, tokenHref, useApp, useRoute, walletHref } from '../state/AppState'
 import { feedHash } from '../state/feedLink'
 import { CHAINS, useRateHistory } from '@yieldcircle/app/sdk/queries'
 import { steadyRate } from '@yieldcircle/core/model/rateHistory'
@@ -235,6 +235,16 @@ export function Search() {
     const t = setTimeout(() => setDebounced(needle), DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [needle])
+
+  // Lite's search hands the rest of a query over as `?q=` ("Vaults, protocols and markets … in Pro")
+  const asked = useRoute().q
+  React.useEffect(() => {
+    if (!asked) return
+    setQ(asked)
+    setArmed(true)
+    setOpen(true)
+    input.current?.focus()
+  }, [asked])
 
   // "/" and ⌘K / Ctrl-K focus the box from anywhere that is not already a text field
   React.useEffect(() => {

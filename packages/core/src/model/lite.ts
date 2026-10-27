@@ -461,6 +461,40 @@ export function heldBy(p: Proof | null) {
   return p && p.wallets > 0 ? `${p.wallets}${p.wallets >= 3 ? '+' : ''} ${p.wallets === 1 ? 'person runs' : 'people run'} this · ${usdShort(p.totalUsd)}` : ''
 }
 
+/**
+ * Lite's search over its own rows (docs/lite-social-search.md §4.1): every word typed starts a word
+ * the row is known by — its name in words, its sub-line, the coins it holds and borrows, its money
+ * ("dollars", "ether"), "loop" for a loop. A row whose coin IS the query leads; otherwise the list
+ * keeps its own order (risk, then steady rate), so a search never ranks a riskier row higher than
+ * the list would.
+ */
+export function liteFind(q: string, rows: LiteRow[], limit = 6): LiteRow[] {
+  const words = q.toLowerCase().split(/[\s/·,]+/).filter(Boolean)
+  if (!words.length) return []
+  const exact = (r: LiteRow) => words.length === 1 && [r.s.asset, r.s.holds].some((x) => x?.toLowerCase() === words[0])
+  return rows
+    .filter((r) => {
+      const known = wordsOf(r)
+      return words.every((w) => known.some((k) => k.startsWith(w)))
+    })
+    .map((r, i) => ({ r, i, top: exact(r) }))
+    .sort((a, b) => Number(b.top) - Number(a.top) || a.i - b.i)
+    .slice(0, limit)
+    .map((x) => x.r)
+}
+function wordsOf(r: LiteRow): string[] {
+  const s = r.s
+  const fam = familyOf(s.group) ?? LITE_NAME[s.group]?.name ?? ''
+  const raw = [r.title, r.sub, s.asset, nameOf(s.asset), s.holds, fam, s.group, ...(s.kind === 'loop' ? [s.debt, 'loop levered'] : [])]
+  return raw.join(' ').toLowerCase().split(/[\s/·,()×]+/).filter(Boolean)
+}
+
+/** Faces with the people the reader follows first, then in the order given (largest first). */
+export function followedFirst<T extends { account: string }>(xs: T[], followed: Set<string>): T[] {
+  const f = (x: T) => followed.has(x.account.toLowerCase())
+  return xs.map((x, i) => ({ x, i })).sort((a, b) => Number(f(b.x)) - Number(f(a.x)) || a.i - b.i).map((y) => y.x)
+}
+
 /** What Lite calls each category: the money, not the group code. */
 export const LITE_NAME: Record<string, { name: string; line: string }> = {
   USD: { name: 'Dollars', line: 'Earn on dollars. Levered rows say ×, and the safest come first.' },

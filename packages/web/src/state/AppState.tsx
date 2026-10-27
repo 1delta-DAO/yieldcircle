@@ -40,12 +40,13 @@ import { readMode, writeMode, type AppMode } from './mode'
  * Lite and Pro (docs/lite.md): any route may lead with `lite/` or `pro/`. Lite has four pages —
  * the home (`#/lite/`), Earn (`#/lite/earn`), a category's list with its ticket
  * (`#/lite/USD?s=…`; USD, ETH, BTC and MORE, no Stocks, no Borrow, no fixed-rate books), the
- * leaderboard (`#/lite/board`, `?t=perDay` for dollars a day) and You (`#/lite/you`). A route with no prefix opens in the saved mode (`state/mode.ts`) when Lite has
+ * leaderboard (`#/lite/board`, `?t=perDay` for dollars a day), You (`#/lite/you`), search (`#/lite/search?q=…`)
+ * and a wallet's profile (`#/lite/w/<addr>`, docs/lite-social-search.md). A route with no prefix opens in the saved mode (`state/mode.ts`) when Lite has
  * that page, so a shared link lands a first visitor in Lite; every other page is Pro's, whatever
  * the prefix says.
  */
 export type Mode = 'add' | 'reduce' | 'close' | 'manage'
-export type View = 'home' | 'feed' | 'earn' | 'borrow' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'join' | 'you'
+export type View = 'home' | 'feed' | 'earn' | 'borrow' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'join' | 'you' | 'search'
 export interface Route {
   view: View
   /** the page opens in Lite (docs/lite.md): asked for, or saved, and a page Lite has */
@@ -70,6 +71,8 @@ export interface Route {
   uid?: string
   /** #/t/<group> — an asset group key, case-significant; absent on `#/t` (the asset book) */
   token?: string
+  /** Lite's search box (`#/lite/search?q=…`) */
+  q?: string
   /** feed tab / board window — a plain `?t=` so a link carries it */
   t?: string
   /** the board's unit: a strategy (none), a position (`?by=position`) or a whole wallet (`?by=wallet`) */
@@ -104,14 +107,16 @@ export function parseRoute(hash = location.hash): Route {
   const r = parsePage(seg, p, hash)
   const shell = asked ?? readMode()
   const lite = shell === 'lite' && liteHas(r)
-  // You is Lite's page: in Pro the same address is the home
-  return { ...r, lite, shell, asked, view: !lite && r.view === 'you' ? 'home' : r.view }
+  // You and the search page are Lite's: in Pro the same address is the home (Pro's search is in its header)
+  return { ...r, lite, shell, asked, view: !lite && (r.view === 'you' || r.view === 'search') ? 'home' : r.view }
 }
 
-/** The pages Lite has: its home, Earn, You, and a dollar / ether / bitcoin / more list on its deposits or loops. */
+/** The pages Lite has: its home, Earn, You, search, a wallet's profile, and a dollar / ether / bitcoin / more list on its deposits or loops. */
 export function liteHas(r: Page): boolean {
   if (r.view === 'home') return !r.t
-  if (r.view === 'earn' || r.view === 'you') return true
+  if (r.view === 'earn' || r.view === 'you' || r.view === 'search') return true
+  // a wallet's profile; one position's PnL history (`pos=`) is Pro's drawer
+  if (r.view === 'wallet') return !r.pos
   // the leaderboard: wallets by rate or by dollars a day; Pro's cuts (by strategy, an exposure chip, a strategy's holders, lifetime PnL) are Pro's
   if (r.view === 'board') return (!r.by || r.by === 'strategy' || r.by === 'wallet') && !r.x && !r.s && (r.t == null || r.t === 'apr' || r.t === 'perDay')
   if (r.view !== 'group' || !r.group || !LITE_GROUPS.has(r.group)) return false
@@ -130,6 +135,7 @@ function parsePage(seg: string[], p: URLSearchParams, hash: string): Page {
     k: p.get('k') === 'loop' ? ('loop' as const) : p.get('k') === 'simple' ? ('simple' as const) : p.get('k') === 'borrow' ? ('borrow' as const) : p.get('k') === 'fixed' ? ('fixed' as const) : undefined,
     m: m === 'reduce' || m === 'close' || m === 'manage' ? (m as Mode) : m === 'add' ? ('add' as Mode) : undefined,
     t: p.get('t') ?? undefined,
+    q: p.get('q') ?? undefined,
     by: p.get('by') ?? undefined,
     x: p.get('x') ?? undefined,
     copy: p.get('copy') ?? undefined,
@@ -154,6 +160,7 @@ function parsePage(seg: string[], p: URLSearchParams, hash: string): Page {
   if (head === 'me') return { view: 'me', ...base }
   if (head === 'alerts') return { view: 'alerts', ...base }
   if (head === 'you') return { view: 'you', ...base }
+  if (head === 'search') return { view: 'search', ...base }
   // hex is canonically lower; a base58 wallet keeps its case — it IS the address
   if (head === 'w' && seg[1] && isAddr(seg[1])) return { view: 'wallet', addr: normAddr(seg[1]), ...base }
   if (head === 'm' && seg[1]) return { view: 'market', uid: seg.slice(1).join('/'), ...base }
@@ -210,6 +217,8 @@ export const levParam = (s: { kind: string }, lev: number | null | undefined) =>
 /** A market uid carries colons and dots, so it is encoded — and its case is significant, never lowered. */
 export const marketHref = (uid: string) => `#/m/${encodeURIComponent(uid)}`
 export const walletHref = (a: string) => `#/w/${normAddr(a)}`
+/** A wallet's profile in Lite (docs/lite-social-search.md §4.3): every face in Lite opens it. */
+export const liteWalletHref = (a: string) => liteHref(`w/${normAddr(a)}`)
 /** An asset page. The group key is case-significant and may carry spaces and colons; a chain-local spelling opens its cross-chain page (`model/assetGroup.ts`). */
 export const tokenHref = (group: string) => `#/t/${encodeURIComponent(canonGroup(group))}`
 

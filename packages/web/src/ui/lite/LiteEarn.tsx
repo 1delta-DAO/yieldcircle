@@ -8,6 +8,7 @@ import { Ticket } from '../Ticket'
 import { useAsideTop } from '../AssetPage'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { LiteRowView } from './LiteBits'
+import { useMyFollows } from '../../social/queries'
 
 /** How many of the best rows Earn shows before a category is picked. */
 const TOP_ROWS = 10
@@ -22,6 +23,8 @@ const TOP_ROWS = 10
  */
 export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   const L = useLiteMenu()
+  const f = useMyFollows(L.b.account)
+  const isFollowed = (s: Parameters<typeof L.proof>[0]) => { const a = L.proof(s)?.best?.account; return !!a && f.isFollowing('wallet', a) }
   const { b } = L
   const groups = GROUPS.filter((g) => LITE_GROUPS.includes(g.id))
   const inGroup = group ? L.rows.filter((r) => r.s.group === group.id) : []
@@ -83,7 +86,7 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
               {b.isLoading && !rows.length
                 ? [0, 1, 2, 3, 4].map((i) => <div key={i} className="lrow sk"><Sk w={28} h={28} /><span className="lrow-n"><Sk w={120} h={14} /><Sk w={180} h={10} /></span><Sk w={60} h={18} /></div>)
                 : !rows.length ? <div className="empty">Nothing {name ? `in ${name.name.toLowerCase()} ` : ''}clears Lite’s bar on these chains right now.{group && <> <a className="pri" href={proHref(`#/${group.id}`)}>See everything in Pro ›</a></>}</div>
-                : shown.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} on={sel?.id === r.s.id} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} />)}
+                : shown.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} on={sel?.id === r.s.id} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} followed={isFollowed(r.s)} />)}
               {rows.length > shown.length && <button type="button" className="lrow lite-showall" onClick={() => setAllRows(true)}>Show all {rows.length} ways to earn on {name!.name.toLowerCase()}</button>}
             </div>
             {rows.length > 0 && <p className="t50 lite-foot">Rates are a year, before compounding. Each row is the best of its kind on the chains you use; <a href={proHref(group ? `#/${group.id}` : '#/earn')}>Pro</a> lists every venue.</p>}

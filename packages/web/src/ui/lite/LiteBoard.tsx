@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as idx from '@yieldcircle/core/index/api'
 import { useAccountPnlBook } from '@yieldcircle/app/index/pnl'
 import { useMyFollows, useProfiles } from '../../social/queries'
-import { go, useApp, walletHref } from '../../state/AppState'
+import { go, liteWalletHref, useApp } from '../../state/AppState'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { bookKeyOf } from '@yieldcircle/core/model/uid'
 import { boardPositions, boardStrategies, boardWallets, type BoardSort, type BoardStrategy, type BoardWallet, type LiteRow } from '@yieldcircle/core/model/lite'
@@ -43,15 +43,19 @@ const MEDAL = ['gold', 'silver', 'bronze']
  * the reader's own place here is the one their You page shows.
  */
 export function LiteBoard({ sort, by, held }: { sort: BoardSort; /** who earns, or what is run */ by: 'wallet' | 'strategy'; held?: idx.ExposureChip }) {
+  const liteByKey = useLiteByKey()
+  // two components, not one with a branch: each view has its own hooks
+  return by === 'strategy' ? <Strategies sort={sort} held={held} liteByKey={liteByKey} /> : <Wallets sort={sort} held={held} liteByKey={liteByKey} />
+}
+
+/** The Lite row each strategy key opens, for the Copy and the words. */
+export function useLiteByKey(): Map<string, LiteRow> {
   const L = useLiteMenu()
-  // the Lite row each strategy key opens, for the Copy and the words
-  const liteByKey = React.useMemo(() => {
+  return React.useMemo(() => {
     const m = new Map<string, LiteRow>()
     for (const r of L.rows) { const k = bookKeyOf(r.s); if (k) m.set(k.toLowerCase(), r) }
     return m
   }, [L.rows])
-  // two components, not one with a branch: each view has its own hooks
-  return by === 'strategy' ? <Strategies sort={sort} held={held} liteByKey={liteByKey} /> : <Wallets sort={sort} held={held} liteByKey={liteByKey} />
 }
 
 function Wallets({ sort, held, liteByKey }: { sort: BoardSort; held?: idx.ExposureChip; liteByKey: Map<string, LiteRow> }) {
@@ -110,7 +114,7 @@ function WalletRow({ r, sort, profile, me, open, onToggle, liteByKey }: { r: Boa
 }
 
 /** One wallet's positions, opened on a tap: each with what it made, and a Copy where Lite carries it. */
-function WalletPositions({ account, liteByKey, me }: { account: string; liteByKey: Map<string, LiteRow>; me: boolean }) {
+export function WalletPositions({ account, liteByKey, me, foot = true }: { account: string; liteByKey: Map<string, LiteRow>; me: boolean; /** Follow and the way to the profile: the board's row has them, the profile itself not */ foot?: boolean }) {
   const q = useAccountPnlBook(account)
   const ps = q.data ? boardPositions(q.data, (k) => liteByKey.get(k.toLowerCase())?.title ?? null) : []
   return (
@@ -127,11 +131,13 @@ function WalletPositions({ account, liteByKey, me }: { account: string; liteByKe
             </div>
           )
         })}
-      <div className="lb-foot">
-        {!me && <FollowButton kind="wallet" target={account} small />}
-        <span className="sp" />
-        <a className="t50" href={walletHref(account)}>Their whole page ›</a>
-      </div>
+      {foot && (
+        <div className="lb-foot">
+          {!me && <FollowButton kind="wallet" target={account} small />}
+          <span className="sp" />
+          <a className="t50" href={liteWalletHref(account)}>Their profile ›</a>
+        </div>
+      )}
     </div>
   )
 }
@@ -216,7 +222,7 @@ function Strategies({ sort, held, liteByKey }: { sort: BoardSort; held?: idx.Exp
               <div className="ls-foot">
                 <Faces faces={top.faces} size={28} />
                 <span className="ls-crowd"><b>{top.wallets}</b> {top.wallets === 1 ? 'person runs' : 'people run'} this · <b>{usdShort(top.equityUsd)}</b> in it{top.best && sort === 'apr' ? <> · the best earns <b>{pct(top.best.aprPct, 1)}</b> on {usdShort(top.best.equityUsd)}</> : null}</span>
-                {canCopy(top) ? <button type="button" className="btn pri" onClick={() => copy(top)}>Copy</button> : top.best ? <a className="btn" href={walletHref(top.best.account)}>See the best holder</a> : null}
+                {canCopy(top) ? <button type="button" className="btn pri" onClick={() => copy(top)}>Copy</button> : top.best ? <a className="btn" href={liteWalletHref(top.best.account)}>See the best holder</a> : null}
               </div>
             </section>
             {rows.slice(1, 40).map((s, i) => (
@@ -225,7 +231,7 @@ function Strategies({ sort, held, liteByKey }: { sort: BoardSort; held?: idx.Exp
                 <Rank n={i + 2} />
                 <span className="ls-mark"><Marks s={s} size={26} /></span>
                 <span className="ls-n"><b>{s.title}</b><small>{s.sub} · {s.wallets} {s.wallets === 1 ? 'person' : 'people'} · {usdShort(s.equityUsd)}</small></span>
-                <span className="ls-v"><span className="ls-face"><Faces faces={s.faces.slice(0, 2)} size={22} /></span><b>{fmt(s.value)}</b>{canCopy(s) ? <button type="button" className="btn sm pri" onClick={() => copy(s)}>Copy</button> : s.best ? <a className="btn sm" href={walletHref(s.best.account)}>Who</a> : null}</span>
+                <span className="ls-v"><span className="ls-face"><Faces faces={s.faces.slice(0, 2)} size={22} /></span><b>{fmt(s.value)}</b>{canCopy(s) ? <button type="button" className="btn sm pri" onClick={() => copy(s)}>Copy</button> : s.best ? <a className="btn sm" href={liteWalletHref(s.best.account)}>Who</a> : null}</span>
               </div>
             ))}
           </div>

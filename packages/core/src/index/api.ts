@@ -167,13 +167,18 @@ export async function recentTxs(q: RecentQuery, signal?: AbortSignal): Promise<{
     classStale = true
     return { ...j, txs: [] }
   }
-  const ask = (base: string, chainIds: string | undefined) =>
-    get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, chainIds, group: 'tx' }, signal, base).then(guard(base))
+  // a list of wallets is split by VM: the EVM index refuses a base58 address in `accounts` (400),
+  // and a half with none of the listed wallets has nothing to answer
+  const split = q.accounts ? q.accounts.split(',').filter(Boolean) : null
+  const solAccts = split?.filter(isSolAddr).join(',')
+  const evmAccts = split?.filter((a) => !isSolAddr(a)).join(',')
+  const ask = (base: string, chainIds: string | undefined, accounts?: string) =>
+    get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, chainIds, accounts, group: 'tx' }, signal, base).then(guard(base))
   const [e, s] = await Promise.all([
     // the EVM index's errors still throw (no silent regression); the Solana
     // one degrading — down, or still on its old shapes — costs its rows only
-    evm !== null ? ask(INDEX_BASE_URL, evm) : Promise.resolve(null),
-    sol ? ask(SOL_INDEX_BASE_URL, undefined).then(safeTxs).catch(() => EMPTY_TXS) : Promise.resolve(null),
+    evm !== null && (!split || evmAccts) ? ask(INDEX_BASE_URL, evm, split ? evmAccts : undefined) : Promise.resolve(null),
+    sol && (!split || solAccts) ? ask(SOL_INDEX_BASE_URL, undefined, split ? solAccts : undefined).then(safeTxs).catch(() => EMPTY_TXS) : Promise.resolve(null),
   ])
   const stale = classStale ? { classStale } : {}
   if (!s) return { ...(e ?? EMPTY_TXS), ...stale }

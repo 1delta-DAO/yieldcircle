@@ -10,7 +10,8 @@ import { useMyStats } from '../Stats'
 import { Sk, Tok, pct, usd, usdShort } from '../bits'
 import { useDayLog, useLiteMenu } from '@yieldcircle/app/lite'
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
-import { FollowedMoves, openRow } from './LiteBits'
+import { openRow } from './LiteBits'
+import { LiteMoves } from './LiteSocial'
 import { ModeSwitch } from './ModeSwitch'
 import { LitePnl } from './LitePnl'
 import { LiteHoldingTicket } from '../Ticket'
@@ -73,7 +74,7 @@ export function LiteYou() {
         </div>
       </section>
 
-      <FollowedMoves rows={L.rows} account={b.account} limit={12} title="What the people you follow did" />
+      <LiteMoves rows={L.rows} account={b.account} limit={12} title="What the people you follow did" followingOnly />
       <ModeSwitch />
     </div>
     <aside ref={aside} className={open ? '' : 'closed'} id="aside">

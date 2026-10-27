@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
+import { followedFirst, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 import type { Holding } from './positions'
@@ -88,6 +88,39 @@ describe('liteMenu', () => {
   it('safer rows first, then the steady rate: a loop never jumps a safer deposit', () => {
     const rows = liteMenu([loop('l', { rate: 20, risk: 2 }), dep('d', { rate: 5, risk: 1 }), dep('e', { asset: 'USDe', rate: 9, risk: 2 })], rank)
     expect(rows.map((r) => r.s.id)).toEqual(['d', 'l', 'e'])
+  })
+})
+
+describe('liteFind', () => {
+  const rank = (s: Strategy) => s.rate
+  const rows = liteMenu([
+    dep('usdc', { rate: 5 }),
+    dep('usdt', { asset: 'USDT', holds: 'USDT', rate: 6, risk: 2 }),
+    loop('l', { rate: 14, risk: 2 }),
+    dep('eth', { group: 'ETH', asset: 'wstETH', holds: 'wstETH', rate: 3 }),
+  ], rank)
+  const ids = (q: string) => liteFind(q, rows).map((r) => r.s.id)
+  it('finds a row by its coin, its money and its kind', () => {
+    expect(ids('usdt')).toEqual(['usdt'])
+    expect(ids('ether')).toEqual(['eth'])
+    expect(ids('loop')).toEqual(['l'])
+  })
+  it('a loop is found by the coin it borrows too, but the coin itself leads', () => {
+    expect(ids('usdc')[0]).toBe('usdc')
+    expect(ids('usdc')).toContain('l')
+  })
+  it('every word must match, and the list order holds otherwise', () => {
+    expect(ids('dollars')).toEqual(rows.filter((r) => r.s.group === 'USD').map((r) => r.s.id))
+    expect(ids('dollars loop')).toEqual(['l'])
+    expect(ids('xyz')).toEqual([])
+    expect(ids('  ')).toEqual([])
+  })
+})
+
+describe('followedFirst', () => {
+  it('puts the people you follow first and keeps the rest in order', () => {
+    const xs = [{ account: '0xA' }, { account: '0xb' }, { account: '0xc' }]
+    expect(followedFirst(xs, new Set(['0xc'])).map((x) => x.account)).toEqual(['0xc', '0xA', '0xb'])
   })
 })
 

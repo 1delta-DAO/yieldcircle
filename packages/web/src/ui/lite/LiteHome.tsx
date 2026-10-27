@@ -1,20 +1,21 @@
 import React from 'react'
 import { useApp, liteHref } from '../../state/AppState'
 import { useTrending } from '@yieldcircle/app/index/queries'
-import { useProfiles } from '../../social/queries'
+import { useMyFollows, useProfiles } from '../../social/queries'
 import { leverTag, type LiteRow } from '@yieldcircle/core/model/lite'
 import { ConnectButton } from '../../wallet/ConnectButton'
 import { PaperOffer } from '../PaperPanel'
 import { totalsOf } from '../Positions'
 import { Sk, pct, usd, usdShort } from '../bits'
 import { LENSES, liteCards, useDayLog, useLiteMenu, type Lens } from '@yieldcircle/app/lite'
-import { FollowedMoves, LiteCard, LiteCardSk, openRow } from './LiteBits'
+import { LiteCard, LiteCardSk, openRow } from './LiteBits'
+import { LiteMoves } from './LiteSocial'
 
 
 /**
  * Lite's home (docs/lite.md §1): your balance and what it earns a day, then cards to copy through
- * three lenses — proven, trending, most held (fomo's verified · trending · most held) — then what
- * the people you follow did. No wallet yet: a paper bank to play the whole thing with.
+ * three lenses — proven, trending, most held (fomo's verified · trending · most held) — then the
+ * moves: the people you follow, or the top earners (docs/lite-social-search.md §4.4). No wallet yet: a paper bank to play the whole thing with.
  */
 export function LiteHome() {
   const { isConnected, chainIds } = useApp()
@@ -25,6 +26,7 @@ export function LiteHome() {
   const [lens, setLens] = React.useState<Lens>('proven')
   const trending = useTrending('7d', chainIds)
   const cards = React.useMemo(() => liteCards(lens, L.rows, L, trending.markets), [lens, L.rows, trending.markets, L.proofsHeld]) // eslint-disable-line react-hooks/exhaustive-deps
+  const f = useMyFollows(b.account)
   const { profile } = useProfiles(cards.map((r) => L.proof(r.s)?.best?.account).filter((a): a is string => !!a))
   const loading = (b.isLoading && !L.rows.length) || (lens === 'trending' && trending.isLoading)
   // the money that sits idle, and the best row in its own category to put it in
@@ -66,10 +68,10 @@ export function LiteHome() {
       <div className="lcards" aria-busy={loading}>
         {loading ? [0, 1, 2, 3].map((i) => <LiteCardSk key={i} />)
           : !cards.length ? <div className="empty t50">Nothing here on these chains right now.</div>
-          : cards.map((r) => <LiteCard key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} profile={profile} />)}
+          : cards.map((r) => <LiteCard key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} profile={profile} followed={!!L.proof(r.s)?.best && f.isFollowing('wallet', L.proof(r.s)!.best!.account)} />)}
       </div>
 
-      <FollowedMoves rows={L.rows} account={b.account} limit={5} />
+      <LiteMoves rows={L.rows} account={b.account} limit={6} />
       <p className="lite-more t50"><a href={liteHref('earn')}>Every category ›</a></p>
     </div>
   )

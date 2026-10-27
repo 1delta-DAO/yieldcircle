@@ -92,8 +92,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const tabs = (cls: string) => (
     <nav className={cls} aria-label="Main">
       {tabList.map((t) => (
-        <a key={t.id} href={t.href} aria-current={t.on(r) ? 'page' : undefined}>{t.icon}<span>{t.label}</span></a>
+        <a key={t.id} href={t.href} aria-current={t.on(r) ? 'page' : undefined}>{t.icon}<span>{t.label}</span>{lite && t.id === 'home' && <HomeDot />}</a>
       ))}
+      {/* fomo's search in the tab bar (docs/lite-social-search.md §4.1): a round button after the tabs, not a fourth tab */}
+      {lite && cls === 'tabbar' && <a className={`lite-tab-search${r.view === 'search' ? ' on' : ''}`} href={liteHref('search')} aria-label="Search" title="Search">{SEARCH_IC}</a>}
     </nav>
   )
   return (
@@ -106,7 +108,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <Me />
         <span className="brand"><Logo height={28} href={lite ? liteHref() : hrefIn('', r)} /></span>
         {tabs('tabs-top')}
-        {lite ? <span className="sp" /> : <Search />}
+        {lite ? <><span className="sp" />{r.view !== 'search' && <a className="lite-search-btn" href={liteHref('search')}>{SEARCH_IC}<span>Search dollars, ETH, people</span></a>}</> : <Search />}
         {lite ? <LiteYours /> : <Yours />}
       </div></header>
       <main className="wrap"><Waitlist />{children}</main>
@@ -114,6 +116,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <TxTray />
     </>
   )
+}
+
+const SEARCH_IC = <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><circle cx="8.8" cy="8.8" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="m13 13 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+
+/** Lite's Home tab: a dot while the people you follow have moved since you last looked (Lite has no bell). */
+function HomeDot() {
+  const n = useUnseen()
+  return n > 0 ? <i className="tab-dot" aria-label={`${n} new from people you follow`} /> : null
 }
 
 /** The face, top-left: the way into everything about you. A dot says alerts are waiting. */

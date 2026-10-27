@@ -20,8 +20,8 @@ import { Sk } from './bits'
 import { primaryLeg, TxMoney } from './Feed'
 
 const SEEN = 'yieldcircle.alerts.seen'
-const readSeen = (): number => { try { return Number(localStorage.getItem(SEEN)) || 0 } catch { return 0 } }
-const writeSeen = (t: number) => { try { localStorage.setItem(SEEN, String(t)) } catch { /* private mode */ } }
+export const readSeen = (): number => { try { return Number(localStorage.getItem(SEEN)) || 0 } catch { return 0 } }
+export const writeSeen = (t: number) => { try { localStorage.setItem(SEEN, String(t)) } catch { /* private mode */ } }
 
 /** How many unseen items there are — the dot in the nav reads this. */
 export function useUnseen(): number {

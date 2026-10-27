@@ -189,7 +189,10 @@ async function optimizerPages(client: QueryClient, q: OptimizerQuery, maxPages =
  */
 type Archetype = Pick<OptimizerQuery, 'collateralTags' | 'debtTags' | 'includeExpired'> & { anyDebtOnSmallChains?: boolean }
 const LOOP_ARCHETYPES: Archetype[] = [
-  { collateralTags: ['lst', 'lrt'], debtTags: ['wnative'] },
+  // `savings:eth` (yield-tracer, 2026-10-27): ETH-money savings wrappers — Alchemix mixWETH,
+  // Yearn yvWETH-2 on Flex, Tokemak autoETH — are ether carries an LST-only filter never asked
+  // for. `eth` on the debt side is alETH, the alAsset mixWETH backs, which is not `wnative`.
+  { collateralTags: ['lst', 'lrt', 'savings:eth'], debtTags: ['wnative', 'eth'] },
   { collateralTags: ['stablecoin', 'savings', 'pendle'], debtTags: ['stablecoin'], includeExpired: false },
   { collateralTags: ['btc'], debtTags: ['btc'] },
   { collateralTags: ['rwa'], debtTags: ['stablecoin'], anyDebtOnSmallChains: true },

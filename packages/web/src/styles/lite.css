@@ -147,6 +147,7 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 
 /* ---------------------------------------------------------------- the leaderboard */
 .lite-board-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.lite-board-bar .lite-held{margin:0}
 .lite-me{margin-bottom:12px;background:var(--pri-bg);color:var(--tx)}
 .lboard{display:flex;flex-direction:column;gap:6px}
 .lb-item{border-radius:var(--r);background:var(--b200);overflow:hidden}

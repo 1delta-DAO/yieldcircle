@@ -85,7 +85,6 @@ export function LiteSearch({ q0 }: { q0?: string }) {
                 : (board.data?.rows ?? []).filter((r) => normAddr(r.account) !== normAddr(account ?? '')).slice(0, 5).map((r) => (
                   <div key={r.account} className="lite-sr">
                     <a className="lite-who" href={liteWalletHref(r.account)}><Who account={r.account} profile={profile(r.account)} size={28} plain sub={r.perDayUsd != null ? `${usdShort(r.perDayUsd)} a day` : undefined} /></a>
-                    <span className="sp" />
                     {r.netAprPct != null && <b className="ok">{pct(r.netAprPct, 1)}</b>}
                     <FollowButton kind="wallet" target={r.account} small quiet />
                   </div>
@@ -119,7 +118,6 @@ export function LiteSearch({ q0 }: { q0?: string }) {
                       <Character addr={h.key} avatarUrl={profile(h.key)?.avatarUrl} size={28} />
                       <span className="wn"><b>{h.title}{claim && <span className="sr-claim">{claim}</span>}</b><small className="t50">{shortAddr(h.key)}{h.weightUsd > 0 ? ` · ${usdShort(h.weightUsd)} held` : ''}</small></span>
                     </a>
-                    <span className="sp" />
                     {rate != null && <b className="ok" title="a year on all its money">{pct(rate, 1)}</b>}
                     <FollowButton kind="wallet" target={h.key} small quiet />
                   </div>

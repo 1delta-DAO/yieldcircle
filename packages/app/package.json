@@ -9,6 +9,7 @@
     "./state/Settings": "./src/state/Settings.tsx",
     "./identity/character": "./src/identity/character.tsx",
     "./platform": "./src/platform.tsx",
+    "./nav": "./src/nav.tsx",
     "./*": "./src/*.ts"
   },
   "scripts": {

@@ -16,7 +16,7 @@ import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { C, alpha, mix } from '../theme'
 import { Btn, Seg, Sk, Tok } from './bits'
 import { Character, Who } from './Character'
-import { openStrategy } from './lite'
+import { openStrategy, openWallet } from './lite'
 import { Txt } from './Txt'
 
 const SORTS: { id: BoardSort; word: string }[] = [{ id: 'apr', word: 'Best rate' }, { id: 'perDay', word: 'Most a day' }]
@@ -32,12 +32,13 @@ const STRAT_WHY: Record<BoardSort, string> = {
 const MEDAL = ['#f5c542', '#c9d1d9', '#d08a4e']
 
 /**
- * The leaderboard (the web's LiteBoard, docs/lite.md §6): Strategies first — what is run, before
- * who runs it — then Wallets. Real wallets, read off the chain, one number each.
+ * The leaderboard (the web's LiteBoard, docs/lite.md §6): Wallets first — every row a person — then
+ * Strategies. Real wallets, read off the chain, one number each. A link may open it on either
+ * (`by`) and on dollars a day (`t=perDay`).
  */
-export function Board() {
-  const [by, setBy] = React.useState<'strategy' | 'wallet'>('strategy')
-  const [sort, setSort] = React.useState<BoardSort>('apr')
+export function Board({ by0, t0 }: { by0?: string; t0?: string } = {}) {
+  const [by, setBy] = React.useState<'strategy' | 'wallet'>(by0 === 'strategy' ? 'strategy' : 'wallet')
+  const [sort, setSort] = React.useState<BoardSort>(t0 === 'perDay' ? 'perDay' : 'apr')
   const L = useLiteMenu()
   const liteByKey = React.useMemo(() => {
     const m = new Map<string, LiteRow>()
@@ -82,7 +83,7 @@ function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<strin
   const unit = sort === 'apr' ? 'a year' : 'a day'
   const copy = (s: BoardStrategy) => { const r = liteByKey.get(s.key.toLowerCase()); if (r) openStrategy(r.s, s.best ? { copy: s.best.account } : {}) }
   const canCopy = (s: BoardStrategy) => liteByKey.has(s.key.toLowerCase()) && (!account || normAddr(s.best?.account ?? '') !== normAddr(account))
-  const holder = (s: BoardStrategy) => s.best && router.push({ pathname: '/w/[account]', params: { account: s.best.account } })
+  const holder = (s: BoardStrategy) => s.best && openWallet(s.best.account)
   if (q.isLoading) return <View style={{ gap: 8 }}><View style={[st.hero, { gap: 12 }]}><Sk w={120} h={12} /><Sk w={220} h={26} /><Sk w={140} h={40} /></View>{[0, 1, 2].map((i) => <View key={i} style={st.lsRow}><Sk w={24} h={18} /><Sk w={36} h={36} r={18} /><Sk w={160} /></View>)}</View>
   if (q.error) return <Txt s={13} c={C.tx50} style={{ padding: 14 }}>The board could not be read right now.</Txt>
   if (!top) return <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing on the board right now.</Txt>
@@ -237,7 +238,7 @@ function WalletPositions({ account, liteByKey, me }: { account: string; liteByKe
         })}
       <View style={[st.lbP, { paddingTop: 6 }]}>
         <View style={{ flex: 1 }} />
-        <Pressable onPress={() => router.push({ pathname: '/w/[account]', params: { account } })}><Txt s={12.5} c={C.tx50}>Their whole page ›</Txt></Pressable>
+        <Pressable onPress={() => openWallet(account)}><Txt s={12.5} c={C.tx50}>Their whole page ›</Txt></Pressable>
       </View>
     </View>
   )

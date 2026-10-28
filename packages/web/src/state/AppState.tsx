@@ -2,6 +2,7 @@ import React from 'react'
 import { useAccount } from 'wagmi'
 import { isAddr, isEvmAddr, isSvmChain, normAddr } from '@yieldcircle/core/model/address'
 import { canonGroup } from '@yieldcircle/core/model/assetGroup'
+import { liteHash } from '@yieldcircle/core/model/liteLinks'
 import { useSolWallet } from '../wallet/solana'
 import { CHAINS } from '@yieldcircle/app/sdk/queries'
 import { readFeedLink, readLinkChains } from './feedLink'
@@ -218,7 +219,7 @@ export const levParam = (s: { kind: string }, lev: number | null | undefined) =>
 export const marketHref = (uid: string) => `#/m/${encodeURIComponent(uid)}`
 export const walletHref = (a: string) => `#/w/${normAddr(a)}`
 /** A wallet's profile in Lite (docs/lite-social-search.md §4.3): every face in Lite opens it. */
-export const liteWalletHref = (a: string) => liteHref(`w/${normAddr(a)}`)
+export const liteWalletHref = (a: string) => liteHash({ to: 'wallet', account: a })
 /** An asset page. The group key is case-significant and may carry spaces and colons; a chain-local spelling opens its cross-chain page (`model/assetGroup.ts`). */
 export const tokenHref = (group: string) => `#/t/${encodeURIComponent(canonGroup(group))}`
 

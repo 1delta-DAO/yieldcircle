@@ -1501,7 +1501,7 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .steps li i .txspin.sm{width:11px;height:11px}
 .steps li.done i:has(.txspin){background:none;border-color:var(--primary)}
 .steps li .txlink{margin-left:auto;color:var(--tx40);font-size:11px}
-@media (max-width:767.98px){/* under the header on a phone: the bottom belongs to the tab bar and the ticket sheet */.txtray{left:50%;right:auto;bottom:auto;top:68px;transform:translateX(-50%);flex-direction:column-reverse;align-items:center}}
+@media (max-width:767.98px){/* a toast above the tab bar on a phone, where the toasts sit (docs/lite-design-review.md §3.6): never over the header or a sheet's head. An open ticket (z 40) covers it, and its own ladder says the same */.txtray{left:16px;right:16px;bottom:calc(72px + env(safe-area-inset-bottom));align-items:center;max-width:none}}
 @media (prefers-reduced-motion:reduce){.txspin{animation-duration:2.4s}.txtrack span.on::before{animation:none;background:var(--primary);opacity:.55}}
 .get .get-as{margin:2px 0 10px}
 /* Get: paying with any token by address */

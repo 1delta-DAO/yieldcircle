@@ -27,8 +27,8 @@ It runs on the same code as the web below the screens:
 A row opens the **strategy screen**: what it is in words, the rate (amber on a
 spike), risk, kind, who runs it, chain, size, who holds it, yours. It is
 read-only — **Earn this** is disabled until the phone has the ticket, and says
-so. **You** (behind the balance chip, as on the web) has the wallet, your money
-per currency, the **Lite / Pro switch** (saved like the web's setting; `/`
+so. **You** (behind the balance chip, as on the web) has your money, its positions (each opens its Lite ticket, "More choices" included), and at its foot the wallet,
+the chains every list reads, the **Lite / Pro switch** (saved like the web's setting; `/`
 opens the saved mode) and the wallet probe (`app/probe.tsx`: what the wallet
 answers to `wallet_getCapabilities`).
 
@@ -195,20 +195,24 @@ Base and to Ethereum, read the card, fill in:
 
 ## Lite's links on the phone (deep-link map)
 
-Every Lite address the web hands out — a Share is a Copy link — and the phone route it should open.
-Universal / app links (below) deliver them; this table is what the handler maps.
+Every Lite address is written once, in core (`model/liteLinks.ts`): a `LiteDest` says what a link
+points at, `liteHash` / `liteUrl` write the web's address and `parseLiteHash` reads one back. The
+phone's half is `mobile/src/nav.tsx::pathOf`, and `app/+native-intent.tsx` sends every incoming link
+through it. Shared code goes somewhere with `useNav()` (`@yieldcircle/app/nav`), never with a hash or
+an expo-router path.
 
-| Web (`https://app.yieldcircle.io/…`) | Phone route | Params |
-|---|---|---|
-| `#/lite/` | `/lite` | — |
-| `#/lite/earn` | `/lite/earn` | — |
-| `#/lite/<USD\|ETH\|BTC\|MORE>?s=&k=&copy=&lev=` | `/strategy/[id]` | `id = s`; `copy`, `lev` as given |
-| `#/lite/board?by=strategy&t=perDay&x=usd` | `/lite/board` | `by` (default wallets), `t`, `x` |
-| `#/lite/you?h=&m=` | `/you` | `h` opens that position's ticket |
-| `#/lite/search?q=` | `/search` | `q` |
-| `#/lite/w/<addr>` | `/w/[account]` | — |
-| anything `#/pro/…` | the Pro tab of the same page, else `/pro` | — |
+| Web (`https://app.yieldcircle.io/…`) | Phone path |
+|---|---|
+| `#/lite/` | `/lite` |
+| `#/lite/earn`, `#/lite/<USD\|ETH\|BTC\|MORE>` | `/lite/earn`, `/lite/earn?g=USD` |
+| `#/lite/<GROUP>?s=&k=&copy=&lev=&h=&m=` | `/strategy/<s>?copy=&lev=&h=&m=` |
+| `#/lite/board?by=&t=&x=` | `/lite/board?by=&t=&x=` (Wallets unless `by=strategy`) |
+| `#/lite/you?h=&m=` | `/strategy/_?h=&m=` (that position's sheet), else `/you` |
+| `#/lite/search?q=` | `/search?q=` |
+| `#/lite/w/<addr>` | `/w/<addr>` |
+| `#/pro/…`, a Pro-only page, the bare `yieldcircle://` (the wallet's return) | passed through unchanged |
 
+Pro is the web's on the phone for now: "Open this in Pro" (`useNav().pro`) opens `#/pro/…` there.
 Share text and its link are core's (`shareOf`, `canShare` in `model/lite.ts`); both apps call them.
 
 ## Decisions on the look
@@ -224,6 +228,9 @@ Share text and its link are core's (`shareOf`, `canShare` in `model/lite.ts`); b
 - **Solana:** not wired. AppKit's Solana adapter + its Phantom / Solflare
   connectors replace the web's Wallet Standard (`wallet/solana.ts`), which has
   no window to live in here. Adding Solana turns Link Mode off (below).
+- **Universal links for shared Copy links** (`https://app.yieldcircle.io/#/lite/…`): the map and
+  the handler are in (above); the same `apple-app-site-association` / `assetlinks.json` as below
+  make the system hand them to the app.
 - **Return trip without the relay — universal links + Link Mode:** needs
   `apple-app-site-association` / `assetlinks.json` on `app.yieldcircle.io`,
   `redirect.universal` + `linkMode: true` in `src/appkit.ts`, and One-Click Auth

@@ -15,6 +15,7 @@ import { FollowButton, Who } from '../social-bits'
 import { Sk, Tok, pct, usd, usdShort } from '../bits'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { openRow } from './LiteBits'
+import { PnlDrawer } from '../PnlDrawer'
 
 const SORTS: { id: BoardSort; word: string; why: string }[] = [
   { id: 'apr', word: 'Best rate', why: 'what each wallet earns a year on all its money, at today’s rates' },
@@ -141,12 +142,14 @@ function WalletRow({ r, sort, profile, me, open, onToggle, liteByKey }: { r: Boa
 
 /**
  * One wallet's positions, opened on a tap (and the profile's "What it runs"): each with its money's
- * marks — the Lite row's own logos where Lite carries it, else the index's symbols — a tint in its
- * money's colour as wide as its share of the wallet, what it made, and a Copy where Lite carries it.
+ * marks — the Lite row's own logos where Lite carries it, else the index's symbols — a slim bar in
+ * its money's colour for its share of the wallet, what it made, and a Copy where Lite carries it.
+ * A tap on the row opens the position's own record (Pro's drawer, in place: `?pos=` is Pro's page).
  */
 export function WalletPositions({ account, liteByKey, me, foot = true }: { account: string; liteByKey: Map<string, LiteRow>; me: boolean; /** Follow and the way to the profile: the board's row has them, the profile itself not */ foot?: boolean }) {
   const q = useAccountPnlBook(account)
   const ps = q.data ? boardPositions(q.data, (k) => liteByKey.get(k.toLowerCase())?.title ?? null) : []
+  const [pnl, setPnl] = React.useState<string>()
   const colorOf = (g: string) => GROUPS.find((x) => x.id === g)?.color ?? null
   const since = (t: string) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
   return (
@@ -160,17 +163,25 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
           const debt = s?.kind === 'loop' ? { symbol: s.debt, logo: s.logoShort } : p.debt[0] ? { symbol: p.debt[0], logo: undefined } : null
           const color = s ? colorOf(s.group) : colorOf(groupOf(held.symbol))
           const up = p.pnlUsd >= 0
+          const open = () => setPnl(p.key)
           return (
-            <div key={p.key} className={`lb-p${row ? ' known' : ''}`} style={{ '--gc': color ?? undefined, '--w': p.share != null ? `${Math.max(3, Math.round(p.share * 100))}%` : '0%' } as React.CSSProperties}>
-              <span className="lb-bar" aria-hidden />
+            <div key={p.key} className="lb-p" role="button" tabIndex={0} title="See what this position made, day by day" onClick={open} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }} style={{ '--gc': color ?? undefined } as React.CSSProperties}>
               <span className="lb-pm">{debt ? <span className="toks"><Tok sym={held.symbol} logo={held.logo} size={32} /><Tok sym={debt.symbol} logo={debt.logo} size={32} /></span> : <Tok sym={held.symbol} logo={held.logo} size={32} />}</span>
               <span className="lb-pn">
                 <b>{p.title}{p.kind === 'loop' && s?.kind === 'loop' && <span className="pill lever">{leverTag(s.tiers.balanced)}</span>}</b>
                 <small className="t50">{p.sub}{p.since ? <> · since {since(p.since)}</> : null}</small>
-                {p.equityUsd != null && <small className="lb-pin"><b>{usdShort(p.equityUsd)}</b> in it{p.share != null && ps.length > 1 ? <span className="t50"> · {p.share < 0.01 ? '<1' : Math.round(p.share * 100)}% of its money</span> : null}</small>}
+                {p.equityUsd != null && (
+                  <span className="lb-share" aria-label={p.share != null ? `${Math.round(p.share * 100)}% of its money` : undefined}>
+                    {p.share != null && ps.length > 1 && <i className="lb-track"><i className="lb-fill" style={{ width: `${Math.max(1.5, p.share * 100)}%` }} /></i>}
+                    <small><b>{usdShort(p.equityUsd)}</b> in it{p.share != null && ps.length > 1 ? <span className="t50"> · {p.share < 0.01 ? '<1' : Math.round(p.share * 100)}%</span> : null}</small>
+                  </span>
+                )}
               </span>
               <span className="lb-pv"><b className={up ? 'ok' : 'bad'}>{up ? '+' : '−'}{usd(Math.abs(p.pnlUsd))}</b><small className="t50">{p.aprPct != null ? <>{pct(p.aprPct, 1)} a year</> : 'made so far'}</small></span>
-              {row && !me ? <button type="button" className="btn sm pri" onClick={() => openRow(row.s, { copy: account })}>Copy</button> : <span className="lb-nocopy" />}
+              <span className="lb-pa">
+                {row && !me ? <button type="button" className="btn sm pri" onClick={(e) => { e.stopPropagation(); openRow(row.s, { copy: account }) }}>Copy</button> : <span className="lb-nocopy" />}
+                <span className="t40 lb-chev" aria-hidden>›</span>
+              </span>
             </div>
           )
         })}
@@ -178,9 +189,10 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
         <div className="lb-foot">
           {!me && <FollowButton kind="wallet" target={account} small />}
           <span className="sp" />
-          <a className="lb-prof" href={liteWalletHref(account)}>Their profile ›</a>
+          <a className="t50" href={liteWalletHref(account)}>Their profile ›</a>
         </div>
       )}
+      <PnlDrawer account={pnl?.split('|')[1] || account} posKey={pnl} onClose={() => setPnl(undefined)} />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import React from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useAppKit } from '@reown/appkit-react-native'
 import Svg, { Path } from 'react-native-svg'
@@ -10,6 +11,7 @@ import type { Ladder, Step } from '@yieldcircle/app/ladder'
 import { useTrace, isDone } from '@yieldcircle/app/sdk/txTrace'
 import { phaseWords, useNow } from '@yieldcircle/app/sdk/txWords'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
+import { useNav } from '@yieldcircle/app/nav'
 import type { ValueCheck } from '@yieldcircle/app/tickets/valueCheck'
 import { C } from '../theme'
 import { Btn, LeverPill } from '../ui/bits'
@@ -81,6 +83,16 @@ export function AmtSub({ left, right, warn }: { left?: string; right?: string; w
     </View>
   )
 }
+/** Under the amount, one proportional line in words (`LiteAmtSub`): what the wallet holds here, and when the amount is more. */
+export function AmtLine({ have, usdOf, more, account }: { /** "38.19 USDC", or null when none */ have: string | null; /** "≈ $1,000" when the box is not in dollars */ usdOf?: string; more: boolean; account?: string }) {
+  if (!account && !usdOf) return null
+  return (
+    <Txt s={12} c={C.tx50} lh={17} style={{ marginTop: 6 }}>
+      {usdOf ? `${usdOf}${account ? ' · ' : ''}` : ''}{account ? (have ? `You have ${have} here` : 'You have none here') : ''}
+      {account && more ? <Txt s={12} c={C.warn}> · more than you have</Txt> : null}
+    </Txt>
+  )
+}
 /** A quarter, half or all of what the wallet holds (`.lite-presets`). */
 export function Presets({ onPick }: { onPick: (pct: number) => void }) {
   return (
@@ -93,14 +105,16 @@ export function Presets({ onPick }: { onPick: (pct: number) => void }) {
 }
 
 const TONE: Record<string, string> = { ok: C.ok, warn: C.warn, bad: C.bad }
-/** The three lines (`.lite-lines`): what you earn, what you can lose, what it costs to get in. */
-export function Lines({ l }: { l: ThreeLines }) {
+/**
+ * Lite's lines (`.lite-lines`): the open ticket's three — what you earn, what you can lose, what it
+ * costs — and the same shape for a withdrawal, a safer loop or a close. The first line leads.
+ */
+export function Lines({ l }: { l: ThreeLines | Line[] }) {
+  const rows = Array.isArray(l) ? l : [l.earn, l.lose, l.cost]
   return (
     <Sec>
       <View style={st.lines}>
-        <LineRow l={l.earn} hero />
-        <LineRow l={l.lose} />
-        <LineRow l={l.cost} />
+        {rows.map((x, i) => <LineRow key={x.k} l={x} hero={i === 0} />)}
       </View>
     </Sec>
   )
@@ -111,7 +125,7 @@ function LineRow({ l, hero }: { l: Line; hero?: boolean }) {
       <Txt s={12} w={600} c={C.tx50} style={{ width: 80, paddingTop: 2 }}>{l.k}</Txt>
       <View style={{ flex: 1, gap: 1 }}>
         <Txt s={hero ? 24 : 15} w={600} lh={hero ? 29 : undefined} c={TONE[l.tone] ?? C.tx} style={{ fontVariant: ['tabular-nums'] }}>{l.v}</Txt>
-        <Txt s={12} c={C.tx50} lh={17}>{l.s}</Txt>
+        {!!l.s && <Txt s={12} c={C.tx50} lh={17}>{l.s}</Txt>}
       </View>
     </View>
   )
@@ -185,7 +199,7 @@ export function Action({ ladder: l, label, account, isConnected, disabled, risky
         : !isConnected ? <Btn wide kind="plain" disabled title={`Viewing ${account.slice(0, 6)}… · connect to sign`} />
         : !l.isConnected ? <Btn wide kind="plain" disabled title="Connect a wallet to sign" />
         : <Btn wide title={l.busy ? 'Building…' : blockedNote ?? (risky ? `${label} anyway` : label)} kind={risky ? 'risky' : 'pri'} disabled={disabled || l.busy} onPress={() => l.start(label)} />}
-      <Txt s={11.5} c={C.tx40} lh={16.7} style={{ marginTop: 8 }}>The API builds the exact calls (approvals, then the action); nothing is sent until you sign — once, where your wallet batches them. Gas on {chainLabel(chainId)}.</Txt>
+      <Txt s={12} c={C.tx40} lh={17} style={{ marginTop: 8 }}>Your wallet asks you to sign: once where it can batch the steps. Network fee on {chainLabel(chainId)}.</Txt>
     </View>
   )
   return (
@@ -243,8 +257,8 @@ export function Trust({ left, right }: { left: string; right?: string }) {
   )
 }
 
-/** Every number and choice for this strategy (`.lite-details`). */
-export function Details({ what, onOpen, title = 'Details' }: { what: string; onOpen: () => void; title?: string }) {
+/** The button under the ticket that opens "More choices" (`.lite-details`). */
+export function Details({ what, onOpen, title = 'More choices' }: { what: string; onOpen: () => void; title?: string }) {
   return (
     <Pressable onPress={onOpen} style={st.details}>
       <View style={{ flex: 1 }}>
@@ -253,6 +267,84 @@ export function Details({ what, onOpen, title = 'Details' }: { what: string; onO
       </View>
       <Txt c={C.tx50}>›</Txt>
     </Pressable>
+  )
+}
+
+/**
+ * "More choices" (the web's `LiteMoreSheet`, docs/lite-design-review.md §3.3): what Lite decides for
+ * the reader, offered back in Lite's words — never Pro's ticket. Each body draws its own sheet with its
+ * own values; the ticket's button only opens it, through this context. `top`: which of several positions.
+ */
+export const MoreCtx = React.createContext<{ open: boolean; close: () => void; /** the same thing in Pro: a hash with no mode */ pro: string; top?: React.ReactNode } | null>(null)
+
+export function MoreSheet({ children }: { children: React.ReactNode }) {
+  const m = React.useContext(MoreCtx)
+  const insets = useSafeAreaInsets()
+  const nav = useNav()
+  if (!m || !m.open) return null
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={m.close}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <Pressable style={{ flex: 1, minHeight: Math.max(insets.top, 24) + 36 }} onPress={m.close} accessibilityLabel="Close" />
+        <View style={st.more}>
+          <View style={st.moreHead}>
+            <Txt s={16} w={600} style={{ flex: 1 }}>More choices</Txt>
+            <Pressable onPress={m.close} hitSlop={8} style={st.x} accessibilityLabel="Close"><Txt s={16} c={C.tx50}>✕</Txt></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: insets.bottom + 20 }}>
+            {m.top}
+            {children}
+            <Pressable onPress={() => nav.pro(m.pro)} style={{ minHeight: 44, justifyContent: 'center' }} accessibilityRole="link">
+              <Txt s={13} c={C.primary}>Open this in Pro on the web, with every venue and setting ›</Txt>
+            </Pressable>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
+/** A choice of a few (`LiteChoices`): each a word, a line, and what it earns on the right. `note`: one plain line under the label. */
+export function Choices<T extends string>({ label, note, items, on, onPick }: { label: string; note?: string; items: { id: T; word: string; line: string; side?: string; tone?: string; off?: boolean }[]; on: T | null; onPick: (id: T) => void }) {
+  return (
+    <View>
+      <Txt s={14} w={600} style={{ marginBottom: note ? 2 : 8 }}>{label}</Txt>
+      {!!note && <Txt s={12} c={C.tx50} lh={17} style={{ marginBottom: 8 }}>{note}</Txt>}
+      <View style={{ gap: 6 }} accessibilityRole="radiogroup">
+        {items.map((x) => (
+          <Pressable key={x.id} disabled={x.off} onPress={() => onPick(x.id)} accessibilityRole="radio" accessibilityState={{ checked: on === x.id, disabled: !!x.off }}
+            style={[st.choice, on === x.id && { borderColor: C.primary, backgroundColor: C.priBg }, x.off && { opacity: 0.5 }]}>
+            <View style={{ flex: 1 }}>
+              <Txt s={14} w={700}>{x.word}</Txt>
+              <Txt s={12} c={C.tx70} lh={17}>{x.line}</Txt>
+            </View>
+            {!!x.side && <Txt s={14} w={600} c={TONE[x.tone ?? ''] ?? C.tx}>{x.side}</Txt>}
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  )
+}
+
+/** A heading and one plain sentence, for a choice there is none of here. */
+export function MoreNote({ label, children }: { label: string; children: React.ReactNode }) {
+  return <View><Txt s={14} w={600} style={{ marginBottom: 6 }}>{label}</Txt><Plain>{children}</Plain></View>
+}
+
+/** The numbers Pro's cells hold, as a plain list (`LiteNumbers`): a word and a value each. */
+export function Numbers({ rows }: { rows: [string, string][] }) {
+  return (
+    <View>
+      <Txt s={14} w={600} style={{ marginBottom: 8 }}>The numbers</Txt>
+      <View style={st.nums}>
+        {rows.map(([k, v], i) => (
+          <View key={k} style={[st.num, i > 0 && { borderTopWidth: 1, borderTopColor: C.line }]}>
+            <Txt s={13} c={C.tx50} style={{ flexShrink: 0, maxWidth: '45%' }}>{k}</Txt>
+            <Txt s={13} c={C.tx} style={{ flex: 1, textAlign: 'right' }}>{v}</Txt>
+          </View>
+        ))}
+      </View>
+    </View>
   )
 }
 
@@ -281,5 +373,10 @@ const st = StyleSheet.create({
   getline: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, marginTop: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, backgroundColor: C.b300 },
   glIc: { width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' },
   trust: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.line },
+  more: { maxHeight: '88%', backgroundColor: C.b200, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
+  moreHead: { flexDirection: 'row', alignItems: 'center', paddingTop: 16, paddingBottom: 14, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: C.line },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: C.b300, borderWidth: 1, borderColor: 'transparent' },
+  nums: { borderRadius: 12, backgroundColor: C.b300, overflow: 'hidden' },
+  num: { flexDirection: 'row', gap: 12, paddingVertical: 10, paddingHorizontal: 12 },
   details: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.b300, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, marginHorizontal: 16, marginTop: 14, marginBottom: 14 },
 })

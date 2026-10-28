@@ -1,5 +1,5 @@
 import React from 'react'
-import { go } from '../../state/AppState'
+import { liteHash } from '@yieldcircle/core/model/liteLinks'
 import { canonUid, uidOf } from '@yieldcircle/core/model/uid'
 import { isSpike, seriesFor, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
 import { heldBy, leverTag, riskWord, splitTitle, type LiteRow } from '@yieldcircle/core/model/lite'
@@ -42,7 +42,8 @@ export function Flame({ size = 14 }: { size?: number }) {
 }
 
 /** Opening a row is opening its ticket on the category's own list. */
-export const openRow = (s: Strategy, more: Record<string, string | undefined> = {}) => go(s.group, { s: s.id, k: s.kind, ...more })
+/** A row's ticket, through core's route map (`liteHash`): the same address a shared link or the phone opens. */
+export const openRow = (s: Strategy, more: { copy?: string; lev?: string; h?: string; m?: string } = {}) => { location.hash = liteHash({ to: 'strategy', s, ...more }) }
 
 /**
  * The rate, in its risk's colour (low green, medium amber, high red): the risk said where the eye

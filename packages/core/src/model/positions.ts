@@ -149,9 +149,13 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         // a dollar / ether / bitcoin loop is its COLLATERAL's desk (the debt is a rate, not an
         // exposure). A collateral nothing can place, against such a debt, is not filed under the
         // debt: it stands for itself as a price bet, which is all this can honestly say about it
-        const money = moneyOf(debtT)
-        const same = !!money && moneyOf(collT) === money
-        const asset = money ? (same ? deskKey(collT, money) : keyOfToken(collT) ?? coll.asset.symbol) : baseOfSymbol(coll.asset.symbol) ?? baseOfSymbol(d.asset.symbol)
+        const money = moneyOf(debtT), collMoney = moneyOf(collT)
+        const same = !!money && collMoney === money
+        // a debt in no money (BNB, AVAX) against a money's desk token (BTCB) is still that desk's:
+        // read by symbol alone BTCB is no base, and the row fell to the DEBT's base — "BNB", wearing
+        // the collateral's bitcoin face
+        const asset = money ? (same ? deskKey(collT, money) : keyOfToken(collT) ?? coll.asset.symbol)
+          : collMoney ? deskKey(collT, collMoney) : baseOfSymbol(coll.asset.symbol) ?? baseOfSymbol(d.asset.symbol)
         if (!asset) continue
         const debtBase = baseOfSymbol(d.asset.symbol)
         // same test as the catalogue's: same money, not the same display tab — or an exposure

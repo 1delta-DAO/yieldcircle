@@ -11,9 +11,10 @@ import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import type { Holding } from './positions'
 import { usdShort } from './format'
 import type { Proof } from './activity'
+import { LITE_GROUPS, liteUrl, APP_ORIGIN } from './liteLinks'
 
 /** The categories Lite has: no Stocks, no Borrow (owner's call, 2026-10-23). */
-export const LITE_GROUPS: GroupId[] = ['USD', 'ETH', 'BTC', 'MORE']
+export { LITE_GROUPS }
 /** The strictest of Pro's size floors: a simple user cannot judge a thin pool. */
 export const LITE_MIN_TVL = 2_000_000
 /** The API's 1–5 score, capped: Lite has no word for "unrated" or "very high". */
@@ -259,9 +260,9 @@ export const shownDp = (dollar: boolean) => (dollar ? 2 : 4)
  * Sharing a position: the text and the Copy link — whoever opens it lands on the same strategy with
  * this wallet as the one copied. Both apps share it (the web's share sheet, the phone's `Share`).
  */
-export function shareOf(s: Strategy, h: Pick<Holding, 'asset' | 'group' | 'apr'>, account: string, origin = 'https://app.yieldcircle.io'): { text: string; url: string } {
+export function shareOf(s: Strategy, h: Pick<Holding, 'asset' | 'group' | 'apr'>, account: string, origin = APP_ORIGIN): { text: string; url: string } {
   const word = moneyWord(h.asset, h.group)
-  const url = `${origin}/#/lite/${s.group}?s=${encodeURIComponent(s.id)}&k=${s.kind}&copy=${account}`
+  const url = liteUrl({ to: 'strategy', s, copy: account }, origin)
   return { text: `Earning ${pct(h.apr ?? s.rate)} on ${word.startsWith('Dollars') ? 'dollars' : word} with YieldCircle`, url }
 }
 /** Whether a position can be shared: a Lite strategy held as itself — not a loan, a price bet or paper. */
@@ -356,6 +357,26 @@ export function saferTargets(Lnow: number, liqLtv: number | null | undefined, mi
     if (L < Lnow - 0.05 && L >= Math.max(1.05, minL)) out.push({ L, buffer: st.buffer, word: st.word })
   }
   return out
+}
+
+/**
+ * Every leverage Lite offers a RUNNING loop in its "More choices" (docs/lite-design-review.md §3.3):
+ * the safer steps, and — with the catalogue row — the three tiers that clear Lite's floor, inside
+ * what the venue allows (`minL`…`maxL`). One per 0.05×, none at today's, the most leverage first (as
+ * the ticket lists its safer steps). `up` marks a
+ * target above today's: it borrows more.
+ */
+export function liteLeverTargets(o: { Lnow: number; liqLtv: number | null | undefined; minL?: number; maxL: number; tiers?: Record<LiteTierId, number> | null }): { L: number; buffer: number; word: string; up: boolean }[] {
+  const minL = o.minL ?? 1
+  const out: { L: number; buffer: number; word: string; up: boolean }[] = saferTargets(o.Lnow, o.liqLtv, minL).map((x) => ({ ...x, up: false }))
+  if (o.tiers && o.liqLtv) {
+    for (const t of liteTiers(o.tiers, o.liqLtv, () => 0)) {
+      const L = Math.floor(Math.min(t.lev, o.maxL) * 100) / 100
+      if (L < Math.max(1.05, minL) || Math.abs(L - o.Lnow) < 0.05 || out.some((x) => Math.abs(x.L - L) < 0.05)) continue
+      out.push({ L, buffer: liqBuffer(o.liqLtv, L), word: t.word, up: L > o.Lnow })
+    }
+  }
+  return out.sort((a, b) => b.L - a.L)
 }
 
 /** A position's second line on You, in words: what it is and how far from the line. */

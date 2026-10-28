@@ -414,16 +414,33 @@ to look at, and no text under 11px but the money icons' glyphs.
 | 5 | Ticket: a connected reader's amount starts from the balance (all of it up to $1,000); one helper line in words; a one-line signing note; "If 3Jane's dollar trades 4.4% under $1 / Then the loop is liquidated"; withdraw, Lower risk and Close in Lite's lines (`withdrawLines`, `saferLines`, `closeLines`); amounts shown to cents; the off-menu line only when the strategy truly is off Lite's menu | `Ticket.tsx`, `LiteTicketBits.tsx`, `tickets/simple.ts`, `loop.ts`, `withdraw.ts`, `model/amount.ts::portion` |
 | 6 | In Lite the face opens You; You's foot carries the wallet, chains, the profile editor link, Lite / Pro and the community links (`ProfileSheet embedded`) | `Shell.tsx`, `ProfileSheet.tsx`, `LiteYou.tsx` |
 | 7 | You: four tiles (three on paper, the last across), no Points, a drawn flame on both apps, positions in dollars a day | `LiteYou.tsx`, `Shell.tsx`, `mobile/app/you.tsx` |
-| 8 | "More choices" replaces Pro's ticket for opening a position: leverage as Careful / Balanced / Bold (`liteTiers`, only those that clear `LITE_MIN_BUFFER`) and the copied one, what to pay with, the numbers as a list. A held position's Details still opens Pro's ticket: its slider and receive-in have no Lite form yet | `Ticket.tsx`, `LiteTicketBits.tsx`, `tickets/loop.ts` (`liteTier`) |
+| 8 | "More choices" replaces Pro's ticket for opening a position: leverage as Careful / Balanced / Bold (`liteTiers`, only those that clear `LITE_MIN_BUFFER`) and the copied one, what to pay with, the numbers as a list. Held positions: see the second pass below | `Ticket.tsx`, `LiteTicketBits.tsx`, `tickets/loop.ts` (`liteTier`) |
 | 9 | Home: the line under the balance waits for positions; the paper card in two plain lines; cards have two targets (the card, Copy); the moves load when they near the screen | `LiteHome.tsx`, `PaperPanel.tsx`, `LiteBits.tsx` |
 | 10 | Share text and rules in core (`shareOf`, `canShare`), used by both apps; recent search picks in `@yieldcircle/app/lite` (`useRecentPicks`); the deep-link map and the dark-only decision in `docs/mobile.md` | `model/lite.ts`, `share.ts`, `mobile/src/ui/lite.tsx`, `packages/app/src/lite.ts` |
 
-Not done, and why:
+### Second pass (2026-10-28, evening)
 
-- **A navigation seam in `@yieldcircle/app`.** No shared code navigates yet; each app's
-  `openRow` / `openStrategy` is three lines. Add it with the first shared screen that needs it.
-- **§3.6's search button and transaction tray, §3.7's empty profile.** They were notes in the
-  screens, not items of §7.
-- **The phone's "More choices" and You settings.** The phone has no Details yet (phase 6 of
-  `mobile-plan.md`); it should port this sheet, not Pro's ticket. The phone has the row, card,
-  flame and Points changes.
+What the first pass left out, now built. Checked with the same probe at 390 on a wallet holding a
+×8.1 loop (every tab, each "More choices") and on a wallet the index has never drawn: no clipped
+text, no sideways overflow. The phone bundles for iOS and Android.
+
+| What changed | Where |
+|---|---|
+| **Held positions, in Lite's words.** Pro's ticket is never drawn inside Lite any more; it is only the link at the foot of "More choices". A held loop offers any of Lite's leverages (`liteLeverTargets`: the safer steps and the tiers that clear Lite's floor, up to the venue's maximum, most leverage first, "As it is" in its place); the button says Raise or Lower. A close asks what it comes back in (all in the debt coin, or keep what the loop holds), never carried over from Pro's remembered choice. A withdrawal asks how it is paid out (the token, or the chain's coin unwrapped). Top up, Pay back and a loan show the position's numbers. Several positions on one strategy are picked in the sheet ("Which one") | `model/lite.ts`, `tickets/manageLoop.ts` (`targets`, Lite's own `recv`), `Ticket.tsx`, `BorrowTicket.tsx`, `LiteTicketBits.tsx` |
+| **The phone's "More choices"** — the same sheet, natively (`MoreSheet`, `Choices`, `Numbers`), for every body: opening a deposit or a loop, withdrawing, a held loop's leverage and close, a loan. Its foot opens the same place in Pro on the web. The phone's bodies now also use Lite's lines for withdraw / lower risk / close, the one-line amount helper, cents for a dollar amount, the balance-seeded amount on a deposit and the short signing note | `mobile/src/ticket/parts.tsx`, `bodies.tsx`, `app/strategy/[id].tsx` |
+| **The phone's You settings:** wallet, "Edit your name and face" (Pro, on the web), Chains (a saved scope the session reads — the phone read every chain before), Lite / Pro. Positions in dollars a day and "made". The phone's board opens on Wallets, as the web's does | `mobile/app/you.tsx`, `mobile/src/chains.ts`, `session.tsx`, `ui/board.tsx` |
+| **The navigation seam.** Every Lite address is written once in core (`model/liteLinks.ts`: `LiteDest`, `liteHash`, `liteUrl`, `proUrl`, `parseLiteHash`, tested both ways). `@yieldcircle/app/nav` (`useNav`: `go`, `href`, `pro`) is filled by the web from hashes and by the phone from expo-router (`mobile/src/nav.tsx::pathOf`). Share links, the web's `openRow` / `liteWalletHref` and the phone's `openStrategy` / `openWallet` go through it; the phone's deep links too (`app/+native-intent.tsx`) | core, `packages/app/src/nav.tsx`, `state/platform.tsx`, `mobile/src/nav.tsx` |
+| **Search** stays a round button after the three tabs (the owner's call, 2026-10-27), now set apart by a hairline so it does not read as a fourth tab | `lite.css`, `mobile/src/ui/TabBar.tsx` |
+| **The transaction tray** on a phone sits above the tab bar where the toasts are, not under the header; an open ticket covers it and its own ladder says the same | `app.css` |
+| **A wallet the index has not drawn** shows one plain card instead of two empty boxes; when it has moves but nothing open, "Lately" leads. The feed's slow read is not waited for | `LiteProfile.tsx` |
+
+Still open:
+
+- **The phone's wallet page** is a placeholder (social layer, `mobile-plan.md` phase 4), so §3.7's
+  profile change is the web's only.
+- **Universal links:** the phone reads `yieldcircle://lite/…` today; `https://app.yieldcircle.io/#/lite/…`
+  needs the domain association files (`docs/mobile.md`, known gaps). A link the map does not know
+  passes through unchanged, so the wallet's return to the app never moves the screen.
+- **The community link** is not on the phone's You: the phone does not depend on `@yieldcircle/design`.
+- **Board names:** a wallet's expanded positions on the board still fall back to the index's
+  title (a PT ticker) when Lite's catalogue has no row for it.

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { usePeopleFind, useRateLeaders } from '@yieldcircle/app/index/queries'
@@ -10,7 +10,7 @@ import { pct, usdShort } from '@yieldcircle/core/model/format'
 import { C } from '../src/theme'
 import { IconBack, IconSearch } from '../src/ui/icons'
 import { Sk } from '../src/ui/bits'
-import { LiteRowView, rowStyles } from '../src/ui/lite'
+import { LiteRowView, openWallet, rowStyles } from '../src/ui/lite'
 import { Who } from '../src/ui/Character'
 import { Txt } from '../src/ui/Txt'
 
@@ -21,7 +21,8 @@ import { Txt } from '../src/ui/Txt'
  */
 export default function Search() {
   const insets = useSafeAreaInsets()
-  const [q, setQ] = React.useState('')
+  const p = useLocalSearchParams<{ q?: string }>()
+  const [q, setQ] = React.useState(p.q ?? '')
   const L = useLiteMenu()
   const needle = q.trim()
   const rows = React.useMemo(() => liteFind(needle, L.rows), [needle, L.rows])
@@ -29,7 +30,6 @@ export default function Search() {
   // the best rates, not the biggest wallets (docs/rate-boards.md), in the board's own order
   const board = useRateLeaders()
   const leaders = boardWallets(board.data?.rows ?? [], 'apr').slice(0, 8)
-  const openWallet = (a: string) => router.push({ pathname: '/w/[account]', params: { account: a } })
   return (
     <View style={{ flex: 1, backgroundColor: C.bg, paddingTop: insets.top }}>
       <View style={st.bar}>

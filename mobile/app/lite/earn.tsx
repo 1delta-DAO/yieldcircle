@@ -2,6 +2,7 @@ import React from 'react'
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useQueryClient } from '@tanstack/react-query'
+import { useLocalSearchParams } from 'expo-router'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { GROUPS, type Group, type GroupId } from '@yieldcircle/core/model/assets'
 import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME } from '@yieldcircle/core/model/lite'
@@ -22,7 +23,10 @@ const TOP_ROWS = 10
 export default function LiteEarn() {
   const L = useLiteMenu()
   const { b } = L
-  const [group, setGroup] = React.useState<GroupId | null>(null)
+  // a link's category (`?g=USD`, core's route map), else every category
+  const { g } = useLocalSearchParams<{ g?: string }>()
+  const [group, setGroup] = React.useState<GroupId | null>(g && LITE_GROUPS.includes(g as GroupId) ? (g as GroupId) : null)
+  React.useEffect(() => { if (g && LITE_GROUPS.includes(g as GroupId)) setGroup(g as GroupId) }, [g])
   const [all, setAll] = React.useState(false)
   React.useEffect(() => setAll(false), [group])
   const groups = GROUPS.filter((g) => LITE_GROUPS.includes(g.id))

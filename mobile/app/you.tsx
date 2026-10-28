@@ -18,6 +18,10 @@ import { owedOf } from '@yieldcircle/core/model/borrow'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { setMode, useMode, type Mode } from '../src/mode'
+import { useChains } from '../src/chains'
+import { useNav } from '@yieldcircle/app/nav'
+import { useSession } from '@yieldcircle/app/session'
+import { CHAINS } from '@yieldcircle/app/sdk/queries'
 import { C } from '../src/theme'
 import { Btn, Seg, Sk, Tok } from '../src/ui/bits'
 import { Character } from '../src/ui/Character'
@@ -75,10 +79,9 @@ export default function You() {
                 : !mine.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing at work yet.</Txt>
                 : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} />)}
             </View>
-            <View style={{ marginTop: 14, alignItems: 'flex-start' }}><AppKitButton /></View>
           </>
         )}
-        <ModeSwitch />
+        <Settings />
       </ScrollView>
     </View>
   )
@@ -201,10 +204,11 @@ function Position({ h, s }: { h: Holding; s: Strategy | null }) {
   const line = holdingLine(h)
   // what it made since it was opened, the index's figure for it
   const pnl = useHoldingPnl(h)
+  const perDay = h.apr != null && h.kind !== 'borrow' && Math.abs(h.valueUsd * h.apr / 100 / 365) >= 0.01 ? h.valueUsd * h.apr / 100 / 365 : null
   const open = () => {
     // a price bet (a debt in another money) and loans are Pro's on the phone for now
     if (h.directional) return router.push('/details')
-    openStrategy(s ?? ({ id: '_' } as Strategy), { h: h.key })
+    openStrategy(s ?? { id: '_', kind: h.kind, group: h.group }, { h: h.key })
   }
   return (
     <Pressable onPress={open} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]}>
@@ -215,9 +219,56 @@ function Position({ h, s }: { h: Holding; s: Strategy | null }) {
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Txt w={700}>{usd(h.valueUsd)}</Txt>
-        {(h.apr != null || pnl) && <Txt s={12}>{pnl && <Txt s={12} c={pnl.pnlUsd! >= 0 ? C.ok : C.bad}>{signedMoney(pnl.pnlUsd!)}</Txt>}{pnl && h.apr != null && <Txt s={12} c={C.tx40}> · </Txt>}{h.apr != null && <Txt s={12} c={h.apr >= 0 ? C.ok : C.bad}>{pct(h.apr)}</Txt>}</Txt>}
+        {/* what it earns in dollars a day, the number the home leads with (hidden under a cent), and what it made */}
+        {perDay != null && <Txt s={12} c={perDay >= 0 ? C.ok : C.bad}>{signedMoney(perDay)} a day</Txt>}
+        {pnl && <Txt s={12} c={C.tx70}>{signedMoney(pnl.pnlUsd!)} made</Txt>}
       </View>
       <Txt c={C.tx40}>›</Txt>
+    </Pressable>
+  )
+}
+
+/**
+ * Wallet and settings (the web's `ProfileSheet embedded` at the foot of You): the wallet, the one link
+ * to Pro's profile editor, which chains every list reads, and Lite / Pro.
+ */
+function Settings() {
+  const { isConnected, viewAs } = useSession()
+  const nav = useNav()
+  const { chains, allChains, setChains, toggleChain } = useChains()
+  const [open, setOpen] = React.useState(false)
+  const state = allChains ? 'All chains' : chains.length === 1 ? CHAINS.find((c) => c.id === chains[0])?.label ?? '1 chain' : `${chains.length} chains`
+  return (
+    <View style={{ marginTop: 28 }}>
+      <Txt s={16} w={600} style={{ letterSpacing: -0.16, marginBottom: 10 }}>Wallet and settings</Txt>
+      <View style={st.set}>
+        <View style={st.setRow}><AppKitButton /></View>
+        {isConnected && !viewAs && (
+          <Pressable onPress={() => nav.pro('#/me')} style={[st.setRow, st.setLine]} accessibilityRole="link">
+            <Txt s={14} style={{ flex: 1 }}>Edit your name and face</Txt><Txt c={C.tx40}>›</Txt>
+          </Pressable>
+        )}
+        <Pressable onPress={() => setOpen((o) => !o)} style={[st.setRow, st.setLine]} accessibilityState={{ expanded: open }}>
+          <Txt s={14} style={{ flex: 1 }}>Chains</Txt>
+          <Txt s={13} c={allChains ? C.tx50 : C.primary}>{state}</Txt>
+          <Txt c={C.tx40}>{open ? '⌃' : '⌄'}</Txt>
+        </Pressable>
+        {open && (
+          <View style={{ paddingBottom: 6 }}>
+            <ChainRow label="All chains" on={allChains} onPress={() => setChains([])} />
+            {CHAINS.map((c) => <ChainRow key={c.id} label={c.label} on={chains.includes(c.id)} onPress={() => toggleChain(c.id)} />)}
+          </View>
+        )}
+      </View>
+      <ModeSwitch />
+    </View>
+  )
+}
+function ChainRow({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={st.chain} accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
+      <Txt s={14} w={700} c={C.primary} style={{ width: 18 }}>{on ? '✓' : ''}</Txt>
+      <Txt s={14} c={on ? C.tx : C.tx70}>{label}</Txt>
     </Pressable>
   )
 }
@@ -244,5 +295,9 @@ const st = StyleSheet.create({
   stat: { width: '48.5%', flexGrow: 1, maxWidth: '48.6%', backgroundColor: C.b200, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16, gap: 3 },
   pnl: { backgroundColor: C.b200, borderRadius: 18, paddingVertical: 18, paddingHorizontal: 20, gap: 12, overflow: 'hidden' },
   bar2: { flexDirection: 'row', height: 10, borderRadius: 999, overflow: 'hidden', backgroundColor: C.b400, gap: 2 },
+  set: { backgroundColor: C.b200, borderRadius: 12, overflow: 'hidden' },
+  setRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 10, paddingHorizontal: 14 },
+  setLine: { borderTopWidth: 1, borderTopColor: C.line },
+  chain: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingHorizontal: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.b200, borderRadius: 12 },
 })

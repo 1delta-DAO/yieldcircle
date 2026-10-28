@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER } from './lite'
+import { followedFirst, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 import type { Holding } from './positions'
@@ -193,6 +193,15 @@ describe('managing a position', () => {
     expect(t.map((x) => x.L)).toEqual([10.25, 6.89, 4.16])
     expect(saferTargets(5, 0.95).map((x) => x.word)).toEqual(['Much safer'])
     expect(saferTargets(21, null)).toEqual([])
+  })
+  it('offers a running loop the safer steps and the tiers inside the venue’s range', () => {
+    const t = liteLeverTargets({ Lnow: 5, liqLtv: 0.95, maxL: 10, tiers: { defensive: 4, balanced: 7, aggressive: 12 } })
+    // Bold's 12× is capped at the venue's 10×, and still clears Lite's floor there
+    expect(t.map((x) => [x.word, x.L, x.up])).toEqual([['Bold', 10, true], ['Balanced', 7, true], ['Much safer', 4.16, false], ['Careful', 4, false]])
+    expect(t.every((x) => x.buffer >= LITE_MIN_BUFFER)).toBe(true)
+    // off the menu (no tiers) or on a fixed-rate loan (maxL = today): only down
+    expect(liteLeverTargets({ Lnow: 5, liqLtv: 0.95, maxL: 5 }).map((x) => x.up)).toEqual([false])
+    expect(liteLeverTargets({ Lnow: 5, liqLtv: 0.95, maxL: 5, tiers: { defensive: 4, balanced: 7, aggressive: 12 } }).map((x) => x.L)).toEqual([4.16, 4])
   })
   it('says a risky loop in words, with its tone', () => {
     expect(holdingLine({ kind: 'loop', leverage: 21, health: 1.01 })).toEqual({ text: 'Levered ×21 · 1.0% from liquidation', tone: 'bad' })

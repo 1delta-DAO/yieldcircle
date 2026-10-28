@@ -37,6 +37,8 @@ export function TabBar({ state, descriptors, navigateToTab, insets, search }: Ta
           </Pressable>
         )
       })}
+      {/* set apart from the tabs by a hairline: a button that opens search, not a fourth place (docs/lite-design-review.md §3.6) */}
+      {search && <View style={st.rule} />}
       {search && (
         <View style={st.searchSlot}>
           <Pressable onPress={() => router.push('/search')} style={({ pressed }) => [st.search, pressed && { backgroundColor: C.b400 }]} accessibilityLabel="Search" accessibilityRole="search">
@@ -51,7 +53,8 @@ export function TabBar({ state, descriptors, navigateToTab, insets, search }: Ta
 const st = StyleSheet.create({
   bar: { flexDirection: 'row', paddingHorizontal: 8, backgroundColor: 'rgba(0,0,0,0.92)', borderTopWidth: 1, borderTopColor: C.line },
   item: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  searchSlot: { width: 64, alignItems: 'center', justifyContent: 'center' },
+  rule: { width: 1, height: 28, alignSelf: 'center', backgroundColor: C.line2 },
+  searchSlot: { width: 63, alignItems: 'center', justifyContent: 'center' },
   search: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: C.b300, borderWidth: 1, borderColor: C.line },
   icon: { width: 48, height: 28, paddingVertical: 4, paddingHorizontal: 14, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 })

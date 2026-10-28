@@ -17,6 +17,7 @@ import { SettingsProvider } from '@yieldcircle/app/state/Settings'
 import { appKit, wagmiAdapter } from '../src/appkit'
 import { PhoneSession } from '../src/session'
 import { PhonePlatform } from '../src/platform'
+import { PhoneNav } from '../src/nav'
 import { configureTrace, initTxTrace } from '@yieldcircle/app/sdk/txTrace'
 import { C } from '../src/theme'
 
@@ -36,6 +37,7 @@ export default function RootLayout() {
       <WagmiProvider config={wagmiAdapter.wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           <PhonePlatform>
+          <PhoneNav>
           <SettingsProvider>
             <PhoneSession>
               <StatusBar style="light" />
@@ -51,6 +53,7 @@ export default function RootLayout() {
               </View>
             </PhoneSession>
           </SettingsProvider>
+          </PhoneNav>
           </PhonePlatform>
         </QueryClientProvider>
       </WagmiProvider>

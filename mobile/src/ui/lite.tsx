@@ -1,6 +1,6 @@
 import React from 'react'
 import { Pressable, Share, StyleSheet, View } from 'react-native'
-import { router } from 'expo-router'
+import { router, type Href } from 'expo-router'
 import { GROUPS } from '@yieldcircle/core/model/assets'
 import { canShare, heldBy, leverTag, shareOf, splitTitle, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { Holding } from '@yieldcircle/core/model/positions'
@@ -11,9 +11,12 @@ import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { C, alpha } from '../theme'
 import { Face, GroupIcon, LeverPill, Rate, Sk, spikeOf } from './bits'
 import { Txt } from './Txt'
+import { pathOf } from '../nav'
 
-/** Opening a row is opening its strategy, wherever the list is. */
-export const openStrategy = (s: Strategy, params: Record<string, string> = {}) => router.push({ pathname: '/strategy/[id]', params: { id: s.id, ...params } })
+/** Opening a row is opening its strategy, wherever the list is: core's route map (`pathOf`). */
+export const openStrategy = (s: { id: string; kind: string; group: string }, more: { copy?: string; lev?: string; h?: string; m?: string } = {}) => router.push(pathOf({ to: 'strategy', s, ...more }) as Href)
+/** A wallet's page, from any face. */
+export const openWallet = (account: string) => router.push(pathOf({ to: 'wallet', account }) as Href)
 
 /** A row's name (the web's `LiteTitle`, `.lite-title`): the money's mark, then whose it is — or, where categories mix (`full`), the whole phrase. */
 export function LiteTitle({ r, size = 14, icon = 14, full }: { r: LiteRow; size?: number; icon?: number; full?: boolean }) {

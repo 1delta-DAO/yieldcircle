@@ -8,7 +8,7 @@ import { loopClose, loopOpen } from '@yieldcircle/core/sdk/api'
 import { isSavings } from '@yieldcircle/core/model/nature'
 import { withSignature } from '@yieldcircle/core/sdk/signedAction'
 import { num, usdShort } from '@yieldcircle/core/model/format'
-import { saferTargets } from '@yieldcircle/core/model/lite'
+import { liteLeverTargets, saferTargets } from '@yieldcircle/core/model/lite'
 import { CLOSE_INTEREST_PAD, NO_ROUTE, closeKeepPad, hasRoute } from '@yieldcircle/core/model/ticket'
 import { quoteClose, useCloseQuote } from '../sdk/queries'
 import { slippageFor, useSettings } from '../state/Settings'
@@ -23,7 +23,8 @@ import { useBorrowAt } from './loop'
 
 /**
  * A held loop's ticket, everything but the screen (the web's `ManageLoop`, the phone's): the
- * leverage to move to (Lite: a close, or one of three targets by distance from liquidation), what
+ * leverage to move to (Lite: a close, one of three targets by distance from liquidation, or in its
+ * "More choices" any of its own leverages, `targets`), what
  * that sells or borrows, a full close sized off what the sale fetches on the market, and the ladder.
  * `s` is null for a position the menu has no row for.
  */
@@ -31,7 +32,7 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   const session = useSession()
   const account = session.account, isConnected = !!session.isConnected
   const actorOn = session.actorOn ?? (() => undefined)
-  // Lite: a close, or "Lower risk" — one of three targets by distance from liquidation, never a slider
+  // Lite: a close, or "Lower risk" — one of three targets by distance from liquidation (More choices: `targets`), never a slider
   const slip = slippageFor(useSettings().st, s ? isSavings(s.nature) : !h.directional)
   const actor = actorOn(h.chainId)
   const holds = s?.holds ?? h.symbol, debt = s?.debt ?? h.debtSymbol ?? 'debt'
@@ -58,6 +59,8 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   const maxL = loan ? Lnow : s ? Math.max(Lnow, Math.floor(s.maxLev * 100) / 100) : Lnow
   // ...and it starts on the tier the open ticket would: "Now" is a plain deposit, which is not what was asked for
   const safer = lite && !closeFirst ? saferTargets(Lnow, liqLtv, minL) : []
+  // Lite's "More choices": any of its own leverages for this loop, up as well as down (`liteLeverTargets`)
+  const targets = lite ? liteLeverTargets({ Lnow, liqLtv, minL, maxL, tiers: putUp ? null : s?.tiers }) : []
   const [L0, setL] = React.useState<number>(() => (closeFirst && !putUp ? 1 : putUp ? Math.min(maxL, s!.tiers[isSavings(s!.nature) ? DEFAULT_TIER : 'defensive']) : +Lnow.toFixed(2)))
   const L = Math.max(minL, L0)
   const same = Math.abs(L - Lnow) < 0.02
@@ -83,13 +86,15 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   // (a deposit's neighbours in its account are not in its own value: nothing to take off the hold cell)
   const otherColl = putUp ? [] : (h.others ?? []).filter((o) => o.side === 'collateral'), otherUsd = otherColl.reduce((t, o) => t + o.usd, 0)
   const sameToken = holds === debt
-  const [recv, setRecv] = useSticky<'debt' | 'collateral'>(`t:${h.key}:recv`, 'debt')
+  const [recvPro, setRecvPro] = useSticky<'debt' | 'collateral'>(`t:${h.key}:recv`, 'debt')
+  // Lite asks afresh each time (its "More choices"): Pro's remembered choice never carries over unseen
+  const [recvLite, setRecvLite] = React.useState<'debt' | 'collateral'>('debt')
+  const recv = lite ? recvLite : recvPro, setRecv = lite ? setRecvLite : setRecvPro
   // Loopscale's full close has no "sell everything": the venue repays the loan (accrued to now plus a
   // margin), sells only the collateral that takes and hands the rest back (`isAll` drops `amount`).
   // So it always pays out in the collateral — the debt-token option would promise what it cannot do
   const venueKeeps = isLoopscale(h.lender ?? s?.lender)
-  // Lite closes one way: everything sold, the debt repaid, the rest back in the debt coin
-  const keep = closing && !sameToken && (venueKeeps || (!lite && recv === 'collateral'))
+  const keep = closing && !sameToken && (venueKeeps || recv === 'collateral')
   const owed = loan ? loan.debt : h.debtAmount ?? (pD ? D / pD : 0)
   const pDebt = pD || (owed > 0 ? D / owed : 0)
   // the exact balance: a float-sized amount can overshoot it by a few wei and the swap reverts
@@ -152,5 +157,5 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     return [...pre, ...stepsFrom(env.actions, putUp ? `Lever to ${num(L, 2)}×` : `Increase to ${num(L, 2)}×`, h.chainId)]
   }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid], [{ address: h.collateralAddress ?? s?.collateralAddress, symbol: holds }, { address: h.debtAddress ?? s?.debtAddress, symbol: debt }], paperPlan)
-  return { account, isConnected, slip, actor, holds, debt, E, putUp, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, signTypedDataAsync, paperSign, paperPlan, ladder }
+  return { account, isConnected, slip, actor, holds, debt, E, putUp, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, targets, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, signTypedDataAsync, paperSign, paperPlan, ladder }
 }

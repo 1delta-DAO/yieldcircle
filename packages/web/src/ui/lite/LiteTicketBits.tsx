@@ -52,23 +52,24 @@ export function LiteAmtSub({ have, usdOf, more, account }: { /** "38.19 USDC", o
  * in Lite's words — never Pro's ticket. Each body (deposit, loop) renders its own sheet with its own
  * values; the head's button only opens it, through this context.
  */
-export const LiteMoreCtx = React.createContext<{ open: boolean; close: () => void; pro: string } | null>(null)
+export const LiteMoreCtx = React.createContext<{ open: boolean; close: () => void; pro: string; /** drawn above the body's own choices: which of several positions */ top?: React.ReactNode } | null>(null)
 
 /** The sheet itself: a drawer whose foot still offers the same thing in Pro. */
 export function LiteMoreSheet({ children }: { children: React.ReactNode }) {
   const m = React.useContext(LiteMoreCtx)
   if (!m) return null
-  return <LiteDetailsDrawer open={m.open} onClose={m.close} pro={m.pro} label="More choices">{<div className="lite-more-b">{children}</div>}</LiteDetailsDrawer>
+  return <LiteDetailsDrawer open={m.open} onClose={m.close} pro={m.pro} label="More choices">{<div className="lite-more-b">{m.top}{children}</div>}</LiteDetailsDrawer>
 }
 
-/** A choice of a few, each a word, what it earns and how far from liquidation. */
-export function LiteChoices<T extends string>({ label, items, on, onPick }: { label: string; items: { id: T; word: string; line: string; side?: string; tone?: string }[]; on: T | null; onPick: (id: T) => void }) {
+/** A choice of a few, each a word, what it earns and how far from liquidation. `note`: one plain line under the label. */
+export function LiteChoices<T extends string>({ label, note, items, on, onPick }: { label: string; note?: React.ReactNode; items: { id: T; word: string; line: string; side?: string; tone?: string; off?: boolean }[]; on: T | null; onPick: (id: T) => void }) {
   return (
     <section className="lite-more-s">
       <h3>{label}</h3>
+      {note && <p className="plain t50">{note}</p>}
       <div className="lite-safer" role="radiogroup" aria-label={label}>
         {items.map((x) => (
-          <button key={x.id} type="button" role="radio" aria-checked={on === x.id} className={on === x.id ? 'on' : ''} onClick={() => onPick(x.id)}>
+          <button key={x.id} type="button" role="radio" aria-checked={on === x.id} className={on === x.id ? 'on' : ''} disabled={x.off} onClick={() => onPick(x.id)}>
             <b>{x.word}</b><span>{x.line}</span>{x.side && <small className={x.tone ?? ''}>{x.side}</small>}
           </button>
         ))}
@@ -87,7 +88,7 @@ export function LiteNumbers({ rows }: { rows: [string, React.ReactNode][] }) {
   )
 }
 
-/** The button under the ticket that opens "More choices" (or, on a held position, Pro's ticket). */
+/** The button under the ticket that opens "More choices". */
 export function LiteDetails({ what, label = 'More choices', onOpen }: { what: string; label?: string; onOpen: () => void }) {
   return (
     <button type="button" className="lite-details" onClick={onOpen}>

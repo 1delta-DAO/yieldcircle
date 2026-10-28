@@ -57,7 +57,7 @@ import { BorrowRewards, DecimalInput, Info, KindPill, RiskDot, SubAccountPill, T
 import { stepsFrom, useTicketLadder } from '@yieldcircle/app/ladder'
 import { borrowPlan, paperPos, repayPlan } from '@yieldcircle/app/tickets/paperPlans'
 import { bufferOfHealth, holdingLine, moneyWord } from '@yieldcircle/core/model/lite'
-import { LiteDetails, LiteDetailsDrawer, LitePresets } from './lite/LiteTicketBits'
+import { LiteDetails, LiteMoreCtx, LiteMoreSheet, LiteNumbers, LitePresets } from './lite/LiteTicketBits'
 import { ceil6, floor6 } from '@yieldcircle/core/model/ticket'
 import { useRepayTicket } from '@yieldcircle/app/tickets/repay'
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
@@ -437,10 +437,18 @@ export function LiteLoanTicket({ h, idle, onClose }: { h: Holding; idle: Idle[];
         </div></div>
         <RepayPane key={h.key + pane} o={o} h={h} idle={idle} lite={pane} />
       </>}
-      <LiteDetails onOpen={() => setDetails(true)} what="Borrow more, or take collateral out" />
-      {o && <LiteDetailsDrawer open={details} onClose={() => setDetails(false)} pro={detailsHref}>
-        <BorrowTicket o={o} holdings={[h]} idle={idle} pick={h.key} mode="reduce" onClose={() => setDetails(false)} />
-      </LiteDetailsDrawer>}
+      <LiteDetails onOpen={() => setDetails(true)} what="Every number · borrowing more is in Pro" />
+      <LiteMoreCtx.Provider value={{ open: details, close: () => setDetails(false), pro: detailsHref }}>
+        <LiteMoreSheet>
+          <section className="lite-more-s"><h3>Borrow more, or take collateral out</h3><p className="plain">Lite only ends loans. Both are in Pro, from the link below.</p></section>
+          <LiteNumbers rows={[
+            ['Owes', usd(owedOf(h))],
+            ['Put up', `${usd(collateralOf(h))} · ${num(h.amount, 4)} ${h.symbol}`],
+            ...(bufferOfHealth(h.health) != null ? [['From liquidation', pct(bufferOfHealth(h.health)! * 100, 1)] as [string, string]] : []),
+            ['Where', `${h.venue.split(' · ')[0]} · ${chainLabel(h.chainId)}`],
+          ]} />
+        </LiteMoreSheet>
+      </LiteMoreCtx.Provider>
     </div>
     </TicketCtx.Provider>
   )

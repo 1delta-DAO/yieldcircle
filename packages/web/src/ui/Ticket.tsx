@@ -44,7 +44,7 @@ import { AssetLink } from './TokenPage'
 import { heldBy, bufferOfHealth, brandOf, closeLines, debtWord, depositLines, holdingLine, leverTag, liteEligible, liteModes, liteTiers, loopLines, moneyWord, plainName, riskWord, saferLines, saferTargets, shownDp, trustKind, withdrawLines, type LiteMode } from '@yieldcircle/core/model/lite'
 import { proHref } from '../state/AppState'
 import { LitePayBack, LiteTopUp } from './BorrowTicket'
-import { LiteAmtSub, LiteChoices, LiteDetails, LiteDetailsDrawer, LiteLines, LiteMoreCtx, LiteMoreSheet, LiteNumbers, LitePresets } from './lite/LiteTicketBits'
+import { LiteAmtSub, LiteChoices, LiteDetails, LiteLines, LiteMoreCtx, LiteMoreSheet, LiteNumbers, LitePresets } from './lite/LiteTicketBits'
 import { CLOSE_INTEREST_PAD, DAY_S, NATIVE_MAX_ROUNDS, NO_NATIVE_DEPOSIT, NO_NATIVE_WITHDRAW, NO_ROUTE, closeKeepPad, dayMonth, dayOf, daysWord, defaultTenor, defaultTerm, getForms, hasRoute, nativeMaxRounds, payOptions, paysNative, safetyOf, sameToken, startsAny, tenorWord, type PayOption, type PayRole } from '@yieldcircle/core/model/ticket'
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { pnlLine } from '@yieldcircle/core/model/holdingPnl'
@@ -131,12 +131,15 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
  * one the menu has no row for — is still the reader's, so it is managed here all the same. One
  * that sits close to the line opens on "Lower risk".
  */
-function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, onClose }: { s: Strategy | null; idle: Idle[]; holdings: Holding[]; holding: Holding | null; into: Holding | null; mode0?: Mode; copy?: string; copyLev?: number; onClose: () => void }) {
-  const h = holding
+function LiteTicket({ s, idle, holdings, holding, into: into0, mode0, copy, copyLev, onClose }: { s: Strategy | null; idle: Idle[]; holdings: Holding[]; holding: Holding | null; into: Holding | null; mode0?: Mode; copy?: string; copyLev?: number; onClose: () => void }) {
+  // more than one position on it (sub-accounts): the one picked in "More choices", else the one it opened on
+  const [hk, setHk] = React.useState<string | undefined>(holding?.key)
+  const h = holdings.find((x) => x.key === hk) ?? holding
+  const into = h === holding ? into0 : h && !h.subAccount?.unsupported ? h : null
   // which tabs, and which it opens on: core's rule, shared with the phone
   const { isLoop, start, tabs } = liteModes(s, h, mode0)
   const [mode, setMode] = React.useState<LiteMode>(start)
-  // every number: Pro's ticket for the same strategy (or position), in a drawer over this one
+  // "More choices": what Lite decides, offered back in its own words — each body draws its own
   const [details, setDetails] = React.useState(false)
   const n = s ? plainName(s) : null
   const title = n?.title ?? (h ? moneyWord(h.asset, h.group) : '')
@@ -151,13 +154,19 @@ function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, on
   const { uid, thread } = React.useContext(TicketCtx)
   const L = useLiteMenu()
   const lev = s?.kind === 'loop' ? (h?.leverage && h.leverage > 1.05 ? h.leverage : copyLev && copyLev > 1.05 ? copyLev : s.tiers.balanced) : h?.kind === 'loop' ? h.leverage ?? 1 : 0
-  // Details: the same position (or row) on Pro's own page, where every tier, route and number is
+  // the sheet's foot: the same position (or row) on Pro's own page, where every tier, route and number is
   const detailsHref = h ? proHref(`#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: mode === 'add' ? 'add' : isLoop ? 'manage' : 'reduce' })}`)
     : s ? proHref(`#/${s.group}?${new URLSearchParams({ s: s.id, k: s.kind })}`) : proHref()
-  // opening one: Lite's own "More choices", drawn by the body with its own values; a held position's
-  // other moves (any leverage, receive-in, a sub-account): Pro's ticket for it, in the drawer
-  const more = mode === 'add' && !!s
-  const moreCtx = React.useMemo(() => (more ? { open: details, close: () => setDetails(false), pro: detailsHref } : null), [more, details, detailsHref])
+  // Lite's own "More choices" in every mode, drawn by the body with its own values; which of several
+  // positions sits on top of it. Pro's ticket is only ever the link at its foot.
+  const top = holdings.length > 1 && mode !== 'add' && h
+    ? <LiteChoices label="Which one" items={holdings.map((x) => ({ id: x.key, word: usd(x.valueUsd), line: [x.subAccount?.label, holdingLine(x).text].filter(Boolean).join(' · ') }))} on={h.key} onPick={(k) => setHk(k)} />
+    : null
+  const moreCtx = React.useMemo(() => ({ open: details, close: () => setDetails(false), pro: detailsHref, top }), [details, detailsHref, top])
+  const moreWhat = mode === 'add' ? (isLoop ? 'How hard to push it, what to pay with, every number' : 'What to pay with, every number')
+    : mode === 'close' ? 'What you get it back in, every number'
+    : mode === 'reduce' ? (isLoop ? 'Any of Lite’s leverages, every number' : 'How it is paid out, every number')
+    : 'Every number'
   return (
     <div className="ticket lite-ticket">
       <div className="grab" />
@@ -169,15 +178,15 @@ function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, on
       {tabs.length > 1 && (
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
           {tabs.map((x) => <button key={x.id} role="tab" aria-selected={mode === x.id} onClick={() => setMode(x.id)}>{x.word}</button>)}
-          {holdings.length > 1 && <><span className="sp" /><span className="sum">1 of {holdings.length} · the others in Details</span></>}
+          {holdings.length > 1 && <><span className="sp" /><span className="sum">1 of {holdings.length} · the others in More choices</span></>}
         </div></div>
       )}
       {copy && s && <CopyBanner who={copy} s={s} lev={copyLev} />}
       <LiteMoreCtx.Provider value={moreCtx}>
       {h && mode !== 'add'
-        ? (h.subAccount?.unsupported ? <CannotManage h={h} />
-          : mode === 'topup' ? <LiteTopUp h={h} idle={idle} />
-          : mode === 'payback' ? <LitePayBack h={h} idle={idle} />
+        ? (h.subAccount?.unsupported ? <><CannotManage h={h} /><LiteMoreSheet><LiteHeldNumbers h={h} s={s} /></LiteMoreSheet></>
+          : mode === 'topup' ? <><LiteTopUp h={h} idle={idle} /><LiteMoreSheet><LiteHeldNumbers h={h} s={s} /></LiteMoreSheet></>
+          : mode === 'payback' ? <><LitePayBack h={h} idle={idle} /><LiteMoreSheet><LiteHeldNumbers h={h} s={s} /></LiteMoreSheet></>
           : isLoop ? <ManageLoop key={h.key + mode} s={s?.kind === 'loop' ? s : null} h={h} closeFirst={mode === 'close'} />
           : <ManageTicket key={h.key} s={s?.kind === 'simple' ? s : null} h={h} mode="reduce" />)
         : s?.kind === 'simple' ? <SimpleTicket key={into?.key} s={s} idle={chainIdle} allIdle={idle} into={into} />
@@ -187,14 +196,23 @@ function LiteTicket({ s, idle, holdings, holding, into, mode0, copy, copyLev, on
       {s && <div className="tsec lite-trust"><span>{trustKind(s)} · {usdShort(s.tvlUsd)} in it</span><span className="sp" /><span className="t50">{brandOf(s)}</span></div>}
       {s && h && !liteEligible(s) && <div className="tsec lite-trust"><span>Lite does not offer this one new, but it is yours: {isLoop ? 'make it safer or close it here' : 'take it out here'}.</span></div>}
       {s && mode === 'add' && <LiteWho s={s} uid={uid} thread={thread ?? null} heldBy={heldBy(L.proof(s))} />}
-      {more
-        ? <LiteDetails onOpen={() => setDetails(true)} what={isLoop ? 'How hard to push it, what to pay with, every number' : 'What to pay with, every number'} />
-        : <LiteDetails label="Details" onOpen={() => setDetails(true)} what={isLoop ? 'Any leverage, what you receive, every number' : 'Any amount, the venue, the history'} />}
-      {!more && <LiteDetailsDrawer open={details} onClose={() => setDetails(false)} pro={details ? detailsHref : undefined}>
-        {s ? <Ticket s={s} idle={idle} holdings={holdings} pick={h?.key} mode={mode === 'add' ? 'add' : isLoop ? 'manage' : 'reduce'} copy={copy} copyLev={copyLev} onClose={() => setDetails(false)} />
-          : h ? <HoldingTicket h={h} onClose={() => setDetails(false)} /> : null}
-      </LiteDetailsDrawer>}
+      <LiteDetails onOpen={() => setDetails(true)} what={moreWhat} />
     </div>
+  )
+}
+
+/** "More choices" on a move with nothing to choose (Top up, Pay back, an account it cannot build for): the position's numbers. */
+function LiteHeldNumbers({ h, s }: { h: Holding; s: Strategy | null }) {
+  const b = bufferOfHealth(h.health)
+  return (
+    <LiteNumbers rows={[
+      ['Yours', usd(h.valueUsd)],
+      ...(h.kind === 'loop' && h.leverage && h.leverage > 1.05 ? [['Leverage', leverTag(h.leverage)] as [string, string]] : []),
+      ...(b != null ? [['From liquidation', pct(b * 100, 1)] as [string, string]] : []),
+      ...(h.debtAmount ? [['Owes', `${num(h.debtAmount, h.group === 'USD' ? 2 : 4)} ${h.debtSymbol ?? ''}`] as [string, string]] : []),
+      ...(s ? [['Risk', riskWord(s.risk)] as [string, string]] : []),
+      ['Where', `${h.venue.split(' · ')[0]} · ${chainLabel(h.chainId)}`],
+    ]} />
   )
 }
 
@@ -800,6 +818,20 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
       <LiteLines l={withdrawLines({ backUsd: eff * price, back: `${num(eff, wdp)} ${outSym}`, exitWord: exit?.word, exitWhen: exit?.when, leftUsd: Math.max(0, h.amount - eff) * price, rate: rate ?? null })} />
       {paper.active && queueSecs > 0 && <div className="tsec plain t70" style={{ fontSize: 12.5 }}><span className="pill paper">paper</span> This exit is queued: the {h.symbol} lands in your bank after the venue's wait.</div>}
       <Action ladder={ladder} label={fullExit ? `Withdraw all · ${usd(eff * price)}` : `Withdraw ${usd(eff * price)}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} fee="withdraw" />
+      <LiteMoreSheet>
+        {canNative && <LiteChoices<'token' | 'coin'> label="Paid out as" on={native ? 'coin' : 'token'} onPick={(x) => setAsNative(x === 'coin')}
+          note={maxRounds ? `This venue’s ${coin} exit fails on a full withdrawal: take ${h.symbol}, or leave a little in.` : undefined}
+          items={[
+            { id: 'token', word: h.symbol, line: 'as it sits in the venue' },
+            { id: 'coin', word: coin, line: 'unwrapped for you · one more signature', off: maxRounds },
+          ]} />}
+        <LiteNumbers rows={[
+          ['Yours', `${usd(h.valueUsd)} · ${num(h.amount, wdp)} ${h.symbol}`],
+          ...(rate != null ? [['Earns', `${pct(rate)} a year`] as [string, string]] : []),
+          ...(exit ? [['Way out', `${exit.word} · ${exit.when}`] as [string, string]] : []),
+          ['Where', `${h.venue.split(' · ')[0]} · ${chainLabel(h.chainId)}`],
+        ]} />
+      </LiteMoreSheet>
     </>
   )
   return (
@@ -852,9 +884,15 @@ function CannotManage({ h }: { h: Holding }) {
 function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; closeFirst?: boolean }) {
   const { lite } = React.useContext(TicketCtx)
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/manageLoop`)
-  const { account, isConnected, slip, actor, holds, debt, E, putUp, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, signTypedDataAsync, paperSign, paperPlan, ladder } = useManageLoop(s, h, closeFirst, { lite })
+  const { account, isConnected, slip, actor, holds, debt, E, putUp, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, targets, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, signTypedDataAsync, paperSign, paperPlan, ladder } = useManageLoop(s, h, closeFirst, { lite })
+  // what the loop holds, in Lite's words (never a PT's ticker), and the numbers both Lite sheets end on
+  const holdsWord = s ? plainName(s).title : moneyWord(h.asset, h.group)
+  const where: [string, string] = ['Where', `${h.venue.split(' · ')[0]} · ${chainLabel(h.chainId)}`]
+  // a dollar debt in cents, anything else to four places
+  const debtDp = pDebt > 0.9 && pDebt < 1.1 ? 2 : 4
   if (lite && !closing) {
     const bufNow = liqLtv != null ? liqBuffer(liqLtv, Lnow) : bufferOfHealth(h.health)
+    const netAt = (l: number) => (s ? netAprAtLeverage(s.depSpot, borAt(E * (l - 1) - D), l) : null)
     return (
       <>
         <div className="tsec">
@@ -866,11 +904,28 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
               <button key={x.word} type="button" role="radio" aria-checked={Math.abs(L - x.L) < 0.02} className={Math.abs(L - x.L) < 0.02 ? 'on' : ''} onClick={() => setL(x.L)}>
                 <b>{x.word}</b><span>{leverTag(x.L)} · {pct(x.buffer * 100, 0)} from liquidation</span>{n != null && <small className={n >= 0 ? 'ok' : 'bad'}>earns {pct(n)}</small>}
               </button>) })}</div>
-            : <div className="plain t50">{liqLtv == null ? 'This venue reports no health for it here: lower it in Details.' : 'It is already well away from liquidation. Close it, or pick a leverage in Details.'}</div>}
-          {!same && safer.length > 0 && <div className="plain" style={{ marginTop: 10 }}>Sells about <b>{usd(sellUsd)}</b> of {holds} to pay back {debt}. Nothing comes out of your wallet.</div>}
+            : <div className="plain t50">{liqLtv == null ? 'This venue reports no health for it here: change it in Pro.' : 'It is already well away from liquidation. Close it, or pick a leverage in More choices.'}</div>}
+          {!same && (down
+            ? <div className="plain" style={{ marginTop: 10 }}>Sells about <b>{usd(sellUsd)}</b> of {holdsWord} to pay back {debt}. Nothing comes out of your wallet.</div>
+            : <div className="plain" style={{ marginTop: 10 }}>Borrows about <b>{usd(borrowUsd)}</b> more {debt} to buy more {holdsWord}. Nothing comes out of your wallet, and it moves closer to liquidation.</div>)}
         </div>
         <LiteLines l={saferLines({ net: s && !loan ? net ?? null : null, netBefore: s && !loan ? netAprAtLeverage(s.depSpot, s.borSpot, Lnow) : null, buffer: drop ?? null, bufferBefore: bufNow ?? null, equityUsd: E })} />
-        <Action ladder={ladder} label={same || !safer.length ? 'Pick how much safer' : `Lower to ${leverTag(L)}`} account={account} isConnected={isConnected} disabled={same || !safer.length || !!closeBlock} chainId={h.chainId} fee="reduce" />
+        <Action ladder={ladder} label={same ? (safer.length ? 'Pick how much safer' : 'Pick a leverage') : `${down ? 'Lower' : 'Raise'} to ${leverTag(L)}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock} chainId={h.chainId} fee="reduce" />
+        <LiteMoreSheet>
+          {loans.length > 1 && <LiteChoices label="Which loan" note="Each fixed-rate loan is paid back on its own." items={loans.map((x) => ({ id: x.id, word: `Loan ${x.id}`, line: `${usdShort(x.debtUsd)} owed` }))} on={loan?.id ?? null} onPick={(id) => { setLoanId(id); setL(Lnow) }} />}
+          {targets.length
+            ? <LiteChoices label="How hard to push it" note={`Today ${leverTag(Lnow)}${bufNow != null ? `, ${pct(bufNow * 100, 1)} from liquidation` : ''}. Higher borrows more and earns more; lower sells some to pay back.`}
+              items={[{ L: +Lnow.toFixed(2), buffer: bufNow ?? 0, word: 'As it is', up: false }, ...targets].sort((a, b) => b.L - a.L).map((x) => { const n = netAt(x.L); return { id: x.L.toFixed(2), word: x.word, line: `${leverTag(x.L)}${bufNow != null || x.word !== 'As it is' ? ` · ${pct(x.buffer * 100, 1)} from liquidation` : ''}${x.up ? ' · borrows more' : ''}`, side: n != null ? `earns ${pct(n)}` : undefined, tone: n == null ? '' : n >= 3 ? 'ok' : n < 0 ? 'bad' : '' } })}
+              on={(same ? +Lnow.toFixed(2) : L).toFixed(2)} onPick={(id) => setL(Number(id))} />
+            : <section className="lite-more-s"><h3>How hard to push it</h3><p className="plain">{liqLtv == null ? 'This venue reports no health for it here, so Lite offers no leverage for it: Pro does.' : 'Lite offers no other leverage for this loop.'}</p></section>}
+          <LiteNumbers rows={[
+            ['Yours', usd(E)],
+            ['Holds', `${usd(C)} of ${holdsWord}`],
+            ['Owes', `${usd(D)} of ${debt}`],
+            ...(s ? [[`${holdsWord} pays`, `${pct(s.depSpot)} a year`] as [string, string], [`Borrowing ${debt} costs`, `${pct(s.borSpot)} a year`] as [string, string]] : []),
+            where,
+          ]} />
+        </LiteMoreSheet>
       </>
     )
   }
@@ -880,13 +935,29 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
         <LegsNote h={h} holds={holds} debt={debt} />
         <div className="plain">{closeBlock === 'pricing' ? <span className="t50">Pricing the sale…</span>
           : closeBlock === 'no-route' ? <span className="t50">No way to sell it right now. Try again shortly, or close it in Details.</span>
-          : closeBlock ? <>The sale would not cover what you owe right now. Open Details to see why and what to do.</>
+          : closeBlock === 'keep-short' ? <>Keeping {holdsWord} leaves too little to repay the {debt} right now. Get it all back in {debt} instead, in More choices.</>
+          : closeBlock ? <>The sale would not cover what you owe right now. Open it in Pro to see why and what to do.</>
+          : keep ? <>Only what repays the {debt} you owe is sold. The rest comes back to your wallet as {holdsWord}.</>
           : <>Everything is sold, the {debt} you owe is repaid, and the rest comes back to your wallet.</>}</div>
         {tight && !closeBlock && <div className="plain warn" style={{ marginTop: 6 }}>Tight: the close may revert at the worst fill (only gas is lost).</div>}
         {valued && <LossAck v={vc} what="Closing now" advice={`It can be worth waiting for ${holds} to trade closer to its price on the venue.`} />}
       </div>
       <LiteLines l={closeLines({ backUsd: cq.isPending ? null : backUsd ?? null, back: cq.isPending ? 'pricing the sale…' : closeBlock ? '' : backDebt != null && !keep ? `≈ ${num(backDebt, 4)} ${debt}` : keep && backColl != null ? `≈ ${num(backColl, 4)} ${holds}` : '', costUsd: sale?.exitCostUsd ?? null, short: closeBlock === 'short' })} />
       <Action ladder={ladder} label="Close and withdraw" account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} fee="reduce" />
+      <LiteMoreSheet>
+        {sameToken ? null : venueKeeps
+          ? <section className="lite-more-s"><h3>What you get it back in</h3><p className="plain">{h.venue.split(' · ')[0]} always hands back what the loop holds: only what repays the {debt} is sold.</p></section>
+          : <LiteChoices<'debt' | 'collateral'> label="What you get it back in" on={recv} onPick={setRecv} items={[
+            { id: 'debt', word: `All in ${debt}`, line: 'everything is sold, the loan repaid, the rest back to you' },
+            { id: 'collateral', word: `Keep ${holdsWord}`, line: `only what repays the ${debt} is sold` },
+          ]} />}
+        <LiteNumbers rows={[
+          ['Yours', usd(h.valueUsd)],
+          ['Owes', `${num(owed, debtDp)} ${debt}`],
+          ['Costs', sale?.exitCostUsd != null ? `${usd(sale.exitCostUsd)} · the sale’s slippage and fees` : '—'],
+          where,
+        ]} />
+      </LiteMoreSheet>
     </>
   )
   const snaps: { l: number; t: string }[] = [...(putUp ? [] : minL <= 1 ? [{ l: 1, t: 'Close' }] : [{ l: minL, t: 'Repay loan' }]), ...(s ? TIERS.map((t) => ({ l: Math.min(maxL, s.tiers[t.id]), t: t.name })).filter((x) => x.l >= minL) : []), { l: +Lnow.toFixed(2), t: 'Now' }]

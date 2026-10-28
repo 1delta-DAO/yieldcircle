@@ -60,6 +60,16 @@ export function LiteProfile({ addr }: { addr: string }) {
   const msgs = (said.data?.messages ?? []).filter((m) => !m.deleted).slice(0, 4)
   if (own) return null
   const nFollowers = followers.data?.followers.length
+  // a wallet the index has drawn nothing for (docs/lite-design-review.md §3.7): one plain line, not
+  // two empty boxes (the feed's slow read is not waited for: its moves, when they come, lead the page)
+  const runsNothing = !book.isLoading && !(book.data?.positions ?? []).length
+  const nothingYet = runsNothing && !row && !byRate.isLoading && !byDay.isLoading && !moves.length && !msgs.length
+  const lately = moves.length > 0 && (
+    <section className="sec lite-sec">
+      <div className="sec-h"><h2>Lately</h2></div>
+      <div className="card"><Moves txs={moves} hideWho /></div>
+    </section>
+  )
   return (
     <div className="lite-page lite-profile">
       <header className="lite-prof-h">
@@ -83,6 +93,12 @@ export function LiteProfile({ addr }: { addr: string }) {
         <FollowButton kind="wallet" target={addr} />
       </header>
 
+      {nothingYet ? (
+        <div className="card lite-prof-empty">
+          <b>Nothing on record for this wallet yet</b>
+          <p className="t50">The index has drawn no position for it. A new one shows here within a few hours of opening; its explorers are under the address above.</p>
+        </div>
+      ) : <>
       <div className="lite-prof-stats">
         {board.isLoading ? <Sk w={220} h={40} /> : row ? (
           <>
@@ -93,10 +109,12 @@ export function LiteProfile({ addr }: { addr: string }) {
         ) : <p className="t50">Not in the board’s top 100 today.</p>}
       </div>
 
+      {runsNothing && lately}
       <section className="sec lite-sec">
         <div className="sec-h"><h2>What it runs</h2></div>
         <div className="card lb-item open"><WalletPositions account={addr} liteByKey={liteByKey} me={false} foot={false} /></div>
       </section>
+      </>}
 
       {msgs.length > 0 && (
         <section className="sec lite-sec">
@@ -107,12 +125,7 @@ export function LiteProfile({ addr }: { addr: string }) {
         </section>
       )}
 
-      {moves.length > 0 && (
-        <section className="sec lite-sec">
-          <div className="sec-h"><h2>Lately</h2></div>
-          <div className="card"><Moves txs={moves} hideWho /></div>
-        </section>
-      )}
+      {!runsNothing && lately}
 
       <p className="lite-more t50"><a href={proHref(walletHref(addr))}>Every number on this wallet, in Pro ›</a></p>
     </div>

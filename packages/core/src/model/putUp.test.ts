@@ -98,3 +98,21 @@ describe('holdingsFrom on a small loop', () => {
     expect(hs[0]).toMatchObject({ kind: 'simple', collateralEnabled: true, accountKey: 'XLEND:8453:0', marketUid: `XLEND:8453:${YOUSD}` })
   })
 })
+
+describe('holdingsFrom on a desk token against a coin', () => {
+  /** BTCB collateral, BNB debt on Venus (BNB Chain): a bitcoin desk's coin levered in no money */
+  const BTCB = '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c', WBNB = '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c'
+  const leg = (sym: string, address: string, depositsUsd: number, debtUsd: number) =>
+    ({ earnUid: `VENUS:56:${address}`, marketUid: `VENUS:56:${address}`, asset: { symbol: sym, address, decimals: 18, logoURI: 'btcb.png' }, side: debtUsd ? 'borrow' : 'supply', deposits: String(depositsUsd), depositsUsd, debt: String(debtUsd), debtUsd, collateralEnabled: true }) as const
+  const legs = [leg('BTCB', BTCB, 11, 0), leg('WBNB', WBNB, 0, 10)]
+  const p = { positionUid: 'VENUS:56', chainId: '56', venue: 'VENUS', venueKind: 'lending', lender: 'VENUS', account: '0xbada', brand: 'Venus', name: 'Venus',
+    suppliedUsd: 11, borrowedUsd: 10, netUsd: 1, apr: 0, depositApr: 0, borrowApr: 0, health: 1.9, leverage: 11, crossMargin: true, legs,
+    subAccounts: [{ accountId: '0', health: 1.9, suppliedUsd: 11, borrowedUsd: 10, netUsd: 1, legs }] } as unknown as EarnLendingPosition
+  it('files it under the collateral’s bitcoin desk, not the debt’s coin', () => {
+    const [h] = holdingsFrom([p])
+    expect(h.group).toBe('BTC')
+    expect(h.asset).not.toBe('BNB')
+    expect(h.kind).toBe('borrow')
+    expect(h.symbol).toBe('BTCB')
+  })
+})

@@ -3,8 +3,8 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 import { router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLiteMenu } from '@yieldcircle/app/lite'
-import { usePeopleFind, useTopEarners } from '@yieldcircle/app/index/queries'
-import { liteFind } from '@yieldcircle/core/model/lite'
+import { usePeopleFind, useRateLeaders } from '@yieldcircle/app/index/queries'
+import { boardWallets, liteFind } from '@yieldcircle/core/model/lite'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { pct, usdShort } from '@yieldcircle/core/model/format'
 import { C } from '../src/theme'
@@ -16,7 +16,7 @@ import { Txt } from '../src/ui/Txt'
 
 /**
  * Search (the web's Lite search, `#/lite/search`; docs/lite-social-search.md §4.1): things to earn
- * in Lite's words (`liteFind`) and people by name (`usePeopleFind`) — the top earners before a word
+ * in Lite's words (`liteFind`) and people by name (`usePeopleFind`) — the best rates before a word
  * is typed. A person opens their wallet page; Follow waits for the social layer here (docs/mobile.md).
  */
 export default function Search() {
@@ -26,7 +26,9 @@ export default function Search() {
   const needle = q.trim()
   const rows = React.useMemo(() => liteFind(needle, L.rows), [needle, L.rows])
   const people = usePeopleFind(needle)
-  const board = useTopEarners()
+  // the best rates, not the biggest wallets (docs/rate-boards.md), in the board's own order
+  const board = useRateLeaders()
+  const leaders = boardWallets(board.data?.rows ?? [], 'apr').slice(0, 8)
   const openWallet = (a: string) => router.push({ pathname: '/w/[account]', params: { account: a } })
   return (
     <View style={{ flex: 1, backgroundColor: C.bg, paddingTop: insets.top }}>
@@ -41,13 +43,13 @@ export default function Search() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 + insets.bottom, gap: 10 }} keyboardShouldPersistTaps="handled">
         {!needle ? (
           <>
-            <Txt s={15} w={600}>Top earners this week</Txt>
+            <Txt s={15} w={600}>Best rates right now</Txt>
             <View style={st.card}>
               {board.isLoading ? <View style={st.person}><Sk w={200} /></View>
-                : (board.data?.rows ?? []).slice(0, 8).map((r) => (
+                : leaders.map((r) => (
                   <Pressable key={r.account} onPress={() => openWallet(r.account)} style={st.person}>
-                    <View style={{ flex: 1 }}><Who account={r.account} size={28} sub={r.perDayUsd != null ? `${usdShort(r.perDayUsd)} a day` : undefined} /></View>
-                    {r.netAprPct != null && <Txt s={14} w={600} c={C.ok}>{pct(r.netAprPct, 1)}</Txt>}
+                    <View style={{ flex: 1 }}><Who account={r.account} idx={{ accountLabel: r.label }} size={28} sub={`${r.positions} position${r.positions === 1 ? '' : 's'}`} /></View>
+                    <Txt s={14} w={600} c={C.ok}>{pct(r.value, 1)}</Txt>
                   </Pressable>
                 ))}
             </View>

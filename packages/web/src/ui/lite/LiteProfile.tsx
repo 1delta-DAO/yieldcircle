@@ -1,10 +1,10 @@
 import React from 'react'
-import { useQuery } from '@tanstack/react-query'
-import * as idx from '@yieldcircle/core/index/api'
+import type * as idx from '@yieldcircle/core/index/api'
+import { boardWallets } from '@yieldcircle/core/model/lite'
 import { liteHref, proHref, useApp, walletHref } from '../../state/AppState'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { labelFor, shortAddr } from '@yieldcircle/core/identity/name'
-import { useFeedPage, useTopEarners } from '@yieldcircle/app/index/queries'
+import { useFeedPage, useRateLeaders, useTopEarners } from '@yieldcircle/app/index/queries'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { useAccountMessages, useFollowers, useMyFollows, useProfile, useProfiles } from '../../social/queries'
 import { Character } from '../../identity/character'
@@ -31,18 +31,16 @@ export function LiteProfile({ addr }: { addr: string }) {
   const f = useMyFollows(account)
   const mutual = (followers.data?.followers ?? []).map((x) => normAddr(x.account)).filter((a) => f.wallets.includes(a))
   const { profile } = useProfiles(mutual.slice(0, 3))
-  // the board has no one-wallet read: the wallet is looked for on both of its top 100s — by rate
-  // (Lite's board as it opens, the same request) and by dollars a day — and ranked on the first it is on
-  const byRate = useQuery({
-    queryKey: ['earners-lite', 'apr', 'all'],
-    queryFn: () => idx.walletEarners({ sort: 'apr', people: true, exposure: undefined, limit: 100 }),
-    staleTime: 5 * 60_000,
-    retry: 1,
-  })
+  // the board has no one-wallet read: the wallet is looked for on its rate board (the top 50, ranked
+  // as Lite's board ranks it) and then on the dollars-a-day top 100, and ranked on the first it is on
+  const byRate = useRateLeaders()
   const byDay = useTopEarners()
-  const find = (rows: idx.WalletEarnerRow[] | undefined) => (rows ?? []).findIndex((r) => normAddr(r.account) === normAddr(addr))
-  const ir = find(byRate.data?.rows), id = find(byDay.data?.rows)
-  const row = ir >= 0 ? byRate.data!.rows[ir] : id >= 0 ? byDay.data!.rows[id] : null
+  const me = normAddr(addr)
+  const rated = boardWallets(byRate.data?.rows ?? [], 'apr')
+  const ir = rated.findIndex((r) => normAddr(r.account) === me)
+  const find = (rows: idx.WalletEarnerRow[] | undefined) => (rows ?? []).find((r) => normAddr(r.account) === me) ?? null
+  const id = (byDay.data?.rows ?? []).findIndex((r) => normAddr(r.account) === me)
+  const row = find(byRate.data?.rows) ?? find(byDay.data?.rows)
   const rank = ir >= 0 ? { n: ir + 1, by: 'by rate' } : id >= 0 ? { n: id + 1, by: 'by dollars a day' } : null
   const board = { isLoading: byRate.isLoading && byDay.isLoading }
   const liteByKey = useLiteByKey()

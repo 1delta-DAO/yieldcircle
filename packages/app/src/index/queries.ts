@@ -468,8 +468,31 @@ const NOT_PEOPLE = new Set(['contract', 'router', 'deployer', 'protocol', 'dex',
 const isPerson = (h: api.FindHit) => !NOT_PEOPLE.has(String(h.flags.accountKind ?? ''))
 
 /**
- * The wallet board by dollars a day, top 100 — the one request the header's rank, Lite's "top
- * earners" and the "Everyone" moves all read (`earners-me`, pre-warmed by the index).
+ * How many wallets a rate board asks for: the size the index pre-warms (`EARNERS_PREWARM_URLS`,
+ * `by=wallet&sort=apr&people=1&limit=50`) — 0.13 s warm, where 100 is a cold 1.2 s.
+ */
+export const RATE_BOARD_LIMIT = 50
+
+/**
+ * The people to follow, by RATE (docs/rate-boards.md, phase 0): the wallet board by what all its
+ * money earns a year at today's rates — people only, $10k and up, every position priced, the
+ * flagged rates out (the index's own floors). Lite's search, Home's "Everyone" and a profile's
+ * rank read it; Lite's board shares the query (`earners-lite`). Dollars a day ranks by size: a
+ * list of the biggest wallets, not of the best rates.
+ */
+export function useRateLeaders(enabled = true) {
+  return useQuery({
+    enabled,
+    queryKey: ['earners-lite', 'apr', 'all'],
+    queryFn: () => api.walletEarners({ sort: 'apr', people: true, limit: RATE_BOARD_LIMIT }),
+    staleTime: 5 * MIN,
+    retry: 1,
+  })
+}
+
+/**
+ * The wallet board by dollars a day, top 100 — the request the header's rank and You read
+ * (`earners-me`, pre-warmed by the index).
  */
 export function useTopEarners(enabled = true) {
   return useQuery({

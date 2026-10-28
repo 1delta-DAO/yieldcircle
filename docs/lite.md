@@ -109,7 +109,7 @@ settings for it; Pro's floors are Pro's.
 | **Loops only when the collateral and debt are the same money** (already how `strategies.ts` builds a loop). Fixed-term debt loops (Term, Loopscale, TermMax) are out. | A term, a due date and a roll are three concepts the three-line ticket cannot hold. |
 | **A loop leaves at least 3 % to liquidation at its Balanced tier.** | An e-mode venue's Balanced tier can sit about 1 % from the line. |
 | **One row per (asset-in-words, kind)**, the best by `steadyRate`. | "USDC on Aave" and "USDC on Morpho" are not two choices for this user; the better one is the row and the other is in Details. |
-| **Chains: the user's wallet chains, else the default set.** No chain picker in Lite. | A chain is a Pro concept. The ticket says "on Base" in the Costs line only when the user has to bridge. |
+| **Chains: the same global scope as Pro**, picked in the profile sheet (top-left), never on a page. | A chain is mostly a Pro concept, so Lite has no chip on its lists; but a user who only wants one chain needs a way to say so. The ticket says "on Base" in the Costs line only when the user has to bridge. |
 
 The result on today's menu is roughly 10–15 rows per category rather than
 40–70, and the top rates survive: a Balanced-tier sUSDe/USDC or PT/USDC loop

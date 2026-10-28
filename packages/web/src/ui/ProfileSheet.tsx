@@ -27,7 +27,7 @@ export function ProfileSheet() {
   const { account, signer, solSigner, viewAs, allChains, chainLabelFor } = useApp()
   const { widened } = useSettings()
   const p = useProfile(account)
-  // Lite reads the menu through its own fixed floors and the chains it is given (docs/lite.md §3)
+  // Lite reads the menu through its own fixed floors (docs/lite.md §3); the chain scope is shared
   const lite = useRoute().shell === 'lite'
   return (
     <div className="ps">
@@ -52,7 +52,7 @@ export function ProfileSheet() {
       )}
 
       <ModeSwitch />
-      {!lite && <Fold label="Chains" state={allChains ? 'All chains' : chainLabelFor()} on={!allChains}><ChainList /></Fold>}
+      <Fold label="Chains" state={allChains ? 'All chains' : chainLabelFor()} on={!allChains}><ChainList /></Fold>
       {!lite && <Fold label="Filters" state={widened ? `${widened} widened` : 'Curated'} on={widened > 0}><SettingsPanel /></Fold>}
       {/* a Solana-only wallet follows the same way: its queue is signed ed25519 */}
       {(signer ?? solSigner) && <PendingChanges />}

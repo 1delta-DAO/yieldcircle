@@ -2,6 +2,7 @@ import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as idx from '@yieldcircle/core/index/api'
 import { useAccountPnlBook } from '@yieldcircle/app/index/pnl'
+import { RATE_BOARD_LIMIT } from '@yieldcircle/app/index/queries'
 import { useMyFollows, useProfiles } from '../../social/queries'
 import { go, liteWalletHref, useApp } from '../../state/AppState'
 import { normAddr } from '@yieldcircle/core/model/address'
@@ -63,7 +64,8 @@ function Wallets({ sort, held, liteByKey }: { sort: BoardSort; held?: idx.Exposu
   const q = useQuery({
     // `earners-me` is the $/day board the header and You already read: one request for both
     queryKey: sort === 'perDay' && !held ? ['earners-me'] : ['earners-lite', sort, held ?? 'all'],
-    queryFn: () => idx.walletEarners({ sort, people: true, exposure: held, limit: 100 }),
+    // a rate board at the size the index pre-warms (the same query as `useRateLeaders`); dollars a day at 100, as the header reads it
+    queryFn: () => idx.walletEarners({ sort, people: true, exposure: held, limit: sort === 'apr' ? RATE_BOARD_LIMIT : 100 }),
     staleTime: 5 * 60_000,
     retry: 1,
   })

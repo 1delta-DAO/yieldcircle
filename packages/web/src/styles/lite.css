@@ -334,6 +334,8 @@ a.lstat{color:var(--tx)}a.lstat:hover{background:var(--b300)}
 .lite-sr .follow{flex:none}
 .lite-sr .lite-who .who{flex:1}
 .lite-sr b.ok{flex:none}
+.lite-sr-v{display:flex;flex-direction:column;align-items:flex-end;flex:none;line-height:1.15}
+.lite-sr-v small{font-size:10.5px}
 /* on a phone the name is what the row is for: the generated-name tag gives it its room (as on Pro's board) */
 @media (max-width:640px){.lite-sr .pill.auto,.lite-move .pill.auto,.lite-whoin-r .pill.auto{display:none}}
 .lite-sr b.ok{font-variant-numeric:tabular-nums;font-size:14px}

@@ -1,6 +1,6 @@
 /**
  * Lite's social layer (docs/lite-social-search.md): people on every surface, as fomo has them —
- * the moves of the people you follow or of the top earners, each with the mover's own reason; who
+ * the moves of the people you follow or of the wallets with the best rates, each with the mover's own reason; who
  * is in a strategy, on its ticket; every face a door to a Lite profile. Nothing here fetches on its
  * own terms: the feed, the holders, the board and the threads are the hooks Pro reads.
  */
@@ -12,7 +12,7 @@ import type { Strategy } from '@yieldcircle/core/model/strategies'
 import type { ThreadRef } from '@yieldcircle/core/model/uid'
 import type { TxBundle } from '@yieldcircle/core/index/types'
 import { subjectOf } from '@yieldcircle/core/index/types'
-import { useFeedPage, useHolders, useTopEarners } from '@yieldcircle/app/index/queries'
+import { useFeedPage, useHolders, useRateLeaders } from '@yieldcircle/app/index/queries'
 import { useCounts, useLatest, useMyFollows, useProfiles, useThreadOf } from '../../social/queries'
 import type { Message } from '../../social/types'
 import { Ago, FollowButton, Who, describeBundle } from '../social-bits'
@@ -28,7 +28,8 @@ const TOP_N = 40
 
 /**
  * The moves on Home (fomo's feed, with its Following toggle). Following is what the people you
- * follow did; Everyone is what the board's top earners did, only moves Lite can Copy and no dust,
+ * follow did; Everyone is what the wallets with the best rates did (the rate board, not the biggest
+ * wallets — docs/rate-boards.md), only moves Lite can Copy and no dust,
  * so a first visit — no wallet, no follows — still opens on people. With `followingOnly` (You)
  * there is no toggle and nothing without follows.
  */
@@ -40,7 +41,7 @@ export function LiteMoves({ rows, account, limit = 8, title, followingOnly }: { 
   const [picked, setPicked] = React.useState<Tab | null>(null)
   const tab: Tab = followingOnly ? 'following' : picked ?? (has ? 'following' : 'everyone')
   const followed = useFeedPage({ follower: account, follow: 'all', chainIds: chains }, 40, has && tab === 'following')
-  const top = useTopEarners(tab === 'everyone')
+  const top = useRateLeaders(tab === 'everyone')
   const me = account ? normAddr(account) : null
   const accounts = (top.data?.rows ?? []).map((r) => normAddr(r.account)).filter((a) => a !== me).slice(0, TOP_N)
   const everyone = useFeedPage({ accounts: accounts.join(','), chainIds: chains }, 80, tab === 'everyone' && accounts.length > 0)
@@ -59,7 +60,7 @@ export function LiteMoves({ rows, account, limit = 8, title, followingOnly }: { 
   return (
     <section className="sec lite-sec">
       <div className="sec-h">
-        <h2>{title ?? (tab === 'following' ? 'People you follow' : 'What top earners do')}</h2>
+        <h2>{title ?? (tab === 'following' ? 'People you follow' : 'Moves by the best rates')}</h2>
         {!followingOnly && (
           <div className="seg lite-moves-tab" role="tablist" aria-label="Whose moves">
             <button role="tab" aria-selected={tab === 'following'} aria-pressed={tab === 'following'} onClick={() => setPicked('following')}>Following</button>
@@ -69,8 +70,8 @@ export function LiteMoves({ rows, account, limit = 8, title, followingOnly }: { 
       </div>
       <div className="card">
         {loading && <div className="empty"><Sk w={200} /></div>}
-        {!loading && tab === 'following' && !has && <div className="empty t50">{account ? 'Follow someone and their moves show here, with a Copy on each. Everyone shows the top earners.' : 'Connect a wallet to follow people. Everyone shows what the top earners do.'}</div>}
-        {!loading && (tab === 'everyone' || has) && !txs.length && <div className="empty t50">{tab === 'following' ? 'Nothing from them yet.' : 'No move to copy from the top earners right now.'}</div>}
+        {!loading && tab === 'following' && !has && <div className="empty t50">{account ? 'Follow someone and their moves show here, with a Copy on each. Everyone shows the wallets with the best rates.' : 'Connect a wallet to follow people. Everyone shows what the wallets with the best rates do.'}</div>}
+        {!loading && (tab === 'everyone' || has) && !txs.length && <div className="empty t50">{tab === 'following' ? 'Nothing from them yet.' : 'No move to copy from the best rates right now.'}</div>}
         <Moves txs={txs} showFollow={tab === 'everyone'} />
       </div>
     </section>

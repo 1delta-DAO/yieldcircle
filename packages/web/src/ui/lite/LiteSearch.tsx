@@ -3,9 +3,9 @@ import { liteHref, liteWalletHref, proHref, useApp } from '../../state/AppState'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { shortAddr } from '@yieldcircle/core/identity/name'
 import { GROUPS } from '@yieldcircle/core/model/assets'
-import { LITE_GROUPS, LITE_NAME, liteFind, type LiteRow } from '@yieldcircle/core/model/lite'
+import { LITE_GROUPS, LITE_NAME, boardWallets, liteFind, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { FindHit } from '@yieldcircle/core/index/api'
-import { usePeopleFind, useTopEarners } from '@yieldcircle/app/index/queries'
+import { usePeopleFind, useRateLeaders } from '@yieldcircle/app/index/queries'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { useMyFollows, useProfiles } from '../../social/queries'
 import { Character } from '../../identity/character'
@@ -44,9 +44,12 @@ export function LiteSearch({ q0 }: { q0?: string }) {
   const rows = React.useMemo(() => liteFind(needle, L.rows), [needle, L.rows])
   const people = usePeopleFind(needle)
   const f = useMyFollows(account)
-  const board = useTopEarners()
+  // the best RATES, not the biggest wallets (docs/rate-boards.md): ordered as Lite's board orders them
+  const board = useRateLeaders()
   const rateOf = React.useMemo(() => new Map((board.data?.rows ?? []).map((r) => [normAddr(r.account), r.netAprPct])), [board.data])
-  const { profile } = useProfiles([...people.hits.map((h) => h.key), ...f.wallets.slice(0, 8), ...(board.data?.rows ?? []).slice(0, 6).map((r) => r.account)])
+  const perDayOf = React.useMemo(() => new Map((board.data?.rows ?? []).map((r) => [normAddr(r.account), r.perDayUsd])), [board.data])
+  const leaders = React.useMemo(() => boardWallets(board.data?.rows ?? [], 'apr').filter((r) => normAddr(r.account) !== normAddr(account ?? '')).slice(0, 5), [board.data, account])
+  const { profile } = useProfiles([...people.hits.map((h) => h.key), ...f.wallets.slice(0, 8), ...leaders.map((r) => r.account)])
 
   const remember = (r: Recent) => { const next = [r, ...recent.filter((x) => x.id !== r.id)].slice(0, 8); setRecent(next); writeRecent(next) }
   const pickRow = (r: LiteRow) => remember({ id: `r:${r.s.id}`, title: r.title, href: liteHref(`${r.s.group}?s=${encodeURIComponent(r.s.id)}&k=${r.s.kind}`) })
@@ -79,16 +82,19 @@ export function LiteSearch({ q0 }: { q0?: string }) {
             </section>
           )}
           <section className="lite-ss">
-            <div className="sec-h"><h2>Top earners this week</h2><a className="t50" href={liteHref('board?by=wallet&t=perDay')}>Board ›</a></div>
+            <div className="sec-h"><h2>Best rates right now</h2><a className="t50" href={liteHref('board?by=wallet')}>Board ›</a></div>
             <div className="card">
               {board.isLoading ? <div className="lite-sr"><Sk w={200} h={14} /></div>
-                : (board.data?.rows ?? []).filter((r) => normAddr(r.account) !== normAddr(account ?? '')).slice(0, 5).map((r) => (
+                : leaders.map((r) => {
+                  const day = perDayOf.get(normAddr(r.account))
+                  return (
                   <div key={r.account} className="lite-sr">
-                    <a className="lite-who" href={liteWalletHref(r.account)}><Who account={r.account} profile={profile(r.account)} size={28} plain sub={r.perDayUsd != null ? `${usdShort(r.perDayUsd)} a day` : undefined} /></a>
-                    {r.netAprPct != null && <b className="ok">{pct(r.netAprPct, 1)}</b>}
+                    <a className="lite-who" href={liteWalletHref(r.account)}><Who account={r.account} profile={profile(r.account)} size={28} plain sub={`${r.positions} position${r.positions === 1 ? '' : 's'}${day != null ? ` · ${usdShort(day)} a day` : ''}`} /></a>
+                    <span className="lite-sr-v"><b className="ok">{pct(r.value, 1)}</b><small className="t50">a year</small></span>
                     <FollowButton kind="wallet" target={r.account} small quiet />
                   </div>
-                ))}
+                  )
+                })}
             </div>
           </section>
           <section className="lite-ss">

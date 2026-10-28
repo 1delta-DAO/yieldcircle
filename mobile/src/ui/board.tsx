@@ -5,6 +5,7 @@ import { router } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import * as idx from '@yieldcircle/core/index/api'
 import { useAccountPnlBook } from '@yieldcircle/app/index/pnl'
+import { RATE_BOARD_LIMIT } from '@yieldcircle/app/index/queries'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { useSession } from '@yieldcircle/app/session'
 import { normAddr } from '@yieldcircle/core/model/address'
@@ -173,8 +174,9 @@ function Wallets({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<string, 
   const { account } = useSession()
   const q = useQuery({
     // `earners-me` is the $/day board the header and You already read on the web: one request for both
-    queryKey: sort === 'perDay' ? ['earners-me'] : ['earners-lite', sort],
-    queryFn: () => idx.walletEarners({ sort, people: true, limit: 100 }),
+    queryKey: sort === 'perDay' ? ['earners-me'] : ['earners-lite', sort, 'all'],
+    // a rate board at the size the index pre-warms (`RATE_BOARD_LIMIT`); dollars a day at 100, as You reads it
+    queryFn: () => idx.walletEarners({ sort, people: true, limit: sort === 'apr' ? RATE_BOARD_LIMIT : 100 }),
     staleTime: 5 * 60_000,
     retry: 1,
   })

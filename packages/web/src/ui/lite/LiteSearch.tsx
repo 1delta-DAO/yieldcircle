@@ -6,18 +6,13 @@ import { GROUPS } from '@yieldcircle/core/model/assets'
 import { LITE_GROUPS, LITE_NAME, boardWallets, liteFind, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { FindHit } from '@yieldcircle/core/index/api'
 import { usePeopleFind, useRateLeaders } from '@yieldcircle/app/index/queries'
-import { useLiteMenu } from '@yieldcircle/app/lite'
+import { useLiteMenu, useRecentPicks } from '@yieldcircle/app/lite'
 import { useMyFollows, useProfiles } from '../../social/queries'
 import { Character } from '../../identity/character'
 import { Face, FollowButton, Who } from '../social-bits'
 import { GroupIcon, Sk, pct, usdShort } from '../bits'
 import { LiteRowView } from './LiteBits'
 
-/** a pick, kept to be offered again on the empty page */
-interface Recent { id: string; title: string; href: string; /** a wallet's address, for its face */ addr?: string }
-const RECENT_KEY = 'yc.lite.search.recent'
-const readRecent = (): Recent[] => { try { const v = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]'); return Array.isArray(v) ? v : [] } catch { return [] } }
-const writeRecent = (v: Recent[]) => { try { localStorage.setItem(RECENT_KEY, JSON.stringify(v)) } catch { /* private window */ } }
 
 /** what a wallet's name rests on, in words: a name is not an identity (`hsaka.eth` is not Hsaka) */
 const CLAIM: Record<string, string> = { seed: 'known', signed: 'signed', x: 'X', farcaster: 'Farcaster', primary: 'ENS', ens: 'ENS', basename: 'Basename', 'ens-text': 'X via ENS', sns: 'SNS', 'sns-owner': 'SNS', skr: 'Seeker', kolscan: 'kolscan', gmgn: 'GMGN', tag: 'explorer tag' }
@@ -31,7 +26,7 @@ const CLAIM: Record<string, string> = { seed: 'known', signed: 'signed', x: 'X',
 export function LiteSearch({ q0 }: { q0?: string }) {
   const { account } = useApp()
   const [q, setQ] = React.useState(q0 ?? '')
-  const [recent, setRecent] = React.useState(readRecent)
+  const { recent, remember, clear } = useRecentPicks()
   const input = React.useRef<HTMLInputElement>(null)
   React.useEffect(() => { input.current?.focus() }, [])
   // the query in the address, so Back from a result lands on the same results
@@ -51,7 +46,6 @@ export function LiteSearch({ q0 }: { q0?: string }) {
   const leaders = React.useMemo(() => boardWallets(board.data?.rows ?? [], 'apr').filter((r) => normAddr(r.account) !== normAddr(account ?? '')).slice(0, 5), [board.data, account])
   const { profile } = useProfiles([...people.hits.map((h) => h.key), ...f.wallets.slice(0, 8), ...leaders.map((r) => r.account)])
 
-  const remember = (r: Recent) => { const next = [r, ...recent.filter((x) => x.id !== r.id)].slice(0, 8); setRecent(next); writeRecent(next) }
   const pickRow = (r: LiteRow) => remember({ id: `r:${r.s.id}`, title: r.title, href: liteHref(`${r.s.group}?s=${encodeURIComponent(r.s.id)}&k=${r.s.kind}`) })
   const openWallet = (h: FindHit) => remember({ id: `w:${h.key}`, title: h.title, href: liteWalletHref(h.key), addr: h.key })
 
@@ -67,7 +61,7 @@ export function LiteSearch({ q0 }: { q0?: string }) {
         <>
           {recent.length > 0 && (
             <section className="lite-ss">
-              <div className="sec-h"><h2>Recent</h2><button type="button" className="btn sm ghost" onClick={() => { setRecent([]); writeRecent([]) }}>Clear</button></div>
+              <div className="sec-h"><h2>Recent</h2><button type="button" className="btn sm ghost" onClick={clear}>Clear</button></div>
               <div className="lite-chips">{recent.map((r) => (
                 <a key={r.id} className="dchip" href={r.href}>{r.addr && <Face account={r.addr} size={16} />}{r.title}</a>
               ))}</div>
@@ -77,7 +71,7 @@ export function LiteSearch({ q0 }: { q0?: string }) {
             <section className="lite-ss">
               <div className="sec-h"><h2>People you follow</h2></div>
               <div className="lite-faces">{f.wallets.slice(0, 8).map((a) => (
-                <a key={a} href={liteWalletHref(a)} title={shortAddr(a)}><Face account={a} profile={profile(a)} size={40} /></a>
+                <a key={a} href={liteWalletHref(a)} aria-label={shortAddr(a)}><Face account={a} profile={profile(a)} size={44} /></a>
               ))}</div>
             </section>
           )}
@@ -109,7 +103,7 @@ export function LiteSearch({ q0 }: { q0?: string }) {
           <section className="lite-ss">
             <div className="sec-h"><h2>Earn</h2></div>
             {rows.length ? <div className="lrows">{rows.map((r) => (
-              <div key={r.s.id} onClickCapture={() => pickRow(r)}><LiteRowView r={r} get={L.get} proof={L.proof(r.s)} /></div>
+              <div key={r.s.id} onClickCapture={() => pickRow(r)}><LiteRowView r={r} get={L.get} proof={L.proof(r.s)} full /></div>
             ))}</div> : <p className="t50 lite-none">{L.rows.length ? `Nothing to earn on called “${needle}”.` : 'Reading the rates…'}</p>}
           </section>
           <section className="lite-ss">
@@ -124,7 +118,7 @@ export function LiteSearch({ q0 }: { q0?: string }) {
                       <Character addr={h.key} avatarUrl={profile(h.key)?.avatarUrl} size={28} />
                       <span className="wn"><b>{h.title}{claim && <span className="sr-claim">{claim}</span>}</b><small className="t50">{shortAddr(h.key)}{h.weightUsd > 0 ? ` · ${usdShort(h.weightUsd)} held` : ''}</small></span>
                     </a>
-                    {rate != null && <b className="ok" title="a year on all its money">{pct(rate, 1)}</b>}
+                    {rate != null && <span className="lite-sr-v"><b className="ok">{pct(rate, rate >= 10 ? 0 : 1)}</b><small className="t70">a year</small></span>}
                     <FollowButton kind="wallet" target={h.key} small quiet />
                   </div>
                 )

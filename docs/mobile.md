@@ -193,6 +193,32 @@ Base and to Ethereum, read the card, fill in:
 - **Site builds install only their own packages** (`--filter`, docs/deploy.md):
   the phone toolchain is ~300 MB the Pages builds never need.
 
+## Lite's links on the phone (deep-link map)
+
+Every Lite address the web hands out — a Share is a Copy link — and the phone route it should open.
+Universal / app links (below) deliver them; this table is what the handler maps.
+
+| Web (`https://app.yieldcircle.io/…`) | Phone route | Params |
+|---|---|---|
+| `#/lite/` | `/lite` | — |
+| `#/lite/earn` | `/lite/earn` | — |
+| `#/lite/<USD\|ETH\|BTC\|MORE>?s=&k=&copy=&lev=` | `/strategy/[id]` | `id = s`; `copy`, `lev` as given |
+| `#/lite/board?by=strategy&t=perDay&x=usd` | `/lite/board` | `by` (default wallets), `t`, `x` |
+| `#/lite/you?h=&m=` | `/you` | `h` opens that position's ticket |
+| `#/lite/search?q=` | `/search` | `q` |
+| `#/lite/w/<addr>` | `/w/[account]` | — |
+| anything `#/pro/…` | the Pro tab of the same page, else `/pro` | — |
+
+Share text and its link are core's (`shareOf`, `canShare` in `model/lite.ts`); both apps call them.
+
+## Decisions on the look
+
+- **Dark only**, on both apps (2026-10-28). The tokens have no light set and none is planned: it is
+  not a gap to file.
+- **The type scale and touch sizes are tokens** (`packages/design/tokens.css`: `--fs-cap` 11 …
+  `--fs-d3` 44, `--ctl` 36, `--tap` 44). Whole pixels, nothing under 11; a control is 36 to look
+  at and 44 to hit (`hitSlop` on the phone).
+
 ## Known gaps, roughly in order
 
 - **Solana:** not wired. AppKit's Solana adapter + its Phantom / Solflare

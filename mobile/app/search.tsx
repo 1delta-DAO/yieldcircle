@@ -57,7 +57,7 @@ export default function Search() {
         ) : (
           <>
             <Txt s={15} w={600}>Earn</Txt>
-            {rows.length ? <View style={rowStyles.rows}>{rows.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} />)}</View>
+            {rows.length ? <View style={rowStyles.rows}>{rows.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} full />)}</View>
               : <Txt s={13} c={C.tx50}>{L.rows.length ? `Nothing to earn on called “${needle}”.` : 'Reading the rates…'}</Txt>}
             <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 12 }}>
               <Txt s={15} w={600} style={{ flex: 1 }}>People</Txt>

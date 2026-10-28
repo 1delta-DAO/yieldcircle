@@ -1,6 +1,7 @@
 import React from 'react'
 import { unitOf } from '@yieldcircle/core/model/assets'
-import { fromUnits, payRaw, unitsOf } from '@yieldcircle/core/model/amount'
+import { fromUnits, payRaw, portion, unitsOf } from '@yieldcircle/core/model/amount'
+import { shownDp } from '@yieldcircle/core/model/lite'
 import { exitTerms, type SimpleStrategy } from '@yieldcircle/core/model/strategies'
 import type { Holding, Idle } from '@yieldcircle/core/model/positions'
 import { earnDeposit } from '@yieldcircle/core/sdk/api'
@@ -20,7 +21,7 @@ import { usePaperView } from './paper'
  * signs it. `into`: the held position an Add tops up — its sub-account is named, or the deposit
  * lands in the venue's default (Euler 0) or a new Fluid / Jupiter Lend position.
  */
-export function useSimpleTicket(s: SimpleStrategy, chainIdle: Idle[], allIdle: Idle[], into?: Holding | null) {
+export function useSimpleTicket(s: SimpleStrategy, chainIdle: Idle[], allIdle: Idle[], into?: Holding | null, { lite }: { lite?: boolean } = {}) {
   const session = useSession()
   const account = session.account, isConnected = !!session.isConnected
   const actorOn = session.actorOn ?? (() => undefined)
@@ -38,7 +39,17 @@ export function useSimpleTicket(s: SimpleStrategy, chainIdle: Idle[], allIdle: I
   const unit = unitOf(s.asset) === '$' ? '$' : chosen.symbol
   // the row rarely carries a price: any pay option's balance has it (the coin and its wrapper trade 1:1), else a same-asset balance as the estimate
   const price = s.priceUsd ?? opts.map((o) => balOf(o.address)?.price).find(Boolean) ?? allIdle.find((i) => i.asset === s.asset)?.price ?? (unit === '$' ? 1 : 0)
-  const [amt, setAmt] = useStickyAmount(`t:${s.id}:amount`, () => fromUnits(unit === '$' ? 1000 : Math.min(idle?.amount ?? 1, 1)))
+  // Lite with a wallet starts from what the wallet holds (all of it up to $1,000), as the loop does
+  const liteSeed = !!lite && !!account
+  const [amt, setAmt] = useStickyAmount(`t:${s.id}:amount`, () => liteSeed ? { text: '0' } : fromUnits(unit === '$' ? 1000 : Math.min(idle?.amount ?? 1, 1)))
+  const seeded = React.useRef(false)
+  React.useEffect(() => {
+    if (!liteSeed || seeded.current || !idle || unitsOf(amt) > 0) return
+    seeded.current = true
+    if (!(idle.amount > 0)) return
+    const dollar = unit === '$'
+    setAmt(price > 0 && idle.amount * price > 1000 ? fromUnits(Number((1000 / price).toFixed(shownDp(dollar)))) : portion(idle, 100, chosen.decimals, shownDp(dollar)))
+  }, [liteSeed, idle?.amount, chosen.address, price]) // eslint-disable-line react-hooks/exhaustive-deps
   const amount = unitsOf(amt)
   // what is sent: Max resolved on the exact balance, a typed amount parsed from its text and capped at it
   const sendRaw = payRaw(amt, chosen.decimals, idle)

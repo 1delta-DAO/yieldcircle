@@ -15,6 +15,7 @@ import { LiteCard, LiteCardSk } from '../../src/ui/cards'
 import { openStrategy } from '../../src/ui/lite'
 import { PaperOffer } from '../../src/ui/paper'
 import { Txt } from '../../src/ui/Txt'
+import { IconFlame } from '../../src/ui/icons'
 
 /**
  * Lite's home (the web's LiteHome, docs/lite.md §1): your balance and what it earns a day, then
@@ -46,8 +47,8 @@ export default function LiteHome() {
           <>
             {b.positionsLoading && !b.books.length ? <Sk w={160} h={40} /> : <Txt s={40} w={700} lh={46} style={{ letterSpacing: -0.8, fontVariant: ['tabular-nums'] }}>{usd(t.tot)}</Txt>}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {t.yearly > 0 ? <Txt s={15} c={C.tx70}><Txt s={15} w={600} c={C.ok}>+{usd(t.yearly / 365)}</Txt> a day</Txt> : <Txt s={15} c={C.tx50}>nothing earning yet</Txt>}
-              {day.streak > 0 && <Txt s={15}>🔥 {day.streak}</Txt>}
+              {b.positionsLoading && !b.books.length ? <Sk w={120} h={16} /> : t.yearly > 0 ? <Txt s={15} c={C.tx70}><Txt s={15} w={600} c={C.ok}>+{usd(t.yearly / 365)}</Txt> a day</Txt> : <Txt s={15} c={C.tx70}>nothing earning yet</Txt>}
+              {day.streak > 0 && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><IconFlame color={C.warn} /><Txt s={14} w={600} c={C.warn}>{day.streak} days</Txt></View>}
             </View>
           </>
         ) : (

@@ -63,7 +63,7 @@ export default function LiteEarn() {
       <View style={rowStyles.rows}>
         {b.isLoading && !rows.length ? [0, 1, 2, 3, 4].map((i) => <LiteRowSk key={i} />)
           : !rows.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing {name ? `in ${name.name.toLowerCase()} ` : ''}clears Lite’s bar on these chains right now.</Txt>
-          : shown.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} />)}
+          : shown.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} full={!group} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} />)}
         {rows.length > shown.length && (
           <Pressable onPress={() => setAll(true)} style={st.showAll}><Txt s={13} c={C.tx70}>Show all {rows.length} ways to earn on {name!.name.toLowerCase()}</Txt></Pressable>
         )}

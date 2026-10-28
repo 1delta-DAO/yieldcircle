@@ -101,7 +101,7 @@ export function Moves({ txs, showFollow, hideWho }: { txs: { t: TxBundle; r: Lit
             {follow && <FollowButton kind="wallet" target={who} small quiet label="+" />}
             {r && normAddr(who) !== normAddr(account ?? '') ? <button type="button" className="btn sm pri" onClick={() => openRow(r.s, { copy: who })}>Copy</button> : <span className="lite-nocopy" />}
           </div>
-          {why && <div className="lite-why"><q title={why.body}>{why.body}</q></div>}
+          {why && <div className="lite-why"><q>{why.body}</q></div>}
         </div>
       )
     })}</div>
@@ -160,7 +160,7 @@ export function LiteWho({ s, uid, thread, heldBy }: { s: Strategy; uid: string |
             <a className="lite-who" href={liteWalletHref(h.account)}>
               <Who account={h.account} profile={profile(h.account)} idx={h} size={24} plain sub={<>{you ? 'you follow · ' : ''}{h.amountUsd != null ? `${usdShort(h.amountUsd)} in it` : 'in it'}</>} />
             </a>
-            {why && <q className="lite-whoin-q" title={why.body}>{why.body}</q>}
+            {why && <q className="lite-whoin-q">{why.body}</q>}
             <button type="button" className="btn sm" onClick={() => openRow(s, { copy: h.account })}>Copy</button>
           </div>
         )

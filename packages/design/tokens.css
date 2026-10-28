@@ -16,3 +16,8 @@
 /* paper money (yieldcircle tickets/0006): amber everywhere play money is shown, so it never passes for real */
 :root{--paper:#f4b740;--paper-ink:#2a1d00;--paper-bg:rgba(244,183,64,.13);--paper-line:#5a4512}
 @media (min-width:1400px){:root{--gutter:32px}}
+/* the type scale and the touch sizes (docs/lite-design-review.md §4.5–4.6): six steps, nothing under 11px,
+   whole pixels only (React Native has no use for 12.5); a control is 36px to look at and 44px to hit */
+:root{--fs-cap:11px;--fs-sm:12px;--fs-body:14px;--fs-strong:16px;--fs-title:20px;--fs-d1:28px;--fs-d2:36px;--fs-d3:44px;--ctl:36px;--tap:44px}
+/* a ground below the card's, and the shadow a floating menu casts */
+:root{--b100:#0b0b0e;--shadow-pop:0 8px 24px rgba(0,0,0,.45)}

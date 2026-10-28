@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark } from './lite'
+import { followedFirst, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 import type { Holding } from './positions'
@@ -59,7 +59,7 @@ describe('names in words', () => {
   it('a loop on an issued desk’s product is the desk’s, and says what it holds', () => {
     const n = plainName(loop('nest', { asset: 'pUSD', holds: 'nOPAL' }))
     expect(n.title).toBe('Dollars via Nest')
-    expect(n.sub).toBe('Holds nOPAL · levered ×4.5 · borrows dollars')
+    expect(n.sub).toBe('Holds nOPAL · borrows dollars')
     expect(plainName(loop('usdc', { asset: 'USDC', holds: 'USDC' })).title).toBe('USDC')
   })
   it('splits a "via" title into the money and whose it is', () => {
@@ -69,7 +69,7 @@ describe('names in words', () => {
   it('a row never names a venue or a chain', () => {
     const n = plainName(loop('x'))
     expect(n.title).toBe('Dollars via Ethena')
-    expect(n.sub).toBe('Levered ×4.5 · borrows dollars')
+    expect(n.sub).toBe('Borrows dollars')
     expect(JSON.stringify(plainName(dep('y')))).not.toMatch(/Aave|Ethereum/)
   })
 })
@@ -129,8 +129,8 @@ describe('the three lines', () => {
     const l = loopLines({ net: 12, amountUsd: 500, lev: 4.5, drop: 0.07, holds: 'Dollars via Ethena', debt: 'dollars', dollarDebt: true, cost: 0.8, payback: 2, quoting: false })
     expect(l.earn.v).toBe('12.00% a year')
     expect(l.earn.s).toContain('$5.00 a month on $500')
-    expect(l.lose.v).toBe('If Ethena’s dollar drops 7.0%')
-    expect(l.lose.s).toMatch(/^under the dollar/)
+    expect(l.lose.v).toBe('If Ethena’s dollar trades 7.0% under $1')
+    expect(l.lose.s).toMatch(/^Then the loop is liquidated/)
     expect(l.lose.tone).toBe('warn')
     expect(l.cost.v).toBe('$0.80 to enter')
     expect(l.cost.s).toBe('earned back in 2 days')
@@ -143,8 +143,8 @@ describe('the three lines', () => {
   })
   it('an ether loop is liquidated against ether, not a dollar', () => {
     const l = loopLines({ net: 4, amountUsd: 0, lev: 6, drop: 0.12, holds: 'Ether via Lido', debt: 'ether', dollarDebt: false, cost: null, payback: null, quoting: true })
-    expect(l.lose.s).toMatch(/^against plain ether/)
-    expect(l.lose.v).toBe('If Lido’s ether drops 12.0%')
+    expect(l.lose.s).toMatch(/^Then the loop is liquidated/)
+    expect(l.lose.v).toBe('If Lido’s ether trades 12.0% under plain ether')
     expect(l.cost.v).toBe('Pricing the entry…')
   })
   it('a deposit says its way out, and a tight market says so', () => {
@@ -221,6 +221,7 @@ describe('the leaderboard', () => {
     }
     const ps = boardPositions(book, (k) => (k === 'loop:x|y' ? 'Ether via Lido' : null))
     expect(ps.map((p) => [p.title, p.sub, p.pnlUsd])).toEqual([['Ether via Lido', 'Levered · borrows WETH', 900], ['Steakhouse USDC', 'Deposit', 120]])
+    expect(ps.map((p) => [p.kind, p.held, p.debt, p.share])).toEqual([['loop', ['wstETH'], ['WETH'], 9000 / 14000], ['deposit', ['USDC'], [], 5000 / 14000]])
   })
 })
 
@@ -281,5 +282,23 @@ describe('liteModes', () => {
   })
   it('leaves a deposit as it was', () => {
     expect(ids(held({ kind: 'simple' }))).toEqual(['reduce'])
+  })
+})
+
+describe('Lite polish (docs/lite-design-review.md)', () => {
+  it('says the risk in a word', () => {
+    expect(riskWord(1)).toBe('Low risk')
+    expect(riskWord(2)).toBe('Medium risk')
+  })
+  it('offers only the tiers that clear the buffer floor', () => {
+    const t = liteTiers({ defensive: 3, balanced: 5, aggressive: 12 }, 0.9, (l) => l)
+    expect(t.map((x) => x.word)).toEqual(['Careful', 'Balanced'])
+    expect(t.every((x) => x.buffer >= LITE_MIN_BUFFER)).toBe(true)
+  })
+  it('words a withdrawal and a close', () => {
+    const w = withdrawLines({ backUsd: 921.29, back: '921.29 USDC', exitWord: 'Instant', exitWhen: 'any time', leftUsd: 0, rate: 4 })
+    expect(w.map((l) => l.k)).toEqual(['You get', 'When', 'Left in'])
+    expect(w[2].v).toBe('Nothing')
+    expect(closeLines({ backUsd: null, back: '', costUsd: 2, short: false })[0].v).toBe('—')
   })
 })

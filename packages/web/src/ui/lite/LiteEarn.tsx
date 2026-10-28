@@ -28,8 +28,9 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   const { b } = L
   const groups = GROUPS.filter((g) => LITE_GROUPS.includes(g.id))
   const inGroup = group ? L.rows.filter((r) => r.s.group === group.id) : []
-  // the best rows anywhere, low-to-medium risk: the high yields, without the riskiest of them
-  const top = React.useMemo(() => [...L.rows].filter((r) => r.s.risk <= 2).sort((x, y) => L.rank(y.s) - L.rank(x.s)).slice(0, TOP_ROWS), [L.rows, L.rank])
+  // the best rows anywhere, by the one rule every Lite list keeps: the safer risk first, then the
+  // steady rate — so a page of ×6 loops never leads the money's own savings (docs/lite-design-review.md §3.2)
+  const top = React.useMemo(() => [...L.rows].filter((r) => r.s.risk <= 2).sort((x, y) => x.s.risk - y.s.risk || L.rank(y.s) - L.rank(x.s)).slice(0, TOP_ROWS), [L.rows, L.rank])
   // the ticket: a row of this category, or a running position's row wherever the catalogue holds it
   const sel = group && route.s ? b.all.find((s) => s.id === route.s) ?? b.hidden.find((s) => s.id === route.s) ?? b.overflow.find((s) => s.id === route.s) ?? null : null
   const settled = !b.isLoading && !b.isFetching
@@ -56,14 +57,17 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
           <div className={`ltiles${group ? ' picked' : ''}`} role="tablist" aria-label="Which money">
             {groups.map((g) => {
               const gr = L.rows.filter((r) => r.s.group === g.id)
-              const best = gr.reduce((m, r) => Math.max(m, r.s.rate), 0)
+              // two numbers, never the levered one alone: a tile that says "up to 59%" over 4% savings misleads
+              const best = gr.filter((r) => r.s.kind !== 'loop').reduce((m, r) => Math.max(m, r.s.rate), 0)
+              const bestLoop = gr.filter((r) => r.s.kind === 'loop').reduce((m, r) => Math.max(m, r.s.rate), 0)
               const mine = b.books.filter((x) => x.group === g.id).reduce((a, x) => a + x.totalUsd, 0)
               const on = group?.id === g.id
               return (
-                <a key={g.id} role="tab" aria-selected={on} className={`ltile${on ? ' on' : ''}`} href={on ? liteHref('earn') : liteHref(g.id)} style={{ '--gc': g.color } as React.CSSProperties} title={on ? 'Back to every category' : LITE_NAME[g.id].line}>
+                <a key={g.id} role="tab" aria-selected={on} className={`ltile${on ? ' on' : ''}`} href={on ? liteHref('earn') : liteHref(g.id)} style={{ '--gc': g.color } as React.CSSProperties} aria-label={on ? `${LITE_NAME[g.id].name}: back to every category` : undefined}>
                   <GroupIcon id={g.id} color={g.color} size={on ? 40 : 36} />
                   <b>{LITE_NAME[g.id].name}</b>
-                  <span className="ltile-r">{b.isLoading && !gr.length ? <Sk w={70} h={20} /> : best > 0 ? <>up to <b className="ok">{pct(best)}</b></> : <span className="t40">—</span>}</span>
+                  <span className="ltile-r">{b.isLoading && !gr.length ? <Sk w={70} h={20} /> : best > 0 ? <>up to <b className="ok">{pct(best)}</b></> : bestLoop > 0 ? <>up to <b className="r2">{pct(bestLoop)}</b></> : <span className="t50">—</span>}</span>
+                  {best > 0 && bestLoop > best && <small className="t70">or {pct(bestLoop, 0)} levered</small>}
                   <small className="t50">{mine >= 1 ? `you have ${usdShort(mine)}` : `${gr.length} way${gr.length === 1 ? '' : 's'} to earn`}</small>
                 </a>
               )
@@ -72,9 +76,9 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
 
           <section className="sec lite-sec lite-earn-list" aria-live="polite">
             <div className="sec-h">
-              <h2>{name ? name.name : 'Highest steady rates'}</h2>
+              <h2>{name ? name.name : 'Best rates, safest first'}</h2>
               <span className="sub">{name ? name.line : 'across every category, the riskiest left out'}</span>
-              {group && <a className="linklike t50 lite-earn-all" href={liteHref('earn')}>every category ›</a>}
+              {group && <a className="lite-earn-all" href={liteHref('earn')}>All categories</a>}
             </div>
             {group && (work >= 1 || idle >= 1) && (
               <div className="note lite-yours">
@@ -86,10 +90,10 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
               {b.isLoading && !rows.length
                 ? [0, 1, 2, 3, 4].map((i) => <div key={i} className="lrow sk"><Sk w={28} h={28} /><span className="lrow-n"><Sk w={120} h={14} /><Sk w={180} h={10} /></span><Sk w={60} h={18} /></div>)
                 : !rows.length ? <div className="empty">Nothing {name ? `in ${name.name.toLowerCase()} ` : ''}clears Lite’s bar on these chains right now.{group && <> <a className="pri" href={proHref(`#/${group.id}`)}>See everything in Pro ›</a></>}</div>
-                : shown.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} on={sel?.id === r.s.id} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} followed={isFollowed(r.s)} />)}
+                : shown.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} on={sel?.id === r.s.id} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} followed={isFollowed(r.s)} full={!group} />)}
               {rows.length > shown.length && <button type="button" className="lrow lite-showall" onClick={() => setAllRows(true)}>Show all {rows.length} ways to earn on {name!.name.toLowerCase()}</button>}
             </div>
-            {rows.length > 0 && <p className="t50 lite-foot">Rates are a year, before compounding. Each row is the best of its kind on the chains you use; <a href={proHref(group ? `#/${group.id}` : '#/earn')}>Pro</a> lists every venue.</p>}
+            {rows.length > 0 && <p className="t70 lite-foot"><span className="lite-key"><i className="r1" />low risk <i className="r2" />medium · <b className="lever-k">×</b> borrows to earn more</span> Rates are a year, before compounding, and each row is the best of its kind on the chains you use. <a href={proHref(group ? `#/${group.id}` : '#/earn')}>Pro</a> lists every venue.</p>}
           </section>
         </div>
         <aside ref={aside} className={ticketOpen ? '' : 'closed'} id="aside">

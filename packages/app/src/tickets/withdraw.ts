@@ -8,6 +8,7 @@ import { usdShort } from '@yieldcircle/core/model/format'
 import { NO_NATIVE_WITHDRAW, nativeMaxRounds, startsAny } from '@yieldcircle/core/model/ticket'
 import { slippageFor, useSettings } from '../state/Settings'
 import { useSticky, useStickyAmount } from '../sticky'
+import { shownDp } from '@yieldcircle/core/model/lite'
 import { stepsFrom, useTicketLadder } from '../ladder'
 import { useSession } from '../session'
 import { withdrawPlan } from './paperPlans'
@@ -26,7 +27,7 @@ export function useWithdrawTicket(s: SimpleStrategy | null, h: Holding, mode: 'a
   const actor = actorOn(h.chainId)
   const all = mode === 'close'
   // Lite starts on all of it, and keeps its own amount apart from Pro's half
-  const [amt, setAmt] = useStickyAmount(`t:${h.key}:withdraw${lite ? ':lite' : ''}`, () => portion(heldRaw(h), lite ? 100 : 50, h.decimals))
+  const [amt, setAmt] = useStickyAmount(`t:${h.key}:withdraw${lite ? ':lite' : ''}`, () => portion(heldRaw(h), lite ? 100 : 50, h.decimals, lite ? shownDp(h.group === 'USD') : 8))
   const amount = unitsOf(amt)
   const eff = all ? h.amount : Math.min(amount, h.amount)
   const share = h.amount > 0 ? eff / h.amount : 0

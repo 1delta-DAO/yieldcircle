@@ -81,3 +81,18 @@ export function liteCards(lens: Lens, rows: LiteRow[], L: Pick<LiteMenu, 'book' 
   for (const m of trending) if (m.netUsd > 0) { const k = at(m.marketUid); if (k && !rank.has(k)) rank.set(k, m.netUsd) }
   return rows.map((r) => ({ r, n: rank.get(at(uidOf(r.s))) ?? 0 })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n).map((x) => x.r).slice(0, 6)
 }
+
+/**
+ * Lite search's recent picks (a strategy or a wallet), newest first, kept on this device: the web's
+ * localStorage, the phone's SQLite-backed one (docs/mobile.md). Eight at most.
+ */
+export interface RecentPick { id: string; title: string; href: string; /** a wallet's address, for its face */ addr?: string }
+const RECENT_KEY = 'yc.lite.search.recent'
+const readRecent = (): RecentPick[] => { try { const v = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]'); return Array.isArray(v) ? v : [] } catch { return [] } }
+const writeRecent = (v: RecentPick[]) => { try { localStorage.setItem(RECENT_KEY, JSON.stringify(v)) } catch { /* private window */ } }
+export function useRecentPicks() {
+  const [recent, setRecent] = React.useState(readRecent)
+  const remember = (r: RecentPick) => { const next = [r, ...recent.filter((x) => x.id !== r.id)].slice(0, 8); setRecent(next); writeRecent(next) }
+  const clear = () => { setRecent([]); writeRecent([]) }
+  return { recent, remember, clear }
+}

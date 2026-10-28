@@ -5,6 +5,7 @@ import { assetLogo, colorOf, short, subscribeWideLogos, wideLogosReady } from '@
 import { liveLogo, pct } from '@yieldcircle/core/model/format'
 import { isSpike, seriesFor, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
 import type { Risk, Strategy } from '@yieldcircle/core/model/strategies'
+import { riskWord } from '@yieldcircle/core/model/lite'
 import { C, RISK, alpha, mix } from '../theme'
 import { family } from '../fonts'
 import { Txt } from './Txt'
@@ -67,10 +68,15 @@ export function RiskDot({ r, size = 9 }: { r: Risk; size?: number }) {
   return <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: RISK[r] }} />
 }
 
-/** The rate (`.lite-rate`): 17 / 600, green from 3%, amber when tonight's is a spike against its own month. */
-export function Rate({ s, get, size = 17, w = 600, style }: { s: Strategy; get: HistoryGet; size?: number; w?: 600 | 700; style?: StyleProp<TextStyle> }) {
-  const spike = isSpike(s.rate, seriesFor(s, get, true))
-  return <Txt s={size} w={w} c={spike ? C.warn : s.rate >= 3 ? C.ok : C.tx} style={[{ fontVariant: ['tabular-nums'] }, style]}>{pct(s.rate)}</Txt>
+/** The rate (`.lite-rate`): 17 / 600 in its risk's colour — low green, medium amber, high red — so the row needs no dot. */
+export function Rate({ s, size = 17, w = 600, style }: { s: Strategy; get?: HistoryGet; size?: number; w?: 600 | 700; style?: StyleProp<TextStyle> }) {
+  return <Txt s={size} w={w} c={RISK[s.risk]} style={[{ fontVariant: ['tabular-nums'] }, style]} accessibilityLabel={`${pct(s.rate)} a year, ${riskWord(s.risk).toLowerCase()}`}>{pct(s.rate)}</Txt>
+}
+/** Tonight's rate well above its own month: said in words on the row (the web's `spikeOf`). */
+export const spikeOf = (s: Strategy, get: HistoryGet) => isSpike(s.rate, seriesFor(s, get, true))
+/** The risk in a word (`.lite-risk`): a dot and "Medium risk", in the risk's colour. */
+export function RiskWord({ r }: { r: Risk }) {
+  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: RISK[r] }} /><Txt s={12} w={600} c={RISK[r]}>{riskWord(r)}</Txt></View>
 }
 
 /** A lever tag (`.pill.lever`): ×5.6 in violet on its tint. */

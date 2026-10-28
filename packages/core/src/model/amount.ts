@@ -42,10 +42,13 @@ export function fromUnits(x: number): Amount {
   return { text: x.toFixed(8).replace(/\.?0+$/, '') }
 }
 
-/** `p` % of what is held, as the box shows it and as a reference resolved on the raw when sent */
-export function portion(have: Have | null | undefined, p: number, decimals: number): Amount {
+/**
+ * `p` % of what is held, as the box shows it and as a reference resolved on the raw when sent.
+ * `dp`: the decimals the box shows (cut, never rounded up) — the reference still sends the exact share.
+ */
+export function portion(have: Have | null | undefined, p: number, decimals: number, dp = 8): Amount {
   if (!have) return { text: '0' }
-  const text = have.raw ? formatUnits((BigInt(have.raw) * BigInt(p)) / 100n, decimals, 8) : fromUnits(Math.floor(have.amount * p * 1e6 / 100) / 1e6).text
+  const text = have.raw ? formatUnits((BigInt(have.raw) * BigInt(p)) / 100n, decimals, dp) : fromUnits(Math.floor(have.amount * p * 10 ** Math.min(dp, 6) / 100) / 10 ** Math.min(dp, 6)).text
   return { text, pct: p }
 }
 

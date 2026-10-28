@@ -22,7 +22,7 @@ import { C } from '../src/theme'
 import { Btn, Seg, Sk, Tok } from '../src/ui/bits'
 import { Character } from '../src/ui/Character'
 import { BalanceChip } from '../src/ui/TopBar'
-import { IconBack } from '../src/ui/icons'
+import { IconBack, IconFlame } from '../src/ui/icons'
 import { openStrategy } from '../src/ui/lite'
 import { PaperOffer } from '../src/ui/paper'
 import { Txt } from '../src/ui/Txt'
@@ -62,8 +62,7 @@ export default function You() {
             <View style={st.stats}>
               <Stat k="You have" v={b.positionsLoading && !b.books.length ? <Sk w={80} h={20} /> : usd(t.tot)} s={t.idle >= 1 ? `${usdShort(t.idle)} idle` : 'all of it at work'} />
               <Stat k="Earning" v={<Txt s={22} w={600} c={C.ok}>+{usd(t.yearly / 365)}</Txt>} s={`a day · ${usdShort(t.yearly)} a year`} />
-              <Stat k="Streak" v={`🔥 ${day.streak}`} s={day.streak ? `${streakWord(day.streak)} in a row with money at work` : 'put money to work to start one'} />
-              <Stat k="Points" v={day.points.toLocaleString('en-US')} s="preview · a point a day per $100 at work" />
+              <Stat k="Streak" v={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><IconFlame color={C.warn} size={18} /><Txt s={22} w={600}>{day.streak}</Txt></View>} s={day.streak ? `${streakWord(day.streak)} in a row with money at work` : 'put money to work to start one'} />
               {!b.paper && <Stat k="Rank ›" v={rank.rank != null ? `#${rank.rank}` : '—'} s={rank.rank != null ? `on the board · ${usdShort(rank.perDay)}/day` : 'top 100 by what they earn a day'} onPress={() => router.push('/lite/board')} />}
             </View>
 

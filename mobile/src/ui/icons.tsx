@@ -15,4 +15,6 @@ export const IconBoard = ({ color, size }: P) => <Svg {...base(size, color)}><Pa
 export const IconMe = ({ color, size }: P) => <Svg {...base(size, color, 1.5)}><Circle cx="10" cy="7" r="3.2" /><Path d="M3.8 17c.9-3.2 3.3-4.8 6.2-4.8s5.3 1.6 6.2 4.8" /></Svg>
 export const IconSearch = ({ color, size = 15 }: P) => <Svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round"><Circle cx="7" cy="7" r="4.6" /><Path d="m10.4 10.4 3.4 3.4" /></Svg>
 export const IconBack = ({ color, size = 16 }: P) => <Svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><Path d="M10 3 5 8l5 5" /></Svg>
+/** The streak's flame (the web's `Flame`): drawn, never the emoji, which differs per platform. */
+export const IconFlame = ({ color, size = 14 }: P) => <Svg width={size} height={size} viewBox="0 0 16 16"><Path d="M8.6 1.2c.3 2.1-.6 3.3-1.6 4.4C6 6.7 5 7.8 5 9.7a3 3 0 0 0 6 .1c0-.9-.3-1.6-.8-2.3 1.6.5 2.8 2 2.8 3.9A5 5 0 0 1 3 11.3c0-2.8 1.4-4.4 2.7-5.8C6.9 4.2 8 3 8.6 1.2z" fill={color} /></Svg>
 export const IconChev = ({ color, size = 10 }: P) => <Svg width={size} height={size} viewBox="0 0 12 12" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><Path d="M4.5 2.5 8 6l-3.5 3.5" /></Svg>

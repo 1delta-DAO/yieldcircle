@@ -1,10 +1,9 @@
 import { Pressable, StyleSheet, View } from 'react-native'
-import { router } from 'expo-router'
 import { heldBy, leverTag, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { Proof } from '@yieldcircle/core/model/activity'
 import type { HistoryGet } from '@yieldcircle/core/model/rateHistory'
 import { C } from '../theme'
-import { Btn, Face, LeverPill, Rate, RiskDot, Sk } from './bits'
+import { Btn, Face, LeverPill, Rate, RiskWord, Sk, spikeOf } from './bits'
 import { Who } from './Character'
 import { LiteTitle, openStrategy } from './lite'
 import { Txt } from './Txt'
@@ -16,32 +15,32 @@ import { Txt } from './Txt'
 export function LiteCard({ r, get, proof }: { r: LiteRow; get: HistoryGet; proof: Proof | null }) {
   const s = r.s
   const best = proof?.best
+  const spike = spikeOf(s, get)
   return (
     <Pressable onPress={() => openStrategy(s)} style={({ pressed }) => [st.card, pressed && { backgroundColor: C.b300 }]}>
       <View style={st.h}>
         <Face s={s} size={30} />
-        <RiskDot r={s.risk} />
+        <RiskWord r={s.risk} />
         {s.kind === 'loop' && <LeverPill text={leverTag(s.tiers.balanced)} />}
       </View>
       <View style={{ gap: 2 }}>
-        <LiteTitle r={r} size={15} icon={15} />
-        <Txt s={12} c={C.tx50} numberOfLines={1}>{r.sub}</Txt>
+        <LiteTitle r={r} size={16} icon={15} full />
+        <Txt s={12} c={C.tx70} numberOfLines={2}>{r.sub}</Txt>
       </View>
       <View style={st.rate}>
-        <Rate s={s} get={get} size={28} />
-        <Txt c={C.tx50}>a year</Txt>
+        <Rate s={s} size={28} />
+        <Txt c={C.tx70}>a year{spike ? ' · higher than usual' : ''}</Txt>
       </View>
       {best ? (
         <View style={st.proof}>
-          <Pressable onPress={() => router.push({ pathname: '/w/[account]', params: { account: best.account } })} style={{ flexShrink: 1 }}>
-            <Who account={best.account} size={20} sub={heldBy(proof)} />
-          </Pressable>
+          {/* two things to tap on a card: the card, and Copy (docs/lite-design-review.md §3.1) */}
+          <View style={{ flexShrink: 1 }}><Who account={best.account} size={20} sub={heldBy(proof)} /></View>
           <View style={{ flex: 1 }} />
           <Btn sm title="Copy" onPress={() => openStrategy(s, { copy: best.account })} />
         </View>
       ) : (
         <View style={st.proof}>
-          <Txt s={12} c={C.tx40} style={{ flex: 1 }}>steadiest rate of its kind this month</Txt>
+          <Txt s={12} c={C.tx70} style={{ flex: 1 }}>the steadiest rate of its kind this month</Txt>
           <Btn sm kind="plain" title="Earn this" onPress={() => openStrategy(s)} />
         </View>
       )}

@@ -81,13 +81,15 @@ export function PaperPanel() {
  * The way in from the home page: before any wallet, and for a connected wallet with nothing in
  * it — the dead end the reviewers hit (tickets/0006 "The feedback").
  */
-export function PaperOffer({ empty }: { empty?: boolean }) {
+/** `lite`: two lines in Lite's words — no chain, bridge or route (docs/lite-design-review.md §3.1). */
+export function PaperOffer({ empty, lite }: { empty?: boolean; lite?: boolean }) {
   const paper = usePaper()
   if (paper.active) return null
   return (
     <div className="paper-card">
       <div className="row2" style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span className="pill paper">paper</span><b>{empty ? 'Nothing in this wallet yet' : 'No wallet? Try it on paper'}</b></div>
-      <span className="t70" style={{ fontSize: 13 }}>$10,000 of play money on Solana — bridge it to any chain a strategy lives on, at real routes, real rates and real risks. Nothing is signed or sent on chain. A name and a password are the whole account.</span>
+      {lite ? <span className="t70" style={{ fontSize: 14 }}>Play with $10,000 of paper money at real rates. Nothing touches a chain, and a name and a password are the whole account.</span>
+        : <span className="t70" style={{ fontSize: 13 }}>$10,000 of play money on Solana — bridge it to any chain a strategy lives on, at real routes, real rates and real risks. Nothing is signed or sent on chain. A name and a password are the whole account.</span>}
       <div className="actions">
         <button className="btn paper" onClick={openPaperSignIn}>{paper.session ? `Continue as ${paper.session.name}` : 'Try with paper money'}</button>
       </div>

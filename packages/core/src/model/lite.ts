@@ -96,7 +96,8 @@ export function plainName(s: Strategy): { title: string; sub: string } {
     const product = !!d && !!fam && d.kind === 'issued' && s.holds.toUpperCase() !== d.sym.toUpperCase()
     if (product) title = `${fam} via ${d.name}`
     const end = s.expiry ? ` · until ${dayMonth(s.expiry)}` : ''
-    return { title, sub: `${product ? `Holds ${s.holds} · levered` : 'Levered'} ${leverTag(s.tiers.balanced)} · borrows ${debtWord(s)}${end}` }
+    // the lever is the row's pill (×5.6): said once, so the sub keeps its room for what tells rows apart
+    return { title, sub: `${product ? `Holds ${s.holds} · borrows` : 'Borrows'} ${debtWord(s)}${end}` }
   }
   return { title, sub: SIMPLE_SUB[s.source]?.(s) ?? 'Earns interest' }
 }
@@ -113,6 +114,22 @@ export function trustKind(s: Strategy): string {
   if (s.kind === 'loop') return 'Both legs in one lending market'
   return s.source === 'vault' ? 'A curated lending vault' : s.source === 'savings' ? 'A savings contract' : s.source === 'staking' ? 'Staking' : s.source === 'fixed' ? 'A fixed-rate token' : 'A lending market'
 }
+/** The risk in a word, for a card and the ticket head: the API's score as Pro's three steps. */
+export const riskWord = (risk: number) => `${['', 'Low', 'Medium', 'High'][risk] ?? 'Medium'} risk`
+
+/**
+ * The leverages Lite offers on its "More choices" sheet: the venue's tiers in Lite's words, each
+ * with what it earns and how far it sits from liquidation — only those that leave at least
+ * `LITE_MIN_BUFFER`, the same floor a Lite loop must clear at Balanced.
+ */
+export const LITE_TIER_WORDS = { defensive: 'Careful', balanced: 'Balanced', aggressive: 'Bold' } as const
+export type LiteTierId = keyof typeof LITE_TIER_WORDS
+export function liteTiers(tiers: Record<LiteTierId, number>, liqLtv: number | null | undefined, net: (lev: number) => number): { id: LiteTierId; word: string; lev: number; net: number; buffer: number }[] {
+  return (Object.keys(LITE_TIER_WORDS) as LiteTierId[])
+    .map((id) => ({ id, word: LITE_TIER_WORDS[id], lev: tiers[id], net: net(tiers[id]), buffer: liqLtv != null ? liqBuffer(liqLtv, tiers[id]) : 0 }))
+    .filter((t) => t.lev > 1 && t.buffer >= LITE_MIN_BUFFER)
+}
+
 export const brandOf = (s: Strategy) => { const b = (s.kind === 'loop' ? s.venue : s.brand) ?? ''; return b.charAt(0).toUpperCase() + b.slice(1) }
 
 export interface LiteRow {
@@ -179,11 +196,11 @@ export function loopLines(p: { net: number; amountUsd: number; lev: number; drop
   const { short, via } = splitTitle(p.holds)
   const fam = /^(Dollars|Ether|Bitcoin)/.exec(p.holds)?.[1]
   const coin = via && fam ? `${short}’s ${fam === 'Dollars' ? 'dollar' : fam.toLowerCase()}` : p.holds
-  const under = p.dollarDebt ? 'under the dollar' : `against plain ${p.debt}`
+  const under = p.dollarDebt ? 'under $1' : `under plain ${p.debt}`
   const lose: Line = {
     k: 'Can lose',
-    v: `If ${coin} drops ${pct(p.drop * 100, 1)}`,
-    s: `${under}: the loop is liquidated${p.expiry ? `. It ends on ${dayMonth(p.expiry)}: close or roll it then` : ''}`,
+    v: `If ${coin} trades ${pct(p.drop * 100, 1)} ${under}`,
+    s: `Then the loop is liquidated.${p.expiry ? ` It ends on ${dayMonth(p.expiry)}: close or roll it then.` : ''}`,
     tone: p.drop < 0.05 ? 'bad' : p.drop < 0.1 ? 'warn' : '',
   }
   const cost: Line = p.staleHours != null && p.cost != null
@@ -209,6 +226,47 @@ export function depositLines(p: { rate: number; amountUsd: number; exitWord: str
   const cost: Line = { k: 'Costs', v: p.booked ? 'A small swap to buy it' : 'Only the network fee', s: p.booked ? 'bought on a market, sold back on one' : 'nothing to enter or leave', tone: '' }
   return { earn, lose, cost }
 }
+
+/** A withdrawal in Lite's lines: what comes back, when, and what is left earning. */
+export function withdrawLines(p: { backUsd: number; back: string; exitWord?: string; exitWhen?: string; leftUsd: number; rate: number | null }): Line[] {
+  return [
+    { k: 'You get', v: money(p.backUsd), s: `${p.back} to your wallet`, tone: '' },
+    ...(p.exitWord ? [{ k: 'When', v: p.exitWord, s: p.exitWhen ?? '', tone: '' as Tone }] : []),
+    { k: 'Left in', v: p.leftUsd >= 0.01 ? money(p.leftUsd) : 'Nothing', s: p.leftUsd >= 0.01 && p.rate != null ? `still earning ${pct(p.rate)} a year` : 'the position is closed', tone: '' },
+  ]
+}
+/** Making a loop safer in Lite's lines: what it earns after, how far from liquidation, what is still yours. */
+export function saferLines(p: { net: number | null; netBefore: number | null; buffer: number | null; bufferBefore: number | null; equityUsd: number }): Line[] {
+  const tone = (b: number | null): Tone => (b == null ? '' : b < 0.05 ? 'bad' : b < 0.1 ? 'warn' : 'ok')
+  return [
+    ...(p.net != null ? [{ k: 'Earns after', v: `${pct(p.net)} a year`, s: p.netBefore != null ? `was ${pct(p.netBefore)}` : '', tone: (p.net >= 3 ? 'ok' : p.net < 0 ? 'bad' : '') as Tone }] : []),
+    { k: 'From liquidation', v: p.buffer != null ? pct(p.buffer * 100, 1) : '—', s: p.bufferBefore != null ? `was ${pct(p.bufferBefore * 100, 1)}` : '', tone: tone(p.buffer) },
+    { k: 'Still yours', v: money(p.equityUsd), s: 'less the swap’s cost', tone: '' },
+  ]
+}
+/** Closing a loop in Lite's lines: what comes back and what the sale costs. */
+export function closeLines(p: { backUsd: number | null; back: string; costUsd: number | null; short: boolean }): Line[] {
+  return [
+    { k: 'You get', v: p.backUsd != null && p.backUsd > 0 ? money(p.backUsd) : '—', s: p.back, tone: p.short ? 'bad' : '' },
+    { k: 'Costs', v: p.costUsd != null ? money(p.costUsd) : '—', s: 'the sale’s slippage and fees', tone: '' },
+  ]
+}
+
+/** The decimals an amount box shows for a coin: cents for a dollar, four places for anything else. */
+export const shownDp = (dollar: boolean) => (dollar ? 2 : 4)
+
+/**
+ * Sharing a position: the text and the Copy link — whoever opens it lands on the same strategy with
+ * this wallet as the one copied. Both apps share it (the web's share sheet, the phone's `Share`).
+ */
+export function shareOf(s: Strategy, h: Pick<Holding, 'asset' | 'group' | 'apr'>, account: string, origin = 'https://app.yieldcircle.io'): { text: string; url: string } {
+  const word = moneyWord(h.asset, h.group)
+  const url = `${origin}/#/lite/${s.group}?s=${encodeURIComponent(s.id)}&k=${s.kind}&copy=${account}`
+  return { text: `Earning ${pct(h.apr ?? s.rate)} on ${word.startsWith('Dollars') ? 'dollars' : word} with YieldCircle`, url }
+}
+/** Whether a position can be shared: a Lite strategy held as itself — not a loan, a price bet or paper. */
+export const canShare = (s: Strategy | null, h: Pick<Holding, 'kind' | 'directional' | 'key'> | null, account: string | undefined) =>
+  !!s && !!h && !!account && liteEligible(s) && h.kind !== 'borrow' && !h.directional && !h.key.startsWith('paper:')
 
 // ---------------------------------------------------------------- streak and points
 
@@ -329,7 +387,22 @@ export function boardWallets(rows: { account: string; netAprPct: number | null; 
     .map((r, i) => ({ account: r.account, rank: i + 1, value: v(r)!, navUsd: r.navUsd, positions: r.nCounted, label: r.accountLabel }))
 }
 
-export interface BoardPosition { key: string; strategyKey: string; title: string; sub: string; pnlUsd: number; aprPct: number | null; equityUsd: number | null; since: string | null }
+export interface BoardPosition {
+  key: string
+  strategyKey: string
+  kind: 'loop' | 'deposit' | 'position'
+  title: string
+  sub: string
+  /** what it holds and what it borrows, by symbol: the marks of the row where Lite has no logo for it */
+  held: string[]
+  debt: string[]
+  pnlUsd: number
+  aprPct: number | null
+  equityUsd: number | null
+  since: string | null
+  /** of the wallet's money in drawn positions, the share in this one (0..1); null when no equity is known */
+  share: number | null
+}
 /**
  * One wallet's positions with what each MADE (the index's PnL book), best first. Named in Lite's
  * words when Lite carries the strategy (`liteTitle`), else by what it holds; a position the index
@@ -340,17 +413,21 @@ export function boardPositions(
   liteTitle: (strategyKey: string) => string | null,
 ): BoardPosition[] {
   const strat = new Map(book.strategies.map((s) => [s.key, s]))
-  return book.positions
-    .filter((p) => p.pnlUsd != null && Number.isFinite(p.pnlUsd) && p.status === 'ok')
+  const drawn = book.positions.filter((p) => p.pnlUsd != null && Number.isFinite(p.pnlUsd) && p.status === 'ok')
+  const total = drawn.reduce((n, p) => n + Math.max(0, p.equityUsd ?? 0), 0)
+  return drawn
     .map((p) => {
       const s = strat.get(p.strategyKey)
       const held = s?.protocol?.startsWith('vault.') && s.market && !s.debt.length ? s.market : (s?.held ?? []).slice(0, 2).join(' + ') || 'A position'
       const loop = !!s?.debt.length
       return {
         key: p.key, strategyKey: p.strategyKey,
+        kind: (s?.kind === 'loop' || s?.kind === 'deposit' ? s.kind : loop ? 'loop' : 'position') as BoardPosition['kind'],
         title: liteTitle(p.strategyKey) ?? held,
         sub: loop ? `Levered · borrows ${s!.debt.slice(0, 2).join(' + ')}` : 'Deposit',
+        held: (s?.held ?? []).slice(0, 2), debt: (s?.debt ?? []).slice(0, 2),
         pnlUsd: p.pnlUsd!, aprPct: p.pnlAprPct, equityUsd: p.equityUsd, since: p.since,
+        share: total > 0 && p.equityUsd != null ? Math.max(0, p.equityUsd) / total : null,
       }
     })
     .sort((a, b) => b.pnlUsd - a.pnlUsd)

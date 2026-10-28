@@ -8,7 +8,7 @@ import { PaperOffer } from '../PaperPanel'
 import { totalsOf } from '../Positions'
 import { Sk, pct, usd, usdShort } from '../bits'
 import { LENSES, liteCards, useDayLog, useLiteMenu, type Lens } from '@yieldcircle/app/lite'
-import { LiteCard, LiteCardSk, openRow } from './LiteBits'
+import { Flame, LiteCard, LiteCardSk, openRow } from './LiteBits'
 import { LiteMoves } from './LiteSocial'
 
 
@@ -40,8 +40,9 @@ export function LiteHome() {
           <>
             <div className="lite-bal">{b.positionsLoading && !b.books.length ? <Sk w={160} h={40} /> : usd(t.tot)}</div>
             <div className="lite-bal-s">
-              {t.yearly > 0 ? <><b className="ok">+{usd(t.yearly / 365)}</b> a day</> : <span className="t50">nothing earning yet</span>}
-              {day.streak > 0 && <span className="lite-streak" title="Days in a row with money at work">🔥 {day.streak}</span>}
+              {/* the line waits for the positions as the balance does: never "nothing earning" while they load */}
+              {b.positionsLoading && !b.books.length ? <Sk w={120} h={16} /> : t.yearly > 0 ? <><b className="ok">+{usd(t.yearly / 365)}</b> a day</> : <span className="t70">nothing earning yet</span>}
+              {day.streak > 0 && <span className="lite-streak" aria-label={`${day.streak} days in a row with money at work`}><Flame />{day.streak} days</span>}
               {b.paper && <span className="pill paper">paper</span>}
             </div>
           </>
@@ -52,7 +53,7 @@ export function LiteHome() {
             {!isConnected && <div className="lite-cta"><ConnectButton /></div>}
           </>
         )}
-        {(!isConnected || empty) && <div style={{ marginTop: 14 }}><PaperOffer empty={isConnected} /></div>}
+        {(!isConnected || empty) && <div style={{ marginTop: 14 }}><PaperOffer empty={isConnected} lite /></div>}
         {idleBook && idleTo && (
           <button type="button" className="note lite-idle" onClick={() => openRow(idleTo.s)}>
             <span><b>{usdShort(idleBook.idleUsd)}</b> sits idle. {idleTo.title} pays <b className="ok">{pct(idleTo.s.rate)}</b>{idleTo.s.kind === 'loop' ? ` ${leverTag(idleTo.s.tiers.balanced)}` : ''}: about <b className="ok">{usdShort(idleBook.idleUsd * idleTo.s.rate / 100)}</b> a year.</span>
@@ -71,8 +72,22 @@ export function LiteHome() {
           : cards.map((r) => <LiteCard key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} profile={profile} followed={!!L.proof(r.s)?.best && f.isFollowing('wallet', L.proof(r.s)!.best!.account)} />)}
       </div>
 
-      <LiteMoves rows={L.rows} account={b.account} limit={6} />
+      {/* below the cards, and two reads deep (the board, then its wallets' feed): fetched when it nears the screen */}
+      <WhenNear minHeight={240}><LiteMoves rows={L.rows} account={b.account} limit={6} /></WhenNear>
       <p className="lite-more t50"><a href={liteHref('earn')}>Every category ›</a></p>
     </div>
   )
+}
+
+/** Mounts its children once they come within a screen of the viewport — a phone on a slow network reads the top first. */
+function WhenNear({ children, minHeight }: { children: React.ReactNode; minHeight: number }) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  const [near, setNear] = React.useState(typeof IntersectionObserver === 'undefined')
+  React.useEffect(() => {
+    if (near || !ref.current) return
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setNear(true) }, { rootMargin: '600px 0px' })
+    io.observe(ref.current)
+    return () => io.disconnect()
+  }, [near])
+  return <div ref={ref} style={near ? undefined : { minHeight }}>{near ? children : null}</div>
 }

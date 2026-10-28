@@ -8,7 +8,7 @@
  * go; they are about you, so they live together, one tap from anywhere.
  */
 import React from 'react'
-import { marketHref, useApp, useRoute, walletHref } from '../state/AppState'
+import { marketHref, proHref, useApp, useRoute, walletHref } from '../state/AppState'
 import { useProfile, useProfiles } from '../social/queries'
 import { entryKey, usePending } from '../social/pending'
 import { labelFor } from '@yieldcircle/core/identity/name'
@@ -23,15 +23,20 @@ import { useSettings } from '@yieldcircle/app/state/Settings'
 import { Socials } from '@yieldcircle/design'
 import { ModeSwitch } from './lite/ModeSwitch'
 
-export function ProfileSheet() {
+/**
+ * `embedded`: the same settings at the foot of Lite's You page, which is Lite's one page about the
+ * reader — so no name and standing (You's head has them), no links to Pro's own pages but the
+ * profile editor, and no alerts (Lite's are the moves on You).
+ */
+export function ProfileSheet({ embedded }: { embedded?: boolean } = {}) {
   const { account, signer, solSigner, viewAs, allChains, chainLabelFor } = useApp()
   const { widened } = useSettings()
   const p = useProfile(account)
   // Lite reads the menu through its own fixed floors (docs/lite.md §3); the chain scope is shared
   const lite = useRoute().shell === 'lite'
   return (
-    <div className="ps">
-      <div className="ps-head">
+    <div className={`ps${embedded ? ' ps-embedded' : ''}`}>
+      {embedded ? <div className="ps-wallet"><ConnectButton /></div> : <div className="ps-head">
         {account ? (
           <>
             <Who account={account} profile={p.data?.profile} size={44} plain sub={viewAs && !signer ? 'viewing as' : undefined} />
@@ -41,9 +46,13 @@ export function ProfileSheet() {
           <p className="ps-p">Connect a wallet to follow people, get alerts and see your own positions. Reading everyone else needs nothing.</p>
         )}
         <div className="ps-wallet"><ConnectButton /></div>
-      </div>
+      </div>}
 
-      {account && (
+      {embedded ? signer && (
+        <nav className="ps-links" aria-label="Your profile">
+          <a href={proHref('#/me')}>Edit your name and face<span className="sp" />›</a>
+        </nav>
+      ) : account && (
         <nav className="ps-links" aria-label="You">
           <a href={walletHref(account)}>My page<span className="sp" />›</a>
           {signer && <a href="#/me">Edit profile<span className="sp" />›</a>}

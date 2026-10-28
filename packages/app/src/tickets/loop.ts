@@ -2,7 +2,8 @@ import React from 'react'
 import { useSignTypedData } from 'wagmi'
 import { unitOf } from '@yieldcircle/core/model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '@yieldcircle/core/model/leverage'
-import { fromUnits, payRaw, unitsOf } from '@yieldcircle/core/model/amount'
+import { fromUnits, payRaw, portion, unitsOf } from '@yieldcircle/core/model/amount'
+import { shownDp } from '@yieldcircle/core/model/lite'
 import { loopRewards, type LoopStrategy, type LoopTerm } from '@yieldcircle/core/model/strategies'
 import type { LoopPayAsset } from '@yieldcircle/core/sdk/types'
 import type { Holding, Idle } from '@yieldcircle/core/model/positions'
@@ -81,7 +82,19 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   const chosen = opts.find((o) => !!payAddr && normAddr(o.address) === normAddr(payAddr)) ?? [...opts].sort((a, b) => (balOf(b.address, b.symbol)?.usd ?? 0) - (balOf(a.address, a.symbol)?.usd ?? 0) || (liteTicket ? Number(b.role === 'debt') - Number(a.role === 'debt') : 0))[0]
   const bal = chosen ? balOf(chosen.address, chosen.symbol) : undefined
   const price = chosen?.price || bal?.price || (unit === '$' ? 1 : 0)
-  const [amt, setAmt] = useStickyAmount(`t:${s0.id}:amount`, () => fromUnits(unit === '$' ? 1000 : 1))
+  // Lite with a wallet starts from what the wallet holds (all of it up to $1,000), never on "more than
+  // you have"; without one, $1,000 shows what the rate means in dollars
+  const liteSeed = !!lite && !!session.account
+  const [amt, setAmt] = useStickyAmount(`t:${s0.id}:amount`, () => liteSeed ? { text: '0' } : fromUnits(unit === '$' ? 1000 : 1))
+  const seeded = React.useRef(false)
+  React.useEffect(() => {
+    if (!liteSeed || seeded.current || !bal || !chosen || unitsOf(amt) > 0) return
+    seeded.current = true
+    const usdHeld = bal.amount * (price || 0)
+    if (!(bal.amount > 0)) return
+    const dollar = unit === '$' || (price > 0.9 && price < 1.1)
+    setAmt(price > 0 && usdHeld > 1000 ? fromUnits(Number((1000 / price).toFixed(shownDp(dollar)))) : portion(bal, 100, chosen.decimals, shownDp(dollar)))
+  }, [liteSeed, bal?.amount, chosen?.address, price]) // eslint-disable-line react-hooks/exhaustive-deps
   const amount = unitsOf(amt)
   // the margin as sent: Max is the exact balance (a float Max overshot it by 166,624 wei and the loop reverted, tickets/0014)
   const marginRaw = chosen && amount > 0 ? payRaw(amt, chosen.decimals, bal) : undefined
@@ -101,7 +114,10 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   // adding to a running loop keeps its own shape — its leverage, never above Balanced — so one Add
   // cannot quietly push a ×2.4 position to ×5.6
   const heldL = holding?.leverage && holding.leverage > 1.05 ? Math.round(Math.min(hi, Math.max(lo, Math.min(holding.leverage, s.tiers[DEFAULT_TIER]))) * 100) / 100 : null
-  const L = lite ? heldL ?? copyL ?? s.tiers[DEFAULT_TIER] : onCopy && copyL != null ? copyL : custom != null && canCustom ? Math.min(hi, Math.max(lo, custom)) : s.tiers[tier]
+  // Lite's "More choices": a tier the reader picked there, in Lite's words (`liteTiers`); none = Lite's own pick
+  const [liteTier, setLiteTier] = React.useState<TierId | null>(null)
+  const pickLiteTier = (t: TierId | null) => { setLiteTier(t); setTier(t ?? DEFAULT_TIER) }
+  const L = lite ? heldL ?? (liteTier ? s.tiers[liteTier] : copyL ?? s.tiers[DEFAULT_TIER]) : onCopy && copyL != null ? copyL : custom != null && canCustom ? Math.min(hi, Math.max(lo, custom)) : s.tiers[tier]
   const E = amount * price, C = E * L, D = E * (L - 1)
   // a fixed-rate loop borrows for one term off the broker's card; `undefined` on a float loop
   const [termId, setTermId] = useSticky<string | null>(`t:${s0.id}:term`, null)
@@ -226,5 +242,5 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   const hfShown = simHf ?? hf, safe = safetyOf(drop)
   const rewardsNow = loopRewards(s, L)
   const fixedNote = term ? `fixed to ${ends}` : tenor ? `fixed for ${tenorWord(tenor)}` : s.dueAt ? `fixed to ${due}` : ''
-  return { account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote }
+  return { liteTier, pickLiteTier, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote }
 }

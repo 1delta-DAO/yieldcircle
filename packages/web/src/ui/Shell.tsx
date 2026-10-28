@@ -49,6 +49,7 @@ import { Sk, usd, usdShort } from './bits'
 import { gated, onAccessCode, openGate, useOnList, WAITLIST_HREF } from '../wallet/gate'
 import { usePaperSession } from '../wallet/paper'
 import { useDayLog } from '@yieldcircle/app/lite'
+import { Flame } from './lite/LiteBits'
 
 const ic = { width: 20, height: 20, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
 /**
@@ -105,7 +106,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         {!roots.includes(r.view) && <button className="back" onClick={back} aria-label="Back" title="Back">
           <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>}
-        <Me />
+        <Me lite={lite} />
         <span className="brand"><Logo height={28} href={lite ? liteHref() : hrefIn('', r)} /></span>
         {tabs('tabs-top')}
         {lite ? <><span className="sp" />{r.view !== 'search' && <a className="lite-search-btn" href={liteHref('search')}>{SEARCH_IC}<span>Search dollars, ETH, people</span></a>}</> : <Search />}
@@ -127,9 +128,19 @@ function HomeDot() {
 }
 
 /** The face, top-left: the way into everything about you. A dot says alerts are waiting. */
-function Me() {
+function Me({ lite }: { lite?: boolean }) {
   const { account, signer, solSigner } = useApp()
   const [open, setOpen] = React.useState(false)
+  // Lite has one page about the reader, You — the face opens it, as the balance chip does; Pro's
+  // sheet (its page, alerts, filters) is Pro's (docs/lite-design-review.md §3.6)
+  if (lite) return (
+    <a className="meface" href={liteHref('you')} aria-label="You">
+      {account ? <Face addr={account} /> : (
+        <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><circle cx="10" cy="7" r="3.2" /><path d="M3.8 17c.9-3.2 3.3-4.8 6.2-4.8s5.3 1.6 6.2 4.8" strokeLinecap="round" /></svg>
+      )}
+      <PendingDot account={signer ?? solSigner} />
+    </a>
+  )
   return (
     <>
       <button className="meface" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label="You" title="You">
@@ -205,13 +216,13 @@ function LiteYours() {
   const loading = b.positionsLoading && !b.books.length
   const on = r.view === 'you'
   return (
-    <a className={`lite-chip${b.paper ? ' paper' : ''}${on ? ' on' : ''}`} href={liteHref('you')} aria-current={on ? 'page' : undefined} aria-label={`You${loading ? '' : `: ${usd(t.tot)}`}${t.yearly > 0 ? `, earning ${usd(t.yearly / 365)} a day` : ''}`} title="Your money, streak and rank">
+    <a className={`lite-chip${b.paper ? ' paper' : ''}${on ? ' on' : ''}`} href={liteHref('you')} aria-current={on ? 'page' : undefined} aria-label={`You${loading ? '' : `: ${usd(t.tot)}`}${t.yearly > 0 ? `, earning ${usd(t.yearly / 365)} a day` : ''}`}>
       <span className="lc-ic" aria-hidden><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="15" height="11" rx="2.5" /><path d="M2.5 8.5h15" /><circle cx="13.5" cy="12.3" r="1.2" fill="currentColor" stroke="none" /></svg></span>
       <span className="lc-t">
         {loading ? <Sk w={64} h={14} /> : <b>{usdShort(t.tot)}</b>}
         {loading ? null : t.yearly > 0 ? <small className="ok">+{usdShort(t.yearly / 365)} a day</small> : <small>{b.paper ? 'paper money' : 'nothing earning yet'}</small>}
       </span>
-      {day.streak > 0 && <span className="lc-streak" title={`${day.streak} day${day.streak === 1 ? '' : 's'} in a row with money at work`}>🔥{day.streak}</span>}
+      {day.streak > 0 && <span className="lc-streak" aria-label={`${day.streak} day${day.streak === 1 ? '' : 's'} in a row with money at work`}><Flame />{day.streak}</span>}
       <svg className="lc-chev" viewBox="0 0 12 12" width="10" height="10" aria-hidden><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </a>
   )

@@ -40,7 +40,6 @@ import { useBack } from '../state/sticky'
 import { Search } from './Search'
 import { Drawer } from './Drawer'
 import { ProfileSheet } from './ProfileSheet'
-import { ChainChip } from './ChainPicker'
 import { useQueue } from '../social/pending'
 import { Positions, totalsOf } from './Positions'
 import { MyStats, StatsChip } from './Stats'
@@ -108,8 +107,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>}
         <Me lite={lite} />
-        {/* the chain scope, beside the face: Lite's one setting on every page (docs/lite.md §3) */}
-        {lite && <ChainChip />}
         <span className="brand"><Logo height={28} href={lite ? liteHref() : hrefIn('', r)} /></span>
         {tabs('tabs-top')}
         {lite ? <><span className="sp" />{r.view !== 'search' && <a className="lite-search-btn" href={liteHref('search')}>{SEARCH_IC}<span>Search dollars, ETH, people</span></a>}</> : <Search />}

@@ -12,6 +12,7 @@ import { useDayLog, useLiteMenu } from '@yieldcircle/app/lite'
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { Flame, openRow } from './LiteBits'
 import { ProfileSheet } from '../ProfileSheet'
+import { ChainChip } from '../ChainPicker'
 import { LiteMoves } from './LiteSocial'
 import { LitePnl } from './LitePnl'
 import { LiteHoldingTicket } from '../Ticket'
@@ -42,7 +43,7 @@ export function LiteYou() {
   const close = () => go('you')
   if (!b.account) return (
     <div className="lite-page">
-      <div className="feed-h"><h1>You</h1></div>
+      <div className="feed-h"><h1>You</h1><span className="sp" /><ChainChip /></div>
       <div className="note">Connect a wallet to see what you have, your streak and your rank — or play the whole thing with paper money first.</div>
       <div className="lite-cta" style={{ margin: '14px 0' }}><ConnectButton /></div>
       <PaperOffer lite />
@@ -55,7 +56,8 @@ export function LiteYou() {
     <>
     <div className={`lite-split lite-you${open ? ' withticket' : ''}`}>
     <div className="main">
-      <div className="feed-h"><h1>You</h1>{b.paper && <span className="pill paper">paper</span>}</div>
+      {/* the chain scope beside the heading: Lite's one setting, where the page about you starts (docs/lite.md §3) */}
+      <div className="feed-h"><h1>You</h1>{b.paper && <span className="pill paper">paper</span>}<span className="sp" /><ChainChip /></div>
       <div className={`lstats${b.paper ? ' three' : ''}`}>
         <Stat k="You have" v={b.positionsLoading && !b.books.length ? <Sk w={80} h={20} /> : usd(t.tot)} s={t.idle >= 1 ? `${usdShort(t.idle)} idle` : 'all of it at work'} />
         <Stat k="Earning" v={<span className="ok">+{usd(t.yearly / 365)}</span>} s={`a day · ${usdShort(t.yearly)} a year`} />

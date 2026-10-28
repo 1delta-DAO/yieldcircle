@@ -340,3 +340,11 @@ a.lstat{color:var(--tx)}a.lstat:hover{background:var(--b300)}
 @media (max-width:640px){.lite-sr .pill.auto,.lite-move .pill.auto,.lite-whoin-r .pill.auto{display:none}}
 .lite-sr b.ok{font-variant-numeric:tabular-nums;font-size:14px}
 .lite-none{margin:4px 2px;font-size:13px}
+/* the profile's explorer link: one chain is a plain link, several a small menu under the icon */
+.lite-prof-addr{display:inline-flex;align-items:center;gap:6px}
+.lite-prof-addr .txlink{background:none;border:0;padding:2px;cursor:pointer}
+.addrmenu{position:relative;display:inline-flex}
+.addrmenu-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:30;display:flex;flex-direction:column;min-width:200px;padding:4px;border:1px solid var(--line);border-radius:var(--r);background:var(--b200);box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.addrmenu-pop a{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;color:var(--tx);font-size:13px}
+.addrmenu-pop a:hover{background:var(--b300)}
+.addrmenu-pop small{margin-left:auto}

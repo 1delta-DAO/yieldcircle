@@ -318,6 +318,48 @@ export function AddrExplorers({ addr, chainIds, seen }: { addr: string; chainIds
     </span>
   )
 }
+/**
+ * Lite's one link icon for the same thing: straight to the explorer when the address has positions
+ * on one chain, a dropdown of the chains (in the order given) when on several.
+ */
+export function AddrExplorerMenu({ addr, chainIds }: { addr: string; chainIds: string[] }) {
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLSpanElement>(null)
+  React.useEffect(() => {
+    if (!open) return
+    const off = (e: Event) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', off)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('pointerdown', off); document.removeEventListener('keydown', esc) }
+  }, [open])
+  const fits = (id: string) => (isSolAddr(addr) ? isSvmChain(id) : isEvmChain(id))
+  const ids = [...new Set(chainIds)].filter((id) => fits(id) && addressUrl(id, addr))
+  if (!ids.length) return null
+  const icon = (
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 4h6v6" /><path d="M20 4 11 13" /><path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5H10" />
+    </svg>
+  )
+  if (ids.length === 1) {
+    const where = chainInfo(ids[0])!.explorerName
+    return <a className="txlink" href={addressUrl(ids[0], addr)} target="_blank" rel="noreferrer" title={`Open on ${where}`} aria-label={`Open the address on ${where}`}>{icon}</a>
+  }
+  return (
+    <span className="addrmenu" ref={ref}>
+      <button type="button" className="txlink" aria-haspopup="menu" aria-expanded={open} title="Open on an explorer" onClick={() => setOpen(!open)}>{icon}</button>
+      {open && (
+        <span className="addrmenu-pop" role="menu">
+          {ids.map((id) => (
+            <a key={id} role="menuitem" href={addressUrl(id, addr)} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
+              <ChainMark chainId={id} size={16} /><span>{chainInfo(id)!.name}</span><small className="t50">{chainInfo(id)!.explorerName}</small>
+            </a>
+          ))}
+        </span>
+      )}
+    </span>
+  )
+}
 export function Sk({ w = 80, h = 12 }: { w?: number | string; h?: number }) { return <span className="sk" style={{ width: w, height: h }} aria-hidden /> }
 /** A group's mark: a quiet outlined glyph ($ Ξ ₿ +) in the group's colour, deliberately unlike any token logo so a
  *  group never reads as one of its assets (the old USDC logo made "US Dollar" look like the USDC row). */

@@ -9,7 +9,8 @@ import { useLiteMenu } from '@yieldcircle/app/lite'
 import { useAccountMessages, useFollowers, useMyFollows, useProfile, useProfiles } from '../../social/queries'
 import { Character } from '../../identity/character'
 import { Ago, Face, FollowButton } from '../social-bits'
-import { Sk, pct, usdShort } from '../bits'
+import { useAccountPnlBook } from '@yieldcircle/app/index/pnl'
+import { AddrExplorerMenu, Sk, pct, usdShort } from '../bits'
 import { useLiteByKey, WalletPositions } from './LiteBoard'
 import { rowOfTx } from './LiteBits'
 import { Moves } from './LiteSocial'
@@ -47,6 +48,14 @@ export function LiteProfile({ addr }: { addr: string }) {
   const L = useLiteMenu()
   const feed = useFeedPage({ accounts: normAddr(addr) }, 12)
   const moves = (feed.data?.txs ?? []).map((t) => ({ t, r: rowOfTx(t, L.rows) })).slice(0, 6)
+  // the explorers: the chains it holds positions on, the biggest first (the book, the same read as
+  // "What it runs"), then the board's chains, then the chains of what it did lately
+  const book = useAccountPnlBook(addr)
+  const chains = [
+    ...[...(book.data?.positions ?? [])].sort((a, b) => (b.equityUsd ?? 0) - (a.equityUsd ?? 0)).map((x) => x.chainId),
+    ...(row?.chains ?? []),
+    ...(feed.data?.txs ?? []).map((t) => t.chainId),
+  ]
   const said = useAccountMessages(addr)
   const msgs = (said.data?.messages ?? []).filter((m) => !m.deleted).slice(0, 4)
   if (own) return null
@@ -58,7 +67,7 @@ export function LiteProfile({ addr }: { addr: string }) {
         <div className="lite-prof-n">
           <h1>{name.label}</h1>
           <div className="t50">
-            {shortAddr(addr)}
+            <span className="lite-prof-addr">{shortAddr(addr)}<AddrExplorerMenu addr={addr} chainIds={chains} /></span>
             {p?.xHandle && <> · <a href={`https://x.com/${p.xHandle}`} target="_blank" rel="noopener">@{p.xHandle}</a></>}
           </div>
           <div className="lite-prof-c">

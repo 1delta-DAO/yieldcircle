@@ -95,6 +95,8 @@ export interface Holding {
   maturity?: number
   /** a fixed-rate loan on an order book (tickets/0013): `maturity` is the day it is repaid at face, joined from the shelf's row by market */
   bookLoan?: true
+  /** a loop or loan whose DEBT falls due on a date (Morpho Midnight): that date, joined from the shelf's row for the debt market — what a roll moves */
+  dueAt?: number
   /** a paper position (tickets/0006): play money, kept by the paper ledger, never on chain */
   paper?: true
 }

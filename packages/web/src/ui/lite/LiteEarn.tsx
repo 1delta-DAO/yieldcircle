@@ -3,6 +3,7 @@ import { GROUPS, type Group } from '@yieldcircle/core/model/assets'
 import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, liteEligible } from '@yieldcircle/core/model/lite'
 import { go, liteHref, proHref, type Route } from '../../state/AppState'
 import { useSticky } from '../../state/sticky'
+import { ChainChip } from '../ChainPicker'
 import { GroupIcon, Sk, pct, usd, usdShort } from '../bits'
 import { Ticket } from '../Ticket'
 import { useAsideTop } from '../AssetPage'
@@ -53,7 +54,7 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
     <>
       <div className={`lite-split lite-earn${ticketOpen ? ' withticket' : ''}`}>
         <div className="main">
-          <div className="feed-h"><h1>Earn</h1><span className="sp" /><span className="t50 hide-m">best rates, in plain words</span></div>
+          <div className="feed-h"><h1>Earn</h1><span className="sp" /><ChainChip /><span className="t50 hide-m">best rates, in plain words</span></div>
           <div className={`ltiles${group ? ' picked' : ''}`} role="tablist" aria-label="Which money">
             {groups.map((g) => {
               const gr = L.rows.filter((r) => r.s.group === g.id)

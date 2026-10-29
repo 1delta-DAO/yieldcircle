@@ -235,6 +235,35 @@ export function earnWithdraw(p: { earnUid: string; amountRaw: string; operator: 
 export function midnightSell(p: { chainId: string; lender: string; amountRaw: string; operator: string }) {
   return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/midnight/sell', { params: { chainId: p.chainId, lender: p.lender, amount: p.amountRaw, account: p.operator } })
 }
+/**
+ * Move a running loop's whole position into another market on the same chain, in ONE transaction:
+ * a flash loan repays the source debt, the collateral moves over, the new debt repays the flash.
+ * Used for a Morpho Midnight maturity ROLL (same collateral, same loan token, a later date — each
+ * date is its own `MORPHO_MIDNIGHT_<id>` market): the route reads the debt on chain and takes the
+ * later book's lenders for it, so no swap runs. `slippageBp` is sent as the FRACTION migrate takes
+ * (unlike every other action). The general migrate (tickets/0012) is not built on top of this yet.
+ */
+export interface LoopMigrateParams { source: { collateralMarketUid: string; debtMarketUid: string }; target: { collateralMarketUid: string; debtMarketUid: string }; debtAmountRaw: string; account: string; slippageBp: number; accountId?: string }
+export function loopMigrate(p: LoopMigrateParams) {
+  return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/loop/migrate', {
+    params: { marketUidSourceCollateral: p.source.collateralMarketUid, marketUidSourceDebt: p.source.debtMarketUid, marketUidTargetCollateral: p.target.collateralMarketUid, marketUidTargetDebt: p.target.debtMarketUid,
+      debtAmount: p.debtAmountRaw, account: p.account, slippage: p.slippageBp / 10_000, accountIdFrom: p.accountId, accountIdTo: p.accountId },
+  })
+}
+/**
+ * Re-fix a Lista broker loan into a new term in one transaction (a flash repays the source, the new
+ * term's loan repays the flash). `fromLoanId` = the fixed loan rolled; absent = the variable part a
+ * lapsed term left behind. A full close: the route sizes the flash from the larger of
+ * `borrowBalanceRaw` (POSTed, the positions route's figure) and its own on-chain read, plus an
+ * unfinished term's early-repay penalty — a GET alone answers `INVALID_PARAM` whenever that read
+ * comes back empty (measured 2026-10-29).
+ */
+export function loopRefinance(p: { debtMarketUid: string; termId: string; fromLoanId?: string; borrowBalanceRaw: string; operator: string }) {
+  return apiFetchEnvelope<unknown, LoopActions>('/v1/actions/loop/refinance', {
+    params: { marketUid: p.debtMarketUid, termId: p.termId, fromLoanId: p.fromLoanId, operator: p.operator, isAll: true },
+    body: { borrowBalance: p.borrowBalanceRaw },
+  })
+}
 /** `loanId`: which fixed-term loan the repay pays down — required on a Lista broker debt, ignored elsewhere */
 export interface LoopCloseParams { collateralMarketUid: string; debtMarketUid: string; amountRaw: string; slippageBp: number; isAll?: boolean; account?: string; accountId?: string; loanId?: string }
 /** Close or reduce a loop: withdraw `amountRaw` of collateral, swap, repay. `isAll` repays the whole debt. */

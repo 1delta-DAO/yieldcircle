@@ -38,7 +38,13 @@ export function useBook() {
   // the Fixed rate shelf (tickets/0013) — its own request; its rows also date the book loans the wallet holds
   const fixed = useFixedRateCatalog(chainIds)
   const books0 = new Map(fixed.all.map((s) => [s.earnUid.toLowerCase(), s]))
-  const dated = (h: Holding): Holding => { const s = h.kind === 'simple' && h.earnUid ? books0.get(h.earnUid.toLowerCase()) : undefined; return s?.maturity ? { ...h, maturity: s.maturity, bookLoan: true } : h }
+  // the same rows date a Midnight DEBT: the lend row of a maturity is that market's loan-token side, the uid a loop owes in
+  const owed0 = new Map(fixed.all.map((s) => [(s.marketUid ?? s.earnUid).toLowerCase(), s]))
+  const dated = (h: Holding): Holding => {
+    if (h.kind !== 'simple') { const d = h.debtUid ? owed0.get(h.debtUid.toLowerCase()) : undefined; return d?.maturity ? { ...h, dueAt: d.maturity } : h }
+    const s = h.earnUid ? books0.get(h.earnUid.toLowerCase()) : undefined
+    return s?.maturity ? { ...h, maturity: s.maturity, bookLoan: true } : h
+  }
   const holdings: Holding[] = (onPaper ? paper!.holdings.filter((h) => chainIds.includes(h.chainId)) : pos.anyData ? holdingsFrom(pos.items) : []).map(dated)
   const bk: AssetBook[] = books(holdings, idleMerged)
   return {

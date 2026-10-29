@@ -18,7 +18,8 @@ import { readMode, writeMode, type AppMode } from './mode'
  *   #/earn                   the catalogue, by asset
  *   #/USD?u=USDC&s=<id>&k=loop   asset page + ticket (USD · ETH · BTC · STOCKS · MORE); `k=fixed` its Fixed rate books (tickets/0013)
  *   #/ETH?k=borrow&s=b:<coll>|<debt>   the loans against it, and a borrow ticket (tickets/0008);
- *                            `&h=<holding>&m=reduce` opens a running loan on Pay back
+ *                            `&h=<holding>&m=reduce` opens a running loan on Pay back; `&h=<holding>&m=roll` a
+ *                            fixed-term position on Roll (a book lend, a Midnight or Lista loan)
  *   #/STOCKS?u=TSLA&k=borrow  tokenized stocks, one row per real-world ticker (tickets/0009)
  *   #/borrow                 borrowing, holdings first (tickets/0010); `?u=<asset>&s=b:…` opens a ticket;
  *                            the Borrow tab (tickets/0011). `out=ETH|BTC|MORE` on any borrow list
@@ -46,7 +47,8 @@ import { readMode, writeMode, type AppMode } from './mode'
  * that page, so a shared link lands a first visitor in Lite; every other page is Pro's, whatever
  * the prefix says.
  */
-export type Mode = 'add' | 'reduce' | 'close' | 'manage'
+/** `roll`: a fixed-term position's Roll tab — into a later date or term (`model/roll.ts`) */
+export type Mode = 'add' | 'reduce' | 'close' | 'manage' | 'roll'
 export type View = 'home' | 'feed' | 'earn' | 'borrow' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'join' | 'you' | 'search'
 export interface Route {
   view: View
@@ -134,7 +136,7 @@ function parsePage(seg: string[], p: URLSearchParams, hash: string): Page {
     s: p.get('s') ?? undefined,
     h: p.get('h') ?? undefined,
     k: p.get('k') === 'loop' ? ('loop' as const) : p.get('k') === 'simple' ? ('simple' as const) : p.get('k') === 'borrow' ? ('borrow' as const) : p.get('k') === 'fixed' ? ('fixed' as const) : undefined,
-    m: m === 'reduce' || m === 'close' || m === 'manage' ? (m as Mode) : m === 'add' ? ('add' as Mode) : undefined,
+    m: m === 'reduce' || m === 'close' || m === 'manage' || m === 'roll' ? (m as Mode) : m === 'add' ? ('add' as Mode) : undefined,
     t: p.get('t') ?? undefined,
     q: p.get('q') ?? undefined,
     by: p.get('by') ?? undefined,

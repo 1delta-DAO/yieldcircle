@@ -15,6 +15,7 @@ import { FollowButton, Who } from '../social-bits'
 import { Sk, Tok, pct, usd, usdShort } from '../bits'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { openRow } from './LiteBits'
+import { ChainChip } from '../ChainPicker'
 import { PnlDrawer } from '../PnlDrawer'
 
 const SORTS: { id: BoardSort; word: string; why: string }[] = [
@@ -228,7 +229,7 @@ function BoardHead({ by, sort, held }: { by: 'wallet' | 'strategy'; sort: BoardS
         <button role="tab" aria-selected={by === 'wallet'} aria-pressed={by === 'wallet'} onClick={() => go('board', { t, x })}>Wallets</button>
         <button role="tab" aria-selected={by === 'strategy'} aria-pressed={by === 'strategy'} onClick={() => go('board', { by: 'strategy', t, x })}>Strategies</button>
       </div>
-      <span className="sp" /><span className="t70 hide-m">real wallets, read off the chain</span>
+      <span className="sp" /><ChainChip /><span className="t70 hide-m">real wallets, read off the chain</span>
     </div>
   )
 }

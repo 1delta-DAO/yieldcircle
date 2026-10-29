@@ -352,13 +352,17 @@ export function ptMaturityOf(symbol: string | null | undefined): number | undefi
  * that the money has to move — a matured PT earns nothing until it is redeemed
  * or rolled into the next maturity.
  */
-export function maturityClock(t: number, now = Date.now() / 1000, book = false): { text: string; title: string; due: boolean } {
+export function maturityClock(t: number, now = Date.now() / 1000, book: boolean | 'loan' = false): { text: string; title: string; due: boolean } {
   const days = Math.ceil((t - now) / DAY)
+  // a fixed-date DEBT (Morpho Midnight) falls due: repaid, or rolled into a later date of the same pair
+  if (book === 'loan') return days <= 0
+    ? { text: `loan due ${dateOf(t)} · roll or repay`, title: 'The loan has passed its date and can be liquidated whatever its health: roll it into a later date (Manage → Roll), or repay it.', due: true }
+    : { text: `loan due ${dateOf(t)} · ${days}d`, title: `The amount owed is fixed and falls due on ${dateOf(t)}; after it the position can be liquidated whatever its health. Before then it can be rolled into a later date (Manage → Roll) or repaid.`, due: days <= 7 }
   // a fixed-rate loan on a book (tickets/0013) is repaid at face on its date: nothing to redeem at a
-  // price, and nothing to roll into — once repaid it earns nothing until it is withdrawn
+  // price — once repaid it earns nothing until it is withdrawn, or rolled into a later date of the same book
   if (book) return days <= 0
-    ? { text: `repaid ${dateOf(t)} · withdraw`, title: 'The loan has reached its date: the borrowers repay the face, which earns nothing more until you withdraw it.', due: true }
-    : { text: `repaid ${dateOf(t)} · ${days}d`, title: `Repaid at face on ${dateOf(t)}; the rate was fixed when the offer was filled. Before then the way out is selling to the book, at its rate then.`, due: days <= 7 }
+    ? { text: `repaid ${dateOf(t)} · withdraw or roll`, title: 'The loan has reached its date: the borrowers repay the face, which earns nothing more until you withdraw it or roll it into a later date (Manage → Roll).', due: true }
+    : { text: `repaid ${dateOf(t)} · ${days}d`, title: `Repaid at face on ${dateOf(t)}; the rate was fixed when the offer was filled. Before then the way out is selling to the book, at its rate then — or rolling into a later date (Manage → Roll).`, due: days <= 7 }
   if (days <= 0) return { text: `matured ${dateOf(t)} · redeem or roll`, title: 'Past maturity the PT redeems 1:1 for the underlying and earns nothing more: redeem it, or roll into a later maturity.', due: true }
   return {
     text: `matures ${dateOf(t)} · ${days}d`,
@@ -841,7 +845,7 @@ export function foldBookDates(rows: SimpleStrategy[]): { rows: SimpleStrategy[];
   const out: SimpleStrategy[] = [], rest: SimpleStrategy[] = []
   for (const r of rows) {
     if (!r.book || !r.maturity) { out.push(r); continue }
-    const k = [r.chainId, r.book.family, normAddr(r.assetAddress), r.book.collateral ?? r.earnUid, r.book.lltv ?? ''].join('|')
+    const k = bookKey(r)
     groups.set(k, [...(groups.get(k) ?? []), r])
   }
   for (const g of groups.values()) {
@@ -852,6 +856,8 @@ export function foldBookDates(rows: SimpleStrategy[]): { rows: SimpleStrategy[];
   }
   return { rows: out, rest }
 }
+/** Which book a dated row belongs to: its maturities share it (`foldBookDates`), and a roll stays inside it (`model/roll.ts`). */
+export const bookKey = (r: SimpleStrategy) => [r.chainId, r.book?.family ?? '', normAddr(r.assetAddress), r.book?.collateral ?? r.earnUid, r.book?.lltv ?? ''].join('|')
 /** A book row a deposit can go into now: someone is borrowing on it (a rate over 0) and it has more than a day to run. */
 export const bookOpen = (s: SimpleStrategy, now = Date.now() / 1000) => s.rate > 0 && !!s.maturity && s.maturity - now > DAY
 export function dedupe<T extends Strategy>(rows: T[]): T[] {

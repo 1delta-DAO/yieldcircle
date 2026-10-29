@@ -386,7 +386,7 @@ export function HealthPill({ h }: { h: number }) {
   return <span className={`hp ${cls}`} title={tip} aria-label={tip}><svg viewBox="0 0 16 16" aria-hidden>{HP_ICON[cls]}</svg><b>{h >= 100 ? '99+' : h.toFixed(2)}</b></span>
 }
 
-export function MaturityNote({ t, book }: { t: number; /** a book loan's repayment date, not a PT's (`Holding.bookLoan`) */ book?: boolean }) {
+export function MaturityNote({ t, book }: { t: number; /** a book loan's repayment date, not a PT's (`Holding.bookLoan`); `loan` a debt's due date (`Holding.dueAt`) */ book?: boolean | 'loan' }) {
   const c = maturityClock(t, undefined, book)
   return <> · <span className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span></>
 }

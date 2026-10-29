@@ -51,6 +51,8 @@ import { pnlLine } from '@yieldcircle/core/model/holdingPnl'
 import { useSharePosition } from './lite/share'
 import { LiteWho } from './lite/LiteSocial'
 import { useLiteMenu } from '@yieldcircle/app/lite'
+import { rollKindOf } from '@yieldcircle/core/model/roll'
+import { RollTicket } from './Roll'
 export { safetyOf, sameToken }
 
 /**
@@ -73,8 +75,14 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
   const holding = holdings.find((h) => h.key === hk) ?? holdings[0] ?? null
   // what an Add builds on: the picked position, unless the API cannot build for its account — then a new one, never figures for a book it will not touch
   const into = holding && !holding.subAccount?.unsupported ? holding : null
+  // a fixed-term position rolls into a later date or term (`model/roll.ts`): its own tab, opened first once the date is within a week
+  const rolls = !!holding && !!rollKindOf(holding, s)
+  const dueIn = holding ? (holding.dueAt ?? (holding.bookLoan ? holding.maturity : undefined)) : undefined
+  const rollDue = rolls && dueIn != null && dueIn - Date.now() / 1000 < 7 * DAY_S
   // a deposit a loop can start from opens on levering it: that is why it is offered here (tickets/0015)
-  const [mode, setMode] = React.useState<Mode>(holding ? mode0 ?? (holding.putUp ? 'manage' : 'add') : 'add')
+  const [mode0r, setMode] = React.useState<Mode>(holding ? mode0 ?? (rollDue ? 'roll' : holding.putUp ? 'manage' : 'add') : 'add')
+  // a `m=roll` link to a position that does not roll lands on its Manage
+  const mode: Mode = mode0r === 'roll' && !rolls ? (s.kind === 'loop' ? 'manage' : 'reduce') : mode0r
   const uid = uidOf(s)
   const thread = useThreadOf()(s)
   if (lite) return (
@@ -98,7 +106,8 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
       {holding && (
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
           <button role="tab" aria-selected={mode === 'add'} onClick={() => setMode('add')}>Add</button>
-          <button role="tab" aria-selected={mode !== 'add'} onClick={() => setMode(s.kind === 'loop' ? 'manage' : 'reduce')}>{s.kind === 'loop' ? (holding.putUp ? 'Lever it' : 'Manage') : 'Withdraw'}</button>
+          <button role="tab" aria-selected={mode !== 'add' && mode !== 'roll'} onClick={() => setMode(s.kind === 'loop' ? 'manage' : 'reduce')}>{s.kind === 'loop' ? (holding.putUp ? 'Lever it' : 'Manage') : 'Withdraw'}</button>
+          {rolls && <button role="tab" aria-selected={mode === 'roll'} className={rollDue ? 'due' : undefined} title="Move it to a later date or term, without taking it out" onClick={() => setMode('roll')}>Roll</button>}
           <span className="sp" /><span className="sum">{usd(holding.valueUsd)}{holding.putUp ? ` · ${num(holding.amount, 4)} ${holding.symbol} deposited` : ''}{s.kind === 'loop' && holding.leverage && holding.leverage > 1.05 ? ` · ${holding.leverage.toFixed(1)}×` : ''}{holding.health != null ? ` · health ${holding.health.toFixed(2)}` : ''}</span>
           {holdings.length < 2 && <SubAccountPill sub={holding.subAccount} venue={holding.venue} />}
         </div></div>
@@ -109,7 +118,9 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
           <b>Not in the menu.</b> {offMenu} Check the liquidity, rate and risk yourself before you size it.
         </div>
       )}
-      {holding && mode !== 'add' ? (holding.subAccount?.unsupported ? <CannotManage h={holding} /> : s.kind === 'loop' ? <ManageLoop key={holding.key} s={s} h={holding} closeFirst={mode === 'close'} /> : s.book ? <ManageFixed key={holding.key} s={s} h={holding} mode={mode} /> : <ManageTicket key={holding.key} s={s} h={holding} mode={mode} />)
+      {holding && mode !== 'add' && mode !== 'roll' && rolls && <div className="tsec plain t50" style={{ fontSize: 12.5 }}>{rollDue ? <b style={{ color: 'var(--warning)' }}>Its date is close. </b> : null}{s.kind === 'loop' ? 'Keeping the loan?' : 'Keeping the money in?'} <button type="button" className="linkish" onClick={() => setMode('roll')}>Roll it to a later {s.kind === 'loop' && s.terms ? 'term' : 'date'} ›</button></div>}
+      {holding && mode === 'roll' ? <RollTicket key={holding.key} s={s} h={holding} />
+        : holding && mode !== 'add' ? (holding.subAccount?.unsupported ? <CannotManage h={holding} /> : s.kind === 'loop' ? <ManageLoop key={holding.key} s={s} h={holding} closeFirst={mode === 'close'} /> : s.book ? <ManageFixed key={holding.key} s={s} h={holding} mode={mode} /> : <ManageTicket key={holding.key} s={s} h={holding} mode={mode} />)
         : s.kind === 'simple' && s.book ? <FixedTicket key={into?.key} s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} into={into} />
         : s.kind === 'simple' ? <SimpleTicket key={into?.key} s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} into={into} /> : <LoopTicket key={into?.key} s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={into} />}
       {holding && mode === 'add' && !into && <div className="tsec plain t50" style={{ fontSize: 12 }}>This opens a new position beside your {holding.subAccount?.label ?? 'existing one'}: YieldCircle cannot add to that one.</div>}
@@ -453,7 +464,7 @@ function FixedTicket({ s: s0, idle: chainIdle, allIdle, into }: { s: SimpleStrat
     <>
       <div className="tsec">
         {dates.length > 1 && <>
-          <span className="lbl">Repaid on <Info label="Maturities">Each date is its own book with its own borrowers and rate. Your loan is repaid at face on the date you pick; before it, {book.earlyExit ? 'the way out is selling to that book' : 'it cannot be taken out'}.</Info></span>
+          <span className="lbl">Repaid on <Info label="Maturities">Each date is its own book with its own borrowers and rate. Your loan is repaid at face on the date you pick; before it, {book.earlyExit ? 'the way out is selling to that book' : 'it cannot be taken out'}. Once you hold it, its Roll tab moves it to a later date {book.earlyExit ? 'at any time' : 'once its date has passed'}, without taking it out by hand.</Info></span>
           <div className="seg terms" role="radiogroup" aria-label="Repaid on" style={{ marginBottom: 10 }}>{dates.map((d) => { const x = rateAt(d, amount); return <button key={d.id} role="radio" aria-checked={d.id === s.id} aria-pressed={d.id === s.id} onClick={() => setDateId(d.id)}>{dayMonth(d.maturity!)}<span className="c">{x == null ? 'full' : pct(x)}</span></button> })}</div>
         </>}
         <span className="lbl">Amount of {unit === '$' ? s.assetSymbol : tok.symbol}</span>
@@ -465,7 +476,7 @@ function FixedTicket({ s: s0, idle: chainIdle, allIdle, into }: { s: SimpleStrat
       <div className="tsec"><div className="cells">
         <div className="c hero"><span className="k">You lock</span><span className={`v ${lock >= 3 ? 'ok' : ''}`}>{over ? '—' : pct(lock)}</span><span className="s">fixed to {dateOf(s.maturity!)}{cur?.pending ? ' · reading the book…' : cur?.failed ? ' · book not read, listed rate' : ''}</span>
           <BookLink uid={s.marketUid ?? s.earnUid} side="lend" size={amount} symbol={tok.symbol} price={price || undefined} act="Lending" /></div>
-        <div className="c"><span className="k">Back on {dayMonth(s.maturity!)}</span><span className="v">{over ? '—' : money(face)}</span><span className="s">{over ? 'more than the book takes' : `+${money(face - amount)} in ${Math.ceil(days)} days`}</span></div>
+        <div className="c"><span className="k">Back on {dayMonth(s.maturity!)}</span><span className="v">{over ? '—' : money(face)}</span><span className="s">{over ? 'more than the book takes' : `+${money(face - amount)} in ${Math.ceil(days)} days`}{dates.some((d) => d.maturity! > s.maturity!) ? ' · or roll it on' : ''}</span></div>
         <div className="c"><span className="k">Book</span><span className={`v ${cur?.book && depth * price < 1000 ? 'warn' : ''}`}>{cur?.book ? money(depth) : cur?.pending ? <Sk w={50} /> : '—'}</span><span className="s">{cur?.book ? `${cur.book.levels.length} offer${cur.book.levels.length === 1 ? '' : 's'} to fill · best ${pct(cur.book.levels[0]?.aprPct ?? s.rate)}` : 'borrowers’ offers'}</span></div>
         <div className="c"><span className="k">Borrowers put up</span><span className="v" style={{ fontSize: 14 }}>{book.collateral ?? '—'}</span><span className="s">{book.lltv ? `borrow up to ${book.lltv}% of it` : book.collateral ? 'as collateral' : 'not named by the market'}</span></div>
         <div className="c"><span className="k">Risk</span><span className="v" style={{ fontSize: 14 }}><RiskDot r={s.risk} label={s.riskLabel} /></span><span className="s">fixed-rate loan</span></div>
@@ -680,7 +691,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
         {s.terms && term && <>
           <span className="lbl" style={{ marginTop: 14 }}>Fix the {s.debt} rate for <Info label="Fixed-rate borrowing">
             <p style={{ margin: '0 0 6px' }}>{s.venue} lends {s.debt} here at a rate it sets for each term, the same at any size. The rate you pick is locked from today until the term ends.</p>
-            <p style={{ margin: '0 0 6px' }}>When it ends the debt is not due and nothing is liquidated for it: the loan moves to the market's variable rate{after != null ? <> ({pct(after)} now)</> : ''} until you fix it again.</p>
+            <p style={{ margin: '0 0 6px' }}>When it ends the debt is not due and nothing is liquidated for it: the loan moves to the market's variable rate{after != null ? <> ({pct(after)} now)</> : ''} until you fix it again — the position's Roll tab does that in one transaction.</p>
             <p style={{ margin: 0 }}>Repaying before the end (closing or deleveraging) costs a penalty of about half the interest the repaid part would still pay.</p></Info></span>
           <div className="seg terms" role="radiogroup" aria-label="Fixed term">{s.terms.map((t) => <button key={t.id} role="radio" aria-checked={t.id === term.id} aria-pressed={t.id === term.id} onClick={() => setTermId(t.id)}>{t.days} days<span className="c">{pct(t.apr)}</span></button>)}</div>
         </>}
@@ -783,7 +794,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
           <li className="w"><i /><span>Closing or deleveraging before {ends} costs a penalty: about half the interest the repaid part would still pay.</span></li>
           {!!holding && <li><i /><span>This opens a second loan beside the one you hold, on the same collateral. Each has its own term and is repaid on its own.</span></li>}
         </> : s.dueAt ? <>
-          <li className="w"><i /><span>The loan is due on {due} ({dueDays} days). Close the loop before then: after that date it can be liquidated whatever its health.</span></li>
+          <li className="w"><i /><span>The loan is due on {due} ({dueDays} days). Close the loop before then, or roll it into a later date from its Roll tab: after that date it can be liquidated whatever its health.</span></li>
           <li className="w"><i /><span>What you owe is fixed at the open. Closing early repays all of it, so the {pct(bor)} is paid up to {due} however long you stay.</span></li>
           {bookShort && <li className="w"><i /><span>The book does not hold {usd(D)} of {s.debt} at this date: the open will take less or fail. Borrow less, or pick another date.</span></li>}
         </> : tenor ? <>
@@ -805,7 +816,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
 function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mode: Mode }) {
   const { lite } = React.useContext(TicketCtx)
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/withdraw`)
-  const { account, isConnected, actor, all, amt, setAmt, amount, eff, share, venueKey, canNative, fullExit, maxRounds, coin, asNative, setAsNative, native, outSym, rate, booked, st, slip, sendRaw, key, paper, px, instant, queueSecs, queueWord, paperRefuse, ladder, price, exit } = useWithdrawTicket(s, h, mode, { lite })
+  const { account, isConnected, actor, all, amt, setAmt, amount, eff, share, venueKey, canNative, fullExit, maxRounds, coin, asNative, setAsNative, native, outSym, rate, booked, st, slip, sendRaw, key, paper, px, instant, queueSecs, queueWord, paperRefuse, ladder, price, exit } = useWithdrawTicket(s, h, mode as Exclude<Mode, 'roll'> /* the Roll tab never renders this panel */, { lite })
   const wdp = shownDp(h.group === 'USD')
   if (lite) return (
     <>

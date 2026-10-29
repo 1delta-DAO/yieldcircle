@@ -176,7 +176,7 @@ function AssetDetail({ b, room }: { b: AssetBook; room: number }) {
         <button key={h.key} type="button" className="xrow" onClick={() => go(h.group, { u: h.asset, k: h.kind, ...(h.kind === 'borrow' ? { h: h.key, m: 'reduce' } : {}) })}>
           <Tok sym={h.label.split(' ')[0]} logo={h.logo} size={20} />
           <span className="xt"><span className="n"><span>{h.label}</span><KindPill kind={h.kind} /><LegsPill others={h.others} />{h.paper && <span className="pill paper">paper</span>}</span>
-            <small>{h.venue} · {chainLabel(h.chainId)}{h.maturity ? <MaturityNote t={h.maturity} book={h.bookLoan} /> : ''}{h.health != null ? <> · <HealthPill h={h.health} /></> : ''}{h.paper && h.health != null && h.health < 1 ? <> · <span className="liq-warn">would have been liquidated</span></> : ''}</small></span>
+            <small>{h.venue} · {chainLabel(h.chainId)}{h.maturity ? <MaturityNote t={h.maturity} book={h.bookLoan} /> : h.dueAt ? <MaturityNote t={h.dueAt} book="loan" /> : ''}{h.health != null ? <> · <HealthPill h={h.health} /></> : ''}{h.paper && h.health != null && h.health < 1 ? <> · <span className="liq-warn">would have been liquidated</span></> : ''}</small></span>
           <span className="sp" />
           <span className="xv"><b>{usd(h.valueUsd)}</b>
             <small>{h.apr != null ? <span className="ok">{pct(h.apr)}</span> : '—'}{h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''} · +{usd(h.valueUsd * (h.apr ?? 0) / 100)}/yr</small></span>

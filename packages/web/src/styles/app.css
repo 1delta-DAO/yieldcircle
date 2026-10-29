@@ -510,6 +510,8 @@ img.tok{object-fit:cover;background:#111;box-shadow:0 0 0 1px rgba(255,255,255,.
 .modes button[role="tab"]:hover{color:var(--tx)}
 .modes button[aria-selected="true"]{color:var(--primary);border-color:var(--primary);background:#062830}
 .modes .sum{font-family:var(--mono);font-size:11.5px;color:var(--tx50);white-space:nowrap}
+/* a fixed-term position whose date is within a week: its Roll tab carries a dot */
+.modes button.due::after{content:"";display:inline-block;width:6px;height:6px;margin-left:6px;border-radius:50%;background:var(--warning);vertical-align:middle}
 .lite-ticket .modes{flex-wrap:wrap;row-gap:6px}
 .pctb{font-family:var(--mono);font-size:11px;color:var(--tx50);padding:2px 6px;border:1px solid var(--line2);border-radius:5px;margin-left:4px;min-height:24px}
 .pctb:hover{color:var(--tx);border-color:var(--tx50)}

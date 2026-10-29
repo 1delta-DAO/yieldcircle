@@ -21,21 +21,21 @@ export function FundingLock({ s, C }: { s: LoopStrategy; C: number }) {
   const legs = h.legs.map((l) => `${l.asset} on ${l.quote.venue}`).join(' · ')
   return (
     <div className="tsec">
-      <span className="lbl">Lock the funding rate <Info label="Locking the funding rate">
+      <span className="lbl">Optional: lock {s.holds}'s funding on Boros <Info label="Locking the funding rate">
         <p style={{ margin: '0 0 6px' }}>Most of what {s.holds} pays is perp funding{h.profile?.fundingShare ? ` (${h.profile.fundingShare})` : ''}, and funding floats: the loop's net yield assumes today's rate holds.</p>
         <p style={{ margin: '0 0 6px' }}>On Pendle Boros (Arbitrum) you can swap that floating funding for a fixed rate until{until ? ` ${until}` : ' the market matures'}: you pay the funding the market tracks and receive the fixed rate. Sized here on the whole {usd(h.notionalUsd)} position.</p>
         <p style={{ margin: 0 }}>It is not a perfect hedge. {s.holds}'s yield blends many exchanges and assets and is smoothed; each Boros market tracks one exchange's funding on one asset ({legs}). It needs its own margin on Arbitrum, can be liquidated if funding spikes, and ends at maturity, when it must be redone.</p>
       </Info></span>
+      <div className="plain" style={{ marginBottom: 8 }}>A separate hedge on Arbitrum, opened after the loop — not part of this transaction or of {s.venue}.</div>
       <div className="cells">
         <div className="c"><span className="k">Fixed on Boros</span><span className="v">{pct(fixed)}</span><span className="s">{until ? `until ${until}` : legs}</span></div>
         <div className="c"><span className="k">Funding now</span><span className="v">{pct(floating)}</span><span className="s">floating · {legs}</span></div>
-        <div className="c"><span className="k">Per year vs now</span><span className={`v ${perYear >= 0 ? 'ok' : 'warn'}`}>{signedUsd(perYear)}</span><span className="s">after {pct(allInCostAprPct ?? 0)} Boros fees</span></div>
+        <div className="c"><span className="k">Per year vs now</span><span className={`v ${perYear >= 0 ? 'ok' : 'warn'}`}>{signedUsd(perYear)}</span><span className="s">after {pct(allInCostAprPct ?? 0)} hedge fees</span></div>
         <div className="c"><span className="k">Margin needed</span><span className="v">{usd(depositUsd)}</span><span className="s">on Arbitrum, its own deposit</span></div>
       </div>
       <div className="plain" style={{ marginTop: 8 }}>{net >= 0
         ? <>The fixed rate is above today's funding: locking <b>adds</b> about {usd(perYear)} a year at today's rates, and removes the risk of funding falling.</>
-        : <>The fixed rate is below today's funding: locking <b>gives up</b> about {usd(-perYear)} a year at today's rates, in exchange for certainty if funding falls.</>}
-        {' '}A separate position on Arbitrum, opened after the loop — not part of this transaction.</div>
+        : <>The fixed rate is below today's funding: locking <b>gives up</b> about {usd(-perYear)} a year at today's rates, in exchange for certainty if funding falls.</>}</div>
     </div>
   )
 }

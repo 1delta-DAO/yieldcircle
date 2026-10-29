@@ -12,6 +12,7 @@ import type { Holding } from './positions'
 import { usdShort } from './format'
 import type { Proof } from './activity'
 import { LITE_GROUPS, liteUrl, APP_ORIGIN } from './liteLinks'
+import { canonUid } from './uid'
 
 /** The categories Lite has: no Stocks, no Borrow (owner's call, 2026-10-23). */
 export { LITE_GROUPS }
@@ -423,6 +424,8 @@ export interface BoardPosition {
   since: string | null
   /** of the wallet's money in drawn positions, the share in this one (0..1); null when no equity is known */
   share: number | null
+  /** a position it HAD: when it closed, and the dollars that were at work on average */
+  closed?: { at: string; avgUsd: number | null }
 }
 /**
  * One wallet's positions with what each MADE (the index's PnL book), best first. Named in Lite's
@@ -452,6 +455,34 @@ export function boardPositions(
       }
     })
     .sort((a, b) => b.pnlUsd - a.pnlUsd)
+}
+
+/**
+ * A position the wallet closed, as a row beside the ones it runs (`closedPositions` + the position's
+ * own record): what it made, over what was at work. Named in Lite's words where the legs are a Lite
+ * strategy's two markets (a loop) or one (a deposit). A record with nothing ever at work (a transfer
+ * in and straight out) is no position: null.
+ */
+export function closedPosition(
+  k: { key: string; lastAt: string },
+  series: { summary: { pnl: number; aprPct: number | null; capitalDays: number; avgCapital?: number | null }; legs: { marketUid: string; side: string; symbol: string | null }[] },
+  liteTitle: (strategyKey: string) => string | null,
+): BoardPosition | null {
+  if (!(series.summary.capitalDays > 0)) return null
+  const uniq = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x))]
+  const long = series.legs.filter((l) => l.side !== 'borrow'), short = series.legs.filter((l) => l.side === 'borrow')
+  const held = uniq(long.map((l) => l.symbol)).slice(0, 2), debt = uniq(short.map((l) => l.symbol)).slice(0, 2)
+  const a = long[0] && canonUid(long[0].marketUid), b = short[0] && canonUid(short[0].marketUid)
+  const strategyKey = short.length ? (a && b ? `loop:${a}|${b}` : '') : a ? `dep:${a}` : ''
+  const loop = debt.length > 0
+  return {
+    key: k.key, strategyKey, kind: loop ? 'loop' : 'deposit',
+    title: (strategyKey && liteTitle(strategyKey)) || held.join(' + ') || 'A position',
+    sub: loop ? `Levered · borrows ${debt.join(' + ')}` : 'Deposit',
+    held, debt,
+    pnlUsd: series.summary.pnl, aprPct: series.summary.aprPct, equityUsd: null, since: null, share: null,
+    closed: { at: k.lastAt, avgUsd: series.summary.avgCapital ?? null },
+  }
 }
 
 export interface BoardStrategy {

@@ -1,13 +1,13 @@
 import React from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import * as idx from '@yieldcircle/core/index/api'
 import { useAccountPnlBook } from '@yieldcircle/app/index/pnl'
-import { RATE_BOARD_LIMIT } from '@yieldcircle/app/index/queries'
+import { RATE_BOARD_LIMIT, useClosedPositions } from '@yieldcircle/app/index/queries'
 import { useMyFollows, useProfiles } from '../../social/queries'
-import { go, liteWalletHref, proHref, useApp } from '../../state/AppState'
+import { go, liteWalletHref, proHref, useApp, walletHref } from '../../state/AppState'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { bookKeyOf } from '@yieldcircle/core/model/uid'
-import { boardPositions, boardStrategies, boardWallets, leverTag, plainName, type BoardSort, type BoardStrategy, type BoardWallet, type LiteRow } from '@yieldcircle/core/model/lite'
+import { boardPositions, boardStrategies, boardWallets, closedPosition, leverTag, plainName, type BoardSort, type BoardStrategy, type BoardWallet, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { GROUPS, groupOf } from '@yieldcircle/core/model/assets'
 import { Face } from '../social-bits'
@@ -78,6 +78,8 @@ export function useBoardNames(): Map<string, { title: string; sub: string; s: St
   }, [b.all, b.hidden, b.overflow, L.rows])
 }
 
+/** How many closed positions a wallet's list carries; the rest are Pro's. */
+const CLOSED_SHOWN = 6
 /** How many a board shows before "Show more": a ranking reads in its top; the rest is one tap. */
 const BOARD_ROWS = 20
 
@@ -148,7 +150,23 @@ function WalletRow({ r, sort, profile, me, open, onToggle, liteByKey }: { r: Boa
  */
 export function WalletPositions({ account, liteByKey, me, foot = true }: { account: string; liteByKey: Map<string, LiteRow>; me: boolean; /** Follow and the way to the profile: the board's row has them, the profile itself not */ foot?: boolean }) {
   const q = useAccountPnlBook(account)
-  const ps = q.data ? boardPositions(q.data, (k) => liteByKey.get(k.toLowerCase())?.title ?? null) : []
+  const liteTitle = (k: string) => liteByKey.get(k.toLowerCase())?.title ?? null
+  const open = q.data ? boardPositions(q.data, liteTitle) : []
+  // what it HAD: the closed positions' keys, then each one's own record (the drawer's query, so a
+  // tap opens it from cache); the newest few, the rest in Pro
+  const closedQ = useClosedPositions(account)
+  const closedKeys = React.useMemo(() => [...(closedQ.data ?? [])].sort((a, b) => b.lastAt.localeCompare(a.lastAt)).slice(0, CLOSED_SHOWN), [closedQ.data])
+  const series = useQueries({
+    queries: closedKeys.map((k) => ({
+      queryKey: ['pos-series', account, k.key, 'USD'],
+      queryFn: () => idx.positionSeries(account, k.key, 'USD'),
+      staleTime: 5 * 60_000,
+      retry: (c: number, e: unknown) => c < 1 && !/→ 404$|no anchored position/.test((e as Error)?.message ?? ''),
+    })),
+  })
+  const had = closedKeys.flatMap((k, i) => { const r = series[i].data; const p = r && closedPosition(k, r, liteTitle); return p ? [p] : [] })
+  const ps = [...open, ...had]
+  const moreClosed = Math.max(0, (closedQ.data?.length ?? 0) - CLOSED_SHOWN)
   const [pnl, setPnl] = React.useState<string>()
   const colorOf = (g: string) => GROUPS.find((x) => x.id === g)?.color ?? null
   const since = (t: string) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
@@ -165,11 +183,12 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
           const up = p.pnlUsd >= 0
           const open = () => setPnl(p.key)
           return (
-            <div key={p.key} className="lb-p" role="button" tabIndex={0} title="See what this position made, day by day" onClick={open} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }} style={{ '--gc': color ?? undefined } as React.CSSProperties}>
+            <div key={p.key} className={`lb-p${p.closed ? ' was' : ''}`} role="button" tabIndex={0} title="See what this position made, day by day" onClick={open} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }} style={{ '--gc': color ?? undefined } as React.CSSProperties}>
               <span className="lb-pm">{debt ? <span className="toks"><Tok sym={held.symbol} logo={held.logo} size={32} /><Tok sym={debt.symbol} logo={debt.logo} size={32} /></span> : <Tok sym={held.symbol} logo={held.logo} size={32} />}</span>
               <span className="lb-pn">
-                <b>{p.title}{p.kind === 'loop' && s?.kind === 'loop' && <span className="pill lever">{leverTag(s.tiers.balanced)}</span>}</b>
-                <small className="t50">{p.sub}{p.since ? <> · since {since(p.since)}</> : null}</small>
+                <b>{p.title}{p.kind === 'loop' && s?.kind === 'loop' && <span className="pill lever">{leverTag(s.tiers.balanced)}</span>}{p.closed && <span className="pill closed">closed</span>}</b>
+                <small className="t50">{p.sub}{p.since ? <> · since {since(p.since)}</> : null}{p.closed ? <> · closed {since(p.closed.at)}</> : null}</small>
+                {p.closed?.avgUsd != null && <span className="lb-share"><small><b>{usdShort(p.closed.avgUsd)}</b> was at work</small></span>}
                 {p.equityUsd != null && (
                   <span className="lb-share" aria-label={p.share != null ? `${Math.round(p.share * 100)}% of its money` : undefined}>
                     {p.share != null && ps.length > 1 && <i className="lb-track"><i className="lb-fill" style={{ width: `${Math.max(1.5, p.share * 100)}%` }} /></i>}
@@ -185,6 +204,7 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
             </div>
           )
         })}
+      {moreClosed > 0 && <div className="lb-p t50 lb-older"><a href={proHref(walletHref(account))}>{moreClosed} older closed position{moreClosed === 1 ? '' : 's'}, in Pro ›</a></div>}
       {foot && (
         <div className="lb-foot">
           {!me && <FollowButton kind="wallet" target={account} small />}

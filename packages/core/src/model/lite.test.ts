@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets } from './lite'
+import { followedFirst, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 import type { Holding } from './positions'
@@ -231,6 +231,15 @@ describe('the leaderboard', () => {
     const ps = boardPositions(book, (k) => (k === 'loop:x|y' ? 'Ether via Lido' : null))
     expect(ps.map((p) => [p.title, p.sub, p.pnlUsd])).toEqual([['Ether via Lido', 'Levered · borrows WETH', 900], ['Steakhouse USDC', 'Deposit', 120]])
     expect(ps.map((p) => [p.kind, p.held, p.debt, p.share])).toEqual([['loop', ['wstETH'], ['WETH'], 9000 / 14000], ['deposit', ['USDC'], [], 5000 / 14000]])
+  })
+  it('names a closed position by its legs, in Lite’s words where they are a Lite row’s markets', () => {
+    const legs = [{ marketUid: 'AAVE_V3:1:0xAbC', side: 'supply', symbol: 'wstETH' }, { marketUid: 'AAVE_V3:1:0xDeF', side: 'borrow', symbol: 'WETH' }]
+    const k = { key: '1|0xa||AAVE_V3', lastAt: '2026-10-28T13:19:00.000Z' }
+    const sum = { pnl: 151, aprPct: 5.4, capitalDays: 1000, avgCapital: 80_000 }
+    const c = closedPosition(k, { summary: sum, legs }, (sk) => (sk.startsWith('loop:') ? 'Ether via Lido' : null))!
+    expect([c.title, c.sub, c.kind, c.held, c.debt, c.pnlUsd, c.closed]).toEqual(['Ether via Lido', 'Levered · borrows WETH', 'loop', ['wstETH'], ['WETH'], 151, { at: k.lastAt, avgUsd: 80_000 }])
+    expect(closedPosition(k, { summary: sum, legs: [legs[0]] }, () => null)!.title).toBe('wstETH')
+    expect(closedPosition(k, { summary: { ...sum, capitalDays: 0 }, legs }, () => null)).toBeNull()
   })
 })
 

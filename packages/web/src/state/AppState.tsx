@@ -48,7 +48,7 @@ import { readMode, writeMode, type AppMode } from './mode'
  * the prefix says.
  */
 /** `roll`: a fixed-term position's Roll tab — into a later date or term (`model/roll.ts`) */
-export type Mode = 'add' | 'reduce' | 'close' | 'manage' | 'roll'
+export type Mode = 'add' | 'reduce' | 'close' | 'manage' | 'roll' | 'loan'
 export type View = 'home' | 'feed' | 'earn' | 'borrow' | 'group' | 'wallet' | 'market' | 'board' | 'me' | 'alerts' | 'curator' | 'token' | 'join' | 'you' | 'search'
 export interface Route {
   view: View
@@ -136,7 +136,7 @@ function parsePage(seg: string[], p: URLSearchParams, hash: string): Page {
     s: p.get('s') ?? undefined,
     h: p.get('h') ?? undefined,
     k: p.get('k') === 'loop' ? ('loop' as const) : p.get('k') === 'simple' ? ('simple' as const) : p.get('k') === 'borrow' ? ('borrow' as const) : p.get('k') === 'fixed' ? ('fixed' as const) : undefined,
-    m: m === 'reduce' || m === 'close' || m === 'manage' || m === 'roll' ? (m as Mode) : m === 'add' ? ('add' as Mode) : undefined,
+    m: m === 'reduce' || m === 'close' || m === 'manage' || m === 'roll' || m === 'loan' ? (m as Mode) : m === 'add' ? ('add' as Mode) : undefined,
     t: p.get('t') ?? undefined,
     q: p.get('q') ?? undefined,
     by: p.get('by') ?? undefined,

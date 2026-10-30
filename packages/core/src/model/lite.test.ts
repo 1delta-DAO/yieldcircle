@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets } from './lite'
+import { followedFirst, howOf, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 import type { Holding } from './positions'
@@ -65,6 +65,14 @@ describe('names in words', () => {
   it('splits a "via" title into the money and whose it is', () => {
     expect(splitTitle('Dollars via 3Jane')).toEqual({ short: '3Jane', via: true })
     expect(splitTitle('USDC')).toEqual({ short: 'USDC', via: false })
+  })
+  it('a PT and a loop say how they earn; a plain deposit is just whose it is', () => {
+    const pt = dep('pt', { asset: 'USDe', source: 'fixed', via: 'Fixed on Pendle · 17 Dec', maturity: 1_800_000_000 })
+    expect(rowName({ s: pt, title: 'Dollars via 3Jane' })).toBe('3Jane via Pendle')
+    expect(rowName({ s: loop('l', { venue: 'Morpho · Steakhouse' }), title: 'Dollars via 3Jane' })).toBe('3Jane loop via Morpho')
+    expect(howOf(loop('a'))).toBe('loop via Aave')
+    expect(rowName({ s: dep('d'), title: 'Dollars via 3Jane' })).toBe('3Jane')
+    expect(rowName({ s: dep('d'), title: 'Dollars via 3Jane' }, true)).toBe('Dollars via 3Jane')
   })
   it('a row never names a venue or a chain', () => {
     const n = plainName(loop('x'))

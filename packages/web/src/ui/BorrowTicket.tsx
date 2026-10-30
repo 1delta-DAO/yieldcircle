@@ -36,7 +36,8 @@ import { fromUnits, heldRaw, payRaw, portion, unitsOf, type Amount } from '@yiel
 import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '@yieldcircle/core/model/positions'
 import { isSvmChain, normAddr } from '@yieldcircle/core/model/address'
 import { keyOfToken } from '@yieldcircle/core/model/desk'
-import { groupOf } from '@yieldcircle/core/model/assets'
+import { denomOf, groupOf } from '@yieldcircle/core/model/assets'
+import type { LoopStrategy } from '@yieldcircle/core/model/strategies'
 import { canonUid, pairKey, type ThreadRef } from '@yieldcircle/core/model/uid'
 import { lendingAction, lendingDepositAndBorrow, lendingRange, lendingWithdrawAndRepay, nativeAsset } from '@yieldcircle/core/sdk/api'
 import { chainLabel, useIrm, useLendingBooks } from '@yieldcircle/app/sdk/queries'
@@ -164,7 +165,7 @@ function WhereLine({ o, choices, idle, onPick }: { o: BorrowOffer; choices: Borr
 }
 
 // ----------------------------------------------------------------- Borrow
-function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding | null; idle: Idle[]; alternatives: BorrowOffer[] }) {
+function BorrowPane({ o, h, idle, alternatives, loop }: { o: BorrowOffer; h: Holding | null; idle: Idle[]; alternatives: BorrowOffer[]; /** a held loop's own account (`LoopLoanPanes`): nothing is borrowed unless asked for, and the words are a loop's */ loop?: boolean }) {
   const { account, isConnected, solSigner, actorOn } = useApp()
   const actor = actorOn(o.chainId)
   const paper = usePaper()
@@ -220,7 +221,8 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
   // picked — a chip or the slider in dollars, or a number typed in either unit (`typed`). A typed
   // token amount is kept as typed, so "500 USDC" sends 500 USDC, not $500 at today's price
   const [pick, setPick] = useSticky<{ by: 'usd' | 'tok'; v: number; typed?: boolean } | null>(`b:${o.id}:amt`, null)
-  const take = Math.max(0, pick == null ? Math.min(defaultBorrow(z), cap) : pick.by === 'usd' ? pick.v : pick.v * debtPrice)
+  // (a loop is opened to be made safer as often as to borrow more: it starts at nothing, never at Safe)
+  const take = Math.max(0, pick == null ? (loop ? 0 : Math.min(defaultBorrow(z), cap)) : pick.by === 'usd' ? pick.v : pick.v * debtPrice)
   const debtUnits = pick?.by === 'tok' ? Math.max(0, pick.v) : take / debtPrice
   const setTake = (v: number) => setPick({ by: 'usd', v })
   const over = take > cap + 0.005
@@ -302,7 +304,7 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
   // what stops the button, in words
   const short = !!account && (!bal || put > bal.amount + 1e-9) && put > 0
   const [ack, setAck] = React.useState(false)
-  const blocked = !(put > 0 || take > 0) ? 'Put something up or take something out'
+  const blocked = !(put > 0 || take > 0) ? (loop ? 'Put some collateral in or borrow something' : 'Put something up or take something out')
     : paper.active && o.assetClass ? `Paper loans against ${o.ticker ?? 'stocks'} open once their prices can be trusted`
     : short ? `You have ${num(bal?.amount ?? 0, 4)} ${chosen.symbol}`
     : over && take > 0 ? (cap > 0 ? `The most you can take here is ${outAmt(cap)}` : `Put something up to take ${usdOut ? 'dollars' : o.debt.symbol} out`)
@@ -331,7 +333,7 @@ function BorrowPane({ o, h, idle, alternatives }: { o: BorrowOffer; h: Holding |
         <GetLine account={account} short={short} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
         {getOpen && <GetAsset targets={opts.map((x) => ({ chainId: o.chainId, address: x.address, symbol: x.symbol, decimals: x.decimals, price, logo: x.role === 'token' ? o.collateral.logo : undefined, have: balOf(x.address)?.amount ?? 0 }))} want={put} sources={idle} onTarget={(t) => setRole(opts.find((x) => x.address === t.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}
 
-        <span className="lbl" style={{ marginTop: 14 }}>Take out <span className="t50">· {o.debt.symbol}</span> <Info label="The three zones">
+        <span className="lbl" style={{ marginTop: 14 }}>{loop ? 'Borrow' : 'Take out'} <span className="t50">· {o.debt.symbol}{loop ? ' · optional' : ''}</span> <Info label="The three zones">
           {ZONE_ORDER.map((k) => <p key={k} style={{ margin: '0 0 6px' }}><b>{ZONES[k].word}</b> · {k === 'safe' ? `${whatOf(o)} can fall ${pct(borders.safe * 100, 0)} or more before liquidation.` : k === 'watch' ? `between ${pct(borders.watch * 100, 0)} and ${pct(borders.safe * 100, 0)}.` : `less than ${pct(borders.watch * 100, 0)}.`} {ZONES[k].why}</p>)}
           {o.assetClass && borders !== CRYPTO_BORDERS && <p style={{ margin: '0 0 6px' }}>A stock asks for more room than a coin: it does not trade at night or at weekends, and the next open can jump straight past the line.</p>}
           <p style={{ margin: 0 }}>Health factor {Number.isFinite(effHf) ? effHf.toFixed(2) : '∞'}{simHf != null ? ' (simulated by the venue)' : ''} · loan to value {collUsd > 0 ? pct(totalDebt / collUsd * 100, 1) : '—'} of {pct(o.maxLtv * 100, 0)} allowed · liquidation at {pct(o.liqLtv * 100, 0)}.</p>
@@ -455,22 +457,54 @@ export function LiteLoanTicket({ h, idle, onClose }: { h: Holding; idle: Idle[];
 }
 
 /**
- * Lite's two plain moves on a held loop (`liteModes`): part of the debt paid from the wallet, or more
- * collateral put in from it — one lending action each, on the loop's own account: no swap, no new
- * borrowing, nothing comes out, and both move it away from liquidation. Pay back is the loan
- * ticket's own pane.
+ * A held loop worked as a loan, on its own account and with no swap — the way to contain its risk
+ * when a swap would cost too much: collateral in, and more debt out where it is a plain loan
+ * (`deposit-and-borrow`, or either leg alone); or debt paid from the wallet and collateral out
+ * (`withdraw-and-repay`). The loan ticket's own panes, on an offer read off the holding with the
+ * loop strategy's limits and rate laid over it (`offerFromHolding` knows no limit).
+ *
+ * `canBorrow` false — a term, a tenor or a maturity, whose debt the lending routes cannot add to, or
+ * a position off the menu with no limit to borrow under — keeps the collateral side to Top up's one
+ * leg. Pro's Loan tab switches the two sides here; Lite's Top up and Pay back tabs each pass `pane`.
  */
-export function LitePayBack({ h, idle }: { h: Holding; idle: Idle[] }) {
-  const o = React.useMemo(() => offerFromHolding(h), [h])
+export function LoopLoanPanes({ s, h, idle, canBorrow, pane: fixed }: { s: LoopStrategy | null; h: Holding; idle: Idle[]; canBorrow: boolean; pane?: 'borrow' | 'repay' }) {
+  const o = React.useMemo(() => {
+    const b0 = offerFromHolding(h)
+    if (!b0) return null
+    // its own id: what the panes remember (`useSticky`) and ask (`useQuery`) is this loop's, not the Borrow page's for the pair
+    const b = { ...b0, id: `loop:${h.key}` }
+    if (!s) return b
+    // dollars against dollars: only a depeg liquidates it, and the ticket says so
+    const pegged = b.out === 'USD' && denomOf(s.asset) === 'usd'
+    // the threshold: the account's own, read off its health (its e-mode, its own factors), when it has one; else the market's
+    const liqLtv = h.health && owedOf(h) > 0 && collateralOf(h) > 0 ? b.liqLtv : s.liqLtv > 0 ? s.liqLtv : b.liqLtv
+    return {
+      ...b, maxLtv: s.maxLev > 1 ? 1 - 1 / s.maxLev : 0, liqLtv,
+      borrowApr: s.borSpot, rewards: s.rewardsShort, liquidityUsd: s.borrowLiquidityUsd, pegged,
+      collateral: { ...b.collateral, price: b.collateral.price || s.priceLong }, debt: { ...b.debt, logo: s.logoShort, price: b.debt.price || s.priceShort || 1 },
+    } satisfies BorrowOffer
+  }, [h, s])
+  const [pick, setPane] = React.useState<'borrow' | 'repay'>('borrow')
+  const pane = fixed ?? pick
+  const borrows = canBorrow && !!s
   if (!o) return <Unreadable />
-  return <RepayPane key={h.key + ':payback'} o={o} h={h} idle={idle} lite="some" />
+  return (
+    <>
+      {!fixed && <div className="tsec"><div className="seg" role="tablist" aria-label="Loan">
+        <button role="tab" aria-selected={pane === 'borrow'} aria-pressed={pane === 'borrow'} onClick={() => setPane('borrow')}>{borrows ? 'Add collateral · borrow' : 'Add collateral'}</button>
+        <button role="tab" aria-selected={pane === 'repay'} aria-pressed={pane === 'repay'} onClick={() => setPane('repay')}>Pay back · withdraw</button>
+      </div></div>}
+      <div className="tsec"><div className="foot">{pane === 'repay' ? 'Pay debt back from your wallet and, if you like, take collateral out. No swap: nothing is sold, whatever the market pays.'
+        : borrows ? 'Put more collateral in to make it safer and, if you like, borrow against it to your wallet. No swap: nothing is bought, whatever the market pays.'
+        : 'Put more collateral in from your wallet to move it away from liquidation. No swap: nothing is bought, whatever the market pays.'}</div></div>
+      {pane === 'repay' ? <RepayPane key={h.key + ':repay'} o={o} h={h} idle={idle} loop />
+        : borrows ? <BorrowPane key={h.key + ':borrow'} o={o} h={h} idle={idle} alternatives={[]} loop />
+        : <TopUpPane key={h.key + ':topup'} o={o} h={h} idle={idle} />}
+    </>
+  )
 }
-export function LiteTopUp({ h, idle }: { h: Holding; idle: Idle[] }) {
-  const o = React.useMemo(() => offerFromHolding(h), [h])
-  if (!o) return <Unreadable />
-  return <TopUpPane key={h.key + ':topup'} o={o} h={h} idle={idle} />
-}
-const Unreadable = () => <div className="tsec"><div className="caution">This position can’t be read well enough to change here. Open it in Details.</div></div>
+
+const Unreadable = () =><div className="tsec"><div className="caution">This position can’t be read well enough to change here. Open it in Details.</div></div>
 
 function TopUpPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] }) {
   const { account, isConnected, actorOn } = useApp()
@@ -519,7 +553,7 @@ function TopUpPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] })
 }
 
 // ----------------------------------------------------------------- Pay back
-function RepayPane({ o, h, idle, lite }: { o: BorrowOffer; h: Holding; idle: Idle[]; /** Lite: all of it back and the collateral home, or part of the debt only */ lite?: 'all' | 'some' }) {
+function RepayPane({ o, h, idle, lite, loop }: { o: BorrowOffer; h: Holding; idle: Idle[]; /** Lite: all of it back and the collateral home, or part of the debt only */ lite?: 'all' | 'some'; /** a held loop's own account: the words are a loop's */ loop?: boolean }) {
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/repay`)
   const { account, isConnected, actor, paper, owed, held, collUsd, price, otherUsd, owedUsd, otherDebtUsd, debtPrice, debtBal, repayAmt0, setRepay, outAmt0, setOut, repayAmt, outAmt, repay, out, repayAll, outAll, r, w, repayRaw, outRaw, debtAfter, collAfter, liq, hfAfter, maxOut, canNative, asNative, setAsNative, native, coin, build, key, ladder, shortDebt, blocked, zone, liteBlocked } = useRepayTicket(o, h, idle, lite)
   if (lite) return (
@@ -547,7 +581,7 @@ function RepayPane({ o, h, idle, lite }: { o: BorrowOffer; h: Holding; idle: Idl
         <AmountBox unit={o.debt.symbol} value={repayAmt} onChange={setRepay} onMax={() => setRepay(fromUnits(owed))} />
         <div className="amt-sub"><span>≈ {usd(r * debtPrice)}</span><span>{account ? <>Wallet: {num(debtBal?.amount ?? 0, 2)} {o.debt.symbol}{shortDebt && <span className="warn"> · short</span>}</> : ''}</span></div>
         {repayAll && <div className="foot" style={{ marginTop: 4 }}>Paying back all of it: the amount is sized on chain when it lands, interest to that block included, so nothing is left behind. Keep a little more {o.debt.symbol} than shown.</div>}
-        <span className="lbl" style={{ marginTop: 14 }}>Take out <span className="t50">· {o.collateral.symbol} (of {num(held, 4)} put up)</span></span>
+        <span className="lbl" style={{ marginTop: 14 }}>{loop ? 'Withdraw' : 'Take out'} <span className="t50">· {o.collateral.symbol} (of {num(held, 4)} {loop ? 'in it' : 'put up'}){loop ? ' · optional' : ''}</span></span>
         <AmountBox unit={o.collateral.symbol} value={outAmt} onChange={setOut} onMax={() => setOut(repayAll && otherDebtUsd <= 0.5 ? portion(heldRaw(h), 100, o.collateral.decimals) : fromUnits(floor6(maxOut)))} />
         <div className="amt-sub"><span>≈ {usd(w * price)}</span><span>{debtAfter > 0 ? `at most ${num(maxOut, 4)} while ${usd(debtAfter)} is owed` : 'all of it, once repaid'}</span></div>
         {canNative && <div className="seg" style={{ marginTop: 8 }}>{[false, true].map((n) => <button key={String(n)} aria-pressed={native === n} onClick={() => setAsNative(n)}><Tok sym={n ? coin : o.collateral.symbol} logo={n ? undefined : o.collateral.logo} size={16} /> as {n ? coin : o.collateral.symbol}</button>)}</div>}
@@ -557,7 +591,7 @@ function RepayPane({ o, h, idle, lite }: { o: BorrowOffer; h: Holding; idle: Idl
         <div className="c"><span className="k">Health after</span><span className={`v ${ZONES[zone].cls}`}>{debtAfter > 0 ? hfAfter.toFixed(2) : '—'}</span><span className="s">{debtAfter > 0 ? `${ZONES[zone].word} · −${pct(dropOf(collAfter, debtAfter, liq) * 100, 0)} to liquidation` : 'nothing owed'}</span></div>
         <div className="c"><span className="k">Back to you</span><span className="v">{usd(w * price)}</span><span className="s">{num(w, 4)} {native ? coin : o.collateral.symbol}</span></div>
       </div></div>
-      <Action ladder={ladder} label={r > 0 && w > 0 ? `Pay back ${usd(r * debtPrice)} · take ${num(w, 4)} ${o.collateral.symbol}` : r > 0 ? `Pay back ${usd(r * debtPrice)}` : `Take out ${num(w, 4)} ${o.collateral.symbol}`} account={account} isConnected={isConnected} disabled={!!blocked} blockedNote={blocked ?? undefined} chainId={o.chainId} fee="repay" />
+      <Action ladder={ladder} label={r > 0 && w > 0 ? `Pay back ${usd(r * debtPrice)} · ${loop ? 'withdraw' : 'take'} ${num(w, 4)} ${o.collateral.symbol}` : r > 0 ? `Pay back ${usd(r * debtPrice)}` : `${loop ? 'Withdraw' : 'Take out'} ${num(w, 4)} ${o.collateral.symbol}`} account={account} isConnected={isConnected} disabled={!!blocked} blockedNote={blocked ?? undefined} chainId={o.chainId} fee="repay" />
     </>
   )
 }

@@ -2,7 +2,7 @@ import React from 'react'
 import { Pressable, Share, StyleSheet, View } from 'react-native'
 import { router, type Href } from 'expo-router'
 import { GROUPS } from '@yieldcircle/core/model/assets'
-import { canShare, heldBy, leverTag, shareOf, splitTitle, type LiteRow } from '@yieldcircle/core/model/lite'
+import { canShare, heldBy, leverTag, shareOf, rowName, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import { usdShort } from '@yieldcircle/core/model/format'
 import type { Proof } from '@yieldcircle/core/model/activity'
@@ -24,7 +24,7 @@ export function LiteTitle({ r, size = 14, icon = 14, full }: { r: LiteRow; size?
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
       {g && <GroupIcon id={g.id} color={g.color} size={icon} />}
-      <Txt s={size} w={600} numberOfLines={2} style={{ flexShrink: 1 }}>{full ? r.title : splitTitle(r.title).short}</Txt>
+      <Txt s={size} w={600} numberOfLines={2} style={{ flexShrink: 1 }}>{rowName(r, full)}</Txt>
     </View>
   )
 }

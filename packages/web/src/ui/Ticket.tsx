@@ -43,7 +43,7 @@ import { TicketSocial } from './TicketSocial'
 import { AssetLink } from './TokenPage'
 import { heldBy, bufferOfHealth, brandOf, closeLines, debtWord, depositLines, holdingLine, leverTag, liteEligible, liteModes, liteTiers, loopLines, moneyWord, plainName, riskWord, saferLines, saferTargets, shownDp, trustKind, withdrawLines, type LiteMode } from '@yieldcircle/core/model/lite'
 import { proHref } from '../state/AppState'
-import { LitePayBack, LiteTopUp } from './BorrowTicket'
+import { LoopLoanPanes } from './BorrowTicket'
 import { LiteAmtSub, LiteChoices, LiteDetails, LiteLines, LiteMoreCtx, LiteMoreSheet, LiteNumbers, LitePresets } from './lite/LiteTicketBits'
 import { CLOSE_INTEREST_PAD, DAY_S, NATIVE_MAX_ROUNDS, NO_NATIVE_DEPOSIT, NO_NATIVE_WITHDRAW, NO_ROUTE, closeKeepPad, dayMonth, dayOf, daysWord, defaultTenor, defaultTerm, getForms, hasRoute, nativeMaxRounds, payOptions, paysNative, safetyOf, sameToken, startsAny, tenorWord, type PayOption, type PayRole } from '@yieldcircle/core/model/ticket'
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
@@ -81,8 +81,11 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
   const rollDue = rolls && dueIn != null && dueIn - Date.now() / 1000 < 7 * DAY_S
   // a deposit a loop can start from opens on levering it: that is why it is offered here (tickets/0015)
   const [mode0r, setMode] = React.useState<Mode>(holding ? mode0 ?? (rollDue ? 'roll' : holding.putUp ? 'manage' : 'add') : 'add')
-  // a `m=roll` link to a position that does not roll lands on its Manage
-  const mode: Mode = mode0r === 'roll' && !rolls ? (s.kind === 'loop' ? 'manage' : 'reduce') : mode0r
+  // a held loop is also a loan, worked with no swap — how its risk is contained when swapping costs too much:
+  // collateral in (and debt out, where `plainLoan`), or debt paid and collateral out
+  const loans = !!holding && s.kind === 'loop' && !holding.putUp && !holding.paper && !holding.subAccount?.unsupported && !!holding.collateralUid && !!holding.debtUid && !!holding.collateralAddress && !!holding.debtAddress
+  // a `m=roll` link to a position that does not roll lands on its Manage, and so does a `m=loan` on one that owes nothing
+  const mode: Mode = (mode0r === 'roll' && !rolls) || (mode0r === 'loan' && !loans) ? (s.kind === 'loop' ? 'manage' : 'reduce') : mode0r
   const uid = uidOf(s)
   const thread = useThreadOf()(s)
   if (lite) return (
@@ -106,7 +109,8 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
       {holding && (
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
           <button role="tab" aria-selected={mode === 'add'} onClick={() => setMode('add')}>Add</button>
-          <button role="tab" aria-selected={mode !== 'add' && mode !== 'roll'} onClick={() => setMode(s.kind === 'loop' ? 'manage' : 'reduce')}>{s.kind === 'loop' ? (holding.putUp ? 'Lever it' : 'Manage') : 'Withdraw'}</button>
+          <button role="tab" aria-selected={mode !== 'add' && mode !== 'roll' && mode !== 'loan'} onClick={() => setMode(s.kind === 'loop' ? 'manage' : 'reduce')}>{s.kind === 'loop' ? (holding.putUp ? 'Lever it' : 'Manage') : 'Withdraw'}</button>
+          {loans && <button role="tab" aria-selected={mode === 'loan'} title="Add collateral and borrow, or pay back and withdraw — on the loop's account, no swap" onClick={() => setMode('loan')}>Loan</button>}
           {rolls && <button role="tab" aria-selected={mode === 'roll'} className={rollDue ? 'due' : undefined} title="Move it to a later date or term, without taking it out" onClick={() => setMode('roll')}>Roll</button>}
           <span className="sp" /><span className="sum">{usd(holding.valueUsd)}{holding.putUp ? ` · ${num(holding.amount, 4)} ${holding.symbol} deposited` : ''}{s.kind === 'loop' && holding.leverage && holding.leverage > 1.05 ? ` · ${holding.leverage.toFixed(1)}×` : ''}{holding.health != null ? ` · health ${holding.health.toFixed(2)}` : ''}</span>
           {holdings.length < 2 && <SubAccountPill sub={holding.subAccount} venue={holding.venue} />}
@@ -118,8 +122,9 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
           <b>Not in the menu.</b> {offMenu} Check the liquidity, rate and risk yourself before you size it.
         </div>
       )}
-      {holding && mode !== 'add' && mode !== 'roll' && rolls && <div className="tsec plain t50" style={{ fontSize: 12.5 }}>{rollDue ? <b style={{ color: 'var(--warning)' }}>Its date is close. </b> : null}{s.kind === 'loop' ? 'Keeping the loan?' : 'Keeping the money in?'} <button type="button" className="linkish" onClick={() => setMode('roll')}>Roll it to a later {s.kind === 'loop' && s.terms ? 'term' : 'date'} ›</button></div>}
+      {holding && mode !== 'add' && mode !== 'roll' && mode !== 'loan' && rolls && <div className="tsec plain t50" style={{ fontSize: 12.5 }}>{rollDue ? <b style={{ color: 'var(--warning)' }}>Its date is close. </b> : null}{s.kind === 'loop' ? 'Keeping the loan?' : 'Keeping the money in?'} <button type="button" className="linkish" onClick={() => setMode('roll')}>Roll it to a later {s.kind === 'loop' && s.terms ? 'term' : 'date'} ›</button></div>}
       {holding && mode === 'roll' ? <RollTicket key={holding.key} s={s} h={holding} />
+        : holding && mode === 'loan' && s.kind === 'loop' ? <LoopLoanPanes key={holding.key} s={s} h={holding} idle={idle} canBorrow={plainLoan(s)} />
         : holding && mode !== 'add' ? (holding.subAccount?.unsupported ? <CannotManage h={holding} /> : s.kind === 'loop' ? <ManageLoop key={holding.key} s={s} h={holding} closeFirst={mode === 'close'} /> : s.book ? <ManageFixed key={holding.key} s={s} h={holding} mode={mode} /> : <ManageTicket key={holding.key} s={s} h={holding} mode={mode} />)
         : s.kind === 'simple' && s.book ? <FixedTicket key={into?.key} s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} into={into} />
         : s.kind === 'simple' ? <SimpleTicket key={into?.key} s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} into={into} /> : <LoopTicket key={into?.key} s={s} idle={idle.filter((i) => i.chainId === s.chainId)} allIdle={idle} holding={into} />}
@@ -130,6 +135,9 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
     </TicketCtx.Provider>
   )
 }
+
+/** A loop whose debt is a plain variable-rate loan, which the lending routes can add to. Not a term, a tenor or a maturity: those owe a fixed face. */
+const plainLoan = (s: LoopStrategy) => !s.terms && !s.tenors && !s.dueAt && !isLoopscale(s.lender)
 
 /**
  * Lite's ticket (docs/lite.md §5): what it is in words, where the money sits as one trust line,
@@ -166,7 +174,7 @@ function LiteTicket({ s, idle, holdings, holding, into: into0, mode0, copy, copy
   const L = useLiteMenu()
   const lev = s?.kind === 'loop' ? (h?.leverage && h.leverage > 1.05 ? h.leverage : copyLev && copyLev > 1.05 ? copyLev : s.tiers.balanced) : h?.kind === 'loop' ? h.leverage ?? 1 : 0
   // the sheet's foot: the same position (or row) on Pro's own page, where every tier, route and number is
-  const detailsHref = h ? proHref(`#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: mode === 'add' ? 'add' : isLoop ? 'manage' : 'reduce' })}`)
+  const detailsHref = h ? proHref(`#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: mode === 'add' ? 'add' : mode === 'topup' || mode === 'payback' ? 'loan' : isLoop ? 'manage' : 'reduce' })}`)
     : s ? proHref(`#/${s.group}?${new URLSearchParams({ s: s.id, k: s.kind })}`) : proHref()
   // Lite's own "More choices" in every mode, drawn by the body with its own values; which of several
   // positions sits on top of it. Pro's ticket is only ever the link at its foot.
@@ -196,8 +204,8 @@ function LiteTicket({ s, idle, holdings, holding, into: into0, mode0, copy, copy
       <LiteMoreCtx.Provider value={moreCtx}>
       {h && mode !== 'add'
         ? (h.subAccount?.unsupported ? <><CannotManage h={h} /><LiteMoreSheet><LiteHeldNumbers h={h} s={s} /></LiteMoreSheet></>
-          : mode === 'topup' ? <><LiteTopUp h={h} idle={idle} /><LiteMoreSheet><LiteHeldNumbers h={h} s={s} /></LiteMoreSheet></>
-          : mode === 'payback' ? <><LitePayBack h={h} idle={idle} /><LiteMoreSheet><LiteHeldNumbers h={h} s={s} /></LiteMoreSheet></>
+          // the loan ticket's two sides, no swap: borrowing too where the loop is a plain loan
+          : mode === 'topup' || mode === 'payback' ? <><LoopLoanPanes key={h.key + mode} s={s?.kind === 'loop' ? s : null} h={h} idle={idle} canBorrow={s?.kind === 'loop' && plainLoan(s)} pane={mode === 'topup' ? 'borrow' : 'repay'} /><LiteMoreSheet><LiteHeldNumbers h={h} s={s} /></LiteMoreSheet></>
           : isLoop ? <ManageLoop key={h.key + mode} s={s?.kind === 'loop' ? s : null} h={h} closeFirst={mode === 'close'} />
           : <ManageTicket key={h.key} s={s?.kind === 'simple' ? s : null} h={h} mode="reduce" />)
         : s?.kind === 'simple' ? <SimpleTicket key={into?.key} s={s} idle={chainIdle} allIdle={idle} into={into} />
@@ -816,7 +824,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
 function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mode: Mode }) {
   const { lite } = React.useContext(TicketCtx)
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/withdraw`)
-  const { account, isConnected, actor, all, amt, setAmt, amount, eff, share, venueKey, canNative, fullExit, maxRounds, coin, asNative, setAsNative, native, outSym, rate, booked, st, slip, sendRaw, key, paper, px, instant, queueSecs, queueWord, paperRefuse, ladder, price, exit } = useWithdrawTicket(s, h, mode as Exclude<Mode, 'roll'> /* the Roll tab never renders this panel */, { lite })
+  const { account, isConnected, actor, all, amt, setAmt, amount, eff, share, venueKey, canNative, fullExit, maxRounds, coin, asNative, setAsNative, native, outSym, rate, booked, st, slip, sendRaw, key, paper, px, instant, queueSecs, queueWord, paperRefuse, ladder, price, exit } = useWithdrawTicket(s, h, mode as Exclude<Mode, 'roll' | 'loan'> /* the Roll and Loan tabs never render this panel */, { lite })
   const wdp = shownDp(h.group === 'USD')
   if (lite) return (
     <>

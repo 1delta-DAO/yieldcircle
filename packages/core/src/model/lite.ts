@@ -103,6 +103,26 @@ export function plainName(s: Strategy): { title: string; sub: string } {
   }
   return { title, sub: SIMPLE_SUB[s.source]?.(s) ?? 'Earns interest' }
 }
+/**
+ * How a row earns, as a short tail to its name, so two rows of one money tell apart at a glance:
+ * a PT is `via Pendle`, a loop `loop via Morpho`; a plain deposit has none (`3Jane`).
+ */
+export function howOf(s: Strategy): string {
+  // `Morpho · Steakhouse` → Morpho, `Aave V3` → Aave: the family is enough on a row
+  if (s.kind === 'loop') { const v = s.venue.split(' · ')[0].replace(/\s+V\d+$/i, ''); return v ? `loop via ${v}` : 'loop' }
+  if (s.source === 'fixed') { const v = /^Fixed on ([^·]+)/.exec(s.via)?.[1]?.trim(); return v ? `via ${v}` : 'fixed' }
+  return ''
+}
+/**
+ * The name a row shows: whose money it is (`3Jane`) — or, where categories mix (`full`), the whole
+ * phrase (`Dollars via 3Jane`) — then how it earns (`3Jane loop via Morpho`). With a tail, the
+ * short form is kept: the money's mark beside it already says which family.
+ */
+export function rowName(r: Pick<LiteRow, 's' | 'title'>, full = false): string {
+  const how = howOf(r.s)
+  const { short } = splitTitle(r.title)
+  return how ? `${short} ${how}` : full ? r.title : short
+}
 const SIMPLE_SUB: Record<string, (s: SimpleStrategy) => string> = {
   lending: () => 'Lent to borrowers',
   vault: () => 'A vault lends it for you',
@@ -614,7 +634,7 @@ export function liteFind(q: string, rows: LiteRow[], limit = 6): LiteRow[] {
 function wordsOf(r: LiteRow): string[] {
   const s = r.s
   const fam = familyOf(s.group) ?? LITE_NAME[s.group]?.name ?? ''
-  const raw = [r.title, r.sub, s.asset, nameOf(s.asset), s.holds, fam, s.group, ...(s.kind === 'loop' ? [s.debt, 'loop levered'] : [])]
+  const raw = [r.title, howOf(s), r.sub, s.asset, nameOf(s.asset), s.holds, fam, s.group, ...(s.kind === 'loop' ? [s.debt, 'loop levered'] : [])]
   return raw.join(' ').toLowerCase().split(/[\s/·,()×]+/).filter(Boolean)
 }
 
@@ -638,19 +658,20 @@ export type LiteMode = 'add' | 'reduce' | 'topup' | 'payback' | 'close'
  * Which tabs Lite's ticket shows and which it opens on. Adding is opening Lite's own strategy: only
  * on a row Lite offers. A held loop is added to, made safer, topped up, paid down or closed; a
  * deposit added to or withdrawn from — and a position close to the line opens on "Lower risk".
- * `mode0`: what the link asked for (`add`, `close`, anything else is a reduce).
+ * `mode0`: what the link asked for (`add`, `close`, `loan` = Top up, anything else is a reduce).
  *
- * "Top up" and "Pay back" are the two plain moves on a loop: more of its collateral in from the
- * wallet, or part of its debt paid from the wallet — one lending action each, no swap, no new
- * borrowing, both make it safer. Only on a real position the app can name both legs of (a paper
- * loop's ledger takes neither: it adds to and pays back loans only).
+ * "Top up" and "Pay back" are the loan ticket's two sides on a loop, with no swap — how its risk is
+ * contained when swapping costs too much: collateral in from the wallet (and, on a plain
+ * variable-rate loan, more borrowed against it), or debt paid from the wallet (and collateral taken
+ * out). Only on a real position the app can name both legs of (a paper loop's ledger takes
+ * neither: it adds to and pays back loans only).
  */
 export function liteModes(s: Strategy | null, h: Holding | null, mode0?: string): { canAdd: boolean; isLoop: boolean; start: LiteMode; tabs: { id: LiteMode; word: string }[] } {
   const canAdd = !!s && liteEligible(s)
   const isLoop = (s?.kind ?? h?.kind) === 'loop'
   const risky = (bufferOfHealth(h?.health) ?? 1) < 0.1
-  const start: LiteMode = !h ? 'add' : mode0 === 'close' ? 'close' : mode0 && mode0 !== 'add' ? 'reduce' : canAdd && !risky ? 'add' : 'reduce'
   const plain = !!h && !h.paper && !h.subAccount?.unsupported && !!h.collateralUid && !!h.debtUid && !!h.collateralAddress && !!h.debtAddress
+  const start: LiteMode = !h ? 'add' : mode0 === 'close' ? 'close' : mode0 === 'loan' && plain ? 'topup' : mode0 && mode0 !== 'add' ? 'reduce' : canAdd && !risky ? 'add' : 'reduce'
   const tabs: { id: LiteMode; word: string }[] = !h ? [] : isLoop
     ? [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Lower risk' },
       ...(plain ? [{ id: 'topup' as const, word: 'Top up' }, { id: 'payback' as const, word: 'Pay back' }] : []), { id: 'close', word: 'Close' }]

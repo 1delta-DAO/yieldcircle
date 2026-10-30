@@ -2,7 +2,7 @@ import React from 'react'
 import { liteHash } from '@yieldcircle/core/model/liteLinks'
 import { canonUid, uidOf } from '@yieldcircle/core/model/uid'
 import { isSpike, seriesFor, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
-import { heldBy, leverTag, riskWord, splitTitle, type LiteRow } from '@yieldcircle/core/model/lite'
+import { heldBy, leverTag, riskWord, rowName, type LiteRow } from '@yieldcircle/core/model/lite'
 export { heldBy }
 import { GROUPS } from '@yieldcircle/core/model/assets'
 import type { Proof } from '@yieldcircle/core/model/activity'
@@ -23,15 +23,15 @@ export function LiteFace({ s, size = 28 }: { s: Strategy; size?: number }) {
  * A row's name: the money's own mark, then the money in words. On a category's own list the family
  * is the page's ("Dollars"), so the row says whose it is (`3Jane`); wherever categories mix — the
  * best rates across all, the home's cards, search — it says the whole phrase (`Dollars via 3Jane`):
- * a touch screen has no hover to say it (docs/lite-design-review.md §3.2).
+ * a touch screen has no hover to say it (docs/lite-design-review.md §3.2). A PT or a loop adds how
+ * it earns (`3Jane via Pendle`, `3Jane loop via Morpho`: `rowName`).
  */
 export function LiteTitle({ r, size = 14, full }: { r: LiteRow; size?: number; full?: boolean }) {
-  const { short } = splitTitle(r.title)
   const g = GROUPS.find((x) => x.id === r.s.group)
   return (
     <b className="lite-title">
       {g && <GroupIcon id={g.id} color={g.color} size={size} />}
-      <span>{full ? r.title : short}</span>
+      <span>{rowName(r, full)}</span>
     </b>
   )
 }

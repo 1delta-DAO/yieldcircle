@@ -351,7 +351,12 @@ Changes against the plan above, and why:
     show only on a real position whose two legs are named; a paper loop doesn't
     get them, because the ledger adds to and pays back loans only. Checked on
     Solana against a Kamino obligation on 2026-10-26: both routes build the
-    klend instruction and simulate. A deposit gets Add and Withdraw (25 %, 50 %, all). A loan gets Pay back
+    klend instruction and simulate. Since 2026-10-30 both are the loan ticket's
+    two-sided panes (`LoopLoanPanes`, shared with Pro's Loan tab): Top up can
+    also borrow against the new collateral, Pay back can also withdraw some — both
+    second legs start at nothing and are marked optional, so the one-tap move is
+    still the safer one. A fixed-term, tenor or maturity loop keeps Top up to the
+    collateral leg (the lending routes cannot add to a fixed debt). A deposit gets Add and Withdraw (25 %, 50 %, all). A loan gets Pay back
     all, which returns the collateral, and Pay back some. A position within 10 %
     of liquidation opens on Lower risk, and its row says how far it is. Only a
     price bet still opens in Pro.

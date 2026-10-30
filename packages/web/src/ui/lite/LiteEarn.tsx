@@ -10,6 +10,9 @@ import { useAsideTop } from '../AssetPage'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { LiteRowView } from './LiteBits'
 import { useMyFollows } from '../../social/queries'
+import { applyEarn } from '@yieldcircle/core/model/earnFilter'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
+import { EarnTools, useEarnFilter } from '../EarnTools'
 
 /** How many of the best rows Earn shows before a category is picked. */
 const TOP_ROWS = 10
@@ -44,8 +47,13 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   const close = () => go(group!.id)
   // the best of a category on one screen; the rest behind one tap, kept for this tab (`useSticky`)
   const [allRows, setAllRows] = useSticky<boolean>(`lite:${group?.id ?? 'all'}:all`, false)
-  const rows = group ? inGroup : top
-  const shown = group && !allRows ? rows.slice(0, LITE_LIST_ROWS) : rows
+  // search, sort and filters (EarnTools): one set for every category, kept for this tab. Asked
+  // with no category picked, they search every row, not only the best few
+  const ef = useEarnFilter('lite')
+  const everything = React.useMemo(() => [...L.rows].sort((x, y) => x.s.risk - y.s.risk || L.rank(y.s) - L.rank(x.s)), [L.rows, L.rank])
+  const base = group ? inGroup : ef.active ? everything : top
+  const rows = ef.active ? applyEarn(base, ef.f, (r) => r.s, { extra: (r) => [r.title, r.sub, chainLabel(r.s.chainId)], rank: L.rank }) : base
+  const shown = group && !allRows && !ef.active ? rows.slice(0, LITE_LIST_ROWS) : rows
   const valueOf = (id: string) => b.holdings.filter((h) => L.runs(h)?.id === id).reduce((a, h) => a + h.valueUsd, 0)
   const name = group ? LITE_NAME[group.id] ?? { name: group.name, line: group.desc } : null
   const yours = group ? b.books.filter((x) => x.group === group.id) : []
@@ -77,19 +85,21 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
 
           <section className="sec lite-sec lite-earn-list" aria-live="polite">
             <div className="sec-h">
-              <h2>{name ? name.name : 'Best rates, safest first'}</h2>
-              <span className="sub">{name ? name.line : 'across every category, the riskiest left out'}</span>
+              <h2>{name ? name.name : ef.active ? 'Every way to earn' : 'Best rates, safest first'}</h2>
+              <span className="sub">{name ? name.line : ef.active ? 'across every category' : 'across every category, the riskiest left out'}</span>
               {group && <a className="lite-earn-all" href={liteHref('earn')}>All categories</a>}
             </div>
             {group && (work >= 1 || idle >= 1) && (
               <div className="note lite-yours">
                 {work >= 1 ? <>Your {usd(work)} here earns about <b className="ok">{usd(yearly)}</b> a year{work ? ` (${pct(yearly / work * 100, 1)})` : ''}.</> : null}
-                {idle >= 1 ? <> {usd(idle)} sits idle{rows[0] ? <> — the top row would pay <b className="ok">{pct(rows[0].s.rate)}</b></> : ''}.</> : null}
+                {idle >= 1 ? <> {usd(idle)} sits idle{inGroup[0] ? <> — the top row would pay <b className="ok">{pct(inGroup[0].s.rate)}</b></> : ''}.</> : null}
               </div>
             )}
+            <EarnTools st={ef} n={rows.length} total={base.length} kinds />
             <div className="lrows">
               {b.isLoading && !rows.length
                 ? [0, 1, 2, 3, 4].map((i) => <div key={i} className="lrow sk"><Sk w={28} h={28} /><span className="lrow-n"><Sk w={120} h={14} /><Sk w={180} h={10} /></span><Sk w={60} h={18} /></div>)
+                : !rows.length && base.length ? <div className="empty">Nothing here matches{ef.f.q.trim() ? <> “{ef.f.q.trim()}”</> : ''} with these filters. <button type="button" className="lnk" onClick={ef.reset}>Reset</button></div>
                 : !rows.length ? <div className="empty">Nothing {name ? `in ${name.name.toLowerCase()} ` : ''}clears Lite’s bar on these chains right now.{group && <> <a className="pri" href={proHref(`#/${group.id}`)}>See everything in Pro ›</a></>}</div>
                 : shown.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} on={sel?.id === r.s.id} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} followed={isFollowed(r.s)} full={!group} />)}
               {rows.length > shown.length && <button type="button" className="lrow lite-showall" onClick={() => setAllRows(true)}>Show all {rows.length} ways to earn on {name!.name.toLowerCase()}</button>}

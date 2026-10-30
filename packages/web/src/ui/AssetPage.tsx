@@ -30,6 +30,8 @@ import { canonUid } from '@yieldcircle/core/model/uid'
 import { stockInfo } from '@yieldcircle/core/model/assets'
 import { BorrowTicket } from './BorrowTicket'
 import { BorrowCats, BorrowList, borrowRoom, mineSummary } from './BorrowList'
+import { applyEarn } from '@yieldcircle/core/model/earnFilter'
+import { EarnTools, useEarnFilter } from './EarnTools'
 
 /** one market, however each side cased its uid (the positions route lower-cases EVM refs) */
 const sameUid = (a: string | undefined, b: string | undefined) => !!a && !!b && a.toLowerCase() === b.toLowerCase()
@@ -122,7 +124,10 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   // ranked on the STEADY rate: a row whose rate today is a spike against its own
   // month sorts by the month, so one hot night does not lead the list
   const steady = React.useMemo(() => new Map(ofKind.map((s) => [s.id, steadyRate(s, get, withRewards)])), [ofKind, get, withRewards])
-  const list = [...ofKind].sort((x, y) => (Number(picks.has(y.id)) - Number(picks.has(x.id))) || (steady.get(y.id) ?? y.rate) - (steady.get(x.id) ?? x.rate))
+  const ranked = [...ofKind].sort((x, y) => (Number(picks.has(y.id)) - Number(picks.has(x.id))) || (steady.get(y.id) ?? y.rate) - (steady.get(x.id) ?? x.rate))
+  // search, sort and filters over the list (EarnTools), kept per group for this tab; the kind segment above is the kind filter
+  const ef = useEarnFilter(`pro:${group.id}`)
+  const list = ef.active ? applyEarn(ranked, ef.f, (s) => s, { extra: (s) => [chainLabel(s.chainId)], rank: (s) => steady.get(s.id) ?? s.rate }) : ranked
   const nS = all.filter((s) => s.kind === 'simple').length, nL = all.filter((s) => s.kind === 'loop').length
   // the rows a floor is holding back, scoped exactly as the list is
   const heldBack = b.hidden.filter((s) => s.group === group.id && (u === 'all' || s.asset === u) && s.kind === kind && natOk(s))
@@ -278,6 +283,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
             </div>}
             <span className="hint">{kind === 'fixed' ? 'Lend at a rate fixed to a date: the deposit fills a borrower’s offer, and is repaid at face on the day. These books are small — the ticket says how much each can take.' : kind === 'borrow' ? `Take ${outWord} out against ${u === 'all' ? (stocks ? 'tokenized stocks' : 'what you hold') : nameOf(u)} without selling it. You pay the rate; if the price falls past the line, the lender sells part of it.` : stocks && kind === 'simple' ? 'Lend dollars into the markets where people borrow against stocks. Their stocks back your loan; the rate is what they pay.' : kind === 'simple' ? (list.length && !list.some((s) => isSavings(s.nature)) ? 'Hold one token. No debt, nothing to liquidate — but its price moves with a market.' : 'Hold one token that grows. No debt, nothing to liquidate.') : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
           </div>
+          {kind !== 'borrow' && (ranked.length > 0 || ef.active) && <EarnTools st={ef} n={list.length} total={ranked.length} />}
           {kind === 'borrow' ? (<>
             <BorrowCats offers={bo.offers} current={group.id} keep={{ out: outQ, hold: route.hold, debt: route.debt }} mine={b.account ? { on: mineOn, ...mineSummary(offersHere, yours), set: setMine, busy: b.positionsLoading || bo.isLoading } : undefined} />
             <BorrowList key={`${out}:${mineOn}`} offers={offersHere} loading={bo.isLoading} groupId={group.id} u={u} selId={borrowSel?.id} held={heldLoans} mine={{ on: mineOn, yours, set: setMine }} out={out} onOut={(f) => go(group.id, { u, k: 'borrow', out: f === 'USD' ? undefined : f, hold: route.hold })} debt={route.debt} onDebt={(d) => go(group.id, { u, k: 'borrow', out: outQ, hold: route.hold, debt: d })} onPick={(o) => openLoan(o)} />
@@ -337,7 +343,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                   {on && <tr className="xp"><td colSpan={3}><RowSocial uid={uid} thread={threadOf(s)} s={s} focus={route.talk} /></td></tr>}
                 </React.Fragment>) })}</tbody>
               </table>
-            ) : kind === 'fixed' ? <div className="empty">{b.fixed.isLoading ? 'Reading the fixed-rate books…' : <>No fixed-rate book with a live offer for this filter{b.fixed.idle ? ` — ${b.fixed.idle} book${b.fixed.idle === 1 ? ' is' : 's are'} listed, with nobody borrowing on ${b.fixed.idle === 1 ? 'it' : 'them'} right now` : ''}{b.fixed.error ? ` (${b.fixed.error.message})` : ''}.</>}</div>
+            ) : ranked.length ? <div className="empty">Nothing here matches{ef.f.q.trim() ? <> “{ef.f.q.trim()}”</> : ''} with these filters. <button type="button" className="lnk" onClick={ef.reset}>Reset</button></div>
+            : kind === 'fixed' ? <div className="empty">{b.fixed.isLoading ? 'Reading the fixed-rate books…' : <>No fixed-rate book with a live offer for this filter{b.fixed.idle ? ` — ${b.fixed.idle} book${b.fixed.idle === 1 ? ' is' : 's are'} listed, with nobody borrowing on ${b.fixed.idle === 1 ? 'it' : 'them'} right now` : ''}{b.fixed.error ? ` (${b.fixed.error.message})` : ''}.</>}</div>
             : <div className="empty">No {kind === 'simple' ? 'plain deposit' : 'loop'} for this filter{b.errors.length ? ` (${b.errors[0].message})` : ''}{heldBack.length ? ` — ${heldBack.length} held back by the floors below` : ''}.</div>}
           </div>}
           {kind === 'fixed' ? <FixedNote n={fixedScoped.length} idle={b.fixed.idle} risky={b.fixed.risky} /> : <HiddenBar kind={kind} rows={heldBack} structural={b.structural} busy={b.isFetching} />}

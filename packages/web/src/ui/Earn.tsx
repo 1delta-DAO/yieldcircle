@@ -2,7 +2,7 @@ import React from 'react'
 import { GROUPS, nameOf, type Group, type GroupId } from '@yieldcircle/core/model/assets'
 import { go } from '../state/AppState'
 import { useBook } from '@yieldcircle/app/book'
-import { GroupIcon, RewardsIncl, Sk, StratMark, Tok, amt, deskLogos, pct, usd, usdShort } from './bits'
+import { GroupIcon, RewardsIncl, Sk, StratMark, Tok, Toks, amt, deskLogos, pct, usd, usdShort } from './bits'
 import type { AssetBook } from '@yieldcircle/core/model/positions'
 import { dateOf, type SimpleStrategy, type Strategy } from '@yieldcircle/core/model/strategies'
 import { isSavings } from '@yieldcircle/core/model/nature'
@@ -18,6 +18,8 @@ import { borrowRoom } from './BorrowList'
 import { canonUid } from '@yieldcircle/core/model/uid'
 import { softHide } from '@yieldcircle/core/model/visibility'
 import { useSettings } from '@yieldcircle/app/state/Settings'
+import { applyEarn } from '@yieldcircle/core/model/earnFilter'
+import { EarnTools, useEarnFilter } from './EarnTools'
 
 /**
  * Earn: a digest, not an index. Four group tiles (your money there, the best rate, how many
@@ -55,6 +57,13 @@ export function Earn() {
   // top desks the reader does NOT hold (the held ones lead their own section above) — savings only
   const held = new Set(b.books.map((x) => x.asset))
   const top = [...bestBy.values()].filter((s) => !held.has(s.asset) && isSavings(s.nature)).sort((x, y) => rank(y) - rank(x)).slice(0, 6)
+  // searched, sorted or filtered (EarnTools), the digest's best rates give way to every row that
+  // matches, across the groups: savings first, then the steadier rate, as a group's page ranks them
+  const ef = useEarnFilter('pro:earn')
+  const every = React.useMemo(() => [...b.all].sort((x, y) => savingsFirst(y, x, rank)), [b.all, get]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [more, setMore] = React.useState(false)
+  const found = ef.active ? applyEarn(every, ef.f, (s) => s, { extra: (s) => [chainLabel(s.chainId)], rank }) : []
+  const foundShown = more ? found : found.slice(0, MATCH_ROWS)
   return (
     <>
       <div className="feed-h earn-h">
@@ -78,11 +87,20 @@ export function Earn() {
         </section>
       )}
       <section className="sec">
-        <div className="sec-h"><h2>Best rates</h2><span className="sub">the top desk of every group’s listing</span></div>
-        <div className="card"><table className="tbl slim"><tbody>
-          {b.isLoading && !top.length && [0, 1, 2, 3].map((i) => <tr key={i}><td><Sk w={140} /></td><td className="r"><Sk w={90} /></td><td /></tr>)}
-          {top.map((s) => <TopRow key={s.asset} s={s} n={countBy.get(s.asset) ?? 0} get={get} />)}
-        </tbody></table></div>
+        <div className="sec-h">{ef.active ? <><h2>Every way to earn</h2><span className="sub">across every group, by your search and filters</span></> : <><h2>Best rates</h2><span className="sub">the top desk of every group’s listing</span></>}</div>
+        <EarnTools st={ef} n={found.length} total={every.length} kinds />
+        {ef.active ? (
+          <div className="card"><table className="tbl slim"><tbody>
+            {foundShown.map((s) => <MatchRow key={s.id} s={s} get={get} />)}
+            {found.length > foundShown.length && <tr onClick={() => setMore(true)}><td colSpan={3} className="t70">Show all {found.length} ›</td></tr>}
+            {!found.length && <tr><td colSpan={3} className="t50">{b.isLoading ? 'Loading the listing…' : <>Nothing matches{ef.f.q.trim() ? <> “{ef.f.q.trim()}”</> : ''} with these filters. <button type="button" className="lnk" onClick={ef.reset}>Reset</button></>}</td></tr>}
+          </tbody></table></div>
+        ) : (
+          <div className="card"><table className="tbl slim"><tbody>
+            {b.isLoading && !top.length && [0, 1, 2, 3].map((i) => <tr key={i}><td><Sk w={140} /></td><td className="r"><Sk w={90} /></td><td /></tr>)}
+            {top.map((s) => <TopRow key={s.asset} s={s} n={countBy.get(s.asset) ?? 0} get={get} />)}
+          </tbody></table></div>
+        )}
       </section>
       <FixedShelf rows={b.fixed.rows} idle={b.fixed.idle} loading={b.fixed.isLoading} />
       <section className="sec"><div className="note"><b>Live.</b> Rates and sizes come from the 1delta API (plain deposits from the earn listing, loops from the pair optimizer), filtered to base assets, low-to-medium risk and real size. Each group’s page lists every desk and strategy, and says how many rows the floors are holding back; Filters in your profile menu (top left) move them. A loop is opened in one flash-funded transaction.</div></section>
@@ -148,6 +166,20 @@ function StockTile({ g, offers, earn, books, loading }: { g: Group; offers: Borr
         <small>{busy ? '…' : `${rows.length} market${rows.length === 1 ? '' : 's'} to lend to ›`}</small>
       </div>
     </a>
+  )
+}
+
+/** How many matches the Earn tab lists before Show all. */
+const MATCH_ROWS = 30
+
+/** One strategy a search found: what it holds, where, and its rate — it opens on its group's page. */
+function MatchRow({ s, get }: { s: Strategy; get: HistoryGet }) {
+  return (
+    <tr onClick={() => go(s.group, { u: s.asset, s: s.id, k: s.kind })}>
+      <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}`}</span></span><GroupTag gid={s.group} className="hide-m" /></div></td>
+      <td className="r upto"><span className={s.rate >= 3 ? 'ok' : ''}>{pct(s.rate)}</span><small>{s.kind === 'loop' ? `${s.rec}× loop` : 'deposit'} · {chainLabel(s.chainId)} · {s.riskLabel.toLowerCase()} risk{s.tvlUsd > 0 ? ` · ${usdShort(s.tvlUsd)}` : ''}<Avg30 s={s} get={get} prefix=" · 30d " /></small></td>
+      <td className="r t40" style={{ width: 20 }}>›</td>
+    </tr>
   )
 }
 

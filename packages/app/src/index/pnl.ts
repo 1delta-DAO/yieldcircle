@@ -8,7 +8,7 @@
  */
 import { useState } from 'react'
 import type { AccountPnlBook, PnlBookPosition, PnlBookStrategy } from '@yieldcircle/core/index/types'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { indexForAddr } from '@yieldcircle/core/index/api'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import { pnlOfHolding } from '@yieldcircle/core/model/holdingPnl'
@@ -67,6 +67,30 @@ export function useAccountsPnlBook(accounts: Accounts, { own = false }: { own?: 
     data: got.length ? mergeBooks(got) : asked && qs.every((q) => !q.isLoading) ? null : undefined,
     isLoading: qs.some((q) => q.isLoading),
     isError: asked > 0 && failed.length === asked,
+    failed,
+  }
+}
+
+/**
+ * What a curated GROUP of wallets made, as one book (tickets/0021 step 4): one `/pnl` read per
+ * address, the same key and cache as each wallet's own page, folded by `mergeBooks`. A wallet
+ * whose book failed is named in `failed` and left out, never a silent partial; nothing is asked
+ * for (`request`) — these are other people's wallets.
+ */
+export function useAddressesPnlBook(addresses: readonly string[]) {
+  const qs = useQueries({
+    queries: addresses.map((a) => ({
+      queryKey: ['pnl-book', isEvmAddr(a) ? a.toLowerCase() : a],
+      queryFn: () => accountPnlBook(isEvmAddr(a) ? a.toLowerCase() : a),
+      staleTime: 10 * 60_000,
+      retry: false,
+    })),
+  })
+  const got = qs.map((q) => q.data).filter((b): b is AccountPnlBook => !!b)
+  const failed = addresses.filter((_, i) => qs[i].isError)
+  return {
+    data: got.length ? mergeBooks(got) : addresses.length && qs.every((q) => !q.isLoading) ? null : undefined,
+    isLoading: qs.some((q) => q.isLoading),
     failed,
   }
 }

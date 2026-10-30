@@ -7,7 +7,10 @@ import React from 'react'
 import { labelFor, shortAddr } from '@yieldcircle/core/identity/name'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { SOCIAL_LINKS_READY } from '../social/api'
+import type { AccountEntity } from '@yieldcircle/core/index/api'
+import { useAccountEntity } from '@yieldcircle/app/index/queries'
 import { useProfile, useSocialRefresh, useWalletLinks } from '../social/queries'
+import type { Profile } from '../social/types'
 import { useSocialWrite } from '../social/sign'
 import { liteWalletHref, useApp, useRoute, walletHref } from '../state/AppState'
 import { ChainMark } from './ChainMark'
@@ -108,9 +111,51 @@ export function ProfileWallets({ addr }: { addr: string }) {
   const links = useWalletLinks(a).data
   const primary = links?.primary ?? a
   const p = useProfile(primary).data?.profile ?? null
-  if (!links?.members.length) return null
-  const all = [primary, ...links.members.map((m) => m.account)]
+  const entity = useAccountEntity(a.startsWith('0x') ? a : undefined).data ?? null
   const href = lite ? liteWalletHref : walletHref
+  const signed = !!links?.members.length
+  // the curated group (tickets/0021 step 4), only when there is more than this wallet in it
+  const curated = entity && entity.addresses.length > 1 ? entity : null
+  if (!signed && !curated) return null
+  return (
+    <>
+      {curated && <CuratedWallets addr={a} e={curated} href={href} />}
+      {signed && <SignedWallets a={a} primary={primary} p={p} members={links!.members.map((m) => m.account)} href={href} />}
+    </>
+  )
+}
+
+/**
+ * The group YieldCircle made by hand from public evidence (the index's seed entities): named as
+ * such, in words and in its own look, so it is never read as the wallets' own claim. Each chip
+ * carries the evidence it was grouped on; the open wallet is marked.
+ */
+function CuratedWallets({ addr, e, href }: { addr: string; e: AccountEntity; href: (a: string) => string }) {
+  const kind = e.kind === 'person' ? 'one person' : e.kind === 'exploiter' ? 'one exploit' : 'one desk'
+  const all = e.addresses.map((x) => x.address.toLowerCase())
+  const here = all.includes(addr)
+  return (
+    <div className={`pw curated${e.kind === 'exploiter' ? ' warn' : ''}`} aria-label="Wallets grouped by YieldCircle">
+      <span className="pw-h t50">
+        <b>{e.name}</b> · {all.length} wallets{here ? ', this one among them' : ''} · {kind}
+        <span className="pill" title={`Grouped by YieldCircle from public evidence (name tags, on-chain flows) — each chip says its own. The wallets did not sign this; a signed link looks different and says so.${e.note ? `\n\n${e.note}` : ''}`}> grouped from evidence</span>
+      </span>
+      <span className="pw-c">
+        {e.addresses.map((w) => {
+          const x = w.address.toLowerCase()
+          return (
+            <a key={x} className="chip" href={href(x)} aria-current={x === addr ? 'page' : undefined} title={w.evidence ?? undefined}>
+              {mark(x)}<span className="mono">{shortAddr(x)}</span>
+            </a>
+          )
+        })}
+      </span>
+    </div>
+  )
+}
+
+function SignedWallets({ a, primary, p, members, href }: { a: string; primary: string; p: Profile | null; members: string[]; href: (a: string) => string }) {
+  const all = [primary, ...members]
   return (
     <div className="pw" aria-label="This profile's wallets">
       <span className="pw-h t50">

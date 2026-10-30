@@ -50,22 +50,36 @@ export type PnlBy = 'total' | 'strategy'
  * page's, so the cards can wear the hues. Without cards (Lite's "Every number" drawer) the
  * strategy table stays: nothing beside it names each strategy's figure.
  */
-export function WalletPnl({ addr, own = false, cards, book }: {
+export function WalletPnl({ addr, own = false, cards, book, scope }: {
   addr: string; own?: boolean; cards?: { by: PnlBy; onBy: (by: PnlBy) => void }
   /** a book read by the caller — You's, merged over the owner's EVM and Solana wallets (tickets/0018) — instead of `addr`'s own */
   book?: { data: AccountPnlBook | null | undefined; isLoading: boolean }
+  /** the wallet is one of a curated group (tickets/0021 step 4): the choice between its own book and the group's, which the caller reads into `book` */
+  scope?: { name: string; n: number; all: boolean; onAll: (all: boolean) => void }
 }) {
   const own1 = useAccountPnlBook(book ? undefined : addr, { own })
   const q = book ?? own1
   const b = q.data
-  if (q.isLoading) return <section className="sec"><div className="sec-h"><h2>What it made</h2></div><div className="card"><div className="empty"><Sk w={260} /></div></div></section>
+  const seg = scope && (
+    <div className="seg sm wpnl-scope" role="group" aria-label="Whose figures">
+      <button aria-pressed={!scope.all} onClick={() => scope.onAll(false)}>This wallet</button>
+      <button aria-pressed={scope.all} onClick={() => scope.onAll(true)} title={`${scope.name}: every wallet in the group, as one book`}>All {scope.n} wallets</button>
+    </div>
+  )
+  if (q.isLoading) return <section className="sec"><div className="sec-h"><h2>What it made</h2>{seg}</div><div className="card"><div className="empty"><Sk w={260} /></div></div></section>
   // an older index (no route), an error, or a wallet with nothing on the board: say nothing here
-  if (!b || !b.coverage.positions) return null
+  // — unless the group switch is up, which must stay reachable to switch back
+  if (!b || !b.coverage.positions) return scope ? (
+    <section className="sec">
+      <div className="sec-h"><h2>What it made</h2><span className="sub">{scope.all ? `nothing on the board across the ${scope.n} wallets` : 'nothing on the board for this wallet'}</span>{seg}</div>
+    </section>
+  ) : null
   return (
     <section className="sec">
       <div className="sec-h">
         <h2>What it made</h2>
-        <span className="sub"><Coverage b={b} /></span>
+        <span className="sub">{scope?.all && <><b>{scope.name}</b>, {scope.n} wallets as one · </>}<Coverage b={b} /></span>
+        {seg}
       </div>
       {b.coverage.withPnl === 0 ? (
         <div className="card"><div className="empty">

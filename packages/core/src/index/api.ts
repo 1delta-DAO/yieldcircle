@@ -1590,3 +1590,21 @@ export function findClick(docId: string): void {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ docId }), keepalive: true,
   }).catch(() => {})
 }
+
+/**
+ * The curated group an address belongs to (pos-indexer `GET /accounts/:account/entity`, the
+ * seed file `config/known-names.json`, yieldcircle tickets/0021 step 4): one person or desk the
+ * index names by hand, every address it stated with the evidence it stated it on. UNSIGNED — a
+ * grouping YieldCircle made from public evidence, never the wallets' own word; the UI says so
+ * beside it and never renders it as a signed link. `entity: null` = the index has no group for it.
+ */
+export interface AccountEntity {
+  id: string
+  name: string
+  /** `person` / `desk` / `exploiter` / … as the seed file says; null when the file is not at hand */
+  kind: string | null
+  note: string | null
+  addresses: { address: string; chainId: string | null; evidence: string | null }[]
+}
+export const accountEntity = (account: string) =>
+  get<{ account: string; entity: AccountEntity | null }>(`/accounts/${account.toLowerCase()}/entity`)

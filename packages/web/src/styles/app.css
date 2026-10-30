@@ -2607,3 +2607,7 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .pw-c{display:flex;flex-wrap:wrap;gap:6px}
 .pw .chip{min-height:26px}
 .pw .chip[aria-current="page"]{border-color:var(--primary);color:var(--tx)}
+.pw.curated .pw-h .pill{margin-left:6px;vertical-align:middle;border-style:dashed}
+.pw.curated .chip{border-style:dashed}
+.pw.curated.warn .pw-h b{color:var(--warning)}
+.wpnl-scope{margin-left:auto}

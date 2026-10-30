@@ -19,11 +19,11 @@ import { useAccount } from 'wagmi'
 import { go, levParam, marketHref, parseRoute, useApp, useRoute, walletHref } from '../state/AppState'
 import { PnlDrawer } from './PnlDrawer'
 import { WalletPnl, strategyHues, type PnlBy } from './WalletPnl'
-import { useAccountPnlBook, type PnlBookPosition } from '@yieldcircle/app/index/pnl'
+import { useAccountPnlBook, useAddressesPnlBook, type PnlBookPosition } from '@yieldcircle/app/index/pnl'
 import { bookKey, cardPnlState, joinBook, showableApr } from '@yieldcircle/core/model/bookJoin'
 import { WalletClosed } from './WalletClosed'
 import type { AccountSyncReport } from '@yieldcircle/core/index/api'
-import { useAccountFlows, useAccountSync, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '@yieldcircle/app/index/queries'
+import { useAccountEntity, useAccountFlows, useAccountSync, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '@yieldcircle/app/index/queries'
 import { useFollowers, useProfile, useProfiles, useWalletLinks } from '../social/queries'
 import { AutoTag, Badges, FollowButton, Impaired, Money, Who, Ago, describeBundle, tokens } from './social-bits'
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
@@ -72,6 +72,13 @@ export function Wallet({ addr }: { addr: string }) {
   const paperSess = usePaperSession()
   const paperEvm = paperSess && (addr === paperSess.evm || addr === paperSess.sol) ? paperSess.evm : profile?.tags?.includes('paper') && isEvmAddr(addr) ? addr : undefined
   const followers = useFollowers(addr)
+  // the curated group this wallet is one of (tickets/0021 step 4): What it made can read the
+  // whole group as one book; the group itself is drawn in the header (`ProfileWallets`)
+  const entity = useAccountEntity(isMe || paperEvm ? undefined : addr).data ?? null
+  const groupAddrs = React.useMemo(() => (entity?.addresses ?? []).map((a) => a.address.toLowerCase()), [entity])
+  const [groupAll, setGroupAll] = React.useState(false)
+  const groupOn = groupAll && groupAddrs.length > 1
+  const groupBook = useAddressesPnlBook(groupOn ? groupAddrs : [])
   /**
    * Is this address a desk rather than a wallet? A curated vault and the Safe
    * that steers it both appear in the ledger as ordinary addresses — often
@@ -289,7 +296,9 @@ export function Wallet({ addr }: { addr: string }) {
       </>}
 
       {/* what it made: lifetime PnL off the index's records (your own only after the sync) */}
-      {!paperEvm && isAddr(addr) && !hidden && !syncing && <WalletPnl addr={addr} own={isMe} cards={{ by: pnlBy, onBy: setPnlBy }} />}
+      {!paperEvm && isAddr(addr) && !hidden && !syncing && <WalletPnl addr={addr} own={isMe} cards={{ by: pnlBy, onBy: setPnlBy }}
+        book={groupOn ? groupBook : undefined}
+        scope={entity && groupAddrs.length > 1 ? { name: entity.name, n: groupAddrs.length, all: groupAll, onAll: setGroupAll } : undefined} />}
 
       <section className="sec">
         {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} inScope={inScope} /></> : <>

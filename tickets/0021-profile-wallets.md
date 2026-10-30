@@ -1,6 +1,8 @@
 # 0021 — Profile wallets: manage in Lite, show the group on every profile
 
-- status: steps 1–2 done 2026-10-30 (`ui/LinkedWallets.tsx`); steps 3–5 open
+- status: steps 1, 2 and 4 done 2026-10-30 (`ui/LinkedWallets.tsx`, `ui/WalletPnl.tsx`
+  `scope`; pos-indexer `GET /accounts/:account/entity`, uncommitted there — the band
+  shows once it deploys and the `known-names` job has run); steps 3 and 5 open
 - created: 2026-10-30
 - builds on: [tickets/0004](0004-wallet-links.md) and
   [docs/wallet-links.md](../docs/wallet-links.md) — the two-signature link
@@ -34,7 +36,15 @@ them under one profile. The proof exists, but:
    wallet to add connected, sign its member half naming the primary (half kept
    in memory only, ≤ 10 min — alone it proves nothing); switch back to the
    primary, sign the primary half; post both. Client only.
-4. **Curated groups, never in the signed table.** Unsigned groupings (the
+4. **Curated groups, never in the signed table.** DONE in both repos: the
+   index answers `GET /accounts/:account/entity` (the seed entity's addresses
+   with each one's evidence, `kind`, `note`); core `accountEntity`, app
+   `useAccountEntity` + `useAddressesPnlBook` (one `/pnl` per address, folded
+   by `mergeBooks`); the page's header draws the group as dashed chips headed
+   "<name> · N wallets · one exploit · grouped from evidence" (the pill's
+   tooltip says the wallets did not sign it, and carries the seed note), and
+   What it made gets a "This wallet / All N wallets" switch. Lite's profile
+   shows the band, not the switch. Unsigned groupings (the
    Binance exploiter test) come from the index's curated entities
    (pos-indexer `packages/indexer/config/known-names.json`, one evidence link
    per address). Needs an index route entity → addresses (the stored rows

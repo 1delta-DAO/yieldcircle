@@ -42,6 +42,17 @@ export function useAccountTxs(account: string | undefined, chainId?: string, lim
     retry: retry404,
   })
 }
+/** The curated group of an address (`api.accountEntity`): null when the index has none, undefined while asked. */
+export function useAccountEntity(account: string | undefined) {
+  return useQuery({
+    enabled: !!account && /^0x[0-9a-fA-F]{40}$/.test(account),
+    queryKey: ['acct-entity', account?.toLowerCase()],
+    queryFn: () => api.accountEntity(account!),
+    staleTime: 5 * MIN,
+    retry: false,
+    select: (r) => r.entity,
+  })
+}
 export function useAccountFlows(account: string | undefined, days = 30, chainId?: string) {
   return useQuery({
     enabled: !!account,

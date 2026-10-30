@@ -12,17 +12,16 @@
  * as a claim rather than a badge everywhere it appears.
  */
 import React from 'react'
-import { useAccount } from 'wagmi'
+import { isEvmAddr } from '@yieldcircle/core/model/address'
 import { ACCESSORIES, BACKDROPS, CREATURES, Character, EYES, GATED, LAYERS, MOUTHS, PALETTES, MAX_PICTURE_URL, formatSpec, parseSpec, pictureUrl, specOf, unearned, type Spec } from '../identity/character'
 import { autoName, shortAddr } from '@yieldcircle/core/identity/name'
 import { SOCIAL_LINKS_READY } from '../social/api'
 import { useBatchSupported, usePending } from '../social/pending'
-import { useHandleCheck, useProfile, useSocialRefresh, useWalletLinks } from '../social/queries'
+import { useHandleCheck, useProfile, useSocialRefresh } from '../social/queries'
 import { useSocialWrite, type ProfileOp } from '../social/sign'
 import type { Profile } from '../social/types'
-import { useApp } from '../state/AppState'
-import { ChainMark } from './ChainMark'
 import { XLink } from './XLink'
+import { LinkedWallets } from './LinkedWallets'
 import { Badges } from './social-bits'
 
 /** A signed profile in the shape it is signed in, so a draft can be compared with it. */
@@ -34,11 +33,11 @@ const opOf = (p: Profile | null): ProfileOp | null => p && {
 const COUNTS: Record<keyof Spec, number> = { b: BACKDROPS.length, c: CREATURES.length, e: EYES.length, m: MOUTHS.length, a: ACCESSORIES.length, p: PALETTES.length }
 
 export function ProfilePage() {
-  const { address } = useAccount()
-  const addr = address?.toLowerCase()
+  // the social author: the EVM wallet when there is one, else the Solana wallet on its own
+  // (`useSocialWrite`), so a Solana-only holder makes a profile the same way
+  const { account: addr, profile: write } = useSocialWrite()
   const p = useProfile(addr)
   const saved = p.data?.profile ?? null
-  const { profile: write } = useSocialWrite()
   const refresh = useSocialRefresh()
   const pending = usePending()
   const batched = useBatchSupported()
@@ -221,10 +220,13 @@ export function ProfilePage() {
           )}
         </section>
 
-        <section className="card pad">
-          <div className="sec-h"><h2>X</h2><span className="sub">optional, and revocable from either side</span></div>
-          <XLink account={addr} linked={saved?.xHandle ?? null} />
-        </section>
+        {/* X links verify EIP-712 only (the service's `/x-link`), so a Solana profile has none yet */}
+        {isEvmAddr(addr) && (
+          <section className="card pad">
+            <div className="sec-h"><h2>X</h2><span className="sub">optional, and revocable from either side</span></div>
+            <XLink account={addr} linked={saved?.xHandle ?? null} />
+          </section>
+        )}
 
         {SOCIAL_LINKS_READY && (
           <section className="card pad">
@@ -233,63 +235,6 @@ export function ProfilePage() {
           </section>
         )}
       </div>
-    </>
-  )
-}
-
-/**
- * The wallet-link section (docs/wallet-links.md): the cluster as rows, and
- * the add flow — two signatures, the profile wallet's then the Solana
- * wallet's, posted together. v1 links the ONE wallet the app can hold
- * beside wagmi's (the Solana one); a second EVM wallet means reconnecting
- * mid-flow, which is a worse ceremony than this feature deserves yet.
- */
-function LinkedWallets({ account }: { account: string }) {
-  const links = useWalletLinks(account)
-  const { solSigner } = useApp()
-  const { linkWallet, unlinkWallet } = useSocialWrite()
-  const refresh = useSocialRefresh()
-  const [busy, setBusy] = React.useState<string | null>(null)
-  const [err, setErr] = React.useState<string | null>(null)
-  const run = async (label: string, f: () => Promise<unknown>) => {
-    setBusy(label); setErr(null)
-    try { await f(); refresh.links() }
-    catch (e) { const m = (e as Error).message; setErr(/rejected|denied/i.test(m) ? 'signature rejected' : m) }
-    finally { setBusy(null) }
-  }
-  const members = links.data?.members ?? []
-  const linkedAlready = !!solSigner && members.some((m) => m.account === solSigner)
-  return (
-    <>
-      {members.length > 0 ? (
-        <ul className="txlist" aria-label="Linked wallets">
-          {members.map((m) => (
-            <li key={m.account} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ChainMark chainId={m.vm === 'svm' ? 'solana' : '1'} size={15} />
-              <a className="mono" href={`#/w/${m.account}`}>{shortAddr(m.account)}</a>
-              <span className="sp" />
-              <button className="btn sm" disabled={!!busy} onClick={() => void run(m.account, () => unlinkWallet(m.account, links.data!.primary))}>
-                {busy === m.account ? 'Signing…' : 'Unlink'}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="foot" style={{ marginTop: 0 }}>No linked wallets yet.</p>
-      )}
-      {solSigner && !linkedAlready && (
-        <div className="actions" style={{ marginTop: 10 }}>
-          <button className="btn pri" disabled={!!busy} onClick={() => void run('add', () => linkWallet(solSigner))}>
-            {busy === 'add' ? 'Signing…' : `Link ${shortAddr(solSigner)} (Solana)`}
-          </button>
-        </div>
-      )}
-      {!solSigner && <p className="foot">Connect a Solana wallet in the wallet sheet, then link it here.</p>}
-      {err && <div className="err" style={{ marginTop: 8 }}>{err}</div>}
-      <p className="foot" style={{ marginTop: 8 }}>
-        Linking is public: it ties these wallets' histories together for everyone, and unlinking later
-        does not undo what others saw. Two signatures — one from each wallet — and no gas.
-      </p>
     </>
   )
 }

@@ -2600,3 +2600,10 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
   .etools-sort select{max-width:118px}
   .etools-g{width:100%;justify-content:space-between}
 }
+
+/* a profile's wallets (tickets/0021) — Pro's wallet page and Lite's profile */
+.pw{display:flex;flex-direction:column;gap:6px;margin:4px 0 2px}
+.pw-h{font-size:12.5px}
+.pw-c{display:flex;flex-wrap:wrap;gap:6px}
+.pw .chip{min-height:26px}
+.pw .chip[aria-current="page"]{border-color:var(--primary);color:var(--tx)}

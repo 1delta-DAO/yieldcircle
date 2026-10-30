@@ -48,14 +48,14 @@ export function ProfileSheet({ embedded }: { embedded?: boolean } = {}) {
         <div className="ps-wallet"><ConnectButton /></div>
       </div>}
 
-      {embedded ? signer && (
+      {embedded ? (signer || solSigner) && (
         <nav className="ps-links" aria-label="Your profile">
           <a href={proHref('#/me')}>Edit your name and face<span className="sp" />›</a>
         </nav>
       ) : account && (
         <nav className="ps-links" aria-label="You">
           <a href={walletHref(account)}>My page<span className="sp" />›</a>
-          {signer && <a href="#/me">Edit profile<span className="sp" />›</a>}
+          {(signer || solSigner) && <a href="#/me">Edit profile<span className="sp" />›</a>}
           {signer && <AlertsLink />}
         </nav>
       )}

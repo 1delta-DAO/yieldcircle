@@ -1,5 +1,5 @@
 import React from 'react'
-import { go, liteHref, proHref, useRoute } from '../../state/AppState'
+import { go, liteHref, proHref, useApp, useRoute } from '../../state/AppState'
 import { holdingLine, moneyWord, signedMoney, streakWord } from '@yieldcircle/core/model/lite'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
@@ -12,6 +12,7 @@ import { useDayLog, useLiteMenu } from '@yieldcircle/app/lite'
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { Flame, openRow } from './LiteBits'
 import { ProfileSheet } from '../ProfileSheet'
+import { LinkedWallets } from '../LinkedWallets'
 import { ChainChip } from '../ChainPicker'
 import { LiteMoves } from './LiteSocial'
 import { LitePnl } from './LitePnl'
@@ -78,6 +79,7 @@ export function LiteYou() {
       </section>
 
       <LiteMoves rows={L.rows} account={b.account} limit={12} title="What the people you follow did" followingOnly />
+      {!b.paper && <Wallets />}
       <Settings />
     </div>
     <aside ref={aside} className={open ? '' : 'closed'} id="aside">
@@ -88,6 +90,22 @@ export function LiteYou() {
     </div>
     {open && <div className="scrim" onClick={close} />}
     </>
+  )
+}
+
+/**
+ * Your wallets under one profile (tickets/0021): the signed links, managed here as in Pro's `#/me`.
+ * The profile lives on the EVM wallet; a Solana wallet alone shows only what it is linked to.
+ */
+function Wallets() {
+  const { signer, solSigner } = useApp()
+  const who = signer ?? solSigner
+  if (!who) return null
+  return (
+    <section className="sec lite-sec">
+      <div className="sec-h"><h2>Your wallets</h2><span className="sub t50">one profile across your addresses</span></div>
+      <div className="card pad"><LinkedWallets account={who} /></div>
+    </section>
   )
 }
 

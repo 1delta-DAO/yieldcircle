@@ -14,6 +14,7 @@ import { AddrExplorerMenu, Sk, pct, usdShort } from '../bits'
 import { useLiteByKey, WalletPositions } from './LiteBoard'
 import { rowOfTx } from './LiteBits'
 import { Moves } from './LiteSocial'
+import { ProfileWallets } from '../LinkedWallets'
 
 /**
  * A wallet's profile in Lite (docs/lite-social-search.md §4.3, fomo's profile): who it is, who
@@ -80,6 +81,7 @@ export function LiteProfile({ addr }: { addr: string }) {
             <span className="lite-prof-addr">{shortAddr(addr)}<AddrExplorerMenu addr={addr} chainIds={chains} /></span>
             {p?.xHandle && <> · <a href={`https://x.com/${p.xHandle}`} target="_blank" rel="noopener">@{p.xHandle}</a></>}
           </div>
+          <ProfileWallets addr={addr} />
           <div className="lite-prof-c">
             <span><b>{nFollowers ?? '–'}</b> follower{nFollowers === 1 ? '' : 's'}</span>
             {mutual.length > 0 && (

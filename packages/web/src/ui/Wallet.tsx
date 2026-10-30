@@ -43,6 +43,7 @@ import { PaperWalletBook } from './PaperPanel'
 import { PaperMovesList, scopedBook, usePaperHistory, usePaperLedgerFor } from './PaperMoves'
 import { TokLink } from './TokenPage'
 import { ClassChip } from './AssetClassFilter'
+import { ProfileWallets } from './LinkedWallets'
 
 /**
  * Your own page after a sync: synced, still reading (the 20 s wait ran out), or a gap two reads
@@ -223,6 +224,7 @@ export function Wallet({ addr }: { addr: string }) {
         <div className="wc-t">
           <h1>{name.label}{name.generated && <AutoTag />}</h1>
           <div className="sub mono wc-addr"><span title={addr}>{shortAddr(addr)}</span><CopyButton text={addr} /><AddrExplorers addr={addr} chainIds={chains.ids} seen={chains.seen} />{profile?.xHandle && <> · <a className="pri" href={`https://x.com/${profile.xHandle}`} target="_blank" rel="noreferrer">𝕏 @{profile.xHandle}</a></>}</div>
+          <ProfileWallets addr={addr} />
           {profile?.bio && <p className="wc-bio">{profile.bio}</p>}
           <div className="wc-tags">
             {desk && <CuratorMark c={desk} sub />}

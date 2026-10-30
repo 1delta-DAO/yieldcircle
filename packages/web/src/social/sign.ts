@@ -262,6 +262,11 @@ export function useSocialWrite() {
         const half = await sign('WalletLink', { other: member, otherVm: isSolAddr(member) ? 'svm' : 'evm', role: 'primary', action: 'unlink', nonce: nonce() })
         return api.postWalletUnlink(half)
       }
+      // an EVM member withdrawing itself: its own key, the member role
+      if (address && address.toLowerCase() === member) {
+        const half = await sign('WalletLink', { other: primary, otherVm: isSolAddr(primary) ? 'svm' : 'evm', role: 'member', action: 'unlink', nonce: nonce() })
+        return api.postWalletUnlink(half)
+      }
       const half = await signSolanaEnvelope('WalletLink', {
         author: member, other: primary, otherVm: 'evm', role: 'member', action: 'unlink', nonce: nonce(), signedAt: now(),
       })

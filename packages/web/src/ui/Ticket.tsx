@@ -330,21 +330,21 @@ import { useManageLoop } from '@yieldcircle/app/tickets/manageLoop'
 function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[]; into?: Holding | null }) {
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/simple`)
   const { lite } = React.useContext(TicketCtx)
-  const { account, isConnected, getOpen, setGetOpen, opts, balOf, setRole, chosen, idle, unit, price, amt, setAmt, amount, amtUsd, yearly, ladder, more, tight, exit } = useSimpleTicket(s, chainIdle, allIdle, into, { lite })
-  const dp = shownDp(unit === '$')
+  const { account, isConnected, getOpen, setGetOpen, opts, balOf, setRole, chosen, idle, unit, dollar, price, amt, setAmt, amount, amtUsd, yearly, ladder, more, tight, exit } = useSimpleTicket(s, chainIdle, allIdle, into, { lite })
+  const dp = shownDp(dollar)
   if (lite) return (
     <>
       <div className="tsec">
         <span className="lbl">How much</span>
         <AmountBox unit={unit} value={amt} onChange={setAmt} onMax={idle ? () => setAmt(portion(idle, 100, chosen.decimals, dp)) : undefined} />
         {idle && idle.amount > 0 && <LitePresets onPick={(p) => setAmt(portion(idle, p, chosen.decimals, dp))} />}
-        <LiteAmtSub account={account} have={idle && idle.amount > 0 ? `${num(idle.amount, dp)} ${idle.symbol}` : null} usdOf={unit === '$' ? undefined : `≈ ${usd(amtUsd)}`} more={more} />
+        <LiteAmtSub account={account} have={idle && idle.amount > 0 ? `${num(idle.amount, dp)} ${idle.symbol}` : null} usdOf={dollar ? undefined : `≈ ${usd(amtUsd)}`} more={more} />
         <GetLine account={account} short={!idle || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
         {getOpen && <GetAsset targets={opts.map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price, logo: o.role === 'token' ? s.logo : undefined, have: balOf(o.address)?.amount ?? 0 }))} want={amount} sources={allIdle}
           onTarget={(t) => setRole(opts.find((o) => o.address === t.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}
       </div>
       <LiteLines l={depositLines({ rate: s.rate, amountUsd: amtUsd, exitWord: exit.word, exitWhen: exit.when, tight, maturity: s.maturity, booked: !!s.booked, rewards: s.rewards })} />
-      <Action ladder={ladder} label={`Put ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`} to work`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} fee="deposit" />
+      <Action ladder={ladder} label={`Put ${dollar ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`} to work`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} fee="deposit" />
       <LiteMoreSheet>
         {opts.length > 1 && <LiteChoices label="Pay with" items={opts.map((o) => ({ id: o.role, word: o.symbol, line: o.role === 'native' ? `wrapped into ${s.assetSymbol} for you` : 'as it is', side: account ? `you have ${num(balOf(o.address)?.amount ?? 0, dp)}` : undefined }))} on={chosen.role} onPick={(r) => setRole(r)} />}
         <LiteNumbers rows={[
@@ -376,9 +376,9 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
           <span className="lbl">You pay with <Info label="Paying with the native coin">This market holds {s.assetSymbol}, the wrapped form of {opts[0].symbol}. Paid in {opts[0].symbol}, the deposit wraps it for you: there is no {s.assetSymbol} to hold or approve first.</Info></span>
           <div className="seg" style={{ marginBottom: 10 }}>{opts.map((o) => <button key={o.role} aria-pressed={chosen.role === o.role} onClick={() => setRole(o.role)}><Tok sym={o.symbol} logo={o.role === 'token' ? s.logo : undefined} size={16} /> {o.symbol}<span className="c" style={{ marginLeft: 6 }}>{account ? num(balOf(o.address)?.amount ?? 0, 2) : ''}</span></button>)}</div>
         </>}
-        <span className="lbl">Amount of {unit === '$' ? s.assetSymbol : chosen.symbol}</span>
+        <span className="lbl">Amount of {chosen.symbol}</span>
         <AmountBox unit={unit} value={amt} onChange={setAmt} onMax={idle ? () => setAmt(portion(idle, 100, chosen.decimals)) : undefined} />
-        <div className="amt-sub"><span>{unit === '$' ? '' : `≈ ${usd(amtUsd)}`}</span><span>{account ? <>Idle: {idle ? `${num(idle.amount, 4)} ${idle.symbol}` : `0 ${chosen.symbol}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
+        <div className="amt-sub"><span>{dollar ? '' : `≈ ${usd(amtUsd)}`}</span><span>{account ? <>Idle: {idle ? `${num(idle.amount, 4)} ${idle.symbol}` : `0 ${chosen.symbol}`}{more && <span className="warn"> · more than idle</span>}</> : 'connect to see your balance'}</span></div>
         <GetLine account={account} short={!idle || more} symbol={chosen.symbol} open={getOpen} onOpen={() => setGetOpen(true)} />
         {/* every form the venue takes, the coin first (`payOptions` orders it): bought as the coin, the deposit needs no approval */}
         {getOpen && <GetAsset targets={opts.map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price, logo: o.role === 'token' ? s.logo : undefined, have: balOf(o.address)?.amount ?? 0 }))} want={amount} sources={allIdle}

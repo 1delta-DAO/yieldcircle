@@ -34,20 +34,23 @@ export function useSimpleTicket(s: SimpleStrategy, chainIdle: Idle[], allIdle: I
   const [role, setRole] = useSticky<PayRole | null>(`t:${s.id}:pay`, null)
   const chosen = opts.find((o) => o.role === role) ?? [...opts].sort((a, b) => (balOf(b.address)?.amount ?? 0) - (balOf(a.address)?.amount ?? 0))[0]
   const idle = balOf(chosen.address)
-  // the token actually paid (WETH on Monad, where the gas coin is MON): the group's name ("ETH") is
-  // not what the wallet sends. Dollars stay dollars — a stablecoin amount is entered 1:1 as $.
-  const unit = unitOf(s.asset) === '$' ? '$' : chosen.symbol
+  // the amount is entered in the token actually paid (WETH on Monad, where the gas coin is MON; sUSD3,
+  // not "$"): the group's name is not what the wallet sends, and a dollar-group token is not $1 —
+  // a PT or a vault share trades off it, so "$100" in the box sent 100 shares. As the loop ticket.
+  const unit = chosen.symbol
+  const usdGroup = unitOf(s.asset) === '$'
   // the row rarely carries a price: any pay option's balance has it (the coin and its wrapper trade 1:1), else a same-asset balance as the estimate
-  const price = s.priceUsd ?? opts.map((o) => balOf(o.address)?.price).find(Boolean) ?? allIdle.find((i) => i.asset === s.asset)?.price ?? (unit === '$' ? 1 : 0)
+  const price = s.priceUsd ?? opts.map((o) => balOf(o.address)?.price).find(Boolean) ?? allIdle.find((i) => i.asset === s.asset)?.price ?? (usdGroup ? 1 : 0)
+  // a token worth about a dollar is shown as dollars (2 dp, no "≈ $" line); anything else says its $ value
+  const dollar = usdGroup && price > 0.9 && price < 1.1
   // Lite with a wallet starts from what the wallet holds (all of it up to $1,000), as the loop does
   const liteSeed = !!lite && !!account
-  const [amt, setAmt] = useStickyAmount(`t:${s.id}:amount`, () => liteSeed ? { text: '0' } : fromUnits(unit === '$' ? 1000 : Math.min(idle?.amount ?? 1, 1)))
+  const [amt, setAmt] = useStickyAmount(`t:${s.id}:amount`, () => liteSeed ? { text: '0' } : fromUnits(dollar ? 1000 : Math.min(idle?.amount ?? 1, 1)))
   const seeded = React.useRef(false)
   React.useEffect(() => {
     if (!liteSeed || seeded.current || !idle || unitsOf(amt) > 0) return
     seeded.current = true
     if (!(idle.amount > 0)) return
-    const dollar = unit === '$'
     setAmt(price > 0 && idle.amount * price > 1000 ? fromUnits(Number((1000 / price).toFixed(shownDp(dollar)))) : portion(idle, 100, chosen.decimals, shownDp(dollar)))
   }, [liteSeed, idle?.amount, chosen.address, price]) // eslint-disable-line react-hooks/exhaustive-deps
   const amount = unitsOf(amt)
@@ -73,5 +76,5 @@ export function useSimpleTicket(s: SimpleStrategy, chainIdle: Idle[], allIdle: I
   // sentence describes, and the figure to check it against is right there
   const tight = s.utilization != null && s.utilization >= 0.9
   const exit = exitTerms(s)
-  return { account, isConnected, actor, getOpen, setGetOpen, opts, balOf, role, setRole, chosen, idle, unit, price, amt, setAmt, amount, sendRaw, amtUsd, yearly, slip, key, ladder, more, tight, exit }
+  return { account, isConnected, actor, getOpen, setGetOpen, opts, balOf, role, setRole, chosen, idle, unit, dollar, price, amt, setAmt, amount, sendRaw, amtUsd, yearly, slip, key, ladder, more, tight, exit }
 }

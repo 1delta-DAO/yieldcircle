@@ -31,20 +31,20 @@ const whereOf = (venue: string, chainId: string | number): [string, string] => [
 /** A deposit: how much, the three lines, one button. */
 export function DepositBody({ s, idle, allIdle, into }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[]; into: Holding | null }) {
   const t = useSimpleTicket(s, idle, allIdle, into, { lite: true })
-  const dp = shownDp(t.unit === '$')
+  const dp = shownDp(t.dollar)
   return (
     <>
       <Sec>
         <Lbl>How much</Lbl>
         <AmountBox unit={t.unit} value={t.amt} onChange={t.setAmt} onMax={t.idle ? () => t.setAmt(portion(t.idle!, 100, t.chosen.decimals, dp)) : undefined} />
         {t.idle && t.idle.amount > 0 && <Presets onPick={(p) => t.setAmt(portion(t.idle!, p, t.chosen.decimals, dp))} />}
-        <AmtLine account={t.account} have={t.idle && t.idle.amount > 0 ? `${num(t.idle.amount, dp)} ${t.idle.symbol}` : null} usdOf={t.unit === '$' ? undefined : `≈ ${usd(t.amtUsd)}`} more={t.more} />
+        <AmtLine account={t.account} have={t.idle && t.idle.amount > 0 ? `${num(t.idle.amount, dp)} ${t.idle.symbol}` : null} usdOf={t.dollar ? undefined : `≈ ${usd(t.amtUsd)}`} more={t.more} />
         <GetLine account={t.account} short={!t.idle || t.more} symbol={t.chosen.symbol} onOpen={() => t.setGetOpen(true)} />
         {t.getOpen && <GetSheet targets={t.opts.map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price: t.price, logo: o.role === 'token' ? s.logo : undefined, have: t.balOf(o.address)?.amount ?? 0 }))} want={t.amount} sources={allIdle}
           onTarget={(x) => t.setRole(t.opts.find((o) => o.address === x.address)?.role ?? null)} onClose={() => t.setGetOpen(false)} />}
       </Sec>
       <Lines l={depositLines({ rate: s.rate, amountUsd: t.amtUsd, exitWord: t.exit.word, exitWhen: t.exit.when, tight: t.tight, maturity: s.maturity, booked: !!s.booked, rewards: s.rewards })} />
-      <Action ladder={t.ladder} label={`Put ${t.unit === '$' ? usd(t.amtUsd) : `${num(t.amount, 4)} ${t.chosen.symbol}`} to work`} account={t.account} isConnected={t.isConnected} disabled={!(t.amount > 0)} chainId={s.chainId} />
+      <Action ladder={t.ladder} label={`Put ${t.dollar ? usd(t.amtUsd) : `${num(t.amount, 4)} ${t.chosen.symbol}`} to work`} account={t.account} isConnected={t.isConnected} disabled={!(t.amount > 0)} chainId={s.chainId} />
       <MoreSheet>
         {t.opts.length > 1 && <Choices label="Pay with" items={t.opts.map((o) => ({ id: o.role, word: o.symbol, line: o.role === 'native' ? `wrapped into ${s.assetSymbol} for you` : 'as it is', side: t.account ? `you have ${num(t.balOf(o.address)?.amount ?? 0, dp)}` : undefined }))} on={t.chosen.role} onPick={(r) => t.setRole(r)} />}
         <Numbers rows={[

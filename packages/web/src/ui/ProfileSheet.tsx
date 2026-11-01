@@ -8,7 +8,7 @@
  * go; they are about you, so they live together, one tap from anywhere.
  */
 import React from 'react'
-import { marketHref, proHref, useApp, useRoute, walletHref } from '../state/AppState'
+import { marketHref, proHref, useApp, walletHref } from '../state/AppState'
 import { useProfile, useProfiles } from '../social/queries'
 import { entryKey, usePending } from '../social/pending'
 import { labelFor } from '@yieldcircle/core/identity/name'
@@ -32,8 +32,6 @@ export function ProfileSheet({ embedded }: { embedded?: boolean } = {}) {
   const { account, signer, solSigner, viewAs, allChains, chainLabelFor } = useApp()
   const { widened } = useSettings()
   const p = useProfile(account)
-  // Lite reads the menu through its own fixed floors (docs/lite.md §3); the chain scope is shared
-  const lite = useRoute().shell === 'lite'
   return (
     <div className={`ps${embedded ? ' ps-embedded' : ''}`}>
       {embedded ? <div className="ps-wallet"><ConnectButton /></div> : <div className="ps-head">
@@ -62,7 +60,7 @@ export function ProfileSheet({ embedded }: { embedded?: boolean } = {}) {
 
       <ModeSwitch />
       <Fold label="Chains" state={allChains ? 'All chains' : chainLabelFor()} on={!allChains}><ChainList /></Fold>
-      {!lite && <Fold label="Filters" state={widened ? `${widened} widened` : 'Curated'} on={widened > 0}><SettingsPanel /></Fold>}
+      <Fold label="Filters" state={widened ? `${widened} widened` : 'Curated'} on={widened > 0}><SettingsPanel /></Fold>
       {/* a Solana-only wallet follows the same way: its queue is signed ed25519 */}
       {(signer ?? solSigner) && <PendingChanges />}
       <Socials className="ps-social" label="Join the community on Telegram" />

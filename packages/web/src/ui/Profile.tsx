@@ -13,24 +13,15 @@
  */
 import React from 'react'
 import { isEvmAddr } from '@yieldcircle/core/model/address'
-import { ACCESSORIES, BACKDROPS, CREATURES, Character, EYES, GATED, LAYERS, MOUTHS, PALETTES, MAX_PICTURE_URL, formatSpec, parseSpec, pictureUrl, specOf, unearned, type Spec } from '../identity/character'
+import { Character, GATED, LAYERS, LAYER_COUNTS, MAX_PICTURE_URL, formatSpec, parseSpec, pictureUrl, rollSpec, specOf, unearned, type Spec } from '../identity/character'
 import { autoName, shortAddr } from '@yieldcircle/core/identity/name'
 import { SOCIAL_LINKS_READY } from '../social/api'
 import { useBatchSupported, usePending } from '../social/pending'
 import { useHandleCheck, useProfile, useSocialRefresh } from '../social/queries'
-import { useSocialWrite, type ProfileOp } from '../social/sign'
-import type { Profile } from '../social/types'
+import { profileOpOf, useSocialWrite, type ProfileOp } from '../social/sign'
 import { XLink } from './XLink'
 import { LinkedWallets } from './LinkedWallets'
 import { Badges } from './social-bits'
-
-/** A signed profile in the shape it is signed in, so a draft can be compared with it. */
-const opOf = (p: Profile | null): ProfileOp | null => p && {
-  handle: p.handle ?? '', displayName: p.displayName ?? '', bio: p.bio ?? '', avatarUrl: p.avatarUrl ?? '',
-  tags: p.tags ?? [], visibility: p.visibility === 'unlisted' ? 'unlisted' : 'public',
-}
-
-const COUNTS: Record<keyof Spec, number> = { b: BACKDROPS.length, c: CREATURES.length, e: EYES.length, m: MOUTHS.length, a: ACCESSORIES.length, p: PALETTES.length }
 
 export function ProfilePage() {
   // the social author: the EVM wallet when there is one, else the Solana wallet on its own
@@ -67,7 +58,7 @@ export function ProfilePage() {
     setTags((src?.tags ?? []).join(', '))
     setUnlisted(src?.visibility === 'unlisted')
   }, [addr])
-  const savedOp = React.useMemo(() => opOf(saved), [saved])
+  const savedOp = React.useMemo(() => profileOpOf(saved), [saved])
   // load once the server has answered; a field the user has touched is never overwritten
   const loaded = React.useRef(false)
   React.useEffect(() => {
@@ -139,7 +130,7 @@ export function ProfilePage() {
               <div className="pchar">
                 <Character addr={addr} spec={s} size={112} />
                 <div className="pchar-a">
-                  <button className="btn sm" onClick={() => setSpec(roll(earned))}>Surprise me</button>
+                  <button className="btn sm" onClick={() => setSpec(rollSpec(earned))}>Surprise me</button>
                   <button className="btn sm ghost" onClick={() => setSpec(specOf(addr))}>Back to default</button>
                   <span className="foot mono">{formatSpec(s)}</span>
                 </div>
@@ -248,7 +239,7 @@ function Picker({ label, names, value, onPick, layer, earned }: {
     <div className="player">
       <div className="pl-h"><span className="lbl">{label}</span><span className="t40 mono">{names[value]}</span></div>
       <div className="pl-row">
-        <button className="nudge" onClick={() => onPick((value - 1 + COUNTS[layer]) % COUNTS[layer])} aria-label={`previous ${label}`}>‹</button>
+        <button className="nudge" onClick={() => onPick((value - 1 + LAYER_COUNTS[layer]) % LAYER_COUNTS[layer])} aria-label={`previous ${label}`}>‹</button>
         <div className="pl-opts">
           {names.map((n, i) => {
             const g = gateOf(i)
@@ -257,20 +248,8 @@ function Picker({ label, names, value, onPick, layer, earned }: {
               title={g ? `${n} — earned: ${g.why}` : n} onClick={() => onPick(i)}>{n}{locked && <i className="lock">•</i>}</button>
           })}
         </div>
-        <button className="nudge" onClick={() => onPick((value + 1) % COUNTS[layer])} aria-label={`next ${label}`}>›</button>
+        <button className="nudge" onClick={() => onPick((value + 1) % LAYER_COUNTS[layer])} aria-label={`next ${label}`}>›</button>
       </div>
     </div>
   )
-}
-
-/** A random character that claims nothing the wallet has not earned. */
-function roll(earned: string[]): Spec {
-  const pick = (k: keyof Spec) => {
-    const allowed = [...Array(COUNTS[k]).keys()].filter((i) => {
-      const g = GATED.find((x) => x.layer === k && x.index === i)
-      return !g || earned.includes(g.tag)
-    })
-    return allowed[Math.floor(Math.random() * allowed.length)]
-  }
-  return { b: pick('b'), c: pick('c'), e: pick('e'), m: pick('m'), a: pick('a'), p: pick('p') }
 }

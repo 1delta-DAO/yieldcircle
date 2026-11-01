@@ -1,13 +1,11 @@
 import React from 'react'
 import { liteHash } from '@yieldcircle/core/model/liteLinks'
-import { canonUid, uidOf } from '@yieldcircle/core/model/uid'
 import { isSpike, seriesFor, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
 import { heldBy, leverTag, riskWord, rowName, type LiteRow } from '@yieldcircle/core/model/lite'
 export { heldBy }
 import { GROUPS } from '@yieldcircle/core/model/assets'
 import type { Proof } from '@yieldcircle/core/model/activity'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
-import type { TxBundle } from '@yieldcircle/core/index/types'
 import { useProfiles } from '../../social/queries'
 import { Face, Who } from '../social-bits'
 import { GroupIcon, Sk, Tok, Toks, pct, usdShort } from '../bits'
@@ -101,17 +99,4 @@ export function LiteCardSk() {
   return <div className="lcard" aria-hidden><div className="lcard-h"><Sk w={30} h={30} /></div><div className="lcard-n"><Sk w={110} h={14} /><Sk w={140} h={10} /></div><div className="lcard-rate"><Sk w={80} h={22} /></div><div className="lcard-proof"><Sk w={150} h={12} /></div></div>
 }
 
-/**
- * The Lite row a feed move is about, when Lite carries it: a loop by its two markets, a deposit by
- * its market — what a Copy on the move opens.
- */
-export function rowOfTx(t: TxBundle, rows: LiteRow[]): LiteRow | null {
-  const uid = (u?: string | null) => (u ? canonUid(u)?.toLowerCase() ?? u.toLowerCase() : '')
-  const supply = t.legs.filter((l) => l.side !== 'borrow' && l.side !== 'debt').map((l) => uid(l.marketUid))
-  const debt = t.legs.filter((l) => l.side === 'borrow' || l.side === 'debt').map((l) => uid(l.marketUid))
-  for (const r of rows) {
-    const s = r.s
-    if (s.kind === 'loop' ? supply.includes(uid(s.marketLongUid)) && debt.includes(uid(s.marketShortUid)) : !debt.length && supply.includes(uid(uidOf(s)))) return r
-  }
-  return null
-}
+export { rowOfTx } from '@yieldcircle/core/model/moves'

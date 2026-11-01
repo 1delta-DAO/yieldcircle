@@ -8,21 +8,28 @@ import { usdShort } from '@yieldcircle/core/model/format'
 import { C } from '../theme'
 import Svg, { Circle, Path, Rect } from 'react-native-svg'
 import { IconMe, IconSearch } from './icons'
+import { useProfile } from '@yieldcircle/app/social/queries'
+import { usePending } from '@yieldcircle/app/social/pending'
+import { Character } from './Character'
 import { Txt } from './Txt'
 
 /**
- * The web's top bar on a phone (app.css `.top` under 768px): the profile button left, Pro's search
- * in the middle, Connect — or your balance — right. 60px, every control a full 44px target.
+ * The web's top bar on a phone (app.css `.top` under 768px): the profile button left — your face once
+ * a wallet is connected, with a dot while changes wait for a signature — Pro's search in the middle,
+ * Connect — or your balance — right. 60px, every control a full 44px target.
  */
 export function TopBar({ pro, on }: { pro?: boolean; /** You is open: the chip is lit */ on?: boolean }) {
   const insets = useSafeAreaInsets()
   const b = useBook()
   const { open } = useAppKit()
   const t = totalsOf(b)
+  const p = useProfile(b.account).data?.profile ?? null
+  const waiting = usePending().count > 0
   return (
     <View style={[st.bar, { paddingTop: insets.top, height: 60 + insets.top }]}>
       <Pressable onPress={() => router.push('/you')} hitSlop={4} style={st.me} accessibilityLabel="You">
-        <IconMe color={C.tx50} />
+        {b.account ? <Character addr={b.account} avatarUrl={p?.avatarUrl} size={36} /> : <IconMe color={C.tx50} />}
+        {waiting && <View style={st.dot} accessibilityLabel="Changes waiting for a signature" />}
       </Pressable>
       {pro ? (
         <Pressable onPress={() => router.push('/search')} style={st.search}>
@@ -64,4 +71,5 @@ const st = StyleSheet.create({
   search: { flex: 1, height: 44, borderRadius: 999, backgroundColor: C.b300, flexDirection: 'row', alignItems: 'center', gap: 7, paddingLeft: 11, paddingRight: 8 },
   pill: { height: 44, borderRadius: 999, paddingHorizontal: 9, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   connect: { backgroundColor: C.primary, borderColor: C.primary, minWidth: 70 },
+  dot: { position: 'absolute', top: 3, right: 3, width: 10, height: 10, borderRadius: 5, backgroundColor: C.primary, borderWidth: 2, borderColor: C.bg },
 })

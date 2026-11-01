@@ -98,8 +98,10 @@ Four screens, three tabs. Everything else is Pro.
 
 ## 3. The catalogue Lite shows
 
-Lite reads the same `Strategy[]` and applies a stricter, fixed filter. No
-settings for it; Pro's floors are Pro's.
+Lite reads the same `Strategy[]` and applies a stricter filter. Its size, risk,
+rate-bet and negative-carry floors are the reader's Filters (on You, shared with
+Pro, `LiteFloors` in `model/lite.ts`): at their defaults they are the floors
+below; widened, Lite lets the same rows in as Pro. The rest stays fixed.
 
 | Rule | Why |
 |---|---|

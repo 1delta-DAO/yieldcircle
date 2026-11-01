@@ -156,7 +156,9 @@ function LiteTicket({ s, idle, holdings, holding, into: into0, mode0, copy, copy
   const h = holdings.find((x) => x.key === hk) ?? holding
   const into = h === holding ? into0 : h && !h.subAccount?.unsupported ? h : null
   // which tabs, and which it opens on: core's rule, shared with the phone
-  const { isLoop, start, tabs } = liteModes(s, h, mode0)
+  // the reader's filters widen what Lite offers new (You → Filters)
+  const { st } = useSettings()
+  const { isLoop, start, tabs } = liteModes(s, h, mode0, st)
   const [mode, setMode] = React.useState<LiteMode>(start)
   // "More choices": what Lite decides, offered back in its own words — each body draws its own
   const [details, setDetails] = React.useState(false)
@@ -213,7 +215,7 @@ function LiteTicket({ s, idle, holdings, holding, into: into0, mode0, copy, copy
         : null}
       </LiteMoreCtx.Provider>
       {s && <div className="tsec lite-trust"><span>{trustKind(s)} · {usdShort(s.tvlUsd)} in it</span><span className="sp" /><span className="t50">{brandOf(s)}</span></div>}
-      {s && h && !liteEligible(s) && <div className="tsec lite-trust"><span>Lite does not offer this one new, but it is yours: {isLoop ? 'make it safer or close it here' : 'take it out here'}.</span></div>}
+      {s && h && !liteEligible(s, st) && <div className="tsec lite-trust"><span>Lite does not offer this one new, but it is yours: {isLoop ? 'make it safer or close it here' : 'take it out here'}.</span></div>}
       {s && mode === 'add' && <LiteWho s={s} uid={uid} thread={thread ?? null} heldBy={heldBy(L.proof(s))} />}
       <LiteDetails onOpen={() => setDetails(true)} what={moreWhat} />
     </div>

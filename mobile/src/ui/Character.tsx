@@ -31,7 +31,7 @@ export function AutoTag() {
  * Who a wallet is (the web's `Who`, `.who`): its face, its name — the profile's, the index's label,
  * or the generated one with `auto` — and a line under it.
  */
-export function Who({ account, profile, size = 28, sub, idx }: { account: string; profile?: { handle?: string | null; displayName?: string | null; avatarUrl?: string | null; systemTags?: string[] } | null; size?: number; sub?: React.ReactNode; idx?: { accountKind?: string; accountLabel?: string | null } | null }) {
+export function Who({ account, profile, size = 28, sub, idx }: { account: string; profile?: { handle?: string | null; displayName?: string | null; avatarUrl?: string | null; systemTags?: string[] } | null; size?: number; sub?: React.ReactNode; idx?: { accountKind?: string | null; accountLabel?: string | null } | null }) {
   const name = labelFor(account, profile, idx)
   const spec = specFor(account, profile?.avatarUrl)
   const bad = profile?.avatarUrl ? unearned(spec, profile.systemTags ?? []) : []

@@ -5,14 +5,15 @@ import type { HistoryGet } from '@yieldcircle/core/model/rateHistory'
 import { C } from '../theme'
 import { Btn, Face, LeverPill, Rate, RiskWord, Sk, spikeOf } from './bits'
 import { Who } from './Character'
-import { LiteTitle, openStrategy } from './lite'
+import { LiteTitle, openStrategy, openWallet } from './lite'
+import type { Profile } from '@yieldcircle/core/social/types'
 import { Txt } from './Txt'
 
 /**
  * A home card (the web's `LiteCard`, `.lcard`): face and risk, the name, the rate large, then the
- * wallet that runs it best with Copy — or, with no holder yet, "Earn this".
+ * wallet that runs it best with Copy — or, with no holder yet, "Earn this". Its face opens its profile.
  */
-export function LiteCard({ r, get, proof }: { r: LiteRow; get: HistoryGet; proof: Proof | null }) {
+export function LiteCard({ r, get, proof, profile }: { r: LiteRow; get: HistoryGet; proof: Proof | null; profile?: Profile | null }) {
   const s = r.s
   const best = proof?.best
   const spike = spikeOf(s, get)
@@ -33,8 +34,8 @@ export function LiteCard({ r, get, proof }: { r: LiteRow; get: HistoryGet; proof
       </View>
       {best ? (
         <View style={st.proof}>
-          {/* two things to tap on a card: the card, and Copy (docs/lite-design-review.md §3.1) */}
-          <View style={{ flexShrink: 1 }}><Who account={best.account} size={20} sub={heldBy(proof)} /></View>
+          {/* to tap on a card: the card, the holder's face, and Copy (docs/lite-design-review.md §3.1) */}
+          <Pressable onPress={() => openWallet(best.account)} hitSlop={6} style={{ flexShrink: 1 }}><Who account={best.account} profile={profile} size={20} sub={heldBy(proof)} /></Pressable>
           <View style={{ flex: 1 }} />
           <Btn sm title="Copy" onPress={() => openStrategy(s, { copy: best.account })} />
         </View>

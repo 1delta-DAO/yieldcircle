@@ -12,7 +12,7 @@ import { useMyFollows, useSocialRefresh } from '../social/queries'
 import { entryKey, useBatchSupported, usePending } from '../social/pending'
 import { useSocialWrite } from '../social/sign'
 import type { AuthorStake, Follow, Profile } from '../social/types'
-import type { AccountKind, TxBundle, UsdStatus } from '@yieldcircle/core/index/types'
+import type { AccountKind, UsdStatus } from '@yieldcircle/core/index/types'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { Tip, pct, usd, usdShort } from './bits'
 
@@ -25,18 +25,8 @@ function useClock() {
   const [, set] = React.useState(0)
   React.useEffect(() => { const l = () => set(tick); listeners.add(l); return () => { listeners.delete(l) } }, [])
 }
-export function ago(ts: string | number | undefined): string {
-  if (ts == null) return ''
-  const t = typeof ts === 'number' ? ts : Date.parse(ts)
-  if (!Number.isFinite(t)) return ''
-  const s = Math.max(0, (Date.now() - t) / 1000)
-  if (s < 45) return 'now'
-  if (s < 3600) return `${Math.round(s / 60)}m`
-  if (s < 86400) return `${Math.round(s / 3600)}h`
-  if (s < 86400 * 30) return `${Math.round(s / 86400)}d`
-  if (s < 86400 * 365) return `${Math.round(s / (86400 * 30))}mo`
-  return `${(s / (86400 * 365)).toFixed(1)}y`
-}
+export { ago } from '@yieldcircle/core/model/format'
+import { ago } from '@yieldcircle/core/model/format'
 /** The age alone; the exact stamp is the title, so the table never jumps. */
 export function Ago({ ts }: { ts: string | number | undefined }) {
   useClock()
@@ -280,62 +270,7 @@ export function Action({ kind, side }: { kind: string; side?: string }) {
   return <span className="act"><span className={`pill ${cls}`}>{w}</span>{showSide && <span className="sidechip">{side === 'share' ? 'share' : 'coll'}</span>}</span>
 }
 
-/**
- * What one transaction DID, in one phrase.
- *
- * The index labels a bundle's legs `<side>/<kind>` (`supply/deposit`,
- * `borrow/borrow`), or just `transfer`. A loop arrives as a deposit AND a
- * borrow in the same transaction, and calling that "opened a loop" rather than
- * listing both is the difference between a feed and a log.
- */
-/**
- * What happened, in a word. `desk` re-words it for a curated vault acting on
- * its depositors' behalf: a vault that moves money between two markets is
- * reallocating, and calling that "rebalanced" reads as a trader's decision
- * when it is an allocation decision made for other people's money.
- */
-export function describeTx(kinds: Record<string, number>, desk?: boolean): { verb: string; cls: string } {
-  if (desk) {
-    const d = describeTx(kinds)
-    const DESK: Record<string, string> = { rebalanced: 'reallocated', deposited: 'allocated', withdrew: 'pulled out', moved: 'moved funds' }
-    return { ...d, verb: DESK[d.verb] ?? d.verb }
-  }
-  return plainVerb(kinds)
-}
-/**
- * {@link describeTx} for a whole bundle: a swap the index found (a venue
- * wrapping one lending receipt and unwrapping another, or a wallet's
- * collateral swap) reads as one, and a token issuer's reserve reads as the
- * token being minted or redeemed rather than as a wallet depositing.
- */
-export function describeBundle(t: Pick<TxBundle, 'kinds' | 'subject' | 'swap'>): { verb: string; cls: string } {
-  const side = (x: { symbol: string | null; assetGroup: string | null }[]) => x.map((s) => s.symbol ?? s.assetGroup ?? '?').join(' + ')
-  if (t.swap) return { verb: `swapped ${side(t.swap.from)} → ${side(t.swap.to)}`, cls: 'k-move' }
-  if (t.subject?.reason === 'wrapper') {
-    const d = plainVerb(t.kinds)
-    const W: Record<string, string> = { deposited: 'backed a mint', withdrew: 'paid a redemption' }
-    return { ...d, verb: W[d.verb] ?? d.verb }
-  }
-  return describeTx(t.kinds, t.subject?.reason === 'desk')
-}
-function plainVerb(kinds: Record<string, number>): { verb: string; cls: string } {
-  const bare = new Set<string>()
-  for (const k of Object.keys(kinds)) bare.add(k.includes('/') ? k.slice(k.indexOf('/') + 1) : k)
-  const has = (...ks: string[]) => ks.some((k) => bare.has(k))
-  if (has('liquidated', 'liquidate')) return { verb: 'was liquidated', cls: 'k-liq' }
-  const inSide = has('deposit', 'supply', 'mint')
-  const outSide = has('withdraw', 'redeem', 'redeemed', 'burn')
-  if (inSide && has('borrow')) return { verb: 'opened a loop', cls: 'k-borrow' }
-  if (outSide && has('repay')) return { verb: 'closed a loop', cls: 'k-repay' }
-  if (has('borrow')) return { verb: 'borrowed', cls: 'k-borrow' }
-  if (has('repay')) return { verb: 'repaid', cls: 'k-repay' }
-  if (inSide && outSide) return { verb: 'rebalanced', cls: 'k-move' }
-  if (inSide) return { verb: 'deposited', cls: 'k-in' }
-  if (outSide) return { verb: 'withdrew', cls: 'k-out' }
-  if (has('transfer', 'transfer_in', 'transfer_out')) return { verb: 'moved', cls: 'k-move' }
-  if (has('accrual')) return { verb: 'accrued', cls: 'k-move' }
-  return { verb: [...bare][0] ?? 'moved', cls: 'k-move' }
-}
+export { describeBundle, describeTx } from '@yieldcircle/core/model/moves'
 
 // ---------------------------------------------------------------- follow
 export function FollowButton({ kind, target, small, label, quiet }: {

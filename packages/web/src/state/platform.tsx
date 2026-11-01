@@ -5,7 +5,7 @@ import { liteHash } from '@yieldcircle/core/model/liteLinks'
 import { proHref } from './AppState'
 import { isRemote, openWallet } from '../wallet/deeplink'
 import { useSwitchTo } from '../wallet/useSwitchTo'
-import { solSignAndSend, useSolWallet } from '../wallet/solana'
+import { solSignAndSend, solSignMessage, useSolWallet } from '../wallet/solana'
 import { realTradingGated } from '../wallet/gate'
 
 /** The web's side of the shared ticket machinery (`@yieldcircle/app/platform`): sessionStorage, its deep links, the Wallet Standard. */
@@ -20,6 +20,7 @@ const WEB: Platform = {
   useSwitchTo,
   useSol: useSolWallet,
   solSignAndSend,
+  solSignMessage,
   gated: realTradingGated,
 }
 

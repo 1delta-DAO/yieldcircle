@@ -19,7 +19,6 @@ import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { setMode, useMode, type Mode } from '../src/mode'
 import { useChains } from '../src/chains'
-import { useNav } from '@yieldcircle/app/nav'
 import { useSession } from '@yieldcircle/app/session'
 import { CHAINS } from '@yieldcircle/app/sdk/queries'
 import { C } from '../src/theme'
@@ -31,10 +30,14 @@ import { openStrategy } from '../src/ui/lite'
 import { PaperOffer } from '../src/ui/paper'
 import { Txt } from '../src/ui/Txt'
 import { Details } from '../src/ticket/parts'
+import { LinkedWallets, PendingChanges } from '../src/ui/social'
+import { useProfile } from '@yieldcircle/app/social/queries'
+import { useSocialWrite } from '@yieldcircle/app/social/sign'
 
 /**
  * You (the web's LiteYou, docs/lite.md §6): what you have and what it earns, your streak, points
- * and rank, what you made, every position — each opens its own ticket — and the switch to Pro.
+ * and rank, what you made, every position — each opens its own ticket — your wallets under one
+ * profile, and at the foot your name and face, what waits for a signature, and the switch to Pro.
  */
 export default function You() {
   const insets = useSafeAreaInsets()
@@ -44,12 +47,13 @@ export default function You() {
   const day = useDayLog(b)
   const rank = useRank(b.paper ? undefined : b.account)
   const { open } = useAppKit()
+  const p = useProfile(b.account).data?.profile ?? null
   const mine = b.holdings.filter((h) => !h.putUp).sort((x, y) => y.valueUsd - x.valueUsd)
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <View style={[st.bar, { paddingTop: insets.top, height: 60 + insets.top }]}>
         <Pressable onPress={() => router.back()} hitSlop={6} style={st.back} accessibilityLabel="Back"><IconBack color={C.tx70} /></Pressable>
-        {b.account ? <Character addr={b.account} size={44} /> : <View style={{ width: 44 }} />}
+        {b.account ? <Character addr={b.account} avatarUrl={p?.avatarUrl} size={44} /> : <View style={{ width: 44 }} />}
         <View style={{ flex: 1 }} />
         {b.account && <BalanceChip tot={t.tot} perDay={t.yearly / 365} loading={b.positionsLoading && !b.books.length} on />}
       </View>
@@ -79,6 +83,7 @@ export default function You() {
                 : !mine.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing at work yet.</Txt>
                 : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} />)}
             </View>
+            {!b.paper && <Wallets />}
           </>
         )}
         <Settings />
@@ -229,12 +234,27 @@ function Position({ h, s }: { h: Holding; s: Strategy | null }) {
 }
 
 /**
- * Wallet and settings (the web's `ProfileSheet embedded` at the foot of You): the wallet, the one link
- * to Pro's profile editor, which chains every list reads, and Lite / Pro.
+ * Your wallets under one profile (the web's You `Wallets`, tickets/0021): the signed links, with
+ * Unlink. Only for the wallet that signs social writes.
+ */
+function Wallets() {
+  const { account } = useSocialWrite()
+  if (!account) return null
+  return (
+    <>
+      <View style={{ marginTop: 26, marginBottom: 10, gap: 4 }}><Txt s={16} w={600} style={{ letterSpacing: -0.16 }}>Your wallets</Txt><Txt s={12.5} c={C.tx50}>one profile across your addresses</Txt></View>
+      <View style={st.box}><LinkedWallets account={account} /></View>
+    </>
+  )
+}
+
+/**
+ * Wallet and settings (the web's `ProfileSheet embedded` at the foot of You): the wallet, your name
+ * and face, what waits for a signature, which chains every list reads, and Lite / Pro.
  */
 function Settings() {
   const { isConnected, viewAs } = useSession()
-  const nav = useNav()
+  const { account: author } = useSocialWrite()
   const { chains, allChains, setChains, toggleChain } = useChains()
   const [open, setOpen] = React.useState(false)
   const state = allChains ? 'All chains' : chains.length === 1 ? CHAINS.find((c) => c.id === chains[0])?.label ?? '1 chain' : `${chains.length} chains`
@@ -244,7 +264,7 @@ function Settings() {
       <View style={st.set}>
         <View style={st.setRow}><AppKitButton /></View>
         {isConnected && !viewAs && (
-          <Pressable onPress={() => nav.pro('#/me')} style={[st.setRow, st.setLine]} accessibilityRole="link">
+          <Pressable onPress={() => router.push('/me')} style={[st.setRow, st.setLine]} accessibilityRole="link">
             <Txt s={14} style={{ flex: 1 }}>Edit your name and face</Txt><Txt c={C.tx40}>›</Txt>
           </Pressable>
         )}
@@ -260,6 +280,7 @@ function Settings() {
           </View>
         )}
       </View>
+      {author && !viewAs && <View style={{ marginTop: 14 }}><PendingChanges onEdit={() => router.push('/me')} /></View>}
       <ModeSwitch />
     </View>
   )
@@ -296,6 +317,7 @@ const st = StyleSheet.create({
   pnl: { backgroundColor: C.b200, borderRadius: 18, paddingVertical: 18, paddingHorizontal: 20, gap: 12, overflow: 'hidden' },
   bar2: { flexDirection: 'row', height: 10, borderRadius: 999, overflow: 'hidden', backgroundColor: C.b400, gap: 2 },
   set: { backgroundColor: C.b200, borderRadius: 12, overflow: 'hidden' },
+  box: { backgroundColor: C.b200, borderRadius: 12, padding: 14 },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 10, paddingHorizontal: 14 },
   setLine: { borderTopWidth: 1, borderTopColor: C.line },
   chain: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingHorizontal: 14 },

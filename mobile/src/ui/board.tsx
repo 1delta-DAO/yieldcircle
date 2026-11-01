@@ -8,6 +8,8 @@ import { useAccountPnlBook } from '@yieldcircle/app/index/pnl'
 import { RATE_BOARD_LIMIT } from '@yieldcircle/app/index/queries'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { useSession } from '@yieldcircle/app/session'
+import { useProfiles } from '@yieldcircle/app/social/queries'
+import type { Profile } from '@yieldcircle/core/social/types'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { bookKeyOf } from '@yieldcircle/core/model/uid'
 import { GROUPS } from '@yieldcircle/core/model/assets'
@@ -39,12 +41,7 @@ const MEDAL = ['#f5c542', '#c9d1d9', '#d08a4e']
 export function Board({ by0, t0 }: { by0?: string; t0?: string } = {}) {
   const [by, setBy] = React.useState<'strategy' | 'wallet'>(by0 === 'strategy' ? 'strategy' : 'wallet')
   const [sort, setSort] = React.useState<BoardSort>(t0 === 'perDay' ? 'perDay' : 'apr')
-  const L = useLiteMenu()
-  const liteByKey = React.useMemo(() => {
-    const m = new Map<string, LiteRow>()
-    for (const r of L.rows) { const k = bookKeyOf(r.s); if (k) m.set(k.toLowerCase(), r) }
-    return m
-  }, [L.rows])
+  const liteByKey = useLiteByKey()
   return (
     <View>
       <View style={st.head}>
@@ -58,6 +55,16 @@ export function Board({ by0, t0 }: { by0?: string; t0?: string } = {}) {
       {by === 'strategy' ? <Strategies sort={sort} liteByKey={liteByKey} /> : <Wallets sort={sort} liteByKey={liteByKey} />}
     </View>
   )
+}
+
+/** Lite's rows by the index's strategy key: what a position on the board is, in Lite's words, and its Copy. */
+export function useLiteByKey() {
+  const L = useLiteMenu()
+  return React.useMemo(() => {
+    const m = new Map<string, LiteRow>()
+    for (const r of L.rows) { const k = bookKeyOf(r.s); if (k) m.set(k.toLowerCase(), r) }
+    return m
+  }, [L.rows])
 }
 
 // ------------------------------------------------------------------ strategies
@@ -183,6 +190,7 @@ function Wallets({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<string, 
   })
   const rows = boardWallets(q.data?.rows ?? [], sort).slice(0, 50)
   const me = account ? rows.find((r) => normAddr(r.account) === normAddr(account)) : undefined
+  const { profile } = useProfiles(rows.map((r) => r.account))
   const [open, setOpen] = React.useState<string | null>(null)
   return (
     <View style={{ gap: 6 }}>
@@ -190,17 +198,17 @@ function Wallets({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<string, 
       {q.isLoading ? [0, 1, 2, 3, 4, 5].map((i) => <View key={i} style={[st.lbItem, st.lbRow]}><Sk w={24} h={18} /><Sk w={26} h={26} r={13} /><Sk w={140} /></View>)
         : q.error ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>The board could not be read right now.</Txt>
         : !rows.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nobody on the board right now.</Txt>
-        : rows.map((r) => <WalletRow key={r.account} r={r} sort={sort} me={!!me && me.account === r.account} open={open === r.account} onToggle={() => setOpen(open === r.account ? null : r.account)} liteByKey={liteByKey} />)}
+        : rows.map((r) => <WalletRow key={r.account} r={r} sort={sort} profile={profile(r.account)} me={!!me && me.account === r.account} open={open === r.account} onToggle={() => setOpen(open === r.account ? null : r.account)} liteByKey={liteByKey} />)}
     </View>
   )
 }
 
-function WalletRow({ r, sort, me, open, onToggle, liteByKey }: { r: BoardWallet; sort: BoardSort; me: boolean; open: boolean; onToggle: () => void; liteByKey: Map<string, LiteRow> }) {
+function WalletRow({ r, sort, profile, me, open, onToggle, liteByKey }: { r: BoardWallet; sort: BoardSort; profile: Profile | null; me: boolean; open: boolean; onToggle: () => void; liteByKey: Map<string, LiteRow> }) {
   return (
     <View style={[st.lbItem, me && { borderLeftWidth: 3, borderLeftColor: C.primary }]}>
       <Pressable onPress={onToggle} style={({ pressed }) => [st.lbRow, pressed && { backgroundColor: C.b300 }]}>
         <Rank n={r.rank} />
-        <View style={{ flex: 1 }}><Who account={r.account} idx={{ accountLabel: r.label }} size={28} sub={`${r.positions} position${r.positions === 1 ? '' : 's'} · on ${usdShort(r.navUsd)}`} /></View>
+        <View style={{ flex: 1 }}><Who account={r.account} profile={profile} idx={{ accountLabel: r.label }} size={28} sub={`${r.positions} position${r.positions === 1 ? '' : 's'} · on ${usdShort(r.navUsd)}`} /></View>
         <View style={{ alignItems: 'flex-end' }}>
           <Txt s={17} w={600} c={C.ok} style={{ fontVariant: ['tabular-nums'] }}>{sort === 'apr' ? pct(r.value, 1) : usdShort(r.value)}</Txt>
           <Txt s={11} c={C.tx50}>{sort === 'apr' ? 'a year' : 'a day'}</Txt>
@@ -212,8 +220,11 @@ function WalletRow({ r, sort, me, open, onToggle, liteByKey }: { r: BoardWallet;
   )
 }
 
-/** One wallet's positions, opened on a tap: each with what it made, and a Copy where Lite carries it. */
-function WalletPositions({ account, liteByKey, me }: { account: string; liteByKey: Map<string, LiteRow>; me: boolean }) {
+/**
+ * One wallet's positions, opened on a tap: each with what it made, and a Copy where Lite carries it.
+ * `foot` off on the wallet's own page, which needs no link to itself.
+ */
+export function WalletPositions({ account, liteByKey, me, foot = true }: { account: string; liteByKey: Map<string, LiteRow>; me: boolean; foot?: boolean }) {
   const q = useAccountPnlBook(account)
   const ps = q.data ? boardPositions(q.data, (k) => liteByKey.get(k.toLowerCase())?.title ?? null) : []
   return (
@@ -236,10 +247,12 @@ function WalletPositions({ account, liteByKey, me }: { account: string; liteByKe
             </View>
           )
         })}
-      <View style={[st.lbP, { paddingTop: 6 }]}>
-        <View style={{ flex: 1 }} />
-        <Pressable onPress={() => openWallet(account)}><Txt s={12.5} c={C.tx50}>Their whole page ›</Txt></Pressable>
-      </View>
+      {foot && (
+        <View style={[st.lbP, { paddingTop: 6 }]}>
+          <View style={{ flex: 1 }} />
+          <Pressable onPress={() => openWallet(account)}><Txt s={12.5} c={C.tx50}>Their whole page ›</Txt></Pressable>
+        </View>
+      )}
     </View>
   )
 }

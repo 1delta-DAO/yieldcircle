@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { LENSES, liteCards, useDayLog, useLiteMenu, type Lens } from '@yieldcircle/app/lite'
 import { useTrending } from '@yieldcircle/app/index/queries'
 import { useSession } from '@yieldcircle/app/session'
+import { useProfiles } from '@yieldcircle/app/social/queries'
 import { totalsOf } from '@yieldcircle/core/model/positions'
 import { leverTag } from '@yieldcircle/core/model/lite'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
@@ -31,6 +32,8 @@ export default function LiteHome() {
   const [lens, setLens] = React.useState<Lens>('proven')
   const trending = useTrending('7d', chainIds)
   const cards = React.useMemo(() => liteCards(lens, L.rows, L, trending.markets), [lens, L.rows, trending.markets, L.proofsHeld]) // eslint-disable-line react-hooks/exhaustive-deps
+  // the best holder on each card, by the name and face their profile gives them
+  const { profile } = useProfiles(cards.map((r) => L.proof(r.s)?.best?.account).filter((x): x is string => !!x))
   const loading = (b.isLoading && !L.rows.length) || (lens === 'trending' && trending.isLoading)
   const idleBook = [...b.books].filter((x) => x.idleUsd >= 1).sort((x, y) => y.idleUsd - x.idleUsd)[0]
   const idleTo = idleBook ? L.rows.find((r) => r.s.group === idleBook.group && r.s.risk <= 2) : undefined
@@ -75,7 +78,7 @@ export default function LiteHome() {
       <View style={{ gap: 12 }}>
         {loading ? [0, 1, 2].map((i) => <LiteCardSk key={i} />)
           : !cards.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing here on these chains right now.</Txt>
-          : cards.map((r) => <LiteCard key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} />)}
+          : cards.map((r) => <LiteCard key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} profile={profile(L.proof(r.s)?.best?.account ?? '')} />)}
       </View>
 
       <Pressable onPress={() => router.push('/lite/earn')} style={{ marginTop: 22, marginBottom: 8 }}><Txt s={13} c={C.tx50}>Every category ›</Txt></Pressable>

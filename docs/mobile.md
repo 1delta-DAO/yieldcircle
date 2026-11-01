@@ -22,6 +22,7 @@ It runs on the same code as the web below the screens:
 | Home | balance and a day's earnings, streak, the idle nudge, three lenses of cards (proven · trending · most held) | your money, the best three rows per money |
 | Earn | four money tiles, the highest steady rates or a money's rows, "show all" | every row of a money, every venue and chain |
 | Board | the wallet board (best rate · most a day), tap for each position's PnL | the same board |
+| Profiles | a wallet's page (`/w/<addr>`), your name and face (`/me`), Follow on faces | the same pages |
 | Feed · Borrow | — | "comes next" (the feed needs the social layer; borrowing comes with the ticket) |
 
 A row opens the **strategy screen**: what it is in words, the rate (amber on a
@@ -32,17 +33,33 @@ the chains every list reads, the **Lite / Pro switch** (saved like the web's set
 opens the saved mode) and the wallet probe (`app/probe.tsx`: what the wallet
 answers to `wallet_getCapabilities`).
 
+**Profiles** (2026-11-01) are Lite's on both apps. A wallet's page (`app/w/[account].tsx`, the web's
+`LiteProfile`) shows who it is, its followers and the people you follow among them, the board's
+numbers, what it runs with a Copy on each, what it said, and its recent moves. Your own address opens
+You. **Your name and face** (`app/me.tsx`) is the web's profile editor (Pro's `#/me`; Lite links
+there) in Lite's look: character or picture, handle (checked as you type), name, bio, tags, unlisted,
+the X link, and your linked wallets. **Save** queues the edit with your follows (docs/social.md §17),
+and You lists the queue and signs it in one `Batch`; **Save and sign now** signs at once. Follow is
+on profiles and in search. Profile names and faces show on the board, in search, on the Home cards and
+in the top bar, where a dot means something is waiting to be signed. Each signature brings the
+wallet forward through `Platform.openWallet`, as the ladder does. The social code is shared:
+`@yieldcircle/core/social/*` (client, types, EIP-712 envelope) and `@yieldcircle/app/social/*`
+(queries, the queue, `useSocialWrite`). The web's `src/social/*` re-export them.
+
 ```
 mobile/
   app/_layout.tsx        polyfills → env → AppKit, wagmi, React Query, Settings, session; the AppKit modal
   app/index.tsx          → /lite or /pro, by the saved mode
   app/lite/  app/pro/    the two tab bars and their screens
   app/strategy/[id].tsx  one strategy, read-only
-  app/you.tsx            wallet, your money, Lite / Pro
+  app/you.tsx            wallet, your money, your wallets, pending changes, Lite / Pro
+  app/w/[account].tsx    a wallet's profile (the web's LiteProfile)
+  app/me.tsx             your name and face: the profile editor, the X link, linked wallets
   app/probe.tsx          the wallet-capabilities probe
   src/session.tsx        the phone's SessionProvider: every chain, the connected wallet
   src/mode.ts            Lite / Pro, in localStorage
-  src/ui/                bits (Tok, GroupIcon, RiskDot, Rate, Seg …), Lite rows and cards, Pro rows, the board
+  src/ui/                bits (Tok, GroupIcon, RiskDot, Rate, Seg …), Lite rows and cards, Pro rows, the board,
+                         social.tsx (Follow, moves, pending changes, a profile's wallets)
   src/env.ts             EXPO_PUBLIC_* → core's configureBackend (the web's src/env.ts, for the phone)
   src/appkit.ts          WagmiAdapter + createAppKit: the web's chain list, metadata, features off
   src/storage.ts         AsyncStorage behind AppKit, so a session survives a restart
@@ -51,8 +68,9 @@ mobile/
 ```
 
 **Not on the phone yet**, in the order they would come: the ticket (opening
-and closing a position: the web's `Ticket.tsx` + `useLadder.ts`), the social
-layer (profiles, follows, the feed, signed comments), paper accounts, Solana.
+and closing a position: the web's `Ticket.tsx` + `useLadder.ts`), the rest of
+the social layer (the feed, threads and signed comments; profiles and follows
+are in), paper accounts, Solana.
 
 **The ticket on the phone** runs on the web's own ticket engine — the
 ladder, the transaction trace and one controller per ticket body live in
@@ -224,6 +242,17 @@ Share text and its link are core's (`shareOf`, `canShare` in `model/lite.ts`); b
   at and 44 to hit (`hitSlop` on the phone).
 
 ## Known gaps, roughly in order
+
+- **Profile signatures over WalletConnect are untested per wallet.** The social domain has no
+  `chainId` on purpose (`core/social/envelope.ts`). Check in the capabilities table below that each
+  wallet signs it and hands back. The profile pieces the phone does not have yet:
+  - **Explorer links** under a profile's address: the chain table with explorer URLs is the web's
+    (`ui/ChainMark.tsx`). The address opens the share sheet instead.
+  - **Earned badges are not listed** in the editor: the crown and label formatting is in the web's
+    `social-bits.tsx`. The editor still uses them to lock earned layers.
+  - **Linking a wallet** starts on the web, where both keys can be connected. Unlink works here.
+  - **The X proof text** goes to X or the share sheet, since there is no clipboard module (it
+    would need a dev-client rebuild).
 
 - **Solana:** not wired. AppKit's Solana adapter + its Phantom / Solflare
   connectors replace the web's Wallet Standard (`wallet/solana.ts`), which has

@@ -8,6 +8,7 @@ import { proofOf, recommendAll } from '@yieldcircle/core/model/activity'
 import { holdingMatches, liteMenu, noteDay, pointsOf, streakOf, dayKey, type DayMark, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { totalsOf, type Holding } from '@yieldcircle/core/model/positions'
+import { useSettings } from './state/Settings'
 
 /**
  * Lite's menu: the same catalogue, book and rate history every Pro page reads (one cache), cut by
@@ -15,16 +16,18 @@ import { totalsOf, type Holding } from '@yieldcircle/core/model/positions'
  */
 export function useLiteMenu() {
   const b = useBook()
+  // the reader's filters (You → Filters): at their defaults, Lite's own floors
+  const { st } = useSettings()
   const get = useRateHistory(b.all, !b.isFetching)
   const rank = React.useCallback((s: Strategy) => steadyRate(s, get), [get])
   // the strategy a position is, wherever the catalogue holds it: on the menu, below a floor, or past a desk's cap
   const runs = (h: Holding) => b.all.find((s) => holdingMatches(s, h)) ?? b.hidden.find((s) => holdingMatches(s, h)) ?? b.overflow.find((s) => holdingMatches(s, h))
   const heldIds = new Set(b.holdings.map((h) => runs(h)?.id).filter((x): x is string => !!x))
-  const rows: LiteRow[] = liteMenu(b.all, rank, heldIds)
+  const rows: LiteRow[] = liteMenu(b.all, rank, heldIds, st)
   const keys = [...new Set(rows.map((r) => bookKeyOf(r.s)).filter((k): k is string => !!k))].sort()
   const proofs = useStrategyProofs(keys)
   const proof = (s: Strategy) => proofOf(s, proofs.data)
-  return { b, get, rank, rows, proof, book: proofs.data, proofsHeld: proofs.current, runs, holdingsOf: (s: Strategy) => b.holdings.filter((h) => holdingMatches(s, h) && !h.putUp) }
+  return { b, get, rank, rows, floors: st, proof, book: proofs.data, proofsHeld: proofs.current, runs, holdingsOf: (s: Strategy) => b.holdings.filter((h) => holdingMatches(s, h) && !h.putUp) }
 }
 export type LiteMenu = ReturnType<typeof useLiteMenu>
 

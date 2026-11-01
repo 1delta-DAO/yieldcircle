@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { usePeopleFind, useRateLeaders } from '@yieldcircle/app/index/queries'
+import { useProfiles } from '@yieldcircle/app/social/queries'
 import { boardWallets, liteFind } from '@yieldcircle/core/model/lite'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { pct, usdShort } from '@yieldcircle/core/model/format'
@@ -13,11 +14,12 @@ import { Sk } from '../src/ui/bits'
 import { LiteRowView, openWallet, rowStyles } from '../src/ui/lite'
 import { Who } from '../src/ui/Character'
 import { Txt } from '../src/ui/Txt'
+import { FollowButton } from '../src/ui/social'
 
 /**
  * Search (the web's Lite search, `#/lite/search`; docs/lite-social-search.md §4.1): things to earn
  * in Lite's words (`liteFind`) and people by name (`usePeopleFind`) — the best rates before a word
- * is typed. A person opens their wallet page; Follow waits for the social layer here (docs/mobile.md).
+ * is typed. A person opens their wallet page, and is followed from the row.
  */
 export default function Search() {
   const insets = useSafeAreaInsets()
@@ -30,6 +32,7 @@ export default function Search() {
   // the best rates, not the biggest wallets (docs/rate-boards.md), in the board's own order
   const board = useRateLeaders()
   const leaders = boardWallets(board.data?.rows ?? [], 'apr').slice(0, 8)
+  const { profile } = useProfiles([...leaders.map((r) => r.account), ...people.hits.map((h) => h.key)])
   return (
     <View style={{ flex: 1, backgroundColor: C.bg, paddingTop: insets.top }}>
       <View style={st.bar}>
@@ -48,8 +51,9 @@ export default function Search() {
               {board.isLoading ? <View style={st.person}><Sk w={200} /></View>
                 : leaders.map((r) => (
                   <Pressable key={r.account} onPress={() => openWallet(r.account)} style={st.person}>
-                    <View style={{ flex: 1 }}><Who account={r.account} idx={{ accountLabel: r.label }} size={28} sub={`${r.positions} position${r.positions === 1 ? '' : 's'}`} /></View>
+                    <View style={{ flex: 1 }}><Who account={r.account} profile={profile(r.account)} idx={{ accountLabel: r.label }} size={28} sub={`${r.positions} position${r.positions === 1 ? '' : 's'}`} /></View>
                     <Txt s={14} w={600} c={C.ok}>{pct(r.value, 1)}</Txt>
+                    <FollowButton kind="wallet" target={r.account} quiet />
                   </Pressable>
                 ))}
             </View>
@@ -66,8 +70,9 @@ export default function Search() {
             {people.hits.length ? (
               <View style={st.card}>{people.hits.map((h) => (
                 <Pressable key={h.docId} onPress={() => openWallet(h.key)} style={st.person}>
-                  <View style={{ flex: 1 }}><Who account={h.key} profile={{ displayName: h.title }} size={28} sub={h.weightUsd > 0 ? `${usdShort(h.weightUsd)} held` : undefined} /></View>
+                  <View style={{ flex: 1 }}><Who account={h.key} profile={profile(h.key) ?? { displayName: h.title }} size={28} sub={h.weightUsd > 0 ? `${usdShort(h.weightUsd)} held` : undefined} /></View>
                   {(() => { const r = board.data?.rows.find((x) => normAddr(x.account) === normAddr(h.key)); return r?.netAprPct != null ? <Txt s={14} w={600} c={C.ok}>{pct(r.netAprPct, 1)}</Txt> : null })()}
+                  <FollowButton kind="wallet" target={h.key} quiet />
                 </Pressable>
               ))}</View>
             ) : !people.loading && <Txt s={13} c={C.tx50}>{needle.length < 2 ? 'Type a name, an ENS or an address.' : `Nobody called “${needle}”.`}</Txt>}

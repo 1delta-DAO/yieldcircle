@@ -1,7 +1,7 @@
 import React from 'react'
 
 /**
- * What the shared ticket machinery needs from the app it runs in, and nothing else: a scratchpad
+ * What the shared ticket machinery and the social writer need from the app they run in, and nothing else: a scratchpad
  * that survives a trip to the wallet app, and the wallet's own hand-offs. The web fills it from
  * `sessionStorage`, its deep links and the Wallet Standard (`packages/web/src/state/platform.tsx`);
  * the phone from its own storage and AppKit.
@@ -19,6 +19,8 @@ export interface Platform {
   useSol: () => { account?: { address: string } | null }
   /** sign and send one serialized Solana transaction with the connected Solana wallet → its signature */
   solSignAndSend: (tx: Uint8Array) => Promise<Uint8Array>
+  /** sign a text message with the connected Solana wallet (ed25519) → its signature: a Solana author's social writes */
+  solSignMessage: (message: string) => Promise<Uint8Array>
   /** real trading is behind the closed beta here (tickets/0002): a swap or bridge with a real wallet is refused */
   gated: () => boolean
 }

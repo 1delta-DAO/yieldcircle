@@ -47,14 +47,17 @@ core (packages/core/src — no React, no DOM; web, landing and mobile share it)
   vendor/allocator/http.ts   apiFetch / apiFetchEnvelope / apiFetchLoose — envelope, errors, 429 gate
   sdk/api.ts                 one function per 1delta endpoint; wire names translated HERE only
   index/api.ts               one function per index endpoint (own tiny `get`, no envelope)
+  social/api.ts · types.ts   the social service (social.1delta.io): reads and `/write`; envelope.ts the EIP-712 types every write signs
   model/*.ts                 pure functions turning responses into Strategy / Holding / uid
 app (packages/app/src — React + React Query, no DOM; web and mobile share it)
   sdk/queries.ts             React Query hooks for the 1delta API (+ the index balance POST)
   index/queries.ts           React Query hooks for the index
   book.ts · lite.ts          useBook (catalogue + holdings + idle per asset), useLiteMenu; who is looking from session.tsx
+  social/queries.ts          React Query hooks for the social service
+  social/sign.ts             every signed social write (a Solana author signs through platform.tsx); social/pending.ts queues follows + profile edits for ONE Batch signature
 web (packages/web/src)
   env.ts                     the build's VITE_* URLs → configureBackend; imported first by every entry
-  social/sign.ts             every signed social write; social/pending.ts queues follows + profile edits for ONE Batch signature
+  social/*.ts                re-exports of core's and app's social modules, so the web's imports stay put
   ui/*                       components; call hooks, not fetch
 ```
 

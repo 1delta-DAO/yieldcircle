@@ -22,15 +22,9 @@
 import React from 'react'
 import * as api from '../social/api'
 import { useSocialRefresh } from '../social/queries'
-import { useSocialWrite, type Envelope } from '../social/sign'
+import { useSocialWrite, xLinkNonce, type Envelope } from '../social/sign'
 
 const XLINK_URL = (import.meta.env.VITE_XLINK_URL as string | undefined)?.replace(/\/$/, '')
-
-const newNonce = () => {
-  const b = new Uint8Array(5)
-  crypto.getRandomValues(b)
-  return 'yc-' + [...b].map((x) => x.toString(16).padStart(2, '0')).join('')
-}
 
 export function XLink({ account, linked }: { account: string; linked: string | null }) {
   const { xLink } = useSocialWrite()
@@ -51,7 +45,7 @@ export function XLink({ account, linked }: { account: string; linked: string | n
   const begin = async () => {
     setBusy(true); setErr(null)
     try {
-      const nonce = newNonce()
+      const nonce = xLinkNonce()
       const env = await xLink(nonce, 'link')
       const { text: t } = await api.xProofText(account, nonce)
       setSigned(env); setText(t); setStep('post')
@@ -70,7 +64,7 @@ export function XLink({ account, linked }: { account: string; linked: string | n
   const unlink = async () => {
     setBusy(true); setErr(null)
     try {
-      const env = await xLink(newNonce(), 'unlink')
+      const env = await xLink(xLinkNonce(), 'unlink')
       await api.xUnlink(env)
       refresh.profile(account); setStep('idle'); setSigned(null)
     } catch (e) { fail(e) } finally { setBusy(false) }

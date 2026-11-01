@@ -223,6 +223,21 @@ export const specFor = (addr: string, avatarUrl?: string | null): Spec => parseS
 export const unearned = (s: Spec, tags: string[] = []) =>
   GATED.filter((g) => s[g.layer] === g.index && !tags.includes(g.tag))
 
+/** How many choices each layer has: the editor's ‹ › wrap around these. */
+export const LAYER_COUNTS: Record<keyof Spec, number> = { b: BACKDROPS.length, c: CREATURES.length, e: EYES.length, m: MOUTHS.length, a: ACCESSORIES.length, p: PALETTES.length }
+
+/** A random character that claims nothing the wallet has not earned (the editor's "Surprise me"). */
+export function rollSpec(earned: string[]): Spec {
+  const pick = (k: keyof Spec) => {
+    const allowed = [...Array(LAYER_COUNTS[k]).keys()].filter((i) => {
+      const g = GATED.find((x) => x.layer === k && x.index === i)
+      return !g || earned.includes(g.tag)
+    })
+    return allowed[Math.floor(Math.random() * allowed.length)]
+  }
+  return { b: pick('b'), c: pick('c'), e: pick('e'), m: pick('m'), a: pick('a'), p: pick('p') }
+}
+
 // ---------------------------------------------------------------- render
 /**
  * The drawing itself, 64 units square, in the given primitives: the disc, then the clipped layers.

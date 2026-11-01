@@ -13,6 +13,7 @@ import { usdShort } from './format'
 import type { Proof } from './activity'
 import { LITE_GROUPS, liteUrl, APP_ORIGIN } from './liteLinks'
 import { canonUid } from './uid'
+import { DEFAULTS, type Settings } from './settings'
 
 /** The categories Lite has: no Stocks, no Borrow (owner's call, 2026-10-23). */
 export { LITE_GROUPS }
@@ -20,6 +21,13 @@ export { LITE_GROUPS }
 export const LITE_MIN_TVL = 2_000_000
 /** The API's 1–5 score, capped: Lite has no word for "unrated" or "very high". */
 export const LITE_MAX_RISK = 4
+/**
+ * The reader's filters Lite honours (the same switches as Pro's, on You): size, the risk cap, rate
+ * bets and negative carry. At their defaults they are Lite's own floors above; widened, they let
+ * the same rows in as in Pro. An unrated row carries risk 5, so only "Any" lets it in.
+ */
+export type LiteFloors = Pick<Settings, 'minTvlUsd' | 'maxRisk' | 'showRateBets' | 'showNegative'>
+export const LITE_FLOORS: LiteFloors = { minTvlUsd: LITE_MIN_TVL, maxRisk: LITE_MAX_RISK, showRateBets: DEFAULTS.showRateBets, showNegative: DEFAULTS.showNegative }
 /**
  * The least a Lite loop may leave between its price and liquidation at the leverage Lite opens it
  * at (the Balanced tier). An e-mode venue's range runs to 25×, whose Balanced tier is ~1 % from
@@ -36,12 +44,12 @@ export const LITE_LIST_ROWS = 12
  * date is one fact the ticket says, not a choice it asks for, and they are where the steadiest high
  * rates are.
  */
-export function liteEligible(s: Strategy): boolean {
+export function liteEligible(s: Strategy, f: LiteFloors = LITE_FLOORS): boolean {
   if (!LITE_GROUPS.includes(s.group) || s.hide) return false
-  if (!isSavings(s.nature) || !s.rated || s.riskScore > LITE_MAX_RISK) return false
-  if (!(s.tvlUsd >= LITE_MIN_TVL) || !(s.rate > 0)) return false
+  if (!isSavings(s.nature) || (!s.rated && f.maxRisk < 5) || s.riskScore > f.maxRisk) return false
+  if (!(s.tvlUsd >= f.minTvlUsd) || !(s.rate > 0 || f.showNegative)) return false
   if (s.kind === 'simple') return !s.book && !s.dates?.length && !s.passthrough && s.canDeposit !== false
-  return !s.terms?.length && !s.tenors?.length && !s.dueAt && !s.dates?.length && s.collateralYields && s.tiers.balanced > 1
+  return !s.terms?.length && !s.tenors?.length && !s.dueAt && !s.dates?.length && (s.collateralYields || f.showRateBets) && s.tiers.balanced > 1
     && liqBuffer(s.liqLtv, s.tiers.balanced) >= LITE_MIN_BUFFER
 }
 
@@ -170,11 +178,11 @@ export interface LiteRow {
  * what the reader already runs, which always keeps its own row. Sorted by risk, then by the
  * STEADY rate (`rank`): a one-night spike never leads, and a loop never jumps a safer row.
  */
-export function liteMenu(all: Strategy[], rank: (s: Strategy) => number, held: Set<string> = new Set()): LiteRow[] {
+export function liteMenu(all: Strategy[], rank: (s: Strategy) => number, held: Set<string> = new Set(), f: LiteFloors = LITE_FLOORS): LiteRow[] {
   const best = new Map<string, LiteRow>()
   const mine: LiteRow[] = []
   for (const s of all) {
-    if (!liteEligible(s)) continue
+    if (!liteEligible(s, f)) continue
     const { title, sub } = plainName(s)
     if (held.has(s.id)) { mine.push({ s, title, sub, yours: true, also: 0 }); continue }
     const k = `${s.group}|${title}|${s.kind}|${s.kind === 'simple' && s.maturity ? 'dated' : s.kind === 'loop' && s.expiry ? 'dated' : ''}`
@@ -666,8 +674,8 @@ export type LiteMode = 'add' | 'reduce' | 'topup' | 'payback' | 'close'
  * out). Only on a real position the app can name both legs of (a paper loop's ledger takes
  * neither: it adds to and pays back loans only).
  */
-export function liteModes(s: Strategy | null, h: Holding | null, mode0?: string): { canAdd: boolean; isLoop: boolean; start: LiteMode; tabs: { id: LiteMode; word: string }[] } {
-  const canAdd = !!s && liteEligible(s)
+export function liteModes(s: Strategy | null, h: Holding | null, mode0?: string, f: LiteFloors = LITE_FLOORS): { canAdd: boolean; isLoop: boolean; start: LiteMode; tabs: { id: LiteMode; word: string }[] } {
+  const canAdd = !!s && liteEligible(s, f)
   const isLoop = (s?.kind ?? h?.kind) === 'loop'
   const risky = (bufferOfHealth(h?.health) ?? 1) < 0.1
   const plain = !!h && !h.paper && !h.subAccount?.unsupported && !!h.collateralUid && !!h.debtUid && !!h.collateralAddress && !!h.debtAddress

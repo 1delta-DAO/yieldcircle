@@ -38,7 +38,7 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   // the ticket: a row of this category, or a running position's row wherever the catalogue holds it
   const sel = group && route.s ? b.all.find((s) => s.id === route.s) ?? b.hidden.find((s) => s.id === route.s) ?? b.overflow.find((s) => s.id === route.s) ?? null : null
   const settled = !b.isLoading && !b.isFetching
-  const offLite = !!group && !!route.s && (sel ? !liteEligible(sel) && !L.holdingsOf(sel).length : settled)
+  const offLite = !!group && !!route.s && (sel ? !liteEligible(sel, L.floors) && !L.holdingsOf(sel).length : settled)
   React.useEffect(() => {
     if (offLite) location.replace(location.pathname + location.search + proHref())
   }, [offLite])

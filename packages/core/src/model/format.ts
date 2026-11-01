@@ -43,3 +43,17 @@ export const liveLogo = (u: string | null | undefined): u is string => !!u && !D
 export const cents = (x: number) => '$' + x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 /** A share, unsigned, in a percent: a 3.1 % loss reads 3.1 %, not −3.1 %. */
 export const pctAbs = (x: number) => { const a = Math.abs(x); return `${(a * 100).toFixed(a < 0.1 ? 2 : 1)}%` }
+
+/** How long ago, in one short word: `now`, `5m`, `3h`, `2d`, `4mo`, `1.2y`. */
+export function ago(ts: string | number | undefined): string {
+  if (ts == null) return ''
+  const t = typeof ts === 'number' ? ts : Date.parse(ts)
+  if (!Number.isFinite(t)) return ''
+  const s = Math.max(0, (Date.now() - t) / 1000)
+  if (s < 45) return 'now'
+  if (s < 3600) return `${Math.round(s / 60)}m`
+  if (s < 86400) return `${Math.round(s / 3600)}h`
+  if (s < 86400 * 30) return `${Math.round(s / 86400)}d`
+  if (s < 86400 * 365) return `${Math.round(s / (86400 * 30))}mo`
+  return `${(s / (86400 * 365)).toFixed(1)}y`
+}

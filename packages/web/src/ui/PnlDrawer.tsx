@@ -42,6 +42,7 @@ const FLAG_WORDS: Record<string, string> = {
   'unpriced-flow': 'a move had no price at all',
   'flow-priced-nearby': 'a move had no price in its own hour and is valued at the nearest price within two weeks',
   'price-despiked': 'a price point that broke from both its neighbours (another source’s odd hour) was replaced by theirs',
+  'price-rebased': 'hours the venue’s own price was silent are valued at the price feed, moved onto the venue’s level',
   'price-mixed': 'the price record alternated with a second source at another level; those hours were dropped and the token’s own track kept',
   'flow-repriced': 'a move’s stored value came off the dropped source’s hour; it is valued at the token’s own track instead',
   sampled: 'the balance is read off the chain at every midnight: moves the protocol makes with no event (Alchemix redemptions) land on the day they happened',

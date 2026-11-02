@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, howOf, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets } from './lite'
+import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 import type { Holding } from './positions'
@@ -326,5 +326,21 @@ describe('Lite polish (docs/lite-design-review.md)', () => {
     expect(w.map((l) => l.k)).toEqual(['You get', 'When', 'Left in'])
     expect(w[2].v).toBe('Nothing')
     expect(closeLines({ backUsd: null, back: '', costUsd: 2, short: false })[0].v).toBe('—')
+  })
+})
+
+describe('tileRates', () => {
+  it('says the best deposit, and the loop beside it — never the levered one alone over savings', () => {
+    expect(tileRates([{ s: dep('a', { rate: 4 }) }, { s: loop('l', { rate: 59 }) }, { s: dep('b', { rate: 6 }) }])).toEqual({ best: 6, bestLoop: 59 })
+  })
+  it('has only the loop rate when nothing else is on the tile', () => {
+    expect(tileRates([{ s: loop('l', { rate: 20 }) }])).toEqual({ best: 0, bestLoop: 20 })
+  })
+})
+
+describe('safestFirst', () => {
+  it('orders by risk, then the steady rate', () => {
+    const rows = [{ s: loop('x6', { rate: 40, risk: 2 }) }, { s: dep('save', { rate: 4, risk: 1 }) }, { s: dep('more', { rate: 9, risk: 2 }) }, { s: dep('best', { rate: 5, risk: 1 }) }]
+    expect(rows.sort(safestFirst((s) => s.rate)).map((r) => r.s.id)).toEqual(['best', 'save', 'x6', 'more'])
   })
 })

@@ -1,6 +1,6 @@
 import React from 'react'
 import { GROUPS, type Group } from '@yieldcircle/core/model/assets'
-import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, liteEligible } from '@yieldcircle/core/model/lite'
+import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, liteEligible, safestFirst, tileRates } from '@yieldcircle/core/model/lite'
 import { go, liteHref, proHref, type Route } from '../../state/AppState'
 import { useSticky } from '../../state/sticky'
 import { ChainChip } from '../ChainPicker'
@@ -34,7 +34,7 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   const inGroup = group ? L.rows.filter((r) => r.s.group === group.id) : []
   // the best rows anywhere, by the one rule every Lite list keeps: the safer risk first, then the
   // steady rate — so a page of ×6 loops never leads the money's own savings (docs/lite-design-review.md §3.2)
-  const top = React.useMemo(() => [...L.rows].filter((r) => r.s.risk <= 2).sort((x, y) => x.s.risk - y.s.risk || L.rank(y.s) - L.rank(x.s)).slice(0, TOP_ROWS), [L.rows, L.rank])
+  const top = React.useMemo(() => [...L.rows].filter((r) => r.s.risk <= 2).sort(safestFirst(L.rank)).slice(0, TOP_ROWS), [L.rows, L.rank])
   // the ticket: a row of this category, or a running position's row wherever the catalogue holds it
   const sel = group && route.s ? b.all.find((s) => s.id === route.s) ?? b.hidden.find((s) => s.id === route.s) ?? b.overflow.find((s) => s.id === route.s) ?? null : null
   const settled = !b.isLoading && !b.isFetching
@@ -50,7 +50,7 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   // search, sort and filters (EarnTools): one set for every category, kept for this tab. Asked
   // with no category picked, they search every row, not only the best few
   const ef = useEarnFilter('lite')
-  const everything = React.useMemo(() => [...L.rows].sort((x, y) => x.s.risk - y.s.risk || L.rank(y.s) - L.rank(x.s)), [L.rows, L.rank])
+  const everything = React.useMemo(() => [...L.rows].sort(safestFirst(L.rank)), [L.rows, L.rank])
   const base = group ? inGroup : ef.active ? everything : top
   const rows = ef.active ? applyEarn(base, ef.f, (r) => r.s, { extra: (r) => [r.title, r.sub, chainLabel(r.s.chainId)], rank: L.rank }) : base
   const shown = group && !allRows && !ef.active ? rows.slice(0, LITE_LIST_ROWS) : rows
@@ -66,9 +66,8 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
           <div className={`ltiles${group ? ' picked' : ''}`} role="tablist" aria-label="Which money">
             {groups.map((g) => {
               const gr = L.rows.filter((r) => r.s.group === g.id)
-              // two numbers, never the levered one alone: a tile that says "up to 59%" over 4% savings misleads
-              const best = gr.filter((r) => r.s.kind !== 'loop').reduce((m, r) => Math.max(m, r.s.rate), 0)
-              const bestLoop = gr.filter((r) => r.s.kind === 'loop').reduce((m, r) => Math.max(m, r.s.rate), 0)
+              // two numbers, never the levered one alone (`tileRates`)
+              const { best, bestLoop } = tileRates(gr)
               const mine = b.books.filter((x) => x.group === g.id).reduce((a, x) => a + x.totalUsd, 0)
               const on = group?.id === g.id
               return (

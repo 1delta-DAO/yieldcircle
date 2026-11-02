@@ -6,7 +6,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { LENSES, liteCards, useDayLog, useLiteMenu, type Lens } from '@yieldcircle/app/lite'
 import { useTrending } from '@yieldcircle/app/index/queries'
 import { useSession } from '@yieldcircle/app/session'
-import { useProfiles } from '@yieldcircle/app/social/queries'
+import { useMyFollows, useProfiles } from '@yieldcircle/app/social/queries'
+import { LiteMoves } from '../../src/ui/social'
 import { totalsOf } from '@yieldcircle/core/model/positions'
 import { leverTag } from '@yieldcircle/core/model/lite'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
@@ -14,14 +15,15 @@ import { C } from '../../src/theme'
 import { Btn, Seg, Sk } from '../../src/ui/bits'
 import { LiteCard, LiteCardSk } from '../../src/ui/cards'
 import { openStrategy } from '../../src/ui/lite'
-import { PaperOffer } from '../../src/ui/paper'
+import { PAPER, PaperOffer } from '../../src/ui/paper'
 import { Txt } from '../../src/ui/Txt'
 import { IconFlame } from '../../src/ui/icons'
 
 /**
  * Lite's home (the web's LiteHome, docs/lite.md §1): your balance and what it earns a day, then
  * cards through three lenses — proven, trending, most held — each with the wallet that runs it
- * best. No wallet yet: what it is, Connect, and the paper bank to play the whole thing with.
+ * best, then the moves: the people you follow, or the best rates' wallets (`LiteMoves`). No wallet
+ * yet: what it is, Connect, and the paper bank to play the whole thing with.
  */
 export default function LiteHome() {
   const { chainIds } = useSession()
@@ -34,6 +36,7 @@ export default function LiteHome() {
   const cards = React.useMemo(() => liteCards(lens, L.rows, L, trending.markets), [lens, L.rows, trending.markets, L.proofsHeld]) // eslint-disable-line react-hooks/exhaustive-deps
   // the best holder on each card, by the name and face their profile gives them
   const { profile } = useProfiles(cards.map((r) => L.proof(r.s)?.best?.account).filter((x): x is string => !!x))
+  const f = useMyFollows(b.account)
   const loading = (b.isLoading && !L.rows.length) || (lens === 'trending' && trending.isLoading)
   const idleBook = [...b.books].filter((x) => x.idleUsd >= 1).sort((x, y) => y.idleUsd - x.idleUsd)[0]
   const idleTo = idleBook ? L.rows.find((r) => r.s.group === idleBook.group && r.s.risk <= 2) : undefined
@@ -52,6 +55,7 @@ export default function LiteHome() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               {b.positionsLoading && !b.books.length ? <Sk w={120} h={16} /> : t.yearly > 0 ? <Txt s={15} c={C.tx70}><Txt s={15} w={600} c={C.ok}>+{usd(t.yearly / 365)}</Txt> a day</Txt> : <Txt s={15} c={C.tx70}>nothing earning yet</Txt>}
               {day.streak > 0 && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><IconFlame color={C.warn} /><Txt s={14} w={600} c={C.warn}>{day.streak} days</Txt></View>}
+              {b.paper && <View style={st.paper}><Txt s={11} w={600} c={PAPER.fg} lh={16.5}>paper</Txt></View>}
             </View>
           </>
         ) : (
@@ -78,8 +82,10 @@ export default function LiteHome() {
       <View style={{ gap: 12 }}>
         {loading ? [0, 1, 2].map((i) => <LiteCardSk key={i} />)
           : !cards.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing here on these chains right now.</Txt>
-          : cards.map((r) => <LiteCard key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} profile={profile(L.proof(r.s)?.best?.account ?? '')} />)}
+          : cards.map((r) => { const best = L.proof(r.s)?.best?.account; return <LiteCard key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} profile={profile(best ?? '')} followed={!!best && f.isFollowing('wallet', best)} /> })}
       </View>
+
+      <LiteMoves rows={L.rows} account={b.account} limit={6} />
 
       <Pressable onPress={() => router.push('/lite/earn')} style={{ marginTop: 22, marginBottom: 8 }}><Txt s={13} c={C.tx50}>Every category ›</Txt></Pressable>
     </ScrollView>
@@ -89,5 +95,6 @@ export default function LiteHome() {
 const st = StyleSheet.create({
   page: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 40 },
   hero: { marginTop: 14, marginBottom: 22 },
+  paper: { backgroundColor: PAPER.bg, borderWidth: 1, borderColor: PAPER.line, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   idle: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 14 },
 })

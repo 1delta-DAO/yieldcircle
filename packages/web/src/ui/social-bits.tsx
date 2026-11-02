@@ -11,6 +11,7 @@ import { AUTO_TITLE, labelFor, shortAddr } from '@yieldcircle/core/identity/name
 import { useMyFollows, useSocialRefresh } from '../social/queries'
 import { entryKey, useBatchSupported, usePending } from '../social/pending'
 import { useSocialWrite } from '../social/sign'
+import { stakeLine } from '@yieldcircle/core/social/words'
 import type { AuthorStake, Follow, Profile } from '../social/types'
 import type { AccountKind, UsdStatus } from '@yieldcircle/core/index/types'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
@@ -331,23 +332,8 @@ const Bubble = () => (
  * On a loop's thread only `legs: 2` — both legs of THIS loop — says "in this
  * loop"; the collateral alone is said as what it is.
  */
-export function Stake({ stake: x }: { stake?: AuthorStake | null }) {
-  if (!x || 'holder' in x) return null
-  if (x.kind === 'loop' && x.legs === 2) {
-    const net = x.netUsd
-    if (net == null || x.collateralUsd == null || x.collateralUsd < 1) return null
-    return (
-      <span className="stake" title={`in this loop when they wrote it: ${usdShort(x.collateralUsd)} collateral, ${usdShort(x.debtUsd)} owed`}>
-        in this loop · {usdShort(net)} net
-      </span>
-    )
-  }
-  const v = x.amountUsd
-  if (v == null || v < 1) return null
-  return (
-    <span className="stake" title={x.kind === 'loop' ? 'what the author held in the collateral market when they wrote it, without the borrow that makes it this loop' : 'what the author held in this market when they wrote it'}>
-      holds {usdShort(v)}{x.kind === 'loop' ? ' of the collateral' : ''}
-    </span>
-  )
+export function Stake({ stake }: { stake?: AuthorStake | null }) {
+  const l = stakeLine(stake)
+  return l ? <span className="stake" title={l.title}>{l.text}</span> : null
 }
 export { usd, usdShort }

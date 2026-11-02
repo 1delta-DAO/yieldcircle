@@ -21,6 +21,12 @@ export interface Platform {
   solSignAndSend: (tx: Uint8Array) => Promise<Uint8Array>
   /** sign a text message with the connected Solana wallet (ed25519) → its signature: a Solana author's social writes */
   solSignMessage: (message: string) => Promise<Uint8Array>
+  /**
+   * a hook, the same function every render: an EVM key this app holds itself — the phone's paper
+   * account — that signs social writes when no wallet is connected. Absent where the app's own
+   * keys ride in as a wallet connector (the web's paper account).
+   */
+  useLocalSigner?: () => { address: string; signTypedData: (td: { domain: Record<string, unknown>; types: Record<string, unknown>; primaryType: string; message: Record<string, unknown> }) => Promise<string> } | null
   /** real trading is behind the closed beta here (tickets/0002): a swap or bridge with a real wallet is refused */
   gated: () => boolean
 }

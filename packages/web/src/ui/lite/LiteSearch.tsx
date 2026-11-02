@@ -1,7 +1,7 @@
 import React from 'react'
 import { liteHref, liteWalletHref, proHref, useApp } from '../../state/AppState'
 import { normAddr } from '@yieldcircle/core/model/address'
-import { shortAddr } from '@yieldcircle/core/identity/name'
+import { NAME_CLAIM as CLAIM, shortAddr } from '@yieldcircle/core/identity/name'
 import { GROUPS } from '@yieldcircle/core/model/assets'
 import { LITE_GROUPS, LITE_NAME, boardWallets, liteFind, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { FindHit } from '@yieldcircle/core/index/api'
@@ -14,8 +14,6 @@ import { GroupIcon, Sk, pct, usdShort } from '../bits'
 import { LiteRowView } from './LiteBits'
 
 
-/** what a wallet's name rests on, in words: a name is not an identity (`hsaka.eth` is not Hsaka) */
-const CLAIM: Record<string, string> = { seed: 'known', signed: 'signed', x: 'X', farcaster: 'Farcaster', primary: 'ENS', ens: 'ENS', basename: 'Basename', 'ens-text': 'X via ENS', sns: 'SNS', 'sns-owner': 'SNS', skr: 'Seeker', kolscan: 'kolscan', gmgn: 'GMGN', tag: 'explorer tag' }
 
 /**
  * Lite's search (docs/lite-social-search.md §4.1, fomo's search in the tab bar): things to earn and

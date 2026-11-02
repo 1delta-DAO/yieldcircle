@@ -29,17 +29,22 @@ export function LiteTitle({ r, size = 14, icon = 14, full }: { r: LiteRow; size?
   )
 }
 
-/** One list row (the web's `LiteRowView`, `.lrow`): a card of its own — face · name and who runs it · yours · lever · rate in its risk's colour. */
-export function LiteRowView({ r, get, proof, yoursUsd, full }: { r: LiteRow; get: HistoryGet; proof: Proof | null; yoursUsd?: number; full?: boolean }) {
+/**
+ * One list row (the web's `LiteRowView`, `.lrow`): a card of its own — face · name and who runs it
+ * · yours · lever · rate in its risk's colour. `followed`: the proof's face is someone the reader
+ * follows, said first (docs/lite-social-search.md §4.6).
+ */
+export function LiteRowView({ r, get, proof, yoursUsd, full, followed, onOpen }: { r: LiteRow; get: HistoryGet; proof: Proof | null; yoursUsd?: number; full?: boolean; followed?: boolean; /** before it opens: search remembers the pick */ onOpen?: () => void }) {
   const s = r.s
-  const who = heldBy(proof)
+  const friend = followed && proof?.best ? proof.wallets : 0
+  const who = friend ? `you follow${friend > 1 ? ` + ${friend - 1}` : ''}` : heldBy(proof)
   const spike = spikeOf(s, get)
   return (
-    <Pressable onPress={() => openStrategy(s)} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]}>
+    <Pressable onPress={() => { onOpen?.(); openStrategy(s) }} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]}>
       <Face s={s} />
       <View style={{ flex: 1, gap: 2 }}>
         <LiteTitle r={r} full={full} />
-        <Txt s={12} c={C.tx70} numberOfLines={2}>{r.sub}{spike ? ' · higher than usual' : ''}{who ? ` · ${who}` : ''}</Txt>
+        <Txt s={12} c={C.tx70} numberOfLines={2}>{r.sub}{spike ? <Txt s={12} c={C.warn}> · higher than usual</Txt> : ''}{who ? <Txt s={12} c={friend ? C.ok : C.tx70}> · {who}</Txt> : ''}</Txt>
       </View>
       {yoursUsd != null && yoursUsd > 0 && <View style={st.run}><Txt s={11} w={600} c={C.ok} lh={16.5}>yours {usdShort(yoursUsd)}</Txt></View>}
       {s.kind === 'loop' && <LeverPill text={leverTag(s.tiers.balanced)} />}

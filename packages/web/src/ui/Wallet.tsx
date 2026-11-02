@@ -44,6 +44,8 @@ import { PaperMovesList, scopedBook, usePaperHistory, usePaperLedgerFor } from '
 import { TokLink } from './TokenPage'
 import { ClassChip } from './AssetClassFilter'
 import { ProfileWallets } from './LinkedWallets'
+import { useBook } from '@yieldcircle/app/book'
+import { Positions, totalsOf } from './Positions'
 
 /**
  * Your own page after a sync: synced, still reading (the 20 s wait ran out), or a gap two reads
@@ -114,6 +116,11 @@ export function Wallet({ addr }: { addr: string }) {
   const syncing = isMe && isEvmAddr(addr) && !sync.data && !sync.isError
   // hidden = your own page with no synced answer to show (Solana, or the sync failed)
   const hidden = isMe && !sync.data && !syncing
+  // …so it shows the chip's live book instead, when this page is the wallet the chip reads
+  const book = useBook()
+  const liveHere = hidden && (normAddr(address) === addr || (!!solSigner && solSigner === addr))
+  const live = totalsOf(book)
+  const liveLoading = liveHere && book.positionsLoading && !book.books.length
   const asked = isMe ? !!sync.data : !other || !!sync.data || sync.isFetching || sync.isError
   const pos = useIndexPositions(paperEvm || !asked ? undefined : addr, one)
   // the positions wait up to 3 s for the live read; once shown, the sync may still add to them
@@ -281,9 +288,9 @@ export function Wallet({ addr }: { addr: string }) {
       </div>
       </> : <>
       <div className="wstats hero">
-        <Stat k="Net value" v={hidden ? '—' : <span title={usd(nav)}>{usdBig(nav)}</span>} s={hidden ? 'on the live path' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={syncing || waiting || (!hidden && pos.isLoading)} />
-        <Stat k="Net APR" v={hidden ? '—' : carry.netAprPct == null ? '—' : <span className={carry.netAprPct >= 0 ? 'ok' : 'warn'}>{carry.exact ? '' : '≈ '}{pct(carry.netAprPct)}</span>}
-          s={hidden ? 'on the live path' : <AccountAprNote c={carry} />} loading={syncing || waiting || (!hidden && pos.isLoading)} />
+        <Stat k="Net value" v={liveHere ? <span title={usd(live.tot)}>{usdBig(live.tot)}</span> : hidden ? '—' : <span title={usd(nav)}>{usdBig(nav)}</span>} s={liveHere ? `${usd(live.work)} at work · read live` : hidden ? '' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={liveLoading || syncing || waiting || (!hidden && pos.isLoading)} />
+        <Stat k="Net APR" v={liveHere ? (live.work >= 1 ? <span className="ok">{pct(live.yearly / live.work * 100)}</span> : '—') : hidden ? '—' : carry.netAprPct == null ? '—' : <span className={carry.netAprPct >= 0 ? 'ok' : 'warn'}>{carry.exact ? '' : '≈ '}{pct(carry.netAprPct)}</span>}
+          s={liveHere ? (live.yearly >= 1 ? `about ${usd(live.yearly)} a year, on what is at work` : 'nothing earning yet') : hidden ? '' : <AccountAprNote c={carry} />} loading={liveLoading || syncing || waiting || (!hidden && pos.isLoading)} />
       </div>
       <div className="wstats flows">
         <span className="flows-k">Last 30 days</span>
@@ -307,9 +314,9 @@ export function Wallet({ addr }: { addr: string }) {
             <button aria-pressed={order === 'value'} onClick={() => setOrder('value')}>Value</button>
             <button aria-pressed={order === 'pnl'} onClick={() => setOrder('pnl')}>PnL</button>
           </div>
-        )}<span className="sub">{hidden ? 'Your own positions come from the live path, not the index.' : syncing ? 'syncing your positions with the chain…' : isMe && sync.data ? <SyncNote s={sync.data} /> : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago{checking ? ' · checking the chain for positions it has not read…' : ''}</> : checking ? 'checking the chain for positions the index has not read…' : 'from the index'}</span></div>
+        )}<span className="sub">{liveHere ? 'read live from the chain' : hidden ? '' : syncing ? 'syncing your positions with the chain…' : isMe && sync.data ? <SyncNote s={sync.data} /> : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago{checking ? ' · checking the chain for positions it has not read…' : ''}</> : checking ? 'checking the chain for positions the index has not read…' : 'from the index'}</span></div>
         {hidden ? (
-          <div className="note">The index is for <b>other</b> wallets and for history — never for the connected user’s own positions. Yours are behind the balance in the top right, read live.</div>
+          liveHere ? <Positions b={book} /> : <div className="note">This wallet’s positions are in the balance top right.</div>
         ) : (
           <div className="card">
             {(syncing || waiting || pos.isLoading) && <div className="empty"><Sk w={220} /></div>}

@@ -22,15 +22,8 @@ import { useApp } from '../state/AppState'
 import { useProtocols } from '@yieldcircle/app/index/queries'
 import type { ProtocolFacet } from '@yieldcircle/core/index/api'
 import { useSticky } from '../state/sticky'
+import { PROTOCOL_NAMES as NAMES, prettyProtocol } from '@yieldcircle/core/model/protocolName'
 
-/**
- * Names that beat the index's. `MetaMorpho` is a contract, not a product anyone
- * shops for, and beside a bare `Morpho` it does not say "vaults, not markets".
- */
-const NAMES: Record<string, string> = {
-  MORPHO_BLUE: 'Morpho Markets', 'vault.morpho': 'Morpho Vaults', 'vault.morpho_blue': 'Morpho Vaults',
-  MORPHO_MIDNIGHT: 'Morpho Midnight', COMPOUND_V3: 'Compound V3', LODESTAR: 'Lodestar', COOLER: 'Cooler',
-}
 /**
  * Keys the index keeps apart for its own reasons that are one choice to a
  * person: `vault.morpho_blue` holds the Morpho vaults (V1 and V2) of chains the
@@ -58,19 +51,7 @@ function fold(list: ProtocolFacet[]): ProtocolFacet[] {
   return [...by.values()].sort((a, b) => b.rows - a.rows)
 }
 
-/** `CAPY_FI` → `Capy Fi`, for the few keys no lender listing names. */
-export function prettyProtocol(key: string): string {
-  if (NAMES[key]) return NAMES[key]
-  if (key.startsWith('vault.')) {
-    const p = key.slice(6).replace(/[-_]/g, ' ')
-    return p.replace(/\b\w/g, (c) => c.toUpperCase()) + ' vaults'
-  }
-  return key
-    .replace(/_V(\d)$/, ' v$1')
-    .replace(/_/g, ' ')
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
+export { prettyProtocol } from '@yieldcircle/core/model/protocolName'
 export const protocolName = (p: ProtocolFacet) => NAMES[p.protocol] ?? p.name ?? prettyProtocol(p.protocol)
 
 const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n))

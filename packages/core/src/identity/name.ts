@@ -110,3 +110,6 @@ export function labelFor(
     return { label: idx.accountLabel, generated: false, kind: idx.accountKind ?? null }
   return { ...displayFor(addr, profile), kind: idx?.accountKind ?? null }
 }
+
+/** what a wallet's name rests on, in words: a name is not an identity (`hsaka.eth` is not Hsaka) */
+export const NAME_CLAIM: Record<string, string> = { seed: 'known', signed: 'signed', x: 'X', farcaster: 'Farcaster', primary: 'ENS', ens: 'ENS', basename: 'Basename', 'ens-text': 'X via ENS', sns: 'SNS', 'sns-owner': 'SNS', skr: 'Seeker', kolscan: 'kolscan', gmgn: 'GMGN', tag: 'explorer tag' }

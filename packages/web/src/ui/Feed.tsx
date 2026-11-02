@@ -92,21 +92,8 @@ function useStableRows(rows: TxBundle[], scope: string, on: boolean, cap = 240) 
 }
 
 
-/**
- * Under this, a move is dust: a $0 rebalance, a few cents accrued, a vault
- * nudging a rounding error between two markets. They are real and they are
- * most of the tape on a quiet chain, and to someone reading what people are
- * doing they are noise — so they are hidden unless asked for.
- */
-const DUST_USD = 10
-/** the size a card headlines; a bundle with an unpriced leg is never called small — it may not be */
-export function isDust(t: TxBundle): boolean {
-  if (t.unpriced > 0) return false
-  const sizes = [t.volumeUsd, ...t.legs.map((l) => l.amountUsd)].filter(
-    (v): v is number => v != null,
-  );
-  return sizes.length > 0 && Math.max(...sizes.map(Math.abs)) < DUST_USD
-}
+export { DUST_USD, isDust } from "@yieldcircle/core/model/moves";
+import { DUST_USD, isDust } from "@yieldcircle/core/model/moves";
 const DUST_KEY = "yieldcircle.feed.dust";
 /** a reader's preference, so it outlives the tab — unlike the filters, which ride in the link */
 function useShowDust(): [boolean, (v: boolean) => void] {

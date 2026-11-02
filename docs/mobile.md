@@ -15,14 +15,50 @@ It runs on the same code as the web below the screens:
   browser API it uses; the phone gets a synchronous one on SQLite
   (`expo-sqlite/localStorage/install`, first in `app/_layout.tsx`).
 
-**What is on the phone** (2026-10-25):
+**What is on the phone** (2026-11-02):
 
 | | Lite | Pro |
 |---|---|---|
-| Home | balance and a day's earnings, streak, the idle nudge, three lenses of cards (proven · trending · most held) | your money, the best three rows per money |
-| Earn | four money tiles, the highest steady rates or a money's rows, "show all" | every row of a money, every venue and chain |
-| Board | the wallet board (best rate · most a day), tap for each position's PnL | the same board |
+| Home | balance and a day's earnings, streak, the idle nudge, three lenses of cards (proven · trending · most held), the moves (Following · Everyone, with Copy, Follow and the mover's reason), a dot on the tab for new moves by people you follow | your money, the best three rows per money |
+| Earn | four money tiles (the best deposit, the levered rate beside it), the best rates safest first or a money's rows, search · sort · filters, "show all" | every row of a money, every venue and chain |
+| Board | wallets and strategies (best rate · most a day) in all money or Dollars · ETH · BTC, Everyone · People you follow, the top 20 then more; an opened wallet shows each position's share and what it made, its closed ones, Follow and its profile | the same board |
 | Profiles | a wallet's page (`/w/<addr>`), your name and face (`/me`), Follow on faces | the same pages |
+| Search | recent picks (the same list the web keeps), people you follow, the best rates, the four categories; results with what each name rests on | — |
+
+The rules behind these are shared, not copied: `tileRates`, `safestFirst`, `BOARD_HELD` and
+`NAME_CLAIM` in core, `liteMoves` and `isDust` in core's `model/moves.ts`, and the hooks in `app`
+(`liteMoves.ts`: `useLiteMoves`, `useMoveReasons`; `board.ts`: `useLiteByKey`, `useBoardNames`,
+`useWalletRecord`; `earnFilter.ts`; `social/seen.ts`).
+
+**The ticket's people** (2026-11-02): adding opens "Who's in it" under the ticket — the biggest
+holders, the people you follow first, what each said, a Copy on each (`useWhoIsIn`) — and the
+strategy's thread folded under it (`src/ui/thread.tsx`: reactions, replies, delete, one signature
+per post). "Say why" sits under the sign button and comes back once the ladder is done; it posts to
+the strategy's thread (`ThreadCtx`, from `useThreadOf`). Reactions and the author's stake line are
+core's (`social/words.ts`).
+
+**The rest of Lite** (2026-11-02), so Lite is whole on the phone:
+
+- **A position's record** (`app/position.tsx`, the web's `PnlDrawer`): a tap on any position on the
+  board or a profile. The record in a sentence, value · average equity · APR, exact or not, its own
+  money or USD, the PnL line (gaps where there was no price, a mark where a held PT matured), and
+  folds for its legs, its holding periods per day and its moves with what it earned before each.
+  The rules are core's (`model/positionRecord.ts`, `model/protocolName.ts`); the web's drawer reads
+  the same.
+- **Every number** under You's "What you made" (`app/made.tsx`): the day-by-day line (all of it and
+  what farming made), by strategy, every position — each opens its record. A price bet on You opens
+  Pro on the web, as on the web (Lite has no actions for it); the "comes next" `app/details.tsx` is
+  no longer opened from anywhere.
+- **Paper money** (`src/paper.tsx`, `app/paper.tsx`): the web's one sign-in form, the same keys from
+  the same name and password (`@yieldcircle/app/paper/keys`, pinned by `keys.test.ts`), and the same
+  engine (`@yieldcircle/app/paper/engine`: the book, its sync, the offline queue, `act`). There is no
+  wallet connector on the phone: signed in, the session shows the paper account as the account (its
+  Solana key acts on Solana), its key signs social writes through `Platform.useLocalSigner`, and every
+  ticket confirms on paper through the shared paper ladder. You shows what it made off the ledger and
+  signs out. The derived keys — never the password — stay on the phone, because the derivation is slow
+  without a JIT: 0.15 s in Node, 8 s with `--jitless` on a laptop, so roughly 15–30 s on a phone. The
+  sign-in shows a bar and says it runs once per phone. A native scrypt (`react-native-quick-crypto`)
+  would make it instant, at the cost of a dev-client rebuild and of paper in Expo Go.
 | Feed · Borrow | — | "comes next" (the feed needs the social layer; borrowing comes with the ticket) |
 
 A row opens the **strategy screen**: what it is in words, the rate (amber on a
@@ -70,7 +106,7 @@ mobile/
 **Not on the phone yet**, in the order they would come: the ticket (opening
 and closing a position: the web's `Ticket.tsx` + `useLadder.ts`), the rest of
 the social layer (the feed, threads and signed comments; profiles and follows
-are in), paper accounts, Solana.
+are in), Solana.
 
 **The ticket on the phone** runs on the web's own ticket engine — the
 ladder, the transaction trace and one controller per ticket body live in
@@ -269,6 +305,9 @@ Share text and its link are core's (`shareOf`, `canShare` in `model/lite.ts`); b
 - **Bundle size:** 9.3 MB of bytecode, much of it core's data tables
   (`asset-notes.json`, `token-icons.json` through `model/assets.ts`). Fine for a
   probe; split or fetch them before a store build.
-- **Paper accounts:** the key derivation (scrypt N = 2^16 in pure JS,
-  `wallet/paperKey.ts`) is unmeasured on Hermes and probably wants a native
-  module (`react-native-quick-crypto`).
+- **Paper sign-in speed:** measure the derivation on a real phone (above: 15–30 s expected, once per
+  phone). If it is too slow, swap `derivePaperKeys`'s scrypt for `react-native-quick-crypto`'s on the
+  phone only (a dev-client rebuild); the derived keys must stay byte-identical (`keys.test.ts`).
+- **Paper on the phone, untested end to end:** creating an account posts a real profile, so the
+  browser check stopped at "Create?". Sign in, confirm a paper deposit and post a comment as paper on
+  a dev build.

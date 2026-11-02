@@ -5,6 +5,7 @@ import type React from 'react'
 import { C } from '../theme'
 import { IconBoard, IconBorrow, IconEarn, IconFeed, IconHome, IconSearch } from './icons'
 import { Txt } from './Txt'
+import { HomeDot } from './social'
 
 /** What expo-router's `Tabs` hands a custom bar (react-navigation's BottomTabBarProps, which expo-router bundles). */
 export type TabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0]
@@ -14,7 +15,8 @@ const ICONS = { index: IconHome, feed: IconFeed, earn: IconEarn, borrow: IconBor
 /**
  * The web's bottom tab bar (app.css `.tabbar` + the refit at its end): icon over word, the active
  * one in the primary colour with its icon on a pill. Lite's ends on a round search button after the
- * tabs (docs/lite-social-search.md §4.1): Pro's search is in its top bar.
+ * tabs (docs/lite-social-search.md §4.1): Pro's search is in its top bar. Lite's Home carries a dot
+ * while the people you follow have moves you have not seen.
  */
 export function TabBar({ state, descriptors, navigateToTab, insets, search }: TabBarProps & { search?: boolean }) {
   return (
@@ -32,7 +34,7 @@ export function TabBar({ state, descriptors, navigateToTab, insets, search }: Ta
             onPress={() => { if (!on) navigateToTab(r.key) }}
             style={st.item}
           >
-            <View style={[st.icon, on && { backgroundColor: C.priBg }]}><Icon color={color} /></View>
+            <View style={[st.icon, on && { backgroundColor: C.priBg }]}><Icon color={color} />{search && r.name === 'index' && <HomeDot />}</View>
             <Txt s={11} w={600} c={color} lh={16}>{label}</Txt>
           </Pressable>
         )

@@ -4,6 +4,7 @@ import { useSwitchChain } from 'wagmi'
 import { getConnections } from 'wagmi/actions'
 import { PlatformProvider, type Platform } from '@yieldcircle/app/platform'
 import { wagmiAdapter } from './appkit'
+import { usePaperSigner } from './paper'
 
 /**
  * The wallet a request went to, brought forward: the WalletConnect session's own redirect (the
@@ -38,6 +39,8 @@ const PHONE: Platform = {
   useSol: NO_SOL,
   solSignAndSend: async () => { throw new Error('Solana wallets are not on the phone yet') },
   solSignMessage: async () => { throw new Error('Solana wallets are not on the phone yet') },
+  // the paper account's key signs social writes: there is no connector to carry it on the phone
+  useLocalSigner: usePaperSigner,
   // the web's closed-beta gate is a cookie the gate service sets; the phone has no gate yet (owner's call)
   gated: () => false,
 }

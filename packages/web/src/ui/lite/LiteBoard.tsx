@@ -1,19 +1,16 @@
 import React from 'react'
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import * as idx from '@yieldcircle/core/index/api'
-import { useAccountPnlBook } from '@yieldcircle/app/index/pnl'
-import { RATE_BOARD_LIMIT, useClosedPositions } from '@yieldcircle/app/index/queries'
+import { RATE_BOARD_LIMIT } from '@yieldcircle/app/index/queries'
 import { useMyFollows, useProfiles } from '../../social/queries'
 import { go, liteWalletHref, proHref, useApp, walletHref } from '../../state/AppState'
 import { normAddr } from '@yieldcircle/core/model/address'
-import { bookKeyOf } from '@yieldcircle/core/model/uid'
-import { boardPositions, boardStrategies, boardWallets, closedPosition, leverTag, plainName, type BoardSort, type BoardStrategy, type BoardWallet, type LiteRow } from '@yieldcircle/core/model/lite'
-import type { Strategy } from '@yieldcircle/core/model/strategies'
+import { BOARD_HELD, boardHeld, boardStrategies, boardWallets, leverTag, type BoardSort, type BoardStrategy, type BoardWallet, type LiteRow } from '@yieldcircle/core/model/lite'
 import { GROUPS, groupOf } from '@yieldcircle/core/model/assets'
 import { Face } from '../social-bits'
 import { FollowButton, Who } from '../social-bits'
 import { Sk, Tok, pct, usd, usdShort } from '../bits'
-import { useLiteMenu } from '@yieldcircle/app/lite'
+import { useBoardNames, useLiteByKey, useWalletRecord } from '@yieldcircle/app/board'
 import { openRow } from './LiteBits'
 import { ChainChip } from '../ChainPicker'
 import { PnlDrawer } from '../PnlDrawer'
@@ -22,18 +19,8 @@ const SORTS: { id: BoardSort; word: string; why: string }[] = [
   { id: 'apr', word: 'Best rate', why: 'what each wallet earns a year on all its money, at today’s rates' },
   { id: 'perDay', word: 'Most a day', why: 'the dollars each wallet’s money earns a day, at today’s rates' },
 ]
-/**
- * What the money is held in — Pro's exposure chips (pos-indexer tickets/0072), the three Lite
- * names: a board across every money ranks whatever odd token pays most today on top, where a
- * reader asks "what is the best on my dollars".
- */
-const HELD: { id: idx.ExposureChip | undefined; word: string; title: string }[] = [
-  { id: undefined, word: 'All', title: 'every position' },
-  { id: 'usd', word: 'Dollars', title: 'dollars and their savings, PTs and vaults' },
-  { id: 'eth', word: 'ETH', title: 'ether and staked ether — whatever is borrowed against it' },
-  { id: 'btc', word: 'BTC', title: 'bitcoin wrappers and staked bitcoin' },
-]
-export const liteHeld = (x: string | undefined) => HELD.find((c) => c.id === x)?.id
+const HELD = BOARD_HELD
+export const liteHeld = boardHeld
 /** the podium's colours (design tokens), drawn rather than an emoji: an emoji medal renders differently on every platform */
 const MEDAL = ['gold', 'silver', 'bronze']
 
@@ -52,32 +39,7 @@ export function LiteBoard({ sort, by, held }: { sort: BoardSort; /** who earns, 
   return by === 'strategy' ? <Strategies sort={sort} held={held} liteByKey={liteByKey} /> : <Wallets sort={sort} held={held} liteByKey={liteByKey} />
 }
 
-/** The Lite row each strategy key opens, for the Copy and the words. */
-export function useLiteByKey(): Map<string, LiteRow> {
-  const L = useLiteMenu()
-  return React.useMemo(() => {
-    const m = new Map<string, LiteRow>()
-    for (const r of L.rows) { const k = bookKeyOf(r.s); if (k) m.set(k.toLowerCase(), r) }
-    return m
-  }, [L.rows])
-}
-
-/**
- * Every strategy the catalogue holds, named in Lite's words (`plainName`) — Lite's own row first
- * where it has one. The board ranks whatever earns most today, which is mostly rows Lite does not
- * list (another debt, a venue below a floor): they still get words, never a ticker, and Copy only
- * where Lite carries the strategy (docs/lite-design-review.md §3.4).
- */
-export function useBoardNames(): Map<string, { title: string; sub: string; s: Strategy }> {
-  const L = useLiteMenu()
-  const { b } = L
-  return React.useMemo(() => {
-    const m = new Map<string, { title: string; sub: string; s: Strategy }>()
-    for (const s of [...b.overflow, ...b.hidden, ...b.all]) { const k = bookKeyOf(s); if (k) m.set(k.toLowerCase(), { ...plainName(s), s }) }
-    for (const r of L.rows) { const k = bookKeyOf(r.s); if (k) m.set(k.toLowerCase(), { title: r.title, sub: r.sub, s: r.s }) }
-    return m
-  }, [b.all, b.hidden, b.overflow, L.rows])
-}
+export { useBoardNames, useLiteByKey } from '@yieldcircle/app/board'
 
 /** How many closed positions a wallet's list carries; the rest are Pro's. */
 const CLOSED_SHOWN = 6
@@ -150,30 +112,14 @@ function WalletRow({ r, sort, profile, me, open, onToggle, liteByKey }: { r: Boa
  * A tap on the row opens the position's own record (Pro's drawer, in place: `?pos=` is Pro's page).
  */
 export function WalletPositions({ account, liteByKey, me, foot = true }: { account: string; liteByKey: Map<string, LiteRow>; me: boolean; /** Follow and the way to the profile: the board's row has them, the profile itself not */ foot?: boolean }) {
-  const q = useAccountPnlBook(account)
-  const liteTitle = (k: string) => liteByKey.get(k.toLowerCase())?.title ?? null
-  const open = q.data ? boardPositions(q.data, liteTitle) : []
-  // what it HAD: the closed positions' keys, then each one's own record (the drawer's query, so a
-  // tap opens it from cache); the newest few, the rest in Pro
-  const closedQ = useClosedPositions(account)
-  const closedKeys = React.useMemo(() => [...(closedQ.data ?? [])].sort((a, b) => b.lastAt.localeCompare(a.lastAt)).slice(0, CLOSED_SHOWN), [closedQ.data])
-  const series = useQueries({
-    queries: closedKeys.map((k) => ({
-      queryKey: ['pos-series', account, k.key, 'USD'],
-      queryFn: () => idx.positionSeries(account, k.key, 'USD'),
-      staleTime: 5 * 60_000,
-      retry: (c: number, e: unknown) => c < 1 && !/→ 404$|no anchored position/.test((e as Error)?.message ?? ''),
-    })),
-  })
-  const had = closedKeys.flatMap((k, i) => { const r = series[i].data; const p = r && closedPosition(k, r, liteTitle); return p ? [p] : [] })
+  const { isLoading, open, had, moreClosed } = useWalletRecord(account, liteByKey, CLOSED_SHOWN)
   const ps = [...open, ...had]
-  const moreClosed = Math.max(0, (closedQ.data?.length ?? 0) - CLOSED_SHOWN)
   const [pnl, setPnl] = React.useState<string>()
   const colorOf = (g: string) => GROUPS.find((x) => x.id === g)?.color ?? null
   const since = (t: string) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
   return (
     <div className="lb-pos">
-      {q.isLoading ? [0, 1].map((i) => <div key={i} className="lb-p sk" aria-hidden><span className="lb-pm"><Sk w={32} h={32} /></span><span className="lb-pn"><Sk w={150} h={14} /><Sk w={200} h={10} /></span><span className="lb-pv"><Sk w={64} h={16} /></span></div>)
+      {isLoading ? [0, 1].map((i) => <div key={i} className="lb-p sk" aria-hidden><span className="lb-pm"><Sk w={32} h={32} /></span><span className="lb-pn"><Sk w={150} h={14} /><Sk w={200} h={10} /></span><span className="lb-pv"><Sk w={64} h={16} /></span></div>)
         : !ps.length ? <div className="lb-p t50">No position with a record yet. The index draws each one within a few hours of opening.</div>
         : ps.map((p) => {
           const row = liteByKey.get(p.strategyKey.toLowerCase())

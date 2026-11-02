@@ -16,6 +16,8 @@ import type { ValueCheck } from '@yieldcircle/app/tickets/valueCheck'
 import { C } from '../theme'
 import { Btn, LeverPill } from '../ui/bits'
 import { Txt } from '../ui/Txt'
+import { SayWhy } from '../ui/thread'
+import type { ThreadRef } from '@yieldcircle/core/model/uid'
 
 /**
  * The ticket's pieces, as the web draws them (app.css / lite.css `.ticket`, `.lite-ticket`): the
@@ -184,9 +186,13 @@ export function GetLine({ account, short, symbol, onOpen }: { account?: string; 
   )
 }
 
-/** The bottom of the ticket (`Action`): one button, then the ladder once it is built. */
+/** The strategy's thread, for "Say why" at the ticket's foot: set by the ticket screen, null where there is none (a loan). */
+export const ThreadCtx = React.createContext<ThreadRef | null>(null)
+
+/** The bottom of the ticket (`Action`): one button and "Say why", then the ladder once it is built — and "Say why" again when it is done. */
 export function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string }) {
   const { open } = useAppKit()
+  const thread = React.useContext(ThreadCtx)
   if (!l.bundle) return (
     <View style={st.cta}>
       {!!l.err && <Txt s={12.5} c={C.bad} style={{ marginBottom: 8 }}>{l.err}</Txt>}
@@ -198,13 +204,15 @@ export function Action({ ladder: l, label, account, isConnected, disabled, risky
         // someone else's address on screen (the browser render's `?as=`): nothing to sign with
         : !isConnected ? <Btn wide kind="plain" disabled title={`Viewing ${account.slice(0, 6)}… · connect to sign`} />
         : !l.isConnected ? <Btn wide kind="plain" disabled title="Connect a wallet to sign" />
+        : l.paper ? <Btn wide kind="paper" title={l.busy ? 'Applying on paper…' : blockedNote ?? `Confirm paper ${label}`} disabled={disabled || l.busy} onPress={() => l.start(label)} />
         : <Btn wide title={l.busy ? 'Building…' : blockedNote ?? (risky ? `${label} anyway` : label)} kind={risky ? 'risky' : 'pri'} disabled={disabled || l.busy} onPress={() => l.start(label)} />}
-      <Txt s={12} c={C.tx40} lh={17} style={{ marginTop: 8 }}>Your wallet asks you to sign: once where it can batch the steps. Network fee on {chainLabel(chainId)}.</Txt>
+      {isConnected && !l.paper && <SayWhy on={thread} />}
+      <Txt s={12} c={C.tx40} lh={17} style={{ marginTop: 8 }}>{l.paper ? 'Play money on real rates and real quotes. Nothing is signed or sent on chain.' : `Your wallet asks you to sign: once where it can batch the steps. Network fee on ${chainLabel(chainId)}.`}</Txt>
     </View>
   )
   return (
     <View style={st.cta}>
-      <Lbl>{l.settled ? 'Done' : l.finished ? 'Updating your positions…' : l.signing ? 'Confirm in your wallet' : l.pending ? 'Waiting for the block…' : 'Sign in your wallet'}</Lbl>
+      <Lbl>{l.paper ? 'Done on paper' : l.settled ? 'Done' : l.finished ? 'Updating your positions…' : l.signing ? 'Confirm in your wallet' : l.pending ? 'Waiting for the block…' : 'Sign in your wallet'}</Lbl>
       <View style={{ gap: 8 }}>
         {l.bundle.steps.map((s, i, all) => {
           const on = l.together ? l.together.includes(s) : s === l.next
@@ -213,6 +221,7 @@ export function Action({ ladder: l, label, account, isConnected, disabled, risky
         })}
       </View>
       {!!l.err && <Txt s={12.5} c={C.bad} style={{ marginTop: 8 }}>{l.err}</Txt>}
+      {l.finished && !l.paper && <SayWhy on={thread} done />}
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
         <View style={{ flex: 1 }}>
           {l.finished

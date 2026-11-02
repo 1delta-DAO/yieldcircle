@@ -16,6 +16,7 @@ import { AppKit, AppKitProvider } from '@reown/appkit-react-native'
 import { SettingsProvider } from '@yieldcircle/app/state/Settings'
 import { appKit, wagmiAdapter } from '../src/appkit'
 import { PhoneSession } from '../src/session'
+import { PhonePaper } from '../src/paper'
 import { PhonePlatform } from '../src/platform'
 import { PhoneNav } from '../src/nav'
 import { configureTrace, initTxTrace } from '@yieldcircle/app/sdk/txTrace'
@@ -39,11 +40,14 @@ export default function RootLayout() {
           <PhonePlatform>
           <PhoneNav>
           <SettingsProvider>
+            <PhonePaper>
             <PhoneSession>
               <StatusBar style="light" />
               <Stack screenOptions={{ ...header, headerShown: false }}>
                 <Stack.Screen name="strategy/[id]" options={{ presentation: 'modal', headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
                 <Stack.Screen name="you" options={{ headerShown: false }} />
+                <Stack.Screen name="position" options={{ headerShown: false }} />
+                <Stack.Screen name="made" options={{ headerShown: false }} />
                 <Stack.Screen name="details" options={{ ...header, headerShown: true, title: 'Details' }} />
                 <Stack.Screen name="probe" options={{ ...header, headerShown: true, title: 'Wallet probe' }} />
               </Stack>
@@ -52,6 +56,7 @@ export default function RootLayout() {
                 <AppKit />
               </View>
             </PhoneSession>
+            </PhonePaper>
           </SettingsProvider>
           </PhoneNav>
           </PhonePlatform>

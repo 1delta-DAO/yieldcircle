@@ -1,6 +1,6 @@
 import React from 'react'
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
-import { router } from 'expo-router'
+import { router, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAppKit, AppKitButton } from '@reown/appkit-react-native'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -20,6 +20,7 @@ import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { setMode, useMode, type Mode } from '../src/mode'
 import { useChains } from '../src/chains'
 import { useSession } from '@yieldcircle/app/session'
+import { useNav } from '@yieldcircle/app/nav'
 import { CHAINS } from '@yieldcircle/app/sdk/queries'
 import { C } from '../src/theme'
 import { Btn, Seg, Sk, Tok } from '../src/ui/bits'
@@ -27,10 +28,12 @@ import { Character } from '../src/ui/Character'
 import { BalanceChip } from '../src/ui/TopBar'
 import { IconBack, IconFlame } from '../src/ui/icons'
 import { openStrategy } from '../src/ui/lite'
-import { PaperOffer } from '../src/ui/paper'
+import { PAPER, PaperOffer } from '../src/ui/paper'
+import { usePaper } from '../src/paper'
+import { paperPnlBook } from '@yieldcircle/core/model/paperView'
 import { Txt } from '../src/ui/Txt'
 import { Details } from '../src/ticket/parts'
-import { LinkedWallets, PendingChanges } from '../src/ui/social'
+import { LinkedWallets, LiteMoves, PendingChanges } from '../src/ui/social'
 import { useProfile } from '@yieldcircle/app/social/queries'
 import { useSocialWrite } from '@yieldcircle/app/social/sign'
 
@@ -58,7 +61,10 @@ export default function You() {
         {b.account && <BalanceChip tot={t.tot} perDay={t.yearly / 365} loading={b.positionsLoading && !b.books.length} on />}
       </View>
       <ScrollView contentContainerStyle={[st.page, { paddingBottom: insets.bottom + 40 }]}>
-        <Txt s={18} w={700} lh={26} style={{ letterSpacing: -0.36, marginTop: 2, marginBottom: 16 }}>You</Txt>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2, marginBottom: 16 }}>
+          <Txt s={18} w={700} lh={26} style={{ letterSpacing: -0.36 }}>You</Txt>
+          {b.paper && <PaperPill />}
+        </View>
         {!b.account ? (
           <View style={{ gap: 14 }}>
             <View style={st.note}><Txt s={12.5} c={C.tx50}>Connect a wallet to see what you have, your streak and your rank — or play the whole thing with paper money first.</Txt></View>
@@ -74,7 +80,7 @@ export default function You() {
               {!b.paper && <Stat k="Rank ›" v={rank.rank != null ? `#${rank.rank}` : '—'} s={rank.rank != null ? `on the board · ${usdShort(rank.perDay)}/day` : 'top 100 by what they earn a day'} onPress={() => router.push('/lite/board')} />}
             </View>
 
-            <Made account={b.account} rows={L.rows} positions={b.positionsLoading || b.isFetching ? undefined : mine.filter((h) => h.kind !== 'borrow').length} />
+            {b.paper ? <PaperMade /> : <Made account={b.account} rows={L.rows} positions={b.positionsLoading || b.isFetching ? undefined : mine.filter((h) => h.kind !== 'borrow').length} />}
 
             <Txt s={16} w={600} style={{ letterSpacing: -0.16, marginTop: 26, marginBottom: 10 }}>Your money</Txt>
             {b.positionsError && <Txt s={12.5} c={C.bad}>Positions could not be read: {b.positionsError.message}</Txt>}
@@ -83,12 +89,59 @@ export default function You() {
                 : !mine.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing at work yet.</Txt>
                 : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} />)}
             </View>
+            <LiteMoves rows={L.rows} account={b.account} limit={12} title="What the people you follow did" followingOnly />
             {!b.paper && <Wallets />}
           </>
         )}
         <Settings />
       </ScrollView>
     </View>
+  )
+}
+
+const PaperPill = () => <View style={st.paperPill}><Txt s={11} w={600} c={PAPER.fg} lh={16.5}>paper</Txt></View>
+
+/**
+ * What you made on paper (the web's `PaperMade`): the same figure, farming / price split and
+ * sentence as the real one, off the paper ledger (`paperPnlBook`) — nothing waits to be drawn —
+ * plus what went on fees, swaps and bridges, and the return on what was put in.
+ */
+function PaperMade() {
+  const paper = usePaper()
+  // accrual moves the figure by the second: re-folded twice a minute
+  const [, tick] = React.useReducer((x: number) => x + 1, 0)
+  React.useEffect(() => { const t = setInterval(tick, 30_000); return () => clearInterval(t) }, [])
+  const l = paper.ledger, b = paper.book
+  if (!l || !b) return null
+  const pb = paperPnlBook(l, paper.viewNow, paper.price)
+  const s = pnlSummary(pb)
+  return (
+    <>
+      <View style={{ marginTop: 26, marginBottom: 10, gap: 4 }}><Txt s={16} w={600} style={{ letterSpacing: -0.16 }}>What you made</Txt><Txt s={12.5} c={C.tx50}>on paper · since each position opened</Txt></View>
+      <View style={[st.pnl, { borderWidth: 1, borderColor: PAPER.line }]}>
+        {!s ? <Txt s={13} c={C.tx50} lh={19}>Nothing made yet. Open a deposit or a loop on paper and its figure shows here at once, accruing by the minute.</Txt> : <>
+          <View style={{ gap: 4 }}>
+            <Txt s={36} w={700} lh={38} c={s.total >= 0 ? C.ok : C.bad} style={{ letterSpacing: -0.72 }}>{signedMoney(s.total)}</Txt>
+            <Txt s={12.5} c={C.tx50}>{s.aprPct != null ? `${pct(s.aprPct, 1)} a year on what was in · ` : ''}{pct(b.returnPct, 2)} of what was put in</Txt>
+          </View>
+          {s.yield != null && s.price != null && (
+            <View style={{ flexDirection: 'row', gap: 18 }}>
+              <Txt s={12.5} c={C.tx70}><Dot c={C.ok} />  Farming <Txt s={12.5} w={700} c={s.yield >= 0 ? C.ok : C.bad}>{signedMoney(s.yield)}</Txt></Txt>
+              <Txt s={12.5} c={C.tx70}><Dot c={C.violet} />  Price <Txt s={12.5} w={700} c={s.price >= 0 ? C.ok : C.bad}>{signedMoney(s.price)}</Txt></Txt>
+            </View>
+          )}
+          <Txt s={13.5} lh={19.6}>{s.word}</Txt>
+          {b.frictionUsd > 0.005 && <Txt s={13} c={C.tx50}>{usdShort(b.frictionUsd)} of it went on fees, swaps and bridges.</Txt>}
+          {pb.positions.slice(0, 4).map((p) => (
+            <View key={p.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ flex: 1 }}><Txt s={13.5} w={700} numberOfLines={1}>{p.title}</Txt><Txt s={12} c={C.tx50} numberOfLines={1}>{p.sub} · {usdShort(p.equityUsd)} in it</Txt></View>
+              <Txt w={700} c={p.pnlUsd >= 0 ? C.ok : C.bad}>{signedMoney(p.pnlUsd)}</Txt>
+            </View>
+          ))}
+          {pb.positions.length > 4 && <Txt s={12} c={C.tx50}>and {pb.positions.length - 4} more</Txt>}
+        </>}
+      </View>
+    </>
   )
 }
 
@@ -171,7 +224,7 @@ function Made({ account, rows, positions }: { account: string; rows: LiteRow[]; 
               {ps.length > 4 && <Txt s={12} c={C.tx50} style={{ paddingVertical: 7 }}>and {ps.length - 4} more</Txt>}
             </View>
           )}
-          <View style={{ marginHorizontal: -16, marginTop: -10, marginBottom: -14 }}><Details title="Every number" what="the day-by-day line, yield against price, each strategy" onOpen={() => router.push('/details')} /></View>
+          <View style={{ marginHorizontal: -16, marginTop: -10, marginBottom: -14 }}><Details title="Every number" what="the day-by-day line, yield against price, each strategy" onOpen={() => router.push(`/made?${new URLSearchParams({ a: account })}` as Href)} /></View>
         </>}
       </View>
     </>
@@ -210,9 +263,10 @@ function Position({ h, s }: { h: Holding; s: Strategy | null }) {
   // what it made since it was opened, the index's figure for it
   const pnl = useHoldingPnl(h)
   const perDay = h.apr != null && h.kind !== 'borrow' && Math.abs(h.valueUsd * h.apr / 100 / 365) >= 0.01 ? h.valueUsd * h.apr / 100 / 365 : null
+  const nav = useNav()
   const open = () => {
-    // a price bet (a debt in another money) and loans are Pro's on the phone for now
-    if (h.directional) return router.push('/details')
+    // a price bet (a debt in another money) is Pro's alone (docs/lite.md §6): the web's Pro opens it
+    if (h.directional) return nav.pro(`#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: 'manage' })}`)
     openStrategy(s ?? { id: '_', kind: h.kind, group: h.group }, { h: h.key })
   }
   return (
@@ -255,6 +309,7 @@ function Wallets() {
 function Settings() {
   const { isConnected, viewAs } = useSession()
   const { account: author } = useSocialWrite()
+  const paper = usePaper()
   const { chains, allChains, setChains, toggleChain } = useChains()
   const [open, setOpen] = React.useState(false)
   const state = allChains ? 'All chains' : chains.length === 1 ? CHAINS.find((c) => c.id === chains[0])?.label ?? '1 chain' : `${chains.length} chains`
@@ -262,7 +317,13 @@ function Settings() {
     <View style={{ marginTop: 28 }}>
       <Txt s={16} w={600} style={{ letterSpacing: -0.16, marginBottom: 10 }}>Wallet and settings</Txt>
       <View style={st.set}>
-        <View style={st.setRow}><AppKitButton /></View>
+        {paper.session ? (
+          <View style={st.setRow}>
+            <PaperPill />
+            <Txt s={14} style={{ flex: 1 }} numberOfLines={1}>{paper.session.name}</Txt>
+            <Btn sm kind="plain" title="Sign out" onPress={paper.signOut} />
+          </View>
+        ) : <View style={st.setRow}><AppKitButton /></View>}
         {isConnected && !viewAs && (
           <Pressable onPress={() => router.push('/me')} style={[st.setRow, st.setLine]} accessibilityRole="link">
             <Txt s={14} style={{ flex: 1 }}>Edit your name and face</Txt><Txt c={C.tx40}>›</Txt>
@@ -317,6 +378,7 @@ const st = StyleSheet.create({
   pnl: { backgroundColor: C.b200, borderRadius: 18, paddingVertical: 18, paddingHorizontal: 20, gap: 12, overflow: 'hidden' },
   bar2: { flexDirection: 'row', height: 10, borderRadius: 999, overflow: 'hidden', backgroundColor: C.b400, gap: 2 },
   set: { backgroundColor: C.b200, borderRadius: 12, overflow: 'hidden' },
+  paperPill: { backgroundColor: PAPER.bg, borderWidth: 1, borderColor: PAPER.line, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   box: { backgroundColor: C.b200, borderRadius: 12, padding: 14 },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 10, paddingHorizontal: 14 },
   setLine: { borderTopWidth: 1, borderTopColor: C.line },

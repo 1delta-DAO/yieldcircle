@@ -3,7 +3,7 @@
  * (`primaryLeg`), the size it headlines (`headlineUsd`), and the Lite row it is about, which is
  * what a Copy on it opens (`rowOfTx`). Shared by the web's feed and Lite, and the phone.
  */
-import type { TxBundle, TxLeg } from '../index/types'
+import { subjectOf, type TxBundle, type TxLeg } from '../index/types'
 import type { LiteRow } from './lite'
 import { canonUid, protocolKeyOf, uidOf } from './uid'
 
@@ -120,4 +120,32 @@ export function rowOfTx(t: TxBundle, rows: LiteRow[]): LiteRow | null {
     if (s.kind === 'loop' ? supply.includes(uid(s.marketLongUid)) && debt.includes(uid(s.marketShortUid)) : !debt.length && supply.includes(uid(uidOf(s)))) return r
   }
   return null
+}
+
+/**
+ * Under this, a move is dust: a $0 rebalance, a few cents accrued, a vault
+ * nudging a rounding error between two markets. They are real and they are
+ * most of the tape on a quiet chain, and to someone reading what people are
+ * doing they are noise — so they are hidden unless asked for.
+ */
+export const DUST_USD = 10
+/** the size a card headlines; a bundle with an unpriced leg is never called small — it may not be */
+export function isDust(t: TxBundle): boolean {
+  if (t.unpriced > 0) return false
+  const sizes = [t.volumeUsd, ...t.legs.map((l) => l.amountUsd)].filter((v): v is number => v != null)
+  return sizes.length > 0 && Math.max(...sizes.map(Math.abs)) < DUST_USD
+}
+
+/**
+ * Lite's moves (Home, You), from a feed page: each with the Lite row it is about. Following keeps
+ * everything the people you chose did; Everyone only what can be copied, and no dust. One move per
+ * wallet and strategy, the newest: a desk that tops up all day is one row, not six.
+ */
+export function liteMoves(txs: TxBundle[], rows: LiteRow[], tab: 'following' | 'everyone', limit: number): { t: TxBundle; r: LiteRow | null }[] {
+  const who = (t: TxBundle) => subjectOf(t).account
+  return txs
+    .map((t) => ({ t, r: rowOfTx(t, rows) }))
+    .filter((x) => tab === 'following' || (x.r && !isDust(x.t)))
+    .filter((x, i, all) => all.findIndex((y) => who(y.t) === who(x.t) && (y.r?.s.id ?? y.t.txHash) === (x.r?.s.id ?? x.t.txHash)) === i)
+    .slice(0, limit)
 }

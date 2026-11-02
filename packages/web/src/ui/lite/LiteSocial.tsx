@@ -6,25 +6,21 @@
  */
 import React from 'react'
 import { liteWalletHref, useApp } from '../../state/AppState'
-import { followedFirst, type LiteRow } from '@yieldcircle/core/model/lite'
+import type { LiteRow } from '@yieldcircle/core/model/lite'
 import { normAddr } from '@yieldcircle/core/model/address'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import type { ThreadRef } from '@yieldcircle/core/model/uid'
 import type { TxBundle } from '@yieldcircle/core/index/types'
 import { subjectOf } from '@yieldcircle/core/index/types'
-import { useFeedPage, useHolders, useRateLeaders } from '@yieldcircle/app/index/queries'
-import { useCounts, useLatest, useMyFollows, useProfiles, useThreadOf } from '../../social/queries'
-import type { Message } from '../../social/types'
+import { useWhoIsIn } from '@yieldcircle/app/social/whoIsIn'
+import { useLiteMoves, useMoveReasons } from '@yieldcircle/app/liteMoves'
+import { useMyFollows, useProfiles } from '../../social/queries'
 import { Ago, FollowButton, Who, describeBundle } from '../social-bits'
 import { Sk, usdShort } from '../bits'
-import { TxMoney, isDust, primaryLeg } from '../Feed'
+import { TxMoney, primaryLeg } from '../Feed'
 import { Thread } from '../Thread'
 import { writeSeen } from '../Alerts'
-import { openRow, rowOfTx } from './LiteBits'
-
-type Tab = 'following' | 'everyone'
-/** how many of the board's top wallets "Everyone" watches: the ones that put real money to work */
-const TOP_N = 40
+import { openRow } from './LiteBits'
 
 /**
  * The moves on Home (fomo's feed, with its Following toggle). Following is what the people you
@@ -35,28 +31,10 @@ const TOP_N = 40
  */
 export function LiteMoves({ rows, account, limit = 8, title, followingOnly }: { rows: LiteRow[]; account: string | undefined; limit?: number; title?: string; followingOnly?: boolean }) {
   const { chainIds, allChains } = useApp()
-  const chains = allChains ? undefined : chainIds.join(',')
-  const f = useMyFollows(account)
-  const has = !!account && f.wallets.length + f.markets.length > 0
-  const [picked, setPicked] = React.useState<Tab | null>(null)
-  const tab: Tab = followingOnly ? 'following' : picked ?? (has ? 'following' : 'everyone')
-  const followed = useFeedPage({ follower: account, follow: 'all', chainIds: chains }, 40, has && tab === 'following')
-  const top = useRateLeaders(tab === 'everyone')
-  const me = account ? normAddr(account) : null
-  const accounts = (top.data?.rows ?? []).map((r) => normAddr(r.account)).filter((a) => a !== me).slice(0, TOP_N)
-  const everyone = useFeedPage({ accounts: accounts.join(','), chainIds: chains }, 80, tab === 'everyone' && accounts.length > 0)
-  const feed = tab === 'following' ? followed : everyone
-  const txs = (feed.data?.txs ?? [])
-    .map((t) => ({ t, r: rowOfTx(t, rows) }))
-    // Everyone shows what can be copied; Following shows everything the people you chose did
-    .filter((x) => tab === 'following' || (x.r && !isDust(x.t)))
-    // one move per wallet and strategy, the newest: a desk that tops up all day is one row, not six
-    .filter((x, i, all) => all.findIndex((y) => subjectOf(y.t).account === subjectOf(x.t).account && (y.r?.s.id ?? y.t.txHash) === (x.r?.s.id ?? x.t.txHash)) === i)
-    .slice(0, limit)
+  const { tab, setTab: setPicked, has, txs, loading } = useLiteMoves({ rows, account, limit, chains: allChains ? undefined : chainIds.join(','), followingOnly })
   // the moves of the people you follow are seen once they are on screen: the Home tab's dot goes
   React.useEffect(() => { if (tab === 'following' && txs.length) writeSeen(Date.now()) }, [tab, txs.length])
   if (followingOnly && !has) return null
-  const loading = feed.isLoading || (tab === 'everyone' && top.isLoading)
   return (
     <section className="sec lite-sec">
       <div className="sec-h">
@@ -83,7 +61,7 @@ export function Moves({ txs, showFollow, hideWho }: { txs: { t: TxBundle; r: Lit
   const { account } = useApp()
   const f = useMyFollows(account)
   const { profile } = useProfiles(txs.map((x) => subjectOf(x.t).account).filter(Boolean))
-  const said = useReasons(txs)
+  const said = useMoveReasons(txs)
   return (
     <div className="tape">{txs.map(({ t, r }) => {
       const l = primaryLeg(t), d = describeBundle(t), who = subjectOf(t).account
@@ -108,38 +86,14 @@ export function Moves({ txs, showFollow, hideWho }: { txs: { t: TxBundle; r: Lit
   )
 }
 
-/** What each mover said on the strategy they moved in (Say why) — the mover's own, never a stranger's. */
-function useReasons(txs: { t: TxBundle; r: LiteRow | null }[]) {
-  const threadFor = useThreadOf()
-  const subjects = txs.flatMap(({ t, r }) => {
-    const th = r ? threadFor(r.s) : null
-    const who = subjectOf(t).account
-    return th && who ? [{ ...th, author: who }] : []
-  })
-  const latest = useLatest(subjects)
-  return (s: Strategy, who: string): Message | null => {
-    const th = threadFor(s)
-    return th && who ? latest(th.kind, th.key, who) : null
-  }
-}
-
 /**
  * Who's in it, on the Lite ticket (fomo's holders on a coin page): the biggest holders with the
  * people you follow first, each with what they said about it and a Copy; then the thread, folded.
  */
 export function LiteWho({ s, uid, thread, heldBy }: { s: Strategy; uid: string | null; thread: ThreadRef | null; /** the proof's line: "n people run this · $x" */ heldBy: string }) {
   const { account } = useApp()
-  const f = useMyFollows(account)
-  const holders = useHolders(uid ?? undefined, undefined, 12)
-  const mine = account ? normAddr(account) : null
-  const all = (holders.data?.holders ?? []).filter((h) => normAddr(h.account) !== mine)
-  const fset = React.useMemo(() => new Set(f.wallets.map((a) => a.toLowerCase())), [f.wallets])
-  const rows = followedFirst(all, fset).slice(0, 5)
-  const nFollowed = all.filter((h) => fset.has(h.account.toLowerCase())).length
-  const { profile } = useProfiles(rows.map((h) => h.account))
-  const latest = useLatest(thread ? rows.map((h) => ({ ...thread, author: h.account })) : [])
-  const counts = useCounts(thread ? [thread] : [])
-  const n = thread ? counts.count(thread.kind, thread.key) : 0
+  const w = useWhoIsIn(uid, thread, account)
+  const { rows, nFollowed, profile, n } = w
   const [talk, setTalk] = React.useState(false)
   if (!uid && !thread) return null
   return (
@@ -150,11 +104,11 @@ export function LiteWho({ s, uid, thread, heldBy }: { s: Strategy; uid: string |
         {heldBy && <span className="t50">{heldBy}</span>}
       </div>
       {nFollowed > 0 && <div className="lite-whoin-f ok">{nFollowed === 1 ? 'Someone you follow runs this' : `${nFollowed} people you follow run this`}</div>}
-      {holders.isLoading && <div className="lite-whoin-r"><Sk w={180} h={14} /></div>}
-      {!holders.isLoading && !rows.length && <p className="foot t50">Nobody the index follows is in it yet.</p>}
+      {w.isLoading && <div className="lite-whoin-r"><Sk w={180} h={14} /></div>}
+      {!w.isLoading && !rows.length && <p className="foot t50">Nobody the index follows is in it yet.</p>}
       {rows.map((h) => {
-        const why = thread ? latest(thread.kind, thread.key, h.account) : null
-        const you = fset.has(h.account.toLowerCase())
+        const why = w.said(h.account)
+        const you = w.follows(h.account)
         return (
           <div key={h.account} className="lite-whoin-r">
             <a className="lite-who" href={liteWalletHref(h.account)}>

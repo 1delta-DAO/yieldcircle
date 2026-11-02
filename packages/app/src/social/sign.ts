@@ -30,8 +30,11 @@ export async function signSolanaEnvelope<T extends PrimaryType>(solSignMessage: 
  * posted — a caller awaits the write, not the signature.
  */
 export function useSocialWrite() {
-  const { address, connector } = useAccount()
+  const { address: wallet, connector } = useAccount()
   const platform = usePlatform()
+  // a key the app holds (the phone's paper account) signs when no wallet is connected
+  const local = platform.useLocalSigner?.() ?? null
+  const address = wallet ?? (local?.address as `0x${string}` | undefined)
   const sol = platform.useSol().account?.address
   const solSign = <T extends PrimaryType>(primaryType: T, message: Record<string, unknown>) => signSolanaEnvelope(platform.solSignMessage, primaryType, message)
   const { signTypedDataAsync } = useSignTypedData()
@@ -45,6 +48,7 @@ export function useSocialWrite() {
     // both halves must quote it); otherwise one is generated here
     const message = { author, ...fields, nonce: (fields.nonce as string) || nonce(), signedAt: now() }
     if (!address) return solSign(primaryType, message)
+    if (!wallet && local) return { primaryType, message, signature: await local.signTypedData({ domain: DOMAIN, types: TYPES, primaryType, message }) }
     // a wallet in another app shows the request only once it is in front: brought forward here,
     // before the first await, while the tap is still live (a no-op for a wallet in this page)
     platform.openWallet(connector?.id)

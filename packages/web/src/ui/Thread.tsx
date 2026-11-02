@@ -11,12 +11,8 @@ import type { Message, SubjectKind } from '../social/types'
 import { Ago, Stake, Who } from './social-bits'
 import { Sk } from './bits'
 import { normAddr } from '@yieldcircle/core/model/address'
+import { REACTIONS } from '@yieldcircle/core/social/words'
 
-const REACTIONS: { kind: string; glyph: string; title: string; word: string }[] = [
-  { kind: 'like', glyph: '♥', title: 'like', word: 'like' },
-  { kind: 'agree', glyph: '✓', title: 'makes sense', word: 'agree' },
-  { kind: 'risky', glyph: '⚠', title: 'looks risky', word: 'risky' },
-]
 
 export function Thread({ kind, subjectKey, title, placeholder, compact, max, fold }: {
   kind: SubjectKind

@@ -1,26 +1,27 @@
 import React from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import Svg, { Defs, RadialGradient, Rect, Stop, Path } from 'react-native-svg'
-import { router } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
+import { router, type Href } from 'expo-router'
 import * as idx from '@yieldcircle/core/index/api'
-import { useAccountPnlBook } from '@yieldcircle/app/index/pnl'
 import { RATE_BOARD_LIMIT } from '@yieldcircle/app/index/queries'
-import { useLiteMenu } from '@yieldcircle/app/lite'
+import { useBoardNames, useLiteByKey, useWalletRecord } from '@yieldcircle/app/board'
+import { useNav } from '@yieldcircle/app/nav'
 import { useSession } from '@yieldcircle/app/session'
-import { useProfiles } from '@yieldcircle/app/social/queries'
+import { useMyFollows, useProfiles } from '@yieldcircle/app/social/queries'
 import type { Profile } from '@yieldcircle/core/social/types'
 import { normAddr } from '@yieldcircle/core/model/address'
-import { bookKeyOf } from '@yieldcircle/core/model/uid'
-import { GROUPS } from '@yieldcircle/core/model/assets'
-import { boardPositions, boardStrategies, boardWallets, type BoardSort, type BoardStrategy, type BoardWallet, type LiteRow } from '@yieldcircle/core/model/lite'
+import { GROUPS, groupOf } from '@yieldcircle/core/model/assets'
+import { BOARD_HELD, boardHeld, boardStrategies, boardWallets, leverTag, type BoardSort, type BoardStrategy, type BoardWallet, type LiteRow } from '@yieldcircle/core/model/lite'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { C, alpha, mix } from '../theme'
-import { Btn, Seg, Sk, Tok } from './bits'
+import { Btn, LeverPill, Pill, Seg, Sk, Tok } from './bits'
 import { Character, Who } from './Character'
 import { openStrategy, openWallet } from './lite'
+import { FollowButton } from './social'
 import { Txt } from './Txt'
 
+type Held = (typeof BOARD_HELD)[number]['id']
 const SORTS: { id: BoardSort; word: string }[] = [{ id: 'apr', word: 'Best rate' }, { id: 'perDay', word: 'Most a day' }]
 const WALLET_WHY: Record<BoardSort, string> = {
   apr: 'what each wallet earns a year on all its money, at today’s rates',
@@ -35,12 +36,14 @@ const MEDAL = ['#f5c542', '#c9d1d9', '#d08a4e']
 
 /**
  * The leaderboard (the web's LiteBoard, docs/lite.md §6): Wallets first — every row a person — then
- * Strategies. Real wallets, read off the chain, one number each. A link may open it on either
- * (`by`) and on dollars a day (`t=perDay`).
+ * Strategies. Real wallets, read off the chain, one number each, in one money or all of them
+ * (`BOARD_HELD`). A link may open it on either (`by`), on dollars a day (`t=perDay`) and on a
+ * money (`x=usd`).
  */
-export function Board({ by0, t0 }: { by0?: string; t0?: string } = {}) {
+export function Board({ by0, t0, x0 }: { by0?: string; t0?: string; x0?: string } = {}) {
   const [by, setBy] = React.useState<'strategy' | 'wallet'>(by0 === 'strategy' ? 'strategy' : 'wallet')
   const [sort, setSort] = React.useState<BoardSort>(t0 === 'perDay' ? 'perDay' : 'apr')
+  const [held, setHeld] = React.useState(boardHeld(x0))
   const liteByKey = useLiteByKey()
   return (
     <View>
@@ -49,42 +52,55 @@ export function Board({ by0, t0 }: { by0?: string; t0?: string } = {}) {
         <Seg items={[{ id: 'strategy', word: 'Strategies' }, { id: 'wallet', word: 'Wallets' }]} value={by} onChange={setBy} />
       </View>
       <Seg items={SORTS} value={sort} onChange={setSort} />
-      <Txt s={12.5} c={C.tx50} style={{ marginTop: 6, marginBottom: 12 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 10 }}>
+        {BOARD_HELD.map((c) => {
+          const on = held === c.id
+          return <Pressable key={c.word} onPress={() => setHeld(c.id)} style={[st.chip, on && st.chipOn]} accessibilityLabel={`${c.word}: ${c.title}`} accessibilityState={{ selected: on }}><Txt s={12.5} c={on ? C.tx : C.tx70}>{c.word}</Txt></Pressable>
+        })}
+      </ScrollView>
+      <Txt s={12.5} c={C.tx50} style={{ marginTop: 8, marginBottom: 12 }}>
         {by === 'strategy' ? `${STRAT_WHY[sort]}. Copy opens the same strategy at the best holder’s leverage, your own size.` : `${WALLET_WHY[sort]}. Tap a wallet to see each position and what it made.`}
       </Txt>
-      {by === 'strategy' ? <Strategies sort={sort} liteByKey={liteByKey} /> : <Wallets sort={sort} liteByKey={liteByKey} />}
+      {by === 'strategy' ? <Strategies sort={sort} held={held} liteByKey={liteByKey} /> : <Wallets sort={sort} held={held} liteByKey={liteByKey} />}
     </View>
   )
 }
 
-/** Lite's rows by the index's strategy key: what a position on the board is, in Lite's words, and its Copy. */
-export function useLiteByKey() {
-  const L = useLiteMenu()
-  return React.useMemo(() => {
-    const m = new Map<string, LiteRow>()
-    for (const r of L.rows) { const k = bookKeyOf(r.s); if (k) m.set(k.toLowerCase(), r) }
-    return m
-  }, [L.rows])
-}
+export { useLiteByKey } from '@yieldcircle/app/board'
 
 // ------------------------------------------------------------------ strategies
 
-function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<string, LiteRow> }) {
+/** How many a board shows before "Show more": a ranking reads in its top; the rest is one tap. */
+const BOARD_ROWS = 20
+/** How many closed positions a wallet's list carries; the rest are Pro's. */
+const CLOSED_SHOWN = 6
+
+/**
+ * What is RUN (docs/board-strategies.md): one row per strategy in Lite's words — the catalogue's
+ * words where Lite does not list it (`useBoardNames`), Copy only where it does. A strategy the
+ * catalogue does not hold has only a ticker: it stays Pro's, and the foot counts it.
+ */
+function Strategies({ sort, held, liteByKey }: { sort: BoardSort; held: Held; liteByKey: Map<string, LiteRow> }) {
   const { account } = useSession()
+  const nav = useNav()
+  const names = useBoardNames()
+  const [many, setMany] = React.useState(false)
   const q = useQuery({
     // the web's key: one cached answer for both
-    queryKey: ['earners', 'strategy', sort, 'default', true, 'all', 'all', 'all', 'all', 50] as const,
-    queryFn: () => idx.strategyBoard({ sort, people: true, limit: 50 }),
+    queryKey: ['earners', 'strategy', sort, 'default', true, 'all', held ?? 'all', 'all', 'all', 50] as const,
+    queryFn: () => idx.strategyBoard({ sort, people: true, exposure: held, limit: 50 }),
     staleTime: 60_000,
     retry: 1,
   })
   const colorOf = (g: string) => GROUPS.find((x) => x.id === g)?.color ?? '#8fa6ff'
-  const rows = React.useMemo(() => boardStrategies(q.data?.rows ?? [], sort, (k) => {
-    const r = liteByKey.get(k.toLowerCase())
-    if (!r) return null
-    const s = r.s
-    return { title: r.title, sub: r.sub, color: colorOf(s.group), held: s.kind === 'loop' ? { symbol: s.holds, logo: s.logoLong } : { symbol: s.assetSymbol, logo: s.tokenLogo ?? s.logo }, debt: s.kind === 'loop' ? { symbol: s.debt, logo: s.logoShort } : null }
-  }), [q.data, sort, liteByKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const ranked = React.useMemo(() => boardStrategies(q.data?.rows ?? [], sort, (k) => {
+    const n = names.get(k.toLowerCase())
+    if (!n) return null
+    const s = n.s
+    return { title: n.title, sub: n.sub, color: colorOf(s.group), held: s.kind === 'loop' ? { symbol: s.holds, logo: s.logoLong } : { symbol: s.assetSymbol, logo: s.tokenLogo ?? s.logo }, debt: s.kind === 'loop' ? { symbol: s.debt, logo: s.logoShort } : null }
+  }), [q.data, sort, names]) // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = ranked.filter((r) => names.has(r.key.toLowerCase()))
+  const unnamed = ranked.length - rows.length
   const top = rows[0]
   const fmt = (v: number) => (sort === 'apr' ? pct(v, 1) : usdShort(v))
   const unit = sort === 'apr' ? 'a year' : 'a day'
@@ -93,7 +109,7 @@ function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<strin
   const holder = (s: BoardStrategy) => s.best && openWallet(s.best.account)
   if (q.isLoading) return <View style={{ gap: 8 }}><View style={[st.hero, { gap: 12 }]}><Sk w={120} h={12} /><Sk w={220} h={26} /><Sk w={140} h={40} /></View>{[0, 1, 2].map((i) => <View key={i} style={st.lsRow}><Sk w={24} h={18} /><Sk w={36} h={36} r={18} /><Sk w={160} /></View>)}</View>
   if (q.error) return <Txt s={13} c={C.tx50} style={{ padding: 14 }}>The board could not be read right now.</Txt>
-  if (!top) return <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing on the board right now.</Txt>
+  if (!top) return <Txt s={13} c={C.tx50} style={{ padding: 14 }}>{held ? 'Nothing on the board in this money right now.' : 'Nothing on the board right now.'}</Txt>
   const gc = top.color ?? C.primary
   return (
     <View style={{ gap: 8 }}>
@@ -129,7 +145,7 @@ function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<strin
           {canCopy(top) ? <Btn title="Copy" onPress={() => copy(top)} /> : top.best ? <Btn kind="plain" title="See the best holder" onPress={() => holder(top)} /> : null}
         </View>
       </View>
-      {rows.slice(1, 40).map((s, i) => (
+      {rows.slice(1, many ? 40 : BOARD_ROWS).map((s, i) => (
         <View key={s.key} style={st.lsRow}>
           <View pointerEvents="none" style={[st.bar, { width: `${Math.max(4, Math.min(100, (s.value / top.value) * 100))}%`, backgroundColor: alpha(s.color ?? C.primary, 0.09) }]} />
           <Rank n={i + 2} />
@@ -144,6 +160,12 @@ function Strategies({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<strin
           </View>
         </View>
       ))}
+      {rows.length > BOARD_ROWS && !many && <Pressable onPress={() => setMany(true)} style={st.more}><Txt s={13} c={C.tx70}>Show the top {Math.min(rows.length, 40)}</Txt></Pressable>}
+      {unnamed > 0 && (
+        <Pressable onPress={() => nav.pro(`#/board${held ? `?x=${held}` : ''}`)} style={{ marginTop: 6 }}>
+          <Txt s={12.5} c={C.tx50} lh={18}>{unnamed} more on the board hold coins Lite does not list. <Txt s={12.5} c={C.primary}>See them in Pro ›</Txt></Txt>
+        </Pressable>
+      )}
     </View>
   )
 }
@@ -178,27 +200,35 @@ function Marks({ s, size }: { s: BoardStrategy; size: number }) {
 
 // ------------------------------------------------------------------ wallets
 
-function Wallets({ sort, liteByKey }: { sort: BoardSort; liteByKey: Map<string, LiteRow> }) {
+function Wallets({ sort, held, liteByKey }: { sort: BoardSort; held: Held; liteByKey: Map<string, LiteRow> }) {
   const { account } = useSession()
   const q = useQuery({
     // `earners-me` is the $/day board the header and You already read on the web: one request for both
-    queryKey: sort === 'perDay' ? ['earners-me'] : ['earners-lite', sort, 'all'],
+    queryKey: sort === 'perDay' && !held ? ['earners-me'] : ['earners-lite', sort, held ?? 'all'],
     // a rate board at the size the index pre-warms (`RATE_BOARD_LIMIT`); dollars a day at 100, as You reads it
-    queryFn: () => idx.walletEarners({ sort, people: true, limit: sort === 'apr' ? RATE_BOARD_LIMIT : 100 }),
+    queryFn: () => idx.walletEarners({ sort, people: true, exposure: held, limit: sort === 'apr' ? RATE_BOARD_LIMIT : 100 }),
     staleTime: 5 * 60_000,
     retry: 1,
   })
-  const rows = boardWallets(q.data?.rows ?? [], sort).slice(0, 50)
+  // Everyone, or only the people you follow (and you)
+  const f = useMyFollows(account)
+  const [mine, setMine] = React.useState(false)
+  const only = mine ? new Set([...f.wallets, ...(account ? [normAddr(account)] : [])].map((a) => a.toLowerCase())) : undefined
+  const all = boardWallets(q.data?.rows ?? [], sort, only).slice(0, 50)
+  const [many, setMany] = React.useState(false)
+  const rows = many ? all : all.slice(0, BOARD_ROWS)
   const me = account ? rows.find((r) => normAddr(r.account) === normAddr(account)) : undefined
   const { profile } = useProfiles(rows.map((r) => r.account))
   const [open, setOpen] = React.useState<string | null>(null)
   return (
     <View style={{ gap: 6 }}>
-      {me && <View style={st.meNote}><Txt s={12.5} c={C.tx70}>You are <Txt s={12.5} w={700}>#{me.rank}</Txt> · {sort === 'apr' ? `${pct(me.value, 1)} a year` : `${usdShort(me.value)} a day`}</Txt></View>}
+      {!!account && f.wallets.length > 0 && <View style={{ marginBottom: 6 }}><Seg items={[{ id: 'all', word: 'Everyone' }, { id: 'mine', word: 'People you follow' }]} value={mine ? 'mine' : 'all'} onChange={(v) => setMine(v === 'mine')} /></View>}
+      {me && !mine && <View style={st.meNote}><Txt s={12.5} c={C.tx70}>You are <Txt s={12.5} w={700}>#{me.rank}</Txt> · {sort === 'apr' ? `${pct(me.value, 1)} a year` : `${usdShort(me.value)} a day`}</Txt></View>}
       {q.isLoading ? [0, 1, 2, 3, 4, 5].map((i) => <View key={i} style={[st.lbItem, st.lbRow]}><Sk w={24} h={18} /><Sk w={26} h={26} r={13} /><Sk w={140} /></View>)
         : q.error ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>The board could not be read right now.</Txt>
-        : !rows.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nobody on the board right now.</Txt>
-        : rows.map((r) => <WalletRow key={r.account} r={r} sort={sort} profile={profile(r.account)} me={!!me && me.account === r.account} open={open === r.account} onToggle={() => setOpen(open === r.account ? null : r.account)} liteByKey={liteByKey} />)}
+        : !rows.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>{mine ? 'Nobody you follow is on the board yet.' : held ? 'Nobody on the board in this money right now.' : 'Nobody on the board right now.'}</Txt>
+        : rows.map((r) => <WalletRow key={r.account} r={r} sort={sort} profile={profile(r.account)} me={!!account && normAddr(r.account) === normAddr(account)} open={open === r.account} onToggle={() => setOpen(open === r.account ? null : r.account)} liteByKey={liteByKey} />)}
+      {all.length > rows.length && <Pressable onPress={() => setMany(true)} style={st.more}><Txt s={13} c={C.tx70}>Show the top {all.length}</Txt></Pressable>}
     </View>
   )
 }
@@ -208,9 +238,9 @@ function WalletRow({ r, sort, profile, me, open, onToggle, liteByKey }: { r: Boa
     <View style={[st.lbItem, me && { borderLeftWidth: 3, borderLeftColor: C.primary }]}>
       <Pressable onPress={onToggle} style={({ pressed }) => [st.lbRow, pressed && { backgroundColor: C.b300 }]}>
         <Rank n={r.rank} />
-        <View style={{ flex: 1 }}><Who account={r.account} profile={profile} idx={{ accountLabel: r.label }} size={28} sub={`${r.positions} position${r.positions === 1 ? '' : 's'} · on ${usdShort(r.navUsd)}`} /></View>
+        <View style={{ flex: 1 }}><Who account={r.account} profile={profile} idx={{ accountLabel: r.label }} size={28} sub={`${usdShort(r.navUsd)} · ${r.positions} position${r.positions === 1 ? '' : 's'}`} /></View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Txt s={17} w={600} c={C.ok} style={{ fontVariant: ['tabular-nums'] }}>{sort === 'apr' ? pct(r.value, 1) : usdShort(r.value)}</Txt>
+          <Txt s={17} w={600} c={C.ok} style={{ fontVariant: ['tabular-nums'] }}>{sort === 'apr' ? pct(r.value, r.value >= 10 ? 0 : 1) : usdShort(r.value)}</Txt>
           <Txt s={11} c={C.tx50}>{sort === 'apr' ? 'a year' : 'a day'}</Txt>
         </View>
         <Svg width={12} height={12} viewBox="0 0 12 12" style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}><Path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke={C.tx40} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" /></Svg>
@@ -221,36 +251,65 @@ function WalletRow({ r, sort, profile, me, open, onToggle, liteByKey }: { r: Boa
 }
 
 /**
- * One wallet's positions, opened on a tap: each with what it made, and a Copy where Lite carries it.
- * `foot` off on the wallet's own page, which needs no link to itself.
+ * One wallet's positions, opened on a tap (and the profile's "What it runs"), as the web's: each
+ * with its money's marks, a slim bar in its money's colour for its share of the wallet, what it
+ * made, and a Copy where Lite carries it; then what it HAD (its newest closed positions, the rest
+ * in Pro). A tap opens the position's record (`/position`). `foot` — Follow and the way to the
+ * profile — is off on the profile itself.
  */
 export function WalletPositions({ account, liteByKey, me, foot = true }: { account: string; liteByKey: Map<string, LiteRow>; me: boolean; foot?: boolean }) {
-  const q = useAccountPnlBook(account)
-  const ps = q.data ? boardPositions(q.data, (k) => liteByKey.get(k.toLowerCase())?.title ?? null) : []
+  const nav = useNav()
+  const { isLoading, open, had, moreClosed } = useWalletRecord(account, liteByKey, CLOSED_SHOWN)
+  const ps = [...open, ...had]
+  const colorOf = (g: string) => GROUPS.find((x) => x.id === g)?.color ?? null
+  const since = (t: string) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
   return (
     <View style={st.lbPos}>
-      {q.isLoading ? <ActivityIndicator color={C.tx50} style={{ padding: 10 }} />
+      {isLoading ? <ActivityIndicator color={C.tx50} style={{ padding: 10 }} />
         : !ps.length ? <Txt s={12.5} c={C.tx50} style={st.lbP}>No position with a record yet. The index draws each one within a few hours of opening.</Txt>
         : ps.map((p) => {
           const row = liteByKey.get(p.strategyKey.toLowerCase())
+          const s = row?.s
+          const held = s ? (s.kind === 'loop' ? { symbol: s.holds, logo: s.logoLong } : { symbol: s.assetSymbol, logo: s.tokenLogo ?? s.logo }) : { symbol: p.held[0] ?? '?', logo: undefined }
+          const debt = s?.kind === 'loop' ? { symbol: s.debt, logo: s.logoShort } : p.debt[0] ? { symbol: p.debt[0], logo: undefined } : null
+          const color = (s ? colorOf(s.group) : colorOf(groupOf(held.symbol))) ?? C.primary
+          const up = p.pnlUsd >= 0
+          const share = p.share != null && ps.length > 1 ? p.share : null
           return (
-            <View key={p.key} style={st.lbP}>
+            <Pressable key={p.key} onPress={() => router.push(`/position?${new URLSearchParams({ a: account, k: p.key })}` as Href)} style={({ pressed }) => [st.lbP, p.closed && { opacity: 0.75 }, pressed && { backgroundColor: C.b300 }]} accessibilityHint="What this position made, day by day">
+              {debt
+                ? <View style={{ flexDirection: 'row' }}><Tok sym={held.symbol} logo={held.logo} size={28} /><View style={{ marginLeft: -8 }}><Tok sym={debt.symbol} logo={debt.logo} size={28} ring={{ w: 2, color: C.b200 }} /></View></View>
+                : <Tok sym={held.symbol} logo={held.logo} size={28} />}
               <View style={{ flex: 1, gap: 2 }}>
-                <Txt w={700} numberOfLines={1}>{p.title}</Txt>
-                <Txt s={12} c={C.tx50} numberOfLines={1}>{p.sub}{p.equityUsd != null ? ` · ${usdShort(p.equityUsd)} in it` : ''}{p.since ? ` · since ${new Date(p.since).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}</Txt>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Txt w={700} numberOfLines={1} style={{ flexShrink: 1 }}>{p.title}</Txt>
+                  {p.kind === 'loop' && s?.kind === 'loop' && <LeverPill text={leverTag(s.tiers.balanced)} />}
+                  {p.closed && <Pill>closed</Pill>}
+                </View>
+                <Txt s={12} c={C.tx50} numberOfLines={1}>{p.sub}{p.since ? ` · since ${since(p.since)}` : ''}{p.closed ? ` · closed ${since(p.closed.at)}` : ''}</Txt>
+                {p.closed?.avgUsd != null && <Txt s={11.5} c={C.tx70}><Txt s={11.5} w={700}>{usdShort(p.closed.avgUsd)}</Txt> was at work</Txt>}
+                {p.equityUsd != null && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {share != null && <View style={st.track}><View style={[st.fill, { width: `${Math.max(1.5, share * 100)}%`, backgroundColor: color }]} /></View>}
+                    <Txt s={11.5} c={C.tx70}><Txt s={11.5} w={700}>{usdShort(p.equityUsd)}</Txt> in it{share != null ? <Txt s={11.5} c={C.tx50}> · {share < 0.01 ? '<1' : Math.round(share * 100)}%</Txt> : null}</Txt>
+                  </View>
+                )}
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Txt w={700} c={p.pnlUsd >= 0 ? C.ok : C.bad}>{p.pnlUsd >= 0 ? '+' : '−'}{usd(Math.abs(p.pnlUsd))}</Txt>
-                {p.aprPct != null && <Txt s={11.5} c={C.tx50}>{pct(p.aprPct, 1)} a year</Txt>}
+                <Txt w={700} c={up ? C.ok : C.bad}>{up ? '+' : '−'}{usd(Math.abs(p.pnlUsd))}</Txt>
+                <Txt s={11.5} c={C.tx50}>{p.aprPct != null ? `${pct(p.aprPct, 1)} a year` : 'made so far'}</Txt>
               </View>
-              {row && !me && <Btn sm title="Copy" onPress={() => openStrategy(row.s, { copy: account })} />}
-            </View>
+              {row && !me ? <Btn sm title="Copy" onPress={() => openStrategy(row.s, { copy: account })} /> : null}
+              <Txt c={C.tx40}>›</Txt>
+            </Pressable>
           )
         })}
+      {moreClosed > 0 && <Pressable onPress={() => nav.pro(`#/w/${account}`)} style={st.lbP}><Txt s={12.5} c={C.tx50}>{moreClosed} older closed position{moreClosed === 1 ? '' : 's'}, in Pro ›</Txt></Pressable>}
       {foot && (
         <View style={[st.lbP, { paddingTop: 6 }]}>
+          {!me && <FollowButton kind="wallet" target={account} />}
           <View style={{ flex: 1 }} />
-          <Pressable onPress={() => openWallet(account)}><Txt s={12.5} c={C.tx50}>Their whole page ›</Txt></Pressable>
+          <Pressable onPress={() => openWallet(account)} hitSlop={8}><Txt s={12.5} c={C.tx50}>Their profile ›</Txt></Pressable>
         </View>
       )}
     </View>
@@ -266,5 +325,10 @@ const st = StyleSheet.create({
   lbRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingVertical: 10, paddingHorizontal: 14 },
   lbPos: { borderTopWidth: 1, borderTopColor: '#1a1a1f', paddingTop: 4, paddingBottom: 8 },
   lbP: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, paddingHorizontal: 14 },
+  more: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  chip: { borderRadius: 999, borderWidth: 1, borderColor: C.line2, paddingVertical: 6, paddingHorizontal: 12 },
+  chipOn: { borderColor: C.primary, backgroundColor: C.priBg },
+  track: { width: 56, height: 4, borderRadius: 2, backgroundColor: C.b400, overflow: 'hidden' },
+  fill: { height: 4, borderRadius: 2 },
   meNote: { borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14 },
 })

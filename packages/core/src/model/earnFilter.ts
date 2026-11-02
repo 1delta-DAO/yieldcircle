@@ -33,6 +33,9 @@ export interface EarnFilter {
 }
 export const EARN_FILTER: EarnFilter = { q: '', sort: 'best', kind: 'all', risk: 3, minTvl: 0, instant: false }
 export const MIN_TVLS = [0, 1e6, 1e7, 1e8] as const
+/** The filters' choices, in the words both apps show */
+export const EARN_RISKS: { id: Risk; word: string }[] = [{ id: 3, word: 'Any' }, { id: 2, word: 'Up to medium' }, { id: 1, word: 'Low only' }]
+export const EARN_KINDS: { id: EarnKind; word: string }[] = [{ id: 'all', word: 'All' }, { id: 'simple', word: 'Deposits' }, { id: 'loop', word: 'Levered' }]
 
 /** How many filters are set (the search and the sort not counted): the Filters button's badge. */
 export const filtersOn = (f: EarnFilter) => Number(f.kind !== 'all') + Number(f.risk < 3) + Number(f.minTvl > 0) + Number(f.instant)

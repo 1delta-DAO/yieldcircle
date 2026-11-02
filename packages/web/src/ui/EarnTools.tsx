@@ -1,20 +1,10 @@
 import React from 'react'
-import { EARN_FILTER, EARN_SORTS, MIN_TVLS, earnActive, filtersOn, type EarnFilter, type EarnKind, type EarnSort } from '@yieldcircle/core/model/earnFilter'
-import type { Risk } from '@yieldcircle/core/model/strategies'
-import { useSticky } from '../state/sticky'
+import { EARN_KINDS as KINDS, EARN_RISKS as RISKS, EARN_SORTS, MIN_TVLS, filtersOn, type EarnSort } from '@yieldcircle/core/model/earnFilter'
 import { usdShort } from './bits'
 
-/** An Earn list's search, sort and filters, kept for this tab per list (`useSticky`). */
-export function useEarnFilter(key: string) {
-  const [f, setF] = useSticky<EarnFilter>(`earnf:${key}`, EARN_FILTER)
-  // an older shape in the tab's storage: the defaults fill what it lacks
-  const cur = { ...EARN_FILTER, ...f }
-  return { f: cur, set: (p: Partial<EarnFilter>) => setF({ ...cur, ...p }), reset: () => setF(EARN_FILTER), active: earnActive(cur) }
-}
-export type EarnFilterState = ReturnType<typeof useEarnFilter>
+export { useEarnFilter, type EarnFilterState } from '@yieldcircle/app/earnFilter'
+import type { EarnFilterState } from '@yieldcircle/app/earnFilter'
 
-const RISKS: { id: Risk; word: string }[] = [{ id: 3, word: 'Any' }, { id: 2, word: 'Up to medium' }, { id: 1, word: 'Low only' }]
-const KINDS: { id: EarnKind; word: string }[] = [{ id: 'all', word: 'All' }, { id: 'simple', word: 'Deposits' }, { id: 'loop', word: 'Levered' }]
 
 /**
  * One bar over an Earn list: search, sort, and a Filters button that opens risk, size, exit and

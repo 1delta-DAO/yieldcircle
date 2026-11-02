@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLiteMenu } from '@yieldcircle/app/lite'
-import { brandOf, holdingLine, leverTag, liteEligible, liteModes, moneyWord, plainName, riskWord, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
+import { brandOf, heldBy, holdingLine, leverTag, liteEligible, liteModes, moneyWord, plainName, riskWord, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
 import { usd, usdShort } from '@yieldcircle/core/model/format'
 import { owedOf } from '@yieldcircle/core/model/borrow'
 import { pnlLine } from '@yieldcircle/core/model/holdingPnl'
@@ -14,7 +14,10 @@ import { C } from '../../src/theme'
 import { Sk, Tok, Toks } from '../../src/ui/bits'
 import { Who } from '../../src/ui/Character'
 import { Txt } from '../../src/ui/Txt'
-import { Choices, Details, MoreCtx, MoreSheet, Numbers, Sec, TicketHead, Trust } from '../../src/ticket/parts'
+import { Choices, Details, MoreCtx, MoreSheet, Numbers, Sec, ThreadCtx, TicketHead, Trust } from '../../src/ticket/parts'
+import { WhoIsIn } from '../../src/ui/thread'
+import { useThreadOf } from '@yieldcircle/app/social/queries'
+import { uidOf } from '@yieldcircle/core/model/uid'
 import { bufferOfHealth } from '@yieldcircle/core/model/lite'
 import { pct } from '@yieldcircle/core/model/format'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
@@ -54,6 +57,9 @@ export default function TicketScreen() {
   const pnl = useHoldingPnl(byKey ?? holding)
   const { account } = useSession()
   const [more, setMore] = React.useState(false)
+  // where this strategy is talked about: "Say why" posts there, "Who's in it" reads it
+  const thread = useThreadOf()
+  const talk = s ? thread(s) : null
 
   if (!s && !holding) {
     return (
@@ -94,6 +100,7 @@ export default function TicketScreen() {
     : isLoop ? 'Any of Lite’s leverages, every number' : 'How it is paid out, every number'
   return (
     <MoreCtx.Provider value={{ open: more, close: () => setMore(false), pro, top }}>
+    <ThreadCtx.Provider value={talk}>
     <Frame insets={insets}>
       <TicketHead face={face} title={title} sub={line ? `${usd(h!.valueUsd)} yours · ${line.text}` : n ? `${n.sub} · ${riskWord(s!.risk)}` : undefined} subTone={line?.tone} pnl={h && pnl ? pnlLine(pnl) : null} onShare={sharePosition(s, h, account)} lever={lev > 1.05 ? leverTag(lev) : undefined} onClose={close} />
       {tabs.length > 1 && (
@@ -123,9 +130,11 @@ export default function TicketScreen() {
         : s?.kind === 'loop' ? <LoopBody key={into?.key} s={s} idle={chainIdle} allIdle={b.idlePerChain} holding={into} copyLev={copyLev} />
         : null}
       {s && <Trust left={`${trustKind(s)} · ${usdShort(s.tvlUsd)} in it`} right={brandOf(s)} />}
+      {s && mode === 'add' && <WhoIsIn s={s} uid={uidOf(s)} thread={talk} heldBy={heldBy(L.proof(s))} />}
       {s && h && !liteEligible(s) && <Trust left={`Lite does not offer this one new, but it is yours: ${isLoop ? 'make it safer or close it here' : 'take it out here'}.`} />}
       <Details what={moreWhat} onOpen={() => setMore(true)} />
     </Frame>
+    </ThreadCtx.Provider>
     </MoreCtx.Provider>
   )
 }

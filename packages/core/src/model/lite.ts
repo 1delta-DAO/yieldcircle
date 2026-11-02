@@ -178,6 +178,22 @@ export interface LiteRow {
  * what the reader already runs, which always keeps its own row. Sorted by risk, then by the
  * STEADY rate (`rank`): a one-night spike never leads, and a loop never jumps a safer row.
  */
+/**
+ * Lite's one list order: the safer risk first, then the steady rate (`rank`), so a page of ×6
+ * loops never leads the money's own savings (docs/lite-design-review.md §3.2).
+ */
+export const safestFirst = (rank: (s: Strategy) => number) => (x: Pick<LiteRow, 's'>, y: Pick<LiteRow, 's'>) => x.s.risk - y.s.risk || rank(y.s) - rank(x.s)
+
+/**
+ * A money tile's two numbers: the best plain deposit and the best loop, never the levered one
+ * alone — a tile that says "up to 59%" over 4% savings misleads. `best` 0 with a loop: say the loop's.
+ */
+export function tileRates(rows: Pick<LiteRow, 's'>[]): { best: number; bestLoop: number } {
+  let best = 0, bestLoop = 0
+  for (const { s } of rows) if (s.kind === 'loop') bestLoop = Math.max(bestLoop, s.rate); else best = Math.max(best, s.rate)
+  return { best, bestLoop }
+}
+
 export function liteMenu(all: Strategy[], rank: (s: Strategy) => number, held: Set<string> = new Set(), f: LiteFloors = LITE_FLOORS): LiteRow[] {
   const best = new Map<string, LiteRow>()
   const mine: LiteRow[] = []
@@ -424,6 +440,19 @@ export function holdingLine(h: Pick<Holding, 'kind' | 'leverage' | 'health' | 'd
 /** What the board ranks by (docs/lite.md §6): the rate a wallet earns on all its money now, or the dollars a day. */
 export type BoardSort = 'apr' | 'perDay'
 export interface BoardWallet { account: string; rank: number; value: number; navUsd: number; positions: number; label?: string | null }
+/**
+ * What the money on the board is held in — Pro's exposure chips (pos-indexer tickets/0072), the
+ * three Lite names: a board across every money ranks whatever odd token pays most today on top,
+ * where a reader asks "what is the best on my dollars". `id` is the index's chip; the link's `x=`.
+ */
+export const BOARD_HELD: { id: 'usd' | 'eth' | 'btc' | undefined; word: string; title: string }[] = [
+  { id: undefined, word: 'All', title: 'every position' },
+  { id: 'usd', word: 'Dollars', title: 'dollars and their savings, PTs and vaults' },
+  { id: 'eth', word: 'ETH', title: 'ether and staked ether — whatever is borrowed against it' },
+  { id: 'btc', word: 'BTC', title: 'bitcoin wrappers and staked bitcoin' },
+]
+export const boardHeld = (x: string | undefined) => BOARD_HELD.find((c) => c.id === x)?.id
+
 /**
  * The wallet board, cut for Lite: wallets with a figure, ranked by one number. No lifetime
  * total — a wallet's PnL sum is mostly what its coins did against the dollar, and the board's

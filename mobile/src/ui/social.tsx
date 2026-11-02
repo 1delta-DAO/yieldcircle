@@ -14,7 +14,10 @@ import { useMyFollows, useProfile, useProfiles, useSocialRefresh, useWalletLinks
 import { entryKey, useBatchSupported, usePending } from '@yieldcircle/app/social/pending'
 import { useSocialWrite } from '@yieldcircle/app/social/sign'
 import { C } from '../theme'
-import { Btn } from './bits'
+import { Btn, Seg, Sk } from './bits'
+import { useChains } from '../chains'
+import { useLiteMoves, useMoveReasons } from '@yieldcircle/app/liteMoves'
+import { useUnseen, writeSeen } from '@yieldcircle/app/social/seen'
 import { Who } from './Character'
 import { openStrategy, openWallet } from './lite'
 import { Txt } from './Txt'
@@ -62,22 +65,28 @@ export function FollowButton({ kind, target, sm = true, quiet }: { kind: Follow[
 
 /**
  * Move rows (the web's Lite `Moves`): what they did · the money · when, and a Copy when Lite carries
- * the strategy. `hideWho` on a wallet's own page, where every move is theirs.
+ * the strategy; under it the mover's own reason (Say why). `hideWho` on a wallet's own page, where
+ * every move is theirs; `showFollow` (Everyone) offers a Follow on a mover you do not follow yet.
  */
-export function Moves({ txs, hideWho }: { txs: { t: TxBundle; r: LiteRow | null }[]; hideWho?: boolean }) {
+export function Moves({ txs, hideWho, showFollow }: { txs: { t: TxBundle; r: LiteRow | null }[]; hideWho?: boolean; showFollow?: boolean }) {
   const { account } = useSession()
+  const f = useMyFollows(account)
   const { profile } = useProfiles(hideWho ? [] : txs.map((x) => subjectOf(x.t).account).filter(Boolean))
+  const said = useMoveReasons(txs)
   return (
     <View>
       {txs.map(({ t, r }, i) => {
         const d = describeBundle(t)
         const who = subjectOf(t).account
+        const why = r ? said(r.s, who) : null
+        const follow = showFollow && !!who && !f.isFollowing('wallet', who)
         const what = r ? r.title : t.legs[0]?.symbol ?? ''
         const usd = headlineUsd(t).usd
         const tone = d.cls === 'k-in' ? C.ok : d.cls === 'k-out' || d.cls === 'k-liq' ? C.bad : d.cls === 'k-borrow' ? C.warn : C.tx70
         const line = <Txt s={13} c={C.tx70} numberOfLines={1}><Txt s={13} w={600} c={tone}>{d.verb}</Txt> {what}</Txt>
         return (
-          <View key={`${t.chainId}:${t.txHash}`} style={[st.move, i > 0 && st.line]}>
+          <View key={`${t.chainId}:${t.txHash}`} style={i > 0 && st.line}>
+          <View style={st.move}>
             {hideWho ? <View style={{ flex: 1 }}>{line}</View> : (
               <Pressable onPress={() => openWallet(who)} style={{ flex: 1 }}>
                 <Who account={who} profile={profile(who)} idx={subjectOf(t)} size={24} sub={`${d.verb} ${what}`} />
@@ -87,12 +96,48 @@ export function Moves({ txs, hideWho }: { txs: { t: TxBundle; r: LiteRow | null 
               <Txt s={13} w={600}>{usd != null ? usdShort(Math.abs(usd)) : '–'}</Txt>
               <Txt s={11} c={C.tx40}>{ago(t.blockTs)}</Txt>
             </View>
+            {follow && <FollowButton kind="wallet" target={who} quiet />}
             {r && normAddr(who) !== normAddr(account ?? '') ? <Btn sm title="Copy" onPress={() => openStrategy(r.s, { copy: who })} /> : <View style={{ width: 52 }} />}
+          </View>
+          {why && <Txt s={12.5} c={C.tx70} lh={18} numberOfLines={2} style={st.why}>“{why.body}”</Txt>}
           </View>
         )
       })}
     </View>
   )
+}
+
+/**
+ * Lite's moves (the web's `LiteMoves`, Home and You): the people you follow, or the wallets with the
+ * best rates — the shared `useLiteMoves` decides which and what is kept. `followingOnly` (You): no
+ * Everyone, and nothing at all without follows. Their moves on screen count as seen: the Home dot goes.
+ */
+export function LiteMoves({ rows, account, limit = 8, title, followingOnly }: { rows: LiteRow[]; account: string | undefined; limit?: number; title?: string; followingOnly?: boolean }) {
+  const { allChains, chainIds } = useChains()
+  const { tab, setTab, has, txs, loading } = useLiteMoves({ rows, account, limit, chains: allChains ? undefined : chainIds.join(','), followingOnly })
+  React.useEffect(() => { if (tab === 'following' && txs.length) writeSeen(Date.now()) }, [tab, txs.length])
+  if (followingOnly && !has) return null
+  const empty = tab === 'following' && !has
+    ? account ? 'Follow someone and their moves show here, with a Copy on each. Everyone shows the wallets with the best rates.' : 'Connect a wallet to follow people. Everyone shows what the wallets with the best rates do.'
+    : !txs.length ? tab === 'following' ? 'Nothing from them yet.' : 'No move to copy from the best rates right now.' : null
+  return (
+    <View style={{ marginTop: 26 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+        <Txt s={16} w={600} style={{ letterSpacing: -0.16, flex: 1 }}>{title ?? (tab === 'following' ? 'People you follow' : 'Moves by the best rates')}</Txt>
+        {!followingOnly && <Seg items={[{ id: 'following', word: 'Following' }, { id: 'everyone', word: 'Everyone' }]} value={tab} onChange={setTab} />}
+      </View>
+      <View style={st.card}>
+        {loading ? <View style={{ padding: 14 }}><Sk w={200} /></View>
+          : empty ? <Txt s={13} c={C.tx50} lh={19} style={{ padding: 14 }}>{empty}</Txt>
+          : <Moves txs={txs} showFollow={tab === 'everyone'} />}
+      </View>
+    </View>
+  )
+}
+
+/** The dot on Lite's Home tab: moves by the people you follow since you last saw them. */
+export function HomeDot() {
+  return useUnseen() > 0 ? <View style={st.dot} accessibilityLabel="New from people you follow" /> : null
 }
 
 /**
@@ -238,6 +283,9 @@ export function LinkedWallets({ account }: { account: string }) {
 
 const st = StyleSheet.create({
   move: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
+  why: { paddingHorizontal: 14, paddingBottom: 10, marginTop: -4, fontStyle: 'italic' },
+  card: { backgroundColor: C.b200, borderRadius: 12, overflow: 'hidden' },
+  dot: { position: 'absolute', top: 2, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: C.primary },
   line: { borderTopWidth: 1, borderTopColor: '#1a1a1f' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   pend: { backgroundColor: C.b200, borderRadius: 12, padding: 14, gap: 10, borderWidth: 1, borderColor: C.primary },

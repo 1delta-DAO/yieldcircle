@@ -282,6 +282,8 @@ export interface LoopTenor { id: string; days: number; duration: number; duratio
  */
 /** A Loopscale pair's lender key (`LOOPSCALE_<principal>_<collateral>`): one isolated book per pair, loans as accounts. */
 export const isLoopscale = (lender?: string) => !!lender?.startsWith('LOOPSCALE_')
+/** A loop whose debt is a plain variable-rate loan the lending routes can add to: no term, tenor, maturity or Loopscale book. */
+export const plainLoan = (s: LoopStrategy) => !s.terms && !s.tenors && !s.dueAt && !isLoopscale(s.lender)
 export const LOOPSCALE_TENORS: LoopTenor[] = [
   { id: '1d', days: 1, duration: 1, durationType: 0 },
   { id: '1w', days: 7, duration: 1, durationType: 1 },

@@ -22,8 +22,8 @@ import { bufferOfHealth } from '@yieldcircle/core/model/lite'
 import { pct } from '@yieldcircle/core/model/format'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import type { Holding } from '@yieldcircle/core/model/positions'
-import type { Strategy } from '@yieldcircle/core/model/strategies'
-import { DepositBody, LoanBody, LoopBody, ManageLoopBody, WithdrawBody } from '../../src/ticket/bodies'
+import { plainLoan, type Strategy } from '@yieldcircle/core/model/strategies'
+import { DepositBody, LoanBody, LoopBody, LoopLoanBody, ManageLoopBody, WithdrawBody } from '../../src/ticket/bodies'
 
 /**
  * Lite's ticket (the web's `LiteTicket`, docs/lite.md §5), as a sheet: what it is in words, then one
@@ -90,14 +90,15 @@ export default function TicketScreen() {
   const lev = s?.kind === 'loop' ? (h?.leverage && h.leverage > 1.05 ? h.leverage : copyLev && copyLev > 1.05 ? copyLev : s.tiers.balanced) : h?.kind === 'loop' ? h.leverage ?? 1 : 0
   const face = s?.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : s ? <Tok sym={s.assetSymbol} logo={[s.tokenLogo, s.logo]} size={26} /> : <Tok sym={h!.symbol} logo={h!.logo} size={26} />
   // the sheet's foot: the same position (or row) on Pro's own page, on the web
-  const pro = h ? `#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: mode === 'add' ? 'add' : isLoop ? 'manage' : 'reduce' })}`
+  const pro = h ? `#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: mode === 'add' ? 'add' : mode === 'topup' || mode === 'payback' ? 'loan' : isLoop ? 'manage' : 'reduce' })}`
     : s ? `#/${s.group}?${new URLSearchParams({ s: s.id, k: s.kind })}` : '#/'
   const top = holdings.length > 1 && mode !== 'add' && h
     ? <Choices label="Which one" items={holdings.map((x) => ({ id: x.key, word: usd(x.valueUsd), line: [x.subAccount?.label, holdingLine(x).text].filter(Boolean).join(' · ') }))} on={h.key} onPick={(k) => setHk(k)} />
     : null
   const moreWhat = mode === 'add' ? (isLoop ? 'How hard to push it, what to pay with, every number' : 'What to pay with, every number')
     : mode === 'close' ? 'What you get it back in, every number'
-    : isLoop ? 'Any of Lite’s leverages, every number' : 'How it is paid out, every number'
+    : mode === 'reduce' ? (isLoop ? 'Any of Lite’s leverages, every number' : 'How it is paid out, every number')
+    : 'Every number'
   return (
     <MoreCtx.Provider value={{ open: more, close: () => setMore(false), pro, top }}>
     <ThreadCtx.Provider value={talk}>
@@ -124,6 +125,8 @@ export default function TicketScreen() {
       {h && mode !== 'add'
         ? (h.subAccount?.unsupported
           ? <><Sec><Txt s={13} c={C.tx70}>YieldCircle cannot build for this account yet: manage it on {h.venue.split(' · ')[0]}.</Txt></Sec><MoreSheet><HeldNumbers h={h} s={s} /></MoreSheet></>
+          // the loan's two sides, no swap: borrowing too where the loop is a plain loan
+          : mode === 'topup' || mode === 'payback' ? <><LoopLoanBody key={h.key + mode} s={s?.kind === 'loop' ? s : null} h={h} idle={b.idlePerChain} canBorrow={s?.kind === 'loop' && plainLoan(s)} pane={mode === 'topup' ? 'borrow' : 'repay'} /><MoreSheet><HeldNumbers h={h} s={s} /></MoreSheet></>
           : isLoop ? <ManageLoopBody key={h.key + mode} s={s?.kind === 'loop' ? s : null} h={h} close={mode === 'close'} />
           : <WithdrawBody key={h.key} s={s?.kind === 'simple' ? s : null} h={h} />)
         : s?.kind === 'simple' ? <DepositBody key={into?.key} s={s} idle={chainIdle} allIdle={b.idlePerChain} into={into} />
@@ -131,7 +134,7 @@ export default function TicketScreen() {
         : null}
       {s && <Trust left={`${trustKind(s)} · ${usdShort(s.tvlUsd)} in it`} right={brandOf(s)} />}
       {s && mode === 'add' && <WhoIsIn s={s} uid={uidOf(s)} thread={talk} heldBy={heldBy(L.proof(s))} />}
-      {s && h && !liteEligible(s) && <Trust left={`Lite does not offer this one new, but it is yours: ${isLoop ? 'make it safer or close it here' : 'take it out here'}.`} />}
+      {s && h && !liteEligible(s) && <Trust left={`Lite does not offer this one new, but it is yours: ${isLoop ? 'add to it, make it safer or close it here' : 'add to it or take it out here'}.`} />}
       <Details what={moreWhat} onOpen={() => setMore(true)} />
     </Frame>
     </ThreadCtx.Provider>

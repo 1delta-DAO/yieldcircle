@@ -1,7 +1,7 @@
 import React from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
-import { fromUnits, heldRaw, portion } from '@yieldcircle/core/model/amount'
-import { collateralOf, dropOf, offerFromHolding, owedOf, type BorrowOffer } from '@yieldcircle/core/model/borrow'
+import { fromUnits, heldRaw, portion, unitsOf, type Amount } from '@yieldcircle/core/model/amount'
+import { ZONES, collateralOf, dropOf, offerFromHolding, owedOf, type BorrowOffer } from '@yieldcircle/core/model/borrow'
 import { brandOf, closeLines, debtWord, depositLines, leverTag, liteTiers, loopLines, moneyWord, bufferOfHealth, plainName, riskWord, saferLines, shownDp, withdrawLines } from '@yieldcircle/core/model/lite'
 import { DEFAULT_TIER, liqBuffer, netAprAtLeverage, type TierId } from '@yieldcircle/core/model/leverage'
 import { num, pct, usd, usdShort, cents } from '@yieldcircle/core/model/format'
@@ -16,6 +16,7 @@ import { useLoopTicket } from '@yieldcircle/app/tickets/loop'
 import { useWithdrawTicket } from '@yieldcircle/app/tickets/withdraw'
 import { useManageLoop } from '@yieldcircle/app/tickets/manageLoop'
 import { useRepayTicket } from '@yieldcircle/app/tickets/repay'
+import { ZONE_ORDER, loopLoanOffer, sig4, useBorrowTicket, useTopUpTicket } from '@yieldcircle/app/tickets/borrow'
 import { C } from '../theme'
 import { Txt } from '../ui/Txt'
 import { Action, AmountBox, AmtLine, AmtSub, Cells, Choices, GetLine, Lbl, Lines, LossAck, MoreNote, MoreSheet, Numbers, Plain, Presets, Sec } from './parts'
@@ -294,9 +295,142 @@ function RepayBody({ o, h, idle, lite }: { o: BorrowOffer; h: Holding; idle: Idl
   )
 }
 
+// ----------------------------------------------------------------- a loop as a loan
+/**
+ * A held loop worked as a loan, with no swap (the web's `LoopLoanPanes` with Lite's `pane`):
+ * "Deposit & borrow" — collateral in and, where it is a plain loan, more borrowed to the wallet —
+ * or "Repay & withdraw" — debt paid from the wallet and, if you like, collateral out. Both second
+ * legs start at nothing, so the one-tap move is the safer one. `canBorrow` false (a term, a tenor, a
+ * maturity, or a position off the menu) keeps the first side to the collateral leg.
+ */
+export function LoopLoanBody({ s, h, idle, canBorrow, pane }: { s: LoopStrategy | null; h: Holding; idle: Idle[]; canBorrow: boolean; pane: 'borrow' | 'repay' }) {
+  const o = React.useMemo(() => loopLoanOffer(s, h), [h, s])
+  const borrows = canBorrow && !!s
+  if (!o) return <Sec><Plain tone="warn">This position can’t be read well enough to change here. Open it in Pro.</Plain></Sec>
+  return (
+    <>
+      <Sec><Txt s={12} c={C.tx50} lh={17}>{pane === 'repay' ? 'Pay debt back from your wallet and, if you like, take collateral out. No swap: nothing is sold, whatever the market pays.'
+        : borrows ? 'Put more collateral in to make it safer and, if you like, borrow against it to your wallet. No swap: nothing is bought, whatever the market pays.'
+        : 'Put more collateral in from your wallet to move it away from liquidation. No swap: nothing is bought, whatever the market pays.'}</Txt></Sec>
+      {pane === 'repay' ? <RepayWithdrawBody key={h.key + ':repay'} o={o} h={h} idle={idle} />
+        : borrows ? <DepositBorrowBody key={h.key + ':borrow'} o={o} h={h} idle={idle} />
+        : <CollateralInBody key={h.key + ':topup'} o={o} h={h} idle={idle} />}
+    </>
+  )
+}
+
+const ZTONE = { ok: C.ok, warn: C.warn, bad: C.bad } as const
+function DepositBorrowBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] }) {
+  const t = useBorrowTicket(o, h, idle, { loop: true })
+  const [getOpen, setGetOpen] = React.useState(false)
+  // the borrow box keeps what was typed ("1." stays "1."); a chip shows its own sum
+  const [typedAmt, setTypedAmt] = React.useState<Amount | null>(null)
+  const shown = t.pick?.typed && t.pick.by === t.unit && typedAmt ? typedAmt : fromUnits(t.boxValue)
+  const zt = ZONES[t.zone]
+  const owesSomething = t.totalDebt > 0
+  return (
+    <>
+      <Sec>
+        {t.opts.length > 1 && <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>{t.opts.map((x) => (
+          <Pressable key={x.role} onPress={() => t.setRole(x.role)} style={[st.mode, t.chosen.role === x.role && st.modeOn]}>
+            <Txt s={13} c={t.chosen.role === x.role ? C.primary : C.tx50}>{x.symbol}{t.account ? ` · ${num(t.balOf(x.address)?.amount ?? 0, 3)}` : ''}</Txt>
+          </Pressable>))}</View>}
+        <Lbl>Add collateral · {t.chosen.symbol} · optional</Lbl>
+        <AmountBox unit={t.chosen.symbol} value={t.putAmt} onChange={t.setPut} onMax={t.bal ? () => t.setPut(portion(t.bal!, 100, t.chosen.decimals)) : undefined} />
+        <AmtSub left={t.price > 0 ? `≈ ${usd(t.putUsd)} · ${num(t.heldUnits, 4)} in already` : 'no price for it right now'} right={t.account ? `You have ${num(t.bal?.amount ?? 0, 4)} ${t.chosen.symbol}` : undefined} warn={t.short ? 'not enough' : undefined} />
+        <GetLine account={t.account} short={t.short} symbol={t.chosen.symbol} onOpen={() => setGetOpen(true)} />
+        {getOpen && <GetSheet targets={t.opts.map((x) => ({ chainId: o.chainId, address: x.address, symbol: x.symbol, decimals: x.decimals, price: t.price, logo: x.role === 'token' ? o.collateral.logo : undefined, have: t.balOf(x.address)?.amount ?? 0 }))} want={t.put} sources={idle}
+          onTarget={(x) => t.setRole(t.opts.find((y) => y.address === x.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}
+      </Sec>
+      <Sec>
+        <Lbl>Borrow · {o.debt.symbol} · optional</Lbl>
+        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+          {ZONE_ORDER.map((k) => {
+            const v = t.z[k], on = v != null && Math.abs(t.take - v) < 0.01
+            return (
+              <Pressable key={k} disabled={v == null} onPress={() => { if (v != null) { setTypedAmt(null); t.setTake(v) } }} style={[st.zone, on && { borderColor: ZTONE[ZONES[k].cls] }, v == null && { opacity: 0.5 }]}>
+                <Txt s={12} w={600} c={ZTONE[ZONES[k].cls]}>{ZONES[k].word}</Txt>
+                <Txt s={15} mono c={C.tx}>{v == null ? '—' : usdShort(v)}</Txt>
+                <Txt s={10.5} mono c={C.tx50}>{v == null ? 'out of reach' : `room −${pct(dropOf(t.collUsd, t.owedUsd + v, o.liqLtv) * 100, 0)}`}</Txt>
+              </Pressable>
+            )
+          })}
+        </View>
+        <AmountBox unit={t.unit === 'usd' ? '$' : o.debt.symbol} value={shown} onChange={(a) => { setTypedAmt(a); t.setPick({ by: t.unit, v: unitsOf(a), typed: true }) }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+          <Txt s={12} mono c={C.tx50}>{t.unit === 'usd' ? `= ${sig4(t.debtUnits)} ${o.debt.symbol}` : `≈ ${usd(t.take)}`}</Txt>
+          <Pressable onPress={() => { setTypedAmt(null); t.setUnit(t.unit === 'usd' ? 'tok' : 'usd') }} hitSlop={6}><Txt s={12} c={C.primary}>type it in {t.unit === 'usd' ? o.debt.symbol : 'dollars'}</Txt></Pressable>
+        </View>
+        {t.over && t.take > 0 && <Txt s={12} c={C.warn} style={{ marginTop: 4 }}>{t.cap > 0 ? `most here: ${t.usdOut ? usd(t.cap) : `${sig4(t.cap / t.debtPrice)} ${o.debt.symbol}`}` : 'put something up first'}</Txt>}
+      </Sec>
+      <Sec>
+        <Txt s={13} c={C.tx70} lh={19}><Txt s={13} w={600} c={ZTONE[zt.cls]}>{zt.word}</Txt> · {t.owedUsd > 0.005 ? 'the whole loan costs' : 'costs'} about <Txt s={13} w={600} c={C.tx}>{usd(t.monthly)}</Txt> a month ({pct(t.apr)} APR)</Txt>
+        {owesSomething && <Txt s={13} c={C.tx70} lh={19} style={{ marginTop: 6 }}>{o.pegged
+          ? `Both sides are dollars: only ${o.collateral.symbol} losing its peg by ${pct(t.drop * 100, 1)} can liquidate this.`
+          : t.mixed ? `If what you have put up loses ${pct(t.drop * 100, 0)} of its value, the lender sells some of it to repay.`
+          : !t.usdOut ? `If ${o.collateral.symbol} falls below ${sig4(t.liqRatio)} ${o.debt.symbol} (−${pct(t.drop * 100, 0)}), the lender sells it to repay.`
+          : `If ${o.collateral.symbol} falls below ${usd(t.liqPx)} (−${pct(t.drop * 100, 0)}), the lender sells it to repay.`}</Txt>}
+        {t.zone === 'spicy' && t.take > 0 && (
+          <Pressable onPress={() => t.setAck(!t.ack)} style={{ flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'flex-start' }}>
+            <View style={[st.box, t.ack && { backgroundColor: C.warn, borderColor: C.warn }]} />
+            <Txt s={12.5} c={C.tx70} lh={18} style={{ flex: 1 }}>Spicy: an ordinary move can liquidate this, and liquidation costs a penalty on top. I have a plan to add collateral or pay back fast.</Txt>
+          </Pressable>
+        )}
+      </Sec>
+      <Action ladder={t.ladder} label={t.label} account={t.account} isConnected={t.isConnected} disabled={!!t.blocked} blockedNote={t.blocked ?? undefined} risky={t.zone === 'spicy'} chainId={o.chainId} />
+    </>
+  )
+}
+
+function CollateralInBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] }) {
+  const t = useTopUpTicket(o, h, idle)
+  return (
+    <>
+      <Sec>
+        <Lbl>How much {t.chosen.symbol} to put in · {num(h.amount, 4)} in it now</Lbl>
+        <AmountBox unit={t.chosen.symbol} value={t.amt} onChange={t.setAmt} onMax={t.bal ? () => t.setAmt(portion(t.bal!, 100, t.chosen.decimals)) : undefined} />
+        <Presets onPick={(p) => t.bal && t.setAmt(portion(t.bal, p, t.chosen.decimals))} />
+        <AmtSub left={`≈ ${usd(t.put * t.price)}`} right={t.account ? `You have ${num(t.bal?.amount ?? 0, 4)} ${t.chosen.symbol}` : undefined} warn={t.short ? 'not enough' : undefined} />
+      </Sec>
+      <Cells hero={{ k: 'From liquidation after', v: t.owedUsd > 0 ? pct(dropOf(t.collAfter, t.owedUsd, t.liq) * 100, 1) : '—', s: t.owedUsd > 0 ? `was ${pct(dropOf(t.heldUsd, t.owedUsd, t.liq) * 100, 1)}` : 'nothing owed' }}
+        cells={[{ k: 'Leverage after', v: `×${num(t.levOf(t.collAfter), 1)}`, s: `was ×${num(t.levOf(t.heldUsd), 1)}` }]} />
+      <Action ladder={t.ladder} label={t.put > 0 ? `Put in ${num(t.put, 4)} ${t.chosen.symbol}` : 'Add collateral'} account={t.account} isConnected={t.isConnected} disabled={!!t.blocked} blockedNote={t.blocked ?? undefined} chainId={o.chainId} />
+    </>
+  )
+}
+
+/** Both legs (the web's `RepayPane` on a loop): debt paid from the wallet, and collateral out if you like. */
+function RepayWithdrawBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] }) {
+  const t = useRepayTicket(o, h, idle)
+  const [getOpen, setGetOpen] = React.useState(false)
+  return (
+    <>
+      <Sec>
+        <Lbl>Repay · {o.debt.symbol} (of {num(t.owed, 2)} owed)</Lbl>
+        <AmountBox unit={o.debt.symbol} value={t.repayAmt} onChange={t.setRepay} onMax={() => t.setRepay(fromUnits(t.owed))} />
+        <Presets onPick={(p) => t.setRepay(fromUnits(p === 100 ? t.owed : floor6(t.owed * p / 100)))} />
+        <AmtSub left={`≈ ${usd(t.r * t.debtPrice)}`} right={t.account ? `You have ${num(t.debtBal?.amount ?? 0, 2)} ${o.debt.symbol}` : undefined} warn={t.shortDebt ? 'not enough' : undefined} />
+        {t.shortDebt && <GetLine account={t.account} short symbol={o.debt.symbol} onOpen={() => setGetOpen(true)} />}
+        {getOpen && o.debt.address && <GetSheet targets={[{ chainId: o.chainId, address: o.debt.address, symbol: o.debt.symbol, decimals: o.debt.decimals, price: t.debtPrice, logo: o.debt.logo, have: t.debtBal?.amount ?? 0 }]}
+          want={Math.max(0, t.r - (t.debtBal?.amount ?? 0))} sources={idle} onClose={() => setGetOpen(false)} />}
+      </Sec>
+      <Sec>
+        <Lbl>Withdraw · {o.collateral.symbol} (of {num(t.held, 4)} in it) · optional</Lbl>
+        <AmountBox unit={o.collateral.symbol} value={t.outAmt} onChange={t.setOut} onMax={() => t.setOut(t.repayAll && t.otherDebtUsd <= 0.5 ? portion(heldRaw(h), 100, o.collateral.decimals) : fromUnits(floor6(t.maxOut)))} />
+        <AmtSub left={`≈ ${usd(t.w * t.price)}`} right={t.debtAfter > 0 ? `at most ${num(t.maxOut, 4)} while ${usd(t.debtAfter)} is owed` : 'all of it, once repaid'} />
+      </Sec>
+      <Cells hero={{ k: 'Owed after', v: usd(t.debtAfter), s: t.debtAfter > 0 ? `${pct(dropOf(t.collAfter, t.debtAfter, t.liq) * 100, 0)} from liquidation after` : 'the loan is paid off' }}
+        cells={[{ k: 'Back to you', v: usd(t.w * t.price), s: `${num(t.w, 4)} ${o.collateral.symbol}` }]} />
+      <Action ladder={t.ladder} label={t.r > 0 && t.w > 0 ? `Repay ${usd(t.r * t.debtPrice)} · withdraw ${num(t.w, 4)} ${o.collateral.symbol}` : t.r > 0 ? `Repay ${usd(t.r * t.debtPrice)}` : `Withdraw ${num(t.w, 4)} ${o.collateral.symbol}`} account={t.account} isConnected={t.isConnected} disabled={!!t.blocked} blockedNote={t.blocked ?? undefined} chainId={o.chainId} />
+    </>
+  )
+}
+
 const st = StyleSheet.create({
   safer: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: C.b300, borderWidth: 1, borderColor: 'transparent' },
   modes: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   mode: { minHeight: 32, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: 'transparent', justifyContent: 'center' },
   modeOn: { borderColor: C.primary, backgroundColor: '#062830' },
+  zone: { flex: 1, gap: 2, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderColor: C.b300, backgroundColor: '#0d0d0d' },
+  box: { width: 16, height: 16, marginTop: 1, borderRadius: 4, borderWidth: 1.5, borderColor: C.tx50 },
 })

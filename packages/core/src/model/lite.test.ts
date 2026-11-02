@@ -301,6 +301,11 @@ describe('liteModes', () => {
   it('offers a held loop the plain top-up and pay-back beside Lower risk and Close', () => {
     expect(ids(held())).toEqual(['reduce', 'topup', 'payback', 'close'])
   })
+  it('lets a held position be added to even when Lite would not open it new', () => {
+    const s = { id: 's', kind: 'loop', tvlUsd: 0 } as unknown as Strategy
+    expect(ids(held(), s)).toEqual(['add', 'reduce', 'topup', 'payback', 'close'])
+    expect(ids(held({ subAccount: { id: '1', label: 'Multiply', count: 1, unsupported: 'no build' } }), s)).toEqual(['reduce', 'close'])
+  })
   it('never on paper, an unmanaged sub-account, or a loop whose legs are not both named', () => {
     expect(ids(held({ paper: true }))).toEqual(['reduce', 'close'])
     expect(ids(held({ subAccount: { id: '1', label: 'Multiply', count: 1, unsupported: 'no build' } }))).toEqual(['reduce', 'close'])

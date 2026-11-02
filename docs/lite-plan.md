@@ -341,10 +341,14 @@ Changes against the plan above, and why:
     The first build sent any position outside Lite's menu to Pro, which was most
     real ones: a ×21 loop under the buffer floor, loans, a deposit below a floor.
     You now opens each on its own Lite ticket (`#/lite/you?h=…`,
-    `LiteHoldingTicket`, `LiteLoanTicket`). A loop gets Add (only when Lite offers
-    it, at the position's own leverage capped at Balanced), Lower risk (the
+    `LiteHoldingTicket`, `LiteLoanTicket`). A loop gets Add (at the position's own
+    leverage capped at Balanced; since 2026-11-02 also on a position Lite would
+    not open new, so long as its ticket can carry the row — no term, tenor, date
+    or book — and the account is one the API builds for), Lower risk (the
     leverage that leaves 5 %, 10 % or 20 % to liquidation, `saferTargets`), Top
-    up, Pay back and Close. Top up and Pay back (2026-10-26) are the two moves
+    up, Pay back and Close (since 2026-11-02 the tabs read "Deposit & borrow"
+    and "Repay & withdraw": "Top up" read as adding to the position). Top up and
+    Pay back (2026-10-26) are the two moves
     with no swap: more collateral in from the wallet (`lending/deposit`), or part
     of the debt paid from it (`lending/repay`, the loan ticket's own pane). Each is
     one lending action on the loop's own account, and both make it safer. They

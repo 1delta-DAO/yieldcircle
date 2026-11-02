@@ -2,7 +2,7 @@ import React from 'react'
 import { nameOf, unitOf } from '@yieldcircle/core/model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, capRaw, toRaw, type TierId } from '@yieldcircle/core/model/leverage'
 import { fromUnits, heldRaw, payRaw, portion, unitsOf, type Amount } from '@yieldcircle/core/model/amount'
-import { dateOf, exitTerms, isBooked, loopRewards, isLoopscale, type LoopStrategy, type LoopTenor, type LoopTerm, type SimpleStrategy, type Strategy } from '@yieldcircle/core/model/strategies'
+import { dateOf, exitTerms, isBooked, loopRewards, plainLoan, type LoopStrategy, type LoopTenor, type LoopTerm, type SimpleStrategy, type Strategy } from '@yieldcircle/core/model/strategies'
 import { isSvmTx, type LoopActions, type LoopPayAsset } from '@yieldcircle/core/sdk/types'
 import { isNativeAddress, nativeDecimals, nativeSymbol, wrapsNative, type Holding, type Idle } from '@yieldcircle/core/model/positions'
 import { earnDeposit, earnWithdraw, enableCollateral, loopClose, loopOpen, midnightSell, nativeAsset } from '@yieldcircle/core/sdk/api'
@@ -137,16 +137,16 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
 }
 
 /** A loop whose debt is a plain variable-rate loan, which the lending routes can add to. Not a term, a tenor or a maturity: those owe a fixed face. */
-const plainLoan = (s: LoopStrategy) => !s.terms && !s.tenors && !s.dueAt && !isLoopscale(s.lender)
 
 /**
  * Lite's ticket (docs/lite.md §5): what it is in words, where the money sits as one trust line,
  * then one of a few plain actions — never a tier, a slider, a route or a sub-account. Everything
  * those decide is one tap away in Details, which opens the same strategy in Pro with the same amount.
  *
- * On a held position the actions are the position's: a loop can be added to (only when Lite would
- * offer it), made safer (three targets by distance from liquidation) or closed; a deposit added to
- * or withdrawn from. A position Lite would not open itself — a 21× loop, a market below its floors,
+ * On a held position the actions are the position's: a loop can be added to (at its own leverage
+ * or lower, whether or not Lite would open it new), made safer (three targets by distance from
+ * liquidation), given collateral and borrowed against, paid down, or closed; a deposit added to or
+ * withdrawn from. A position Lite would not open itself — a 21× loop, a market below its floors,
  * one the menu has no row for — is still the reader's, so it is managed here all the same. One
  * that sits close to the line opens on "Lower risk".
  */
@@ -215,14 +215,14 @@ function LiteTicket({ s, idle, holdings, holding, into: into0, mode0, copy, copy
         : null}
       </LiteMoreCtx.Provider>
       {s && <div className="tsec lite-trust"><span>{trustKind(s)} · {usdShort(s.tvlUsd)} in it</span><span className="sp" /><span className="t50">{brandOf(s)}</span></div>}
-      {s && h && !liteEligible(s, st) && <div className="tsec lite-trust"><span>Lite does not offer this one new, but it is yours: {isLoop ? 'make it safer or close it here' : 'take it out here'}.</span></div>}
+      {s && h && !liteEligible(s, st) && <div className="tsec lite-trust"><span>Lite does not offer this one new, but it is yours: {isLoop ? 'add to it, make it safer or close it here' : 'add to it or take it out here'}.</span></div>}
       {s && mode === 'add' && <LiteWho s={s} uid={uid} thread={thread ?? null} heldBy={heldBy(L.proof(s))} />}
       <LiteDetails onOpen={() => setDetails(true)} what={moreWhat} />
     </div>
   )
 }
 
-/** "More choices" on a move with nothing to choose (Top up, Pay back, an account it cannot build for): the position's numbers. */
+/** "More choices" on a move with nothing to choose (Deposit & borrow, Repay & withdraw, an account it cannot build for): the position's numbers. */
 function LiteHeldNumbers({ h, s }: { h: Holding; s: Strategy | null }) {
   const b = bufferOfHealth(h.health)
   return (

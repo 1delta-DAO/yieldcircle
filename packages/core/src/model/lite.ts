@@ -48,9 +48,13 @@ export function liteEligible(s: Strategy, f: LiteFloors = LITE_FLOORS): boolean 
   if (!LITE_GROUPS.includes(s.group) || s.hide) return false
   if (!isSavings(s.nature) || (!s.rated && f.maxRisk < 5) || s.riskScore > f.maxRisk) return false
   if (!(s.tvlUsd >= f.minTvlUsd) || !(s.rate > 0 || f.showNegative)) return false
+  if (!liteCarries(s)) return false
+  return s.kind === 'simple' || ((s.collateralYields || f.showRateBets) && s.tiers.balanced > 1 && liqBuffer(s.liqLtv, s.tiers.balanced) >= LITE_MIN_BUFFER)
+}
+/** What Lite's three-line ticket can build into at all, whatever its floors: nothing to pick a date, term or book for. */
+export function liteCarries(s: Strategy): boolean {
   if (s.kind === 'simple') return !s.book && !s.dates?.length && !s.passthrough && s.canDeposit !== false
-  return !s.terms?.length && !s.tenors?.length && !s.dueAt && !s.dates?.length && (s.collateralYields || f.showRateBets) && s.tiers.balanced > 1
-    && liqBuffer(s.liqLtv, s.tiers.balanced) >= LITE_MIN_BUFFER
+  return !s.terms?.length && !s.tenors?.length && !s.dueAt && !s.dates?.length
 }
 
 /** The money's family word, for the three monies Lite names by whose they are. */
@@ -692,26 +696,29 @@ export const LITE_NAME: Record<string, { name: string; line: string }> = {
 /** The Lite ticket's actions on a strategy and, when the wallet holds it, its position (docs/lite.md §5). */
 export type LiteMode = 'add' | 'reduce' | 'topup' | 'payback' | 'close'
 /**
- * Which tabs Lite's ticket shows and which it opens on. Adding is opening Lite's own strategy: only
- * on a row Lite offers. A held loop is added to, made safer, topped up, paid down or closed; a
- * deposit added to or withdrawn from — and a position close to the line opens on "Lower risk".
- * `mode0`: what the link asked for (`add`, `close`, `loan` = Top up, anything else is a reduce).
+ * Which tabs Lite's ticket shows and which it opens on. Adding new is opening Lite's own strategy:
+ * only on a row Lite offers. Adding to a position the reader holds is theirs to do whether or not
+ * Lite would open it today — at the loop's own leverage or lower, never harder — so long as the app
+ * can build into that account (not an unmanaged sub-account). A held loop is added to, made safer,
+ * given collateral and borrowed against, paid down or closed; a deposit added to or withdrawn from —
+ * and a position close to the line opens on "Lower risk".
+ * `mode0`: what the link asked for (`add`, `close`, `loan` = Deposit & borrow, anything else is a reduce).
  *
- * "Top up" and "Pay back" are the loan ticket's two sides on a loop, with no swap — how its risk is
+ * "Deposit & borrow" and "Repay & withdraw" are the loan ticket's two sides on a loop, with no swap — how its risk is
  * contained when swapping costs too much: collateral in from the wallet (and, on a plain
  * variable-rate loan, more borrowed against it), or debt paid from the wallet (and collateral taken
  * out). Only on a real position the app can name both legs of (a paper loop's ledger takes
  * neither: it adds to and pays back loans only).
  */
 export function liteModes(s: Strategy | null, h: Holding | null, mode0?: string, f: LiteFloors = LITE_FLOORS): { canAdd: boolean; isLoop: boolean; start: LiteMode; tabs: { id: LiteMode; word: string }[] } {
-  const canAdd = !!s && liteEligible(s, f)
+  const canAdd = !!s && (liteEligible(s, f) || (!!h && h.kind === s.kind && !h.subAccount?.unsupported && liteCarries(s)))
   const isLoop = (s?.kind ?? h?.kind) === 'loop'
   const risky = (bufferOfHealth(h?.health) ?? 1) < 0.1
   const plain = !!h && !h.paper && !h.subAccount?.unsupported && !!h.collateralUid && !!h.debtUid && !!h.collateralAddress && !!h.debtAddress
   const start: LiteMode = !h ? 'add' : mode0 === 'close' ? 'close' : mode0 === 'loan' && plain ? 'topup' : mode0 && mode0 !== 'add' ? 'reduce' : canAdd && !risky ? 'add' : 'reduce'
   const tabs: { id: LiteMode; word: string }[] = !h ? [] : isLoop
     ? [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Lower risk' },
-      ...(plain ? [{ id: 'topup' as const, word: 'Top up' }, { id: 'payback' as const, word: 'Pay back' }] : []), { id: 'close', word: 'Close' }]
+      ...(plain ? [{ id: 'topup' as const, word: 'Deposit & borrow' }, { id: 'payback' as const, word: 'Repay & withdraw' }] : []), { id: 'close', word: 'Close' }]
     : [...(canAdd ? [{ id: 'add' as const, word: 'Add' }] : []), { id: 'reduce', word: 'Withdraw' }]
   return { canAdd, isLoop, start, tabs }
 }

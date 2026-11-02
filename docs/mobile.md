@@ -37,6 +37,14 @@ per post). "Say why" sits under the sign button and comes back once the ladder i
 the strategy's thread (`ThreadCtx`, from `useThreadOf`). Reactions and the author's stake line are
 core's (`social/words.ts`).
 
+**A held loop as a loan** (2026-11-02): Lite's "Deposit & borrow" and "Repay & withdraw" tabs
+(core's `liteModes`) draw `LoopLoanBody` (`src/ticket/bodies.tsx`), the web's `LoopLoanPanes`:
+collateral in and, on a plain loan (`plainLoan`), more borrowed — zone chips and a typed sum, no
+slider — or debt paid and collateral out. The logic is shared with the web's panes
+(`@yieldcircle/app/tickets/borrow`: `useBorrowTicket`, `useTopUpTicket`, `loopLoanOffer`; repay is
+`useRepayTicket`). Before this the two tabs fell through to Lower risk's body. Add is offered on any
+held position the ticket can carry, as on the web.
+
 **The rest of Lite** (2026-11-02), so Lite is whole on the phone:
 
 - **A position's record** (`app/position.tsx`, the web's `PnlDrawer`): a tap on any position on the

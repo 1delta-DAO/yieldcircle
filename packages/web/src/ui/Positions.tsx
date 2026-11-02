@@ -52,8 +52,16 @@ export function Positions({ b }: { b: Book }) {
       </div>
       {/* the two things money can do here, one tap each: earn on it, or borrow against it */}
       <div className="pos-acts">
-        <a className="btn" href="#/earn">Put to work{idle >= 1 ? <small>{usdShort(idle)} idle</small> : null}</a>
-        <a className="btn" href="#/borrow">Borrow cash{room >= 1 ? <small>up to {usdShort(room)}</small> : <small>without selling</small>}</a>
+        <a className="pos-act earn" href="#/earn">
+          <span className="ic" aria-hidden><svg viewBox="0 0 20 20" width="18" height="18"><path d="M3 14l5-5 3 3 6-6M12 6h5v5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
+          <span className="t">Put to work<small>{idle >= 1 ? <><b>{usdShort(idle)}</b> idle, ready to earn</> : 'find a yield'}</small></span>
+          <span className="go" aria-hidden>›</span>
+        </a>
+        <a className="pos-act borrow" href="#/borrow">
+          <span className="ic" aria-hidden><svg viewBox="0 0 20 20" width="18" height="18"><path d="M10 3v10M6 9l4 4 4-4M4 17h12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
+          <span className="t">Borrow cash<small>{room >= 1 ? <>up to <b>{usdShort(room)}</b>, without selling</> : 'without selling'}</small></span>
+          <span className="go" aria-hidden>›</span>
+        </a>
       </div>
       {b.positionsError && <div className="err">Positions could not be read: {b.positionsError.message}</div>}
       {!b.positionsLoading && !b.books.length && !b.positionsError && (

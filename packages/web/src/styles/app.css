@@ -2388,9 +2388,19 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 
 /* ---------------------------------------------------------------- borrowing, holdings first (tickets/0010) */
 /* the money sheet's two verbs: earn on it, or borrow against it */
-.pos-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 4px}
-.pos-acts .btn{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;min-height:48px;padding:6px 12px;text-align:left;font-weight:600}
-.pos-acts .btn small{font-size:11px;font-weight:400;color:var(--tx50)}
+.pos-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0 6px}
+.pos-act{--ac:var(--success);--ac-bg:var(--ok-bg);display:flex;align-items:center;gap:12px;min-height:64px;padding:10px 14px;border:1px solid color-mix(in srgb,var(--ac) 28%,var(--line));border-radius:var(--r-lg);background:linear-gradient(135deg,var(--ac-bg),var(--b200) 70%);transition:border-color .15s,transform .15s,background-color .15s}
+.pos-act.borrow{--ac:var(--primary);--ac-bg:var(--pri-bg)}
+.pos-act:hover{border-color:color-mix(in srgb,var(--ac) 60%,var(--line))}
+.pos-act:active{transform:scale(.985)}
+.pos-act .ic{flex:0 0 auto;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--ac-bg);color:var(--ac);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ac) 35%,transparent)}
+.pos-act .t{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px;font-weight:600;font-size:var(--fs-strong)}
+.pos-act .t small{font-size:var(--fs-sm);font-weight:400;color:var(--tx50);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pos-act .t small b{color:var(--ac);font-weight:600}
+.pos-act .go{flex:0 0 auto;font-size:22px;line-height:1;color:var(--ac);transition:transform .15s}
+.pos-act:hover .go{transform:translateX(3px)}
+@media (max-width:520px){.pos-act{gap:10px;padding:10px 12px}.pos-act .ic{width:32px;height:32px}.pos-act .go{display:none}}
+@media (prefers-reduced-motion:reduce){.pos-act,.pos-act .go{transition:none}}
 /* idle: earning leads, borrowing sits beside it */
 .idle-pill.borrow{background:var(--b200);border-color:var(--line)}
 .idle-pill.borrow:hover{background:var(--b300)}

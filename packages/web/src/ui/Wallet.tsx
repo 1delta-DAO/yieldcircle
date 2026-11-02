@@ -7,8 +7,8 @@
  * the header chip made goes to the index as hints, the index reads whatever
  * it is missing through its own reader, and the page renders the synced
  * answer. Every number you ACT on (a form, a max, health) stays live — that
- * is the hard rule now. A Solana wallet (no sync route on its index) and an
- * index that cannot sync keep the old note pointing at the chip.
+ * is the hard rule now. A Solana wallet syncs on the Solana index (pos-indexer
+ * tickets/0099); an index that cannot sync keeps the old note pointing at the chip.
  */
 import React from 'react'
 import { accountCarry } from '@yieldcircle/core/model/accountCarry'
@@ -29,7 +29,7 @@ import { AutoTag, Badges, FollowButton, Impaired, Money, Who, Ago, describeBundl
 import { CuratorMark, curatorHref, curatorLabel } from './CuratorFilter'
 import { Character, specFor, unearned } from '../identity/character'
 import { labelFor, shortAddr } from '@yieldcircle/core/identity/name'
-import { isAddr, isEvmAddr, isEvmChain, normAddr } from '@yieldcircle/core/model/address'
+import { isAddr, isEvmAddr, isEvmChain, isSolAddr, normAddr } from '@yieldcircle/core/model/address'
 import { AddrExplorers, CopyButton, ProtocolLogo, Sk, TermNote, Tip, Tok, TxLink, pct, protocolIconUrls, usd, usdBig, usdShort } from './bits'
 import { indexChainLabel, type AccountIdentity, type FlowsResponse, type IndexPosition, type PositionGroup, type TxBundle, type VaultRow } from '@yieldcircle/core/index/types'
 import { Thread } from './Thread'
@@ -111,10 +111,12 @@ export function Wallet({ addr }: { addr: string }) {
   // per-account write too, and hints sent after it would be reported, not read
   const other = !isMe && isEvmAddr(addr) && !paperEvm
   useLiveHintReads(other ? addr : undefined, chainIds)
-  const sync = useAccountSync(isEvmAddr(addr) && !paperEvm ? addr : undefined, isMe ? undefined : { source: LIVE_HINTS, giveUpMs: 3_000 })
+  // both indexes sync (a Solana wallet since pos-indexer tickets/0099)
+  const syncable = isEvmAddr(addr) || isSolAddr(addr)
+  const sync = useAccountSync(syncable && !paperEvm ? addr : undefined, isMe ? undefined : { source: LIVE_HINTS, giveUpMs: 3_000 })
   // waiting for the chip's live read counts as syncing: the call has not been sent yet
-  const syncing = isMe && isEvmAddr(addr) && !sync.data && !sync.isError
-  // hidden = your own page with no synced answer to show (Solana, or the sync failed)
+  const syncing = isMe && syncable && !sync.data && !sync.isError
+  // hidden = your own page with no synced answer to show (the sync failed, or an index without the route)
   const hidden = isMe && !sync.data && !syncing
   // …so it shows the chip's live book instead, when this page is the wallet the chip reads
   const book = useBook()

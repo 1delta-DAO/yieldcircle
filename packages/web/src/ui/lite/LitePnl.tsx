@@ -34,17 +34,20 @@ function RealMade({ account, accounts, positions }: { account: string; accounts:
   const q = useAccountsPnlBook(accounts, { own: true })
   // the index draws a record only for positions it has read. Pro's wallet page hands it the live
   // book's legs as hints (`useAccountSync`, docs/apis.md: hints, never shown), so a position the
-  // ledger never saw gets read; You does the same, and re-reads the book once the sync lands
-  // (the EVM index only: the Solana one takes no hints)
+  // ledger never saw gets read; You does the same, and re-reads the book once the sync lands —
+  // on both indexes (the Solana one takes hints since pos-indexer tickets/0099)
   const evm = accounts.evm
+  const sol = accounts.sol
   const sync = useAccountSync(evm)
+  const solSync = useAccountSync(sol)
   const qc = useQueryClient()
   React.useEffect(() => { if (sync.data && evm) void qc.invalidateQueries({ queryKey: ['pnl-book', evm.toLowerCase()] }) }, [sync.data, evm, qc])
+  React.useEffect(() => { if (solSync.data && sol) void qc.invalidateQueries({ queryKey: ['pnl-book', sol] }) }, [solSync.data, sol, qc])
   const [more, setMore] = React.useState(false)
   const b = q.data
   const s = b ? pnlSummary(b) : null
   if (q.isLoading) return <section className="sec lite-sec"><div className="sec-h"><h2>What you made</h2></div><div className="lpnl"><Sk w={160} h={34} /><Sk w={240} h={12} /></div></section>
-  const syncing = !!evm && !sync.data && !sync.isError
+  const syncing = (!!evm && !sync.data && !sync.isError) || (!!sol && !solSync.data && !solSync.isError)
   // no book, or one with nothing in it: say so while there is money at work, instead of a blank
   if (!b || !b.coverage.positions) return positions ? (
     <section className="sec lite-sec">
@@ -56,7 +59,7 @@ function RealMade({ account, accounts, positions }: { account: string; accounts:
     <section className="sec lite-sec">
       <div className="sec-h"><h2>What you made</h2><span className="sub">since each position opened · from the index’s records</span></div>
       <div className="lpnl">
-        {!s ? <div className="empty t50"><Waiting b={b} live={positions} syncing={syncing} gaps={sync.data?.synced === false || sync.data?.state === 'gaps'} failed={q.failed} /></div> : <>
+        {!s ? <div className="empty t50"><Waiting b={b} live={positions} syncing={syncing} gaps={[sync.data, solSync.data].some((d) => d?.synced === false || d?.state === 'gaps')} failed={q.failed} /></div> : <>
           <div className="lpnl-top">
             <b className={`lpnl-v ${s.total >= 0 ? 'ok' : 'bad'}`}>{signedMoney(s.total)}</b>
             <span className="lpnl-s t50">{s.aprPct != null ? `${pct(s.aprPct, 1)} a year on what was in` : ''}{s.on < s.of ? ` · on ${s.on} of ${s.of} positions` : ''}</span>

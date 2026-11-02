@@ -129,13 +129,13 @@ export function useAccountSync(account: string | undefined, { source = 'earn-pos
     return () => clearTimeout(t)
   }, [account, giveUpMs])
   return useQuery({
-    enabled: !!account && isEvmAddr(account) && ((answered && fetching === 0) || gaveUp),
+    enabled: !!account && (isEvmAddr(account) || isSolAddr(account)) && ((answered && fetching === 0) || gaveUp),
     queryKey: ['idx-sync', account],
     queryFn: async ({ signal }) => {
       const items = qc
         .getQueriesData<EarnPositionsResponse>({ predicate: live })
         .flatMap(([, d]) => d?.items ?? [])
-      const r = await api.syncAccount(account!, hintLegs(items), 20_000, signal)
+      const r = await api.syncAccount(account!, hintLegs(items, account), 20_000, signal)
       await qc.invalidateQueries({ queryKey: ['idx-positions', account] })
       return r
     },

@@ -1567,7 +1567,8 @@ export interface AccountSyncReport {
   waitedMs?: number
 }
 export async function syncAccount(account: string, legs: SyncHintLeg[], waitMs = 0, signal?: AbortSignal): Promise<AccountSyncReport> {
-  const r = await fetch(`${INDEX_BASE_URL}/accounts/${account}/sync${waitMs > 0 ? `?wait=${waitMs}` : ''}`, {
+  // a Solana wallet syncs on the Solana index (pos-indexer tickets/0099), the same route and report
+  const r = await fetch(`${indexForAddr(account)}/accounts/${account}/sync${waitMs > 0 ? `?wait=${waitMs}` : ''}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ legs: legs.slice(0, 200) }), signal, keepalive: waitMs === 0,
   })
   const j = (await r.json().catch(() => ({}))) as AccountSyncReport & { error?: string }

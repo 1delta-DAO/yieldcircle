@@ -860,10 +860,12 @@ export const SOL_POSITIONS_READY = true
  * What the live read found, as the index's sync hints (pos-indexer tickets/0071): each lending leg
  * by its lender + market uid, each vault by its `vault.*` uid. A leg holding nothing is left out.
  */
-export function hintLegs(items: EarnPositionsResponse['items']): SyncHintLeg[] {
+export function hintLegs(items: EarnPositionsResponse['items'], account?: string): SyncHintLeg[] {
+  // one index per VM: a Solana wallet's legs go to the Solana index, which takes them since tickets/0099
+  const ofVm = account && isSolAddr(account) ? isSvmChain : isEvmChain
   const out: SyncHintLeg[] = []
   for (const p of items) {
-    if (!isEvmChain(p.chainId)) continue
+    if (!ofVm(p.chainId)) continue
     if (p.venueKind === 'vault') {
       if (p.earnUid?.startsWith('vault.')) out.push({ chainId: p.chainId, lender: p.earnUid.split(':')[0], marketUid: p.earnUid })
       continue
@@ -913,7 +915,7 @@ export function useEarnPositions(accounts: VmAccounts, chainIds: string[]) {
         // past the browser cache (`max-age=15`): a reload right after a transaction would
         // otherwise be handed the answer from before it
         const r = await fetchEarnPositions(account, ids, {}, true)
-        if (isEvmAddr(account)) syncHints(account, hintLegs(r.items))
+        if (isEvmAddr(account) || isSolAddr(account)) syncHints(account, hintLegs(r.items, account))
         return r
       },
       staleTime: 60_000,

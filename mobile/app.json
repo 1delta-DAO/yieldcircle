@@ -9,6 +9,12 @@
     ],
     "scheme": "yieldcircle",
     "version": "0.1.0",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/17e62e78-22d2-4f64-a06e-6da4a5e31fbd"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -18,14 +24,6 @@
       "supportsTablet": false,
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
-          "metamask",
-          "rainbow",
-          "trust",
-          "cbwallet",
-          "zerion",
-          "uniswap",
-          "phantom",
-          "safe",
           "metamask",
           "rainbow",
           "trust",

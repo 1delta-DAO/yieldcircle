@@ -19,10 +19,15 @@
  *   pnpm mobile bundle              bundle both platforms, no device (the CI-style check)
  *   pnpm mobile env                 what the app would get (values masked)
  *   pnpm mobile env:push            copy the values to EAS, for preview/production builds
+ *   pnpm mobile release [ios|android]  a store build (production profile) → TestFlight / Play; after a native change
+ *   pnpm mobile update [production|preview] ["what changed"]
+ *                                   JS-only release: publish the bundle to the builds on that channel (no build,
+ *                                   no review); the phones load it on their next start
  *
  * A dev build carries native code only; its JS — and so the keys — comes from Metro on this
  * machine. Preview and production builds embed the JS on EAS's servers, which never see this
- * `.env`: `env:push` puts the same values there.
+ * `.env`: `env:push` puts the same values there. An update is bundled HERE, so it takes the keys from
+ * `.env` like `start` does.
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -183,7 +188,30 @@ switch (cmd) {
     }
     break
 
+  case 'release': {
+    requireWalletConnect(env)
+    const p = arg ?? 'ios'
+    easReady()
+    run('npx', [...EAS, 'build', '--profile', 'production', '--platform', platformArg(p), '--auto-submit'])
+    console.log('\nUploaded: the store processes it (TestFlight: 5–30 min), then testers get it.')
+    break
+  }
+
+  case 'update': {
+    requireWalletConnect(env)
+    // `update [channel] [message]`: the channel is one of the build profiles' (eas.json), else production;
+    // the message defaults to the last commit's subject
+    const named = ['production', 'preview', 'development'].includes(arg)
+    const channel = named ? arg : 'production'
+    const message = (named ? rest[1] : arg) ?? quiet('git', ['log', '-1', '--format=%s']).stdout.trim()
+    easReady()
+    // runtimeVersion is the native fingerprint: the update reaches only builds whose native code matches
+    // (after a native change it finds none — `pnpm mobile release` instead)
+    run('npx', [...EAS, 'update', '--channel', channel, '--message', message, '--non-interactive'], { env })
+    break
+  }
+
   default:
-    console.error(`unknown command "${cmd}" — start | setup | build | device | go | run | bundle | env | env:push`)
+    console.error(`unknown command "${cmd}" — start | setup | build | device | go | run | bundle | env | env:push | release | update`)
     process.exit(1)
 }

@@ -145,6 +145,8 @@ is a secret and never reaches the app.
 | `pnpm mobile run android` | build and install locally instead of EAS (Android SDK + a phone on USB; `ios` needs a Mac) |
 | `pnpm mobile env` | what the app gets, masked |
 | `pnpm mobile env:push` | copy the same values to EAS for **preview / production** builds |
+| `pnpm mobile release [ios]` | a store build (`production`) straight to TestFlight — after a native change (below) |
+| `pnpm mobile update ["what changed"]` | JS-only release to the TestFlight builds: no build, no review (below) |
 | `pnpm bundle:mobile` | bundle both platforms without a device — the check that core, the polyfills and the workspace links resolve |
 
 A dev build is native code only; its JS, keys included, comes from Metro on
@@ -203,9 +205,37 @@ development build on phones it knows, signed by a paid developer account.
    finds Metro on the same Wi-Fi, or use `pnpm mobile --tunnel`.
 
 An iOS *simulator* build needs a Mac to run, so from Linux a real phone is the
-way. For testers beyond your own phones later: a `preview` / `production` build
-goes through TestFlight (`npx eas-cli submit --platform ios`) and needs
-`pnpm mobile env:push` first, since those builds carry their JS and keys.
+way. A build installed this way (dev or `preview`, "ad hoc") runs only with
+Developer Mode on — for testers, TestFlight (below).
+
+### Testers: TestFlight and updates
+
+Set up 2026-11-01: the app is on App Store Connect (`ascAppId` 6829504192, in
+`eas.json`), the EAS submit key is stored on EAS, and the internal group
+"Team (Expo)" gets every build. Testers install **TestFlight**, accept the
+invite, install — no device registration, no Developer Mode. Internal testers
+(App Store Connect users, up to 100) need no review; an external group with a
+public link needs Beta App Review once.
+
+Two ways to ship, and which one is decided by the native code:
+
+- **`pnpm mobile update ["what changed"]`** — the everyday one. Publishes the JS
+  (screens, core, app) to the `production` channel in about a minute; the
+  phones download it on start and run it on the next one. Bundled on this
+  machine, with the root `.env`'s keys. The message defaults to the last
+  commit's subject; `pnpm mobile update preview "…"` targets the ad hoc builds.
+- **`pnpm mobile release`** — after a **native** change: a new native package,
+  an Expo SDK bump, `app.json` (icon, splash, schemes, plugins). Builds
+  `production` on EAS and submits it; TestFlight has it 30–45 min later, the
+  build number counting up by itself. Bump `version` in `app.json` only for a
+  milestone.
+
+`runtimeVersion` is the **fingerprint** of the native code, so an update only
+reaches builds it can run on: after a native change, `update` finds no build to
+land on until a `release` has gone out. When unsure which is needed,
+`npx expo-updates runtimeversion:resolve --platform ios` in `mobile/` before and
+after (the `runtimeVersion` it prints changes with the native code), or just
+`release`.
 
 ## The capabilities test, per wallet
 

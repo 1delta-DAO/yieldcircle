@@ -14,9 +14,9 @@ import { Character } from './Character'
 import { Txt } from './Txt'
 
 /**
- * The web's top bar on a phone (app.css `.top` under 768px): the profile button left — your face once
- * a wallet is connected, with a dot while changes wait for a signature — Pro's search in the middle,
- * Connect — or your balance — right. 60px, every control a full 44px target.
+ * The web's top bar on a phone (app.css `.top` under 768px): the face left — profile and settings,
+ * your face once a wallet is connected, with a dot while changes wait for a signature — Pro's search
+ * in the middle, Connect — or your balance, You behind it — right. 60px, every control a full 44px target.
  */
 export function TopBar({ pro, on }: { pro?: boolean; /** You is open: the chip is lit */ on?: boolean }) {
   const insets = useSafeAreaInsets()
@@ -27,7 +27,7 @@ export function TopBar({ pro, on }: { pro?: boolean; /** You is open: the chip i
   const waiting = usePending().count > 0
   return (
     <View style={[st.bar, { paddingTop: insets.top, height: 60 + insets.top }]}>
-      <Pressable onPress={() => router.push('/you')} hitSlop={4} style={st.me} accessibilityLabel="You">
+      <Pressable onPress={() => router.push('/profile')} hitSlop={4} style={st.me} accessibilityLabel="Profile and settings">
         {b.account ? <Character addr={b.account} avatarUrl={p?.avatarUrl} size={36} /> : <IconMe color={C.tx50} />}
         {waiting && <View style={st.dot} accessibilityLabel="Changes waiting for a signature" />}
       </Pressable>

@@ -131,26 +131,17 @@ function HomeDot() {
 function Me({ lite }: { lite?: boolean }) {
   const { account, signer, solSigner } = useApp()
   const [open, setOpen] = React.useState(false)
-  // Lite has one page about the reader, You — the face opens it, as the balance chip does; Pro's
-  // sheet (its page, alerts, filters) is Pro's (docs/lite-design-review.md §3.6)
-  if (lite) return (
-    <a className="meface" href={liteHref('you')} aria-label="You">
-      {account ? <Face addr={account} /> : (
-        <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><circle cx="10" cy="7" r="3.2" /><path d="M3.8 17c.9-3.2 3.3-4.8 6.2-4.8s5.3 1.6 6.2 4.8" strokeLinecap="round" /></svg>
-      )}
-      <PendingDot account={signer ?? solSigner} />
-    </a>
-  )
+  // the face is the profile and settings in both shells; Lite's balances are behind the chip (You)
   return (
     <>
-      <button className="meface" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label="You" title="You">
+      <button className="meface" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label={lite ? 'Profile and settings' : 'You'} title={lite ? 'Profile and settings' : 'You'}>
         {account ? <Face addr={account} /> : (
           <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><circle cx="10" cy="7" r="3.2" /><path d="M3.8 17c.9-3.2 3.3-4.8 6.2-4.8s5.3 1.6 6.2 4.8" strokeLinecap="round" /></svg>
         )}
-        {signer && <UnseenDot />}
+        {signer && !lite && <UnseenDot />}
         <PendingDot account={signer ?? solSigner} />
       </button>
-      <Drawer open={open} onClose={() => setOpen(false)} side="left" label="You"><ProfileSheet /></Drawer>
+      <Drawer open={open} onClose={() => setOpen(false)} side="left" label={lite ? 'Profile and settings' : 'You'}><ProfileSheet lite={lite} /></Drawer>
     </>
   )
 }

@@ -72,10 +72,13 @@ held position the ticket can carry, as on the web.
 A row opens the **strategy screen**: what it is in words, the rate (amber on a
 spike), risk, kind, who runs it, chain, size, who holds it, yours. It is
 read-only — **Earn this** is disabled until the phone has the ticket, and says
-so. **You** (behind the balance chip, as on the web) has your money, its positions (each opens its Lite ticket, "More choices" included), and at its foot the wallet,
-the chains every list reads, the **Lite / Pro switch** (saved like the web's setting; `/`
-opens the saved mode) and the wallet probe (`app/probe.tsx`: what the wallet
-answers to `wallet_getCapabilities`).
+so. **You** (behind the balance chip, as on the web) has your money and its positions (each opens
+its Lite ticket, "More choices" included). **Profile and settings** (`app/profile.tsx`, behind the
+face top-left, 2026-11-03) has who you are, the wallet, your name and face, your linked wallets,
+what waits for a signature, the chains every list reads, the filters (Lite's four in Lite, all of
+Pro's in Pro, drawn from core's `LITE_CONTROLS` / `FILTER_CONTROLS`) and slippage, the
+**Lite / Pro switch** (saved like the web's setting; `/` opens the saved mode) and the wallet probe
+(`app/probe.tsx`: what the wallet answers to `wallet_getCapabilities`).
 
 **Profiles** (2026-11-01) are Lite's on both apps. A wallet's page (`app/w/[account].tsx`, the web's
 `LiteProfile`) shows who it is, its followers and the people you follow among them, the board's
@@ -83,7 +86,7 @@ numbers, what it runs with a Copy on each, what it said, and its recent moves. Y
 You. **Your name and face** (`app/me.tsx`) is the web's profile editor (Pro's `#/me`; Lite links
 there) in Lite's look: character or picture, handle (checked as you type), name, bio, tags, unlisted,
 the X link, and your linked wallets. **Save** queues the edit with your follows (docs/social.md §17),
-and You lists the queue and signs it in one `Batch`; **Save and sign now** signs at once. Follow is
+and the profile screen lists the queue and signs it in one `Batch`; **Save and sign now** signs at once. Follow is
 on profiles and in search. Profile names and faces show on the board, in search, on the Home cards and
 in the top bar, where a dot means something is waiting to be signed. Each signature brings the
 wallet forward through `Platform.openWallet`, as the ladder does. The social code is shared:
@@ -96,7 +99,8 @@ mobile/
   app/index.tsx          → /lite or /pro, by the saved mode
   app/lite/  app/pro/    the two tab bars and their screens
   app/strategy/[id].tsx  one strategy, read-only
-  app/you.tsx            wallet, your money, your wallets, pending changes, Lite / Pro
+  app/you.tsx            your money: stats, what you made, positions, follows' moves
+  app/profile.tsx        profile and settings: wallet, linked wallets, pending, chains, filters, Lite / Pro
   app/w/[account].tsx    a wallet's profile (the web's LiteProfile)
   app/me.tsx             your name and face: the profile editor, the X link, linked wallets
   app/probe.tsx          the wallet-capabilities probe

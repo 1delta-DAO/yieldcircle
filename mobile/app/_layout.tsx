@@ -46,6 +46,7 @@ export default function RootLayout() {
               <Stack screenOptions={{ ...header, headerShown: false }}>
                 <Stack.Screen name="strategy/[id]" options={{ presentation: 'modal', headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
                 <Stack.Screen name="you" options={{ headerShown: false }} />
+                <Stack.Screen name="profile" options={{ headerShown: false }} />
                 <Stack.Screen name="position" options={{ headerShown: false }} />
                 <Stack.Screen name="made" options={{ headerShown: false }} />
                 <Stack.Screen name="details" options={{ ...header, headerShown: true, title: 'Details' }} />

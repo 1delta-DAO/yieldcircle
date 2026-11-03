@@ -112,3 +112,34 @@ export function sanitizeSettings(p: Partial<Settings>): Settings {
     slippageBp: typeof p.slippageBp === 'number' ? Math.min(100, Math.max(1, numOr(p.slippageBp, 10))) : null,
   }
 }
+
+/**
+ * One control of a filters panel, as data: every app draws the same list (the web's Pro panel,
+ * Lite's, the phone's). A `seg` picks one number for one key; a `check` is a switch that may move
+ * more than one key (extreme rates is the pair `minRate` / `maxRate`).
+ */
+export type FilterControl =
+  | { kind: 'seg'; key: 'minTvlUsd' | 'minBorrowLiquidityUsd' | 'maxRisk'; label: string; note?: string; opts: { v: number; word: string }[] }
+  | { kind: 'check'; id: string; label: string; sub: string; on: (st: Settings) => boolean; to: (on: boolean) => Partial<Settings> }
+
+const sizeWord = (x: number) => (x === 0 ? 'Any' : x >= 1e6 ? `$${x / 1e6}m+` : `$${x / 1e3}k+`)
+export const SIZE_OPTS = [2_000_000, 250_000, 0].map((v) => ({ v, word: sizeWord(v) }))
+export const RISK_OPTS = [{ v: 2, word: 'Careful' }, { v: 4, word: 'Standard' }, { v: 5, word: 'Any' }]
+const flag = (k: 'showRateBets' | 'showNegative' | 'wideNet' | 'showCollateral', label: string, sub: string): FilterControl =>
+  ({ kind: 'check', id: k, label, sub, on: (st) => st[k], to: (on) => ({ [k]: on }) })
+
+/** Pro's whole panel: every key in {@link FILTER_KEYS}. */
+export const FILTER_CONTROLS: FilterControl[] = [
+  { kind: 'seg', key: 'minTvlUsd', label: 'Deposit size', note: 'one more request', opts: SIZE_OPTS },
+  { kind: 'seg', key: 'minBorrowLiquidityUsd', label: 'Borrow liquidity', note: 'loops', opts: [100_000, 25_000, 0].map((v) => ({ v, word: sizeWord(v) })) },
+  { kind: 'seg', key: 'maxRisk', label: 'Risk cap', note: "the API's 1-5 score", opts: RISK_OPTS },
+  flag('showRateBets', 'Rate bets', 'loops whose collateral earns nothing by itself'),
+  flag('showNegative', 'Negative carry', 'loops that cost more than they pay'),
+  { kind: 'check', id: 'extremeRates', label: 'Extreme rates', sub: 'under 0.01 % and over 25 % — idle markets and spikes',
+    on: (st) => st.minRate === 0 && st.maxRate === NO_CAP, to: (on) => (on ? { minRate: 0, maxRate: NO_CAP } : { minRate: DEFAULTS.minRate, maxRate: DEFAULTS.maxRate }) },
+  flag('showCollateral', 'Collateral-only deposits', 'markets that pay nothing of their own — the token as collateral, earning only its own yield; one more request'),
+  flag('wideNet', 'Wider pair search', 'ask the optimizer without collateral tags — finds untagged collateral (sUSDp, syzUSD), costs a few requests'),
+]
+
+/** The slippage switch's stops, in bp; `null` is Auto. */
+export const SLIPPAGE_OPTS = [null, 5, 10, 30, 50] as const

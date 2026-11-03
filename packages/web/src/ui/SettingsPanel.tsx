@@ -12,12 +12,10 @@
  */
 import React from 'react'
 import { PaperSettings } from './PaperPanel'
-import { AUTO_SLIPPAGE_BP, DEFAULTS, FILTER_KEYS, NO_CAP, slippageFor, useSettings, type Settings } from '@yieldcircle/app/state/Settings'
-
-const MONEY = (x: number) => (x === 0 ? 'Any' : x >= 1e6 ? `$${x / 1e6}m+` : `$${x / 1e3}k+`)
+import { AUTO_SLIPPAGE_BP, DEFAULTS, FILTER_CONTROLS, FILTER_KEYS, SLIPPAGE_OPTS, slippageFor, useSettings, type FilterControl, type Settings } from '@yieldcircle/app/state/Settings'
 
 export function SettingsPanel() {
-  const { st, set, reset, widened } = useSettings()
+  const { reset, widened } = useSettings()
   return (
     <div className="setmenu">
       <div className="sm-h">
@@ -26,26 +24,7 @@ export function SettingsPanel() {
       </div>
       <p className="sm-p">The list is curated by default: real size, a collateral that earns on its own, a carry that pays more than it costs. Widen it here — every row a switch lets in says on the row what was wrong with it.</p>
 
-      <Row label="Deposit size" note="one more request">
-        <Seg value={st.minTvlUsd} onPick={(v) => set({ minTvlUsd: v })} opts={[2_000_000, 250_000, 0]} fmt={MONEY} />
-      </Row>
-      <Row label="Borrow liquidity" note="loops">
-        <Seg value={st.minBorrowLiquidityUsd} onPick={(v) => set({ minBorrowLiquidityUsd: v })} opts={[100_000, 25_000, 0]} fmt={MONEY} />
-      </Row>
-      <Row label="Risk cap" note="the API's 1-5 score">
-        <Seg value={st.maxRisk} onPick={(v) => set({ maxRisk: v })} opts={[2, 4, 5]} fmt={(v) => (v === 2 ? 'Careful' : v === 4 ? 'Standard' : 'Any')} />
-      </Row>
-
-      <Check on={st.showRateBets} onChange={(v) => set({ showRateBets: v })}
-        label="Rate bets" sub="loops whose collateral earns nothing by itself" />
-      <Check on={st.showNegative} onChange={(v) => set({ showNegative: v })}
-        label="Negative carry" sub="loops that cost more than they pay" />
-      <Check on={st.minRate === 0 && st.maxRate === NO_CAP} onChange={(v) => set(v ? { minRate: 0, maxRate: NO_CAP } : { minRate: DEFAULTS.minRate, maxRate: DEFAULTS.maxRate })}
-        label="Extreme rates" sub="under 0.01 % and over 25 % — idle markets and spikes" />
-      <Check on={st.showCollateral} onChange={(v) => set({ showCollateral: v })}
-        label="Collateral-only deposits" sub="markets that pay nothing of their own — the token as collateral, earning only its own yield; one more request" />
-      <Check on={st.wideNet} onChange={(v) => set({ wideNet: v })}
-        label="Wider pair search" sub="ask the optimizer without collateral tags — finds untagged collateral (sUSDp, syzUSD), costs a few requests" />
+      <FilterControls controls={FILTER_CONTROLS} />
 
       <div className="sm-h" style={{ marginTop: 14 }}><b>Trading</b></div>
       <Row label="Max slippage" note="loops, fixed-rate PTs">
@@ -57,7 +36,6 @@ export function SettingsPanel() {
   )
 }
 
-const SLIPS = [null, 5, 10, 30, 50] as const
 /**
  * The one slippage switch, here and in a ticket that trades on a book. `pegged` (a ticket's own
  * pair) spells out what Auto picks for it; without it Auto is just Auto.
@@ -66,14 +44,14 @@ export function SlippagePicker({ pegged }: { pegged?: boolean }) {
   const { st, set } = useSettings()
   return (
     <div className="seg sm">
-      {SLIPS.map((o) => <button key={String(o)} aria-pressed={st.slippageBp === o} onClick={() => set({ slippageBp: o })}>
+      {SLIPPAGE_OPTS.map((o) => <button key={String(o)} aria-pressed={st.slippageBp === o} onClick={() => set({ slippageBp: o })}>
         {o == null ? (pegged == null ? 'Auto' : `Auto ${slippageFor({ ...st, slippageBp: null }, pegged) / 100}%`) : `${o / 100}%`}
       </button>)}
     </div>
   )
 }
 
-function Row({ label, note, children }: { label: string; note?: string; children: React.ReactNode }) {
+export function Row({ label, note, children }: { label: string; note?: string; children: React.ReactNode }) {
   return (
     <div className="sm-row">
       <div className="sm-l">{label}{note && <small>{note}</small>}</div>
@@ -81,12 +59,16 @@ function Row({ label, note, children }: { label: string; note?: string; children
     </div>
   )
 }
-function Seg<T extends number>({ value, opts, fmt, onPick }: { value: T; opts: T[]; fmt: (v: T) => string; onPick: (v: T) => void }) {
-  return (
-    <div className="seg sm">
-      {opts.map((o) => <button key={o} aria-pressed={value === o} onClick={() => onPick(o)}>{fmt(o)}</button>)}
-    </div>
-  )
+/** A list of core's filter controls (`FILTER_CONTROLS`, Lite's `LITE_CONTROLS`), drawn the one way. */
+export function FilterControls({ controls }: { controls: FilterControl[] }) {
+  const { st, set } = useSettings()
+  return <>{controls.map((c) => c.kind === 'seg' ? (
+    <Row key={c.key} label={c.label} note={c.note}>
+      <div className="seg sm">
+        {c.opts.map((o) => <button key={o.v} aria-pressed={st[c.key] === o.v} onClick={() => set({ [c.key]: o.v })}>{o.word}</button>)}
+      </div>
+    </Row>
+  ) : <Check key={c.id} on={c.on(st)} onChange={(v) => set(c.to(v))} label={c.label} sub={c.sub} />)}</>
 }
 function Check({ on, onChange, label, sub }: { on: boolean; onChange: (v: boolean) => void; label: string; sub: string }) {
   return (

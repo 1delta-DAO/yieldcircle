@@ -22,47 +22,55 @@ import { MyStats } from './Stats'
 import { useSettings } from '@yieldcircle/app/state/Settings'
 import { Socials } from '@yieldcircle/design'
 import { ModeSwitch } from './lite/ModeSwitch'
+import { LiteFilters } from './lite/LiteFilters'
+import { LinkedWallets } from './LinkedWallets'
+import { liteWidened } from '@yieldcircle/core/model/lite'
 
 /**
- * `embedded`: the same settings at the foot of Lite's You page, which is Lite's one page about the
- * reader — so no name and standing (You's head has them), no links to Pro's own pages but the
- * profile editor, and no alerts (Lite's are the moves on You).
+ * `lite`: Lite's profile and settings, behind the face (the balances are behind the chip, on You).
+ * The same head, then Lite's own links — the profile editor and your linked wallets, no Pro pages,
+ * no alerts — and Lite's filters (`LiteFilters`: the four Lite reads, slippage, paper).
  */
-export function ProfileSheet({ embedded }: { embedded?: boolean } = {}) {
+export function ProfileSheet({ lite }: { lite?: boolean } = {}) {
   const { account, signer, solSigner, viewAs, allChains, chainLabelFor } = useApp()
-  const { widened } = useSettings()
+  const { st, widened } = useSettings()
   const p = useProfile(account)
+  const author = signer ?? solSigner
+  const n = lite ? liteWidened(st) : widened
   return (
-    <div className={`ps${embedded ? ' ps-embedded' : ''}`}>
-      {embedded ? <div className="ps-wallet"><ConnectButton /></div> : <div className="ps-head">
+    <div className="ps">
+      <div className="ps-head">
         {account ? (
           <>
             <Who account={account} profile={p.data?.profile} size={44} plain sub={viewAs && !signer ? 'viewing as' : undefined} />
-            <MyStats account={account} />
+            {!lite && <MyStats account={account} />}
           </>
         ) : (
-          <p className="ps-p">Connect a wallet to follow people, get alerts and see your own positions. Reading everyone else needs nothing.</p>
+          <p className="ps-p">{lite
+            ? 'Connect a wallet to have a name and face, follow people and see your own money.'
+            : 'Connect a wallet to follow people, get alerts and see your own positions. Reading everyone else needs nothing.'}</p>
         )}
         <div className="ps-wallet"><ConnectButton /></div>
-      </div>}
+      </div>
 
-      {embedded ? (signer || solSigner) && (
+      {lite ? author && (
         <nav className="ps-links" aria-label="Your profile">
           <a href={proHref('#/me')}>Edit your name and face<span className="sp" />›</a>
         </nav>
       ) : account && (
         <nav className="ps-links" aria-label="You">
           <a href={walletHref(account)}>My page<span className="sp" />›</a>
-          {(signer || solSigner) && <a href="#/me">Edit profile<span className="sp" />›</a>}
+          {author && <a href="#/me">Edit profile<span className="sp" />›</a>}
           {signer && <AlertsLink />}
         </nav>
       )}
+      {lite && author && <Fold label="Your wallets" state="one profile across your addresses" on={false}><div className="card pad"><LinkedWallets account={author} /></div></Fold>}
 
       <ModeSwitch />
       <Fold label="Chains" state={allChains ? 'All chains' : chainLabelFor()} on={!allChains}><ChainList /></Fold>
-      <Fold label="Filters" state={widened ? `${widened} widened` : 'Curated'} on={widened > 0}><SettingsPanel /></Fold>
+      <Fold label={lite ? 'Settings' : 'Filters'} state={n ? `${n} widened` : 'Curated'} on={n > 0}>{lite ? <LiteFilters /> : <SettingsPanel />}</Fold>
       {/* a Solana-only wallet follows the same way: its queue is signed ed25519 */}
-      {(signer ?? solSigner) && <PendingChanges />}
+      {author && <PendingChanges />}
       <Socials className="ps-social" label="Join the community on Telegram" />
     </div>
   )

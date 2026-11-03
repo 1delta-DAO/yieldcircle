@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets } from './lite'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
+import { LITE_CONTROLS, LITE_FLOORS, liteWidened } from './lite'
+import { DEFAULTS } from './settings'
 import type { Holding } from './positions'
 
 // the fields the Lite rules read; the rest of a row is irrelevant to them
@@ -347,5 +349,20 @@ describe('safestFirst', () => {
   it('orders by risk, then the steady rate', () => {
     const rows = [{ s: loop('x6', { rate: 40, risk: 2 }) }, { s: dep('save', { rate: 4, risk: 1 }) }, { s: dep('more', { rate: 9, risk: 2 }) }, { s: dep('best', { rate: 5, risk: 1 }) }]
     expect(rows.sort(safestFirst((s) => s.rate)).map((r) => r.s.id)).toEqual(['best', 'save', 'x6', 'more'])
+  })
+})
+
+describe('liteWidened', () => {
+  it('counts only the filters Lite reads', () => {
+    expect(liteWidened(DEFAULTS)).toBe(0)
+    // Pro-only switches move nothing on a Lite list
+    expect(liteWidened({ ...DEFAULTS, wideNet: true, minBorrowLiquidityUsd: 0, slippageBp: 30 })).toBe(0)
+    expect(liteWidened({ ...DEFAULTS, minTvlUsd: 250_000, showNegative: true })).toBe(2)
+    expect(liteWidened({ ...DEFAULTS, ...LITE_FLOORS })).toBe(0)
+    // every Lite control moves a Lite floor
+    for (const c of LITE_CONTROLS) {
+      const patch = c.kind === 'seg' ? { [c.key]: c.opts[c.opts.length - 1].v } : c.to(true)
+      expect(liteWidened({ ...DEFAULTS, ...patch })).toBe(1)
+    }
   })
 })

@@ -1,0 +1,150 @@
+import React from 'react'
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { router } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { AppKitButton } from '@reown/appkit-react-native'
+import { labelFor, shortAddr } from '@yieldcircle/core/identity/name'
+import { liteWidened } from '@yieldcircle/core/model/lite'
+import { useSettings } from '@yieldcircle/app/state/Settings'
+import { useSession } from '@yieldcircle/app/session'
+import { useBook } from '@yieldcircle/app/book'
+import { useProfile } from '@yieldcircle/app/social/queries'
+import { useSocialWrite } from '@yieldcircle/app/social/sign'
+import { CHAINS } from '@yieldcircle/app/sdk/queries'
+import { setMode, useMode, type Mode } from '../src/mode'
+import { useChains } from '../src/chains'
+import { usePaper } from '../src/paper'
+import { C } from '../src/theme'
+import { Btn, Seg } from '../src/ui/bits'
+import { Character } from '../src/ui/Character'
+import { Filters } from '../src/ui/Filters'
+import { IconBack } from '../src/ui/icons'
+import { PAPER } from '../src/ui/paper'
+import { LinkedWallets, PendingChanges } from '../src/ui/social'
+import { Txt } from '../src/ui/Txt'
+
+/**
+ * Profile and settings, behind the face top-left (the web's `ProfileSheet`): who you are, your name
+ * and face, your wallets under one profile, what waits for a signature, Lite / Pro, and the settings
+ * every list reads — chains, filters (Lite's four in Lite, all of them in Pro) and slippage. Folded,
+ * each says its value. Your money is behind the chip top-right (You).
+ */
+export default function Profile() {
+  const insets = useSafeAreaInsets()
+  const { isConnected, viewAs } = useSession()
+  const b = useBook()
+  const { account: author } = useSocialWrite()
+  const paper = usePaper()
+  const mode = useMode()
+  const { st: cur, widened } = useSettings()
+  const { chains, allChains, setChains, toggleChain } = useChains()
+  const p = useProfile(b.account).data?.profile ?? null
+  const lite = mode === 'lite'
+  const n = lite ? liteWidened(cur) : widened
+  const chainState = allChains ? 'All chains' : chains.length === 1 ? CHAINS.find((c) => c.id === chains[0])?.label ?? '1 chain' : `${chains.length} chains`
+  const own = isConnected && !viewAs
+  return (
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <View style={[st.bar, { paddingTop: insets.top, height: 60 + insets.top }]}>
+        <Pressable onPress={() => router.back()} hitSlop={6} style={st.back} accessibilityLabel="Back"><IconBack color={C.tx70} /></Pressable>
+        <Txt s={16} w={600}>Profile and settings</Txt>
+      </View>
+      <ScrollView contentContainerStyle={[st.page, { paddingBottom: insets.bottom + 40 }]}>
+        {/* who you are */}
+        <View style={st.head}>
+          {b.account ? <>
+            <Character addr={b.account} avatarUrl={p?.avatarUrl} size={56} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt s={17} w={700} numberOfLines={1}>{labelFor(b.account, p).label}</Txt>
+              <Txt s={12.5} c={C.tx50} numberOfLines={1}>{p?.handle && p.displayName ? `@${p.handle} · ` : ''}{shortAddr(b.account)}{viewAs ? ' · viewing as' : ''}</Txt>
+            </View>
+          </> : <Txt s={13} c={C.tx70} lh={19} style={{ flex: 1 }}>Connect a wallet to have a name and face, follow people and see your own money.</Txt>}
+        </View>
+
+        <View style={st.group}>
+          {paper.session ? (
+            <View style={st.row}>
+              <View style={st.paperPill}><Txt s={11} w={600} c={PAPER.fg} lh={16.5}>paper</Txt></View>
+              <Txt s={14} style={{ flex: 1 }} numberOfLines={1}>{paper.session.name}</Txt>
+              <Btn sm kind="plain" title="Sign out" onPress={paper.signOut} />
+            </View>
+          ) : <View style={st.row}><AppKitButton /></View>}
+          {own && <Link label="Edit your name and face" onPress={() => router.push('/me')} />}
+        </View>
+
+        {author && !viewAs && <Fold label="Your wallets" state="one profile across your addresses" on={false}><View style={{ padding: 14, paddingTop: 0 }}><LinkedWallets account={author} /></View></Fold>}
+        {author && !viewAs && <View style={{ marginTop: 12 }}><PendingChanges onEdit={() => router.push('/me')} /></View>}
+
+        <Txt s={16} w={600} style={st.h}>Settings</Txt>
+        <View style={{ gap: 10 }}>
+          <Fold label="Chains" state={chainState} on={!allChains}>
+            <View style={{ paddingBottom: 6 }}>
+              <ChainRow label="All chains" on={allChains} onPress={() => setChains([])} />
+              {CHAINS.map((c) => <ChainRow key={c.id} label={c.label} on={chains.includes(c.id)} onPress={() => toggleChain(c.id)} />)}
+            </View>
+          </Fold>
+          <Fold label={lite ? 'What Lite shows' : 'Filters'} state={n ? `${n} widened` : 'Curated'} on={n > 0}><Filters lite={lite} /></Fold>
+        </View>
+
+        <ModeSwitch mode={mode} />
+      </ScrollView>
+    </View>
+  )
+}
+
+/** A setting that says its value while closed (the web's `.ps-fold`). */
+function Fold({ label, state, on, children }: { label: string; state: string; on: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <View style={[st.group, { marginTop: 0 }]}>
+      <Pressable onPress={() => setOpen((o) => !o)} style={st.row} accessibilityState={{ expanded: open }}>
+        <Txt s={14} style={{ flexShrink: 0 }}>{label}</Txt>
+        <Txt s={13} c={on ? C.primary : C.tx50} numberOfLines={1} style={{ flex: 1, textAlign: 'right' }}>{state}</Txt>
+        <Txt c={C.tx40}>{open ? '⌃' : '⌄'}</Txt>
+      </Pressable>
+      {open && children}
+    </View>
+  )
+}
+
+function Link({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[st.row, st.line]} accessibilityRole="link">
+      <Txt s={14} style={{ flex: 1 }}>{label}</Txt><Txt c={C.tx40}>›</Txt>
+    </Pressable>
+  )
+}
+
+function ChainRow({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={st.chain} accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
+      <Txt s={14} w={700} c={C.primary} style={{ width: 18 }}>{on ? '✓' : ''}</Txt>
+      <Txt s={14} c={on ? C.tx : C.tx70}>{label}</Txt>
+    </Pressable>
+  )
+}
+
+/** Lite / Pro (the web's ModeSwitch): saved, and `/` opens the saved one. */
+function ModeSwitch({ mode }: { mode: Mode }) {
+  const choose = (m: Mode) => { setMode(m); if (router.canDismiss()) router.dismissAll(); router.replace(m === 'pro' ? '/pro' : '/lite') }
+  return (
+    <View style={{ alignItems: 'center', gap: 12, marginTop: 28 }}>
+      <Seg items={[{ id: 'lite', word: 'Lite' }, { id: 'pro', word: 'Pro' }]} value={mode} onChange={choose} />
+      <Txt s={12.5} c={C.tx50} style={{ textAlign: 'center' }}>{mode === 'lite' ? 'The best rates in plain words. Pro has every venue, chain, tier and borrowing.' : 'Every venue, chain, tier and borrowing. Lite has the best rates in plain words.'}</Txt>
+      <Pressable onPress={() => router.push('/probe')}><Txt s={12} c={C.tx40}>Wallet probe ›</Txt></Pressable>
+    </View>
+  )
+}
+
+const st = StyleSheet.create({
+  bar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, backgroundColor: 'rgba(0,0,0,0.86)', borderBottomWidth: 1, borderBottomColor: '#1a1a1f' },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  page: { paddingHorizontal: 16, paddingTop: 18 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 },
+  h: { letterSpacing: -0.16, marginTop: 28, marginBottom: 10 },
+  group: { backgroundColor: C.b200, borderRadius: 12, overflow: 'hidden', marginTop: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 10, paddingHorizontal: 14 },
+  line: { borderTopWidth: 1, borderTopColor: C.line },
+  chain: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingHorizontal: 14 },
+  paperPill: { backgroundColor: PAPER.bg, borderWidth: 1, borderColor: PAPER.line, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+})

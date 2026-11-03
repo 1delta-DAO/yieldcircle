@@ -237,6 +237,10 @@ Ordered by what it buys:
   Alerts (Pro's bell page), Chains, Pending changes. The chip top-right opens Lite's You. In
   Lite the face should open You (with Chains, Edit profile and the Pro switch at its foot), and
   the chip can stay as the balance. One entry, one page.
+  *Revised 2026-11-03:* two entries, two jobs. The chip opens You (money only); the face opens
+  `ProfileSheet lite` (who you are, edit profile, linked wallets, pending, Lite / Pro, chains and
+  `LiteFilters`: the four filters Lite reads, slippage, paper). The phone's face opens
+  `app/profile.tsx`, the same sheet.
 - **Back arrow + face + chip** at 390 leaves no room for the brand, which is hidden; fine. The
   chip hides the streak below 768 and the small line below 360; at 360 it is a number and a
   chevron, acceptable.

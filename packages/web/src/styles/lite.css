@@ -450,12 +450,10 @@ body[data-mode=lite] .ticket .x{width:var(--tap);height:var(--tap);margin:-8px -
 .lite-nums dt{font-size:var(--fs-sm);color:var(--tx70)}
 .lite-nums dd{margin:0;font-size:var(--fs-body);font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
 
-/* You: four tiles (three on paper, the last across), the settings at the foot */
+/* You: four tiles (three on paper, the last across) */
 .lstats{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media (min-width:760px){.lstats{grid-template-columns:repeat(4,minmax(0,1fr))}.lstats.three{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:759.98px){.lstats.three > :last-child{grid-column:1 / -1}}
-.lite-settings .ps{display:flex;flex-direction:column;gap:14px}
-.lite-settings .ps .mode-sw{margin-top:0}
 
 /* what someone said: two lines on a phone, never a tooltip */
 @media (max-width:640px){.lite-why q,.lite-whoin-q,.lite-said q{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}}

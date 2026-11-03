@@ -1,5 +1,5 @@
 import React from 'react'
-import { go, liteHref, proHref, useApp, useRoute } from '../../state/AppState'
+import { go, liteHref, proHref, useRoute } from '../../state/AppState'
 import { holdingLine, moneyWord, signedMoney, streakWord } from '@yieldcircle/core/model/lite'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
@@ -11,8 +11,6 @@ import { Sk, Tok, usd, usdShort } from '../bits'
 import { useDayLog, useLiteMenu } from '@yieldcircle/app/lite'
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { Flame, openRow } from './LiteBits'
-import { ProfileSheet } from '../ProfileSheet'
-import { LinkedWallets } from '../LinkedWallets'
 import { ChainChip } from '../ChainPicker'
 import { LiteMoves } from './LiteSocial'
 import { LitePnl } from './LitePnl'
@@ -23,8 +21,8 @@ import { owedOf } from '@yieldcircle/core/model/borrow'
 
 /**
  * You (docs/lite.md §6): what you have and what it earns, your streak and rank, what the people you
- * follow did — and, at its foot, the wallet, chains and the switch to Pro: Lite's one page about the
- * reader, opened by the face and by the balance chip. No points until a server ledger counts them
+ * follow did — your money, opened by the balance chip. Your profile, wallets, chains, settings and
+ * the switch to Pro are behind the face (`ProfileSheet lite`). No points until a server ledger counts them
  * (docs/lite-design-review.md §3.5). Every position opens its own Lite ticket beside the
  * page (`#/lite/you?h=…`), Lite's pick or not: a loop to make safer or close, a deposit to withdraw,
  * a loan to pay back. Only a price bet (a debt in another money) is Pro's alone. Positions read
@@ -48,7 +46,6 @@ export function LiteYou() {
       <div className="note">Connect a wallet to see what you have, your streak and your rank — or play the whole thing with paper money first.</div>
       <div className="lite-cta" style={{ margin: '14px 0' }}><ConnectButton /></div>
       <PaperOffer lite />
-      <Settings />
     </div>
   )
   const mine = b.holdings.filter((h) => !h.putUp).sort((x, y) => y.valueUsd - x.valueUsd)
@@ -79,8 +76,6 @@ export function LiteYou() {
       </section>
 
       <LiteMoves rows={L.rows} account={b.account} limit={12} title="What the people you follow did" followingOnly />
-      {!b.paper && <Wallets />}
-      <Settings />
     </div>
     <aside ref={aside} className={open ? '' : 'closed'} id="aside">
       {open && (sel!.kind === 'borrow'
@@ -91,27 +86,6 @@ export function LiteYou() {
     {open && <div className="scrim" onClick={close} />}
     </>
   )
-}
-
-/**
- * Your wallets under one profile (tickets/0021): the signed links, managed here as in Pro's `#/me`.
- * The profile lives on the EVM wallet; a Solana wallet alone shows only what it is linked to.
- */
-function Wallets() {
-  const { signer, solSigner } = useApp()
-  const who = signer ?? solSigner
-  if (!who) return null
-  return (
-    <section className="sec lite-sec">
-      <div className="sec-h"><h2>Your wallets</h2><span className="sub t50">one profile across your addresses</span></div>
-      <div className="card pad"><LinkedWallets account={who} /></div>
-    </section>
-  )
-}
-
-/** The wallet, the chains, the profile and Lite / Pro: what Pro keeps behind the face, at You's foot. */
-function Settings() {
-  return <section className="sec lite-sec lite-settings"><div className="sec-h"><h2>Wallet and settings</h2></div><ProfileSheet embedded /></section>
 }
 
 function Stat({ k, v, s, href }: { k: string; v: React.ReactNode; s: string; href?: string }) {

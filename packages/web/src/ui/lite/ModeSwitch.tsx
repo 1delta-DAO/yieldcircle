@@ -2,8 +2,8 @@ import React from 'react'
 import { goMode, useRoute } from '../../state/AppState'
 
 /**
- * Lite or Pro, switched for good (`goMode` saves it). In the profile sheet on every page, and at
- * the foot of Lite's You page. The page being read opens in the other mode where it has one.
+ * Lite or Pro, switched for good (`goMode` saves it). In the profile sheet behind the face, in
+ * both shells. The page being read opens in the other mode where it has one.
  */
 export function ModeSwitch({ hint = true }: { hint?: boolean }) {
   const r = useRoute()

@@ -13,7 +13,7 @@ import { usdShort } from './format'
 import type { Proof } from './activity'
 import { LITE_GROUPS, liteUrl, APP_ORIGIN } from './liteLinks'
 import { canonUid } from './uid'
-import { DEFAULTS, type Settings } from './settings'
+import { DEFAULTS, RISK_OPTS, SIZE_OPTS, type FilterControl, type Settings } from './settings'
 
 /** The categories Lite has: no Stocks, no Borrow (owner's call, 2026-10-23). */
 export { LITE_GROUPS }
@@ -28,6 +28,19 @@ export const LITE_MAX_RISK = 4
  */
 export type LiteFloors = Pick<Settings, 'minTvlUsd' | 'maxRisk' | 'showRateBets' | 'showNegative'>
 export const LITE_FLOORS: LiteFloors = { minTvlUsd: LITE_MIN_TVL, maxRisk: LITE_MAX_RISK, showRateBets: DEFAULTS.showRateBets, showNegative: DEFAULTS.showNegative }
+/**
+ * Lite's filters panel (the profile sheet, the phone's profile): only the four keys Lite reads, in
+ * Lite's words. Pro's other switches move nothing on a Lite list, so Lite does not show them.
+ */
+export const LITE_CONTROLS: FilterControl[] = [
+  { kind: 'seg', key: 'minTvlUsd', label: 'Size', note: 'how much is in it', opts: SIZE_OPTS },
+  { kind: 'seg', key: 'maxRisk', label: 'Risk', note: 'Any lets in the unrated', opts: RISK_OPTS },
+  { kind: 'check', id: 'showRateBets', label: 'Loops on money that earns nothing', sub: 'they pay only while borrowing stays cheap', on: (st) => st.showRateBets, to: (on) => ({ showRateBets: on }) },
+  { kind: 'check', id: 'showNegative', label: 'Loops that cost more than they pay', sub: 'today; a rate can turn', on: (st) => st.showNegative, to: (on) => ({ showNegative: on }) },
+]
+const LITE_KEYS = Object.keys(LITE_FLOORS) as (keyof LiteFloors)[]
+/** How many of Lite's four filters are off Lite's floors: the profile's "2 widened". */
+export const liteWidened = (st: Settings): number => LITE_KEYS.filter((k) => st[k] !== LITE_FLOORS[k]).length
 /**
  * The least a Lite loop may leave between its price and liquidation at the leverage Lite opens it
  * at (the Balanced tier). An e-mode venue's range runs to 25×, whose Balanced tier is ~1 % from

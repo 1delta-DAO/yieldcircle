@@ -39,8 +39,8 @@ import { useSocialWrite } from '@yieldcircle/app/social/sign'
 
 /**
  * You (the web's LiteYou, docs/lite.md §6): what you have and what it earns, your streak, points
- * and rank, what you made, every position — each opens its own ticket — your wallets under one
- * profile, and at the foot your name and face, what waits for a signature, and the switch to Pro.
+ * and rank, what you made, every position — each opens its own ticket — and what the people you
+ * follow did. Your profile, wallets and settings are behind the face (`profile.tsx`).
  */
 export default function You() {
   const insets = useSafeAreaInsets()
@@ -56,7 +56,7 @@ export default function You() {
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <View style={[st.bar, { paddingTop: insets.top, height: 60 + insets.top }]}>
         <Pressable onPress={() => router.back()} hitSlop={6} style={st.back} accessibilityLabel="Back"><IconBack color={C.tx70} /></Pressable>
-        {b.account ? <Character addr={b.account} avatarUrl={p?.avatarUrl} size={44} /> : <View style={{ width: 44 }} />}
+        {b.account ? <Pressable onPress={() => router.push('/profile')} accessibilityLabel="Profile and settings"><Character addr={b.account} avatarUrl={p?.avatarUrl} size={44} /></Pressable> : <View style={{ width: 44 }} />}
         <View style={{ flex: 1 }} />
         {b.account && <BalanceChip tot={t.tot} perDay={t.yearly / 365} loading={b.positionsLoading && !b.books.length} on />}
       </View>
@@ -90,10 +90,8 @@ export default function You() {
                 : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} />)}
             </View>
             <LiteMoves rows={L.rows} account={b.account} limit={12} title="What the people you follow did" followingOnly />
-            {!b.paper && <Wallets />}
           </>
         )}
-        <Settings />
       </ScrollView>
     </View>
   )
@@ -287,87 +285,6 @@ function Position({ h, s }: { h: Holding; s: Strategy | null }) {
   )
 }
 
-/**
- * Your wallets under one profile (the web's You `Wallets`, tickets/0021): the signed links, with
- * Unlink. Only for the wallet that signs social writes.
- */
-function Wallets() {
-  const { account } = useSocialWrite()
-  if (!account) return null
-  return (
-    <>
-      <View style={{ marginTop: 26, marginBottom: 10, gap: 4 }}><Txt s={16} w={600} style={{ letterSpacing: -0.16 }}>Your wallets</Txt><Txt s={12.5} c={C.tx50}>one profile across your addresses</Txt></View>
-      <View style={st.box}><LinkedWallets account={account} /></View>
-    </>
-  )
-}
-
-/**
- * Wallet and settings (the web's `ProfileSheet embedded` at the foot of You): the wallet, your name
- * and face, what waits for a signature, which chains every list reads, and Lite / Pro.
- */
-function Settings() {
-  const { isConnected, viewAs } = useSession()
-  const { account: author } = useSocialWrite()
-  const paper = usePaper()
-  const { chains, allChains, setChains, toggleChain } = useChains()
-  const [open, setOpen] = React.useState(false)
-  const state = allChains ? 'All chains' : chains.length === 1 ? CHAINS.find((c) => c.id === chains[0])?.label ?? '1 chain' : `${chains.length} chains`
-  return (
-    <View style={{ marginTop: 28 }}>
-      <Txt s={16} w={600} style={{ letterSpacing: -0.16, marginBottom: 10 }}>Wallet and settings</Txt>
-      <View style={st.set}>
-        {paper.session ? (
-          <View style={st.setRow}>
-            <PaperPill />
-            <Txt s={14} style={{ flex: 1 }} numberOfLines={1}>{paper.session.name}</Txt>
-            <Btn sm kind="plain" title="Sign out" onPress={paper.signOut} />
-          </View>
-        ) : <View style={st.setRow}><AppKitButton /></View>}
-        {isConnected && !viewAs && (
-          <Pressable onPress={() => router.push('/me')} style={[st.setRow, st.setLine]} accessibilityRole="link">
-            <Txt s={14} style={{ flex: 1 }}>Edit your name and face</Txt><Txt c={C.tx40}>›</Txt>
-          </Pressable>
-        )}
-        <Pressable onPress={() => setOpen((o) => !o)} style={[st.setRow, st.setLine]} accessibilityState={{ expanded: open }}>
-          <Txt s={14} style={{ flex: 1 }}>Chains</Txt>
-          <Txt s={13} c={allChains ? C.tx50 : C.primary}>{state}</Txt>
-          <Txt c={C.tx40}>{open ? '⌃' : '⌄'}</Txt>
-        </Pressable>
-        {open && (
-          <View style={{ paddingBottom: 6 }}>
-            <ChainRow label="All chains" on={allChains} onPress={() => setChains([])} />
-            {CHAINS.map((c) => <ChainRow key={c.id} label={c.label} on={chains.includes(c.id)} onPress={() => toggleChain(c.id)} />)}
-          </View>
-        )}
-      </View>
-      {author && !viewAs && <View style={{ marginTop: 14 }}><PendingChanges onEdit={() => router.push('/me')} /></View>}
-      <ModeSwitch />
-    </View>
-  )
-}
-function ChainRow({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={st.chain} accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
-      <Txt s={14} w={700} c={C.primary} style={{ width: 18 }}>{on ? '✓' : ''}</Txt>
-      <Txt s={14} c={on ? C.tx : C.tx70}>{label}</Txt>
-    </Pressable>
-  )
-}
-
-/** Lite / Pro (the web's ModeSwitch): saved, and `/` opens the saved one. */
-function ModeSwitch() {
-  const mode = useMode()
-  const choose = (m: Mode) => { setMode(m); if (router.canDismiss()) router.dismissAll(); router.replace(m === 'pro' ? '/pro' : '/lite') }
-  return (
-    <View style={{ alignItems: 'center', gap: 12, marginTop: 28 }}>
-      <Seg items={[{ id: 'lite', word: 'Lite' }, { id: 'pro', word: 'Pro' }]} value={mode} onChange={choose} />
-      <Txt s={12.5} c={C.tx50} style={{ textAlign: 'center' }}>{mode === 'lite' ? 'The best rates in plain words. Pro has every venue, chain, tier and borrowing.' : 'Every venue, chain, tier and borrowing. Lite has the best rates in plain words.'}</Txt>
-      <Pressable onPress={() => router.push('/probe')}><Txt s={12} c={C.tx40}>Wallet probe ›</Txt></Pressable>
-    </View>
-  )
-}
-
 const st = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, backgroundColor: 'rgba(0,0,0,0.86)', borderBottomWidth: 1, borderBottomColor: '#1a1a1f' },
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
@@ -377,11 +294,6 @@ const st = StyleSheet.create({
   stat: { width: '48.5%', flexGrow: 1, maxWidth: '48.6%', backgroundColor: C.b200, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 16, gap: 3 },
   pnl: { backgroundColor: C.b200, borderRadius: 18, paddingVertical: 18, paddingHorizontal: 20, gap: 12, overflow: 'hidden' },
   bar2: { flexDirection: 'row', height: 10, borderRadius: 999, overflow: 'hidden', backgroundColor: C.b400, gap: 2 },
-  set: { backgroundColor: C.b200, borderRadius: 12, overflow: 'hidden' },
   paperPill: { backgroundColor: PAPER.bg, borderWidth: 1, borderColor: PAPER.line, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  box: { backgroundColor: C.b200, borderRadius: 12, padding: 14 },
-  setRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 10, paddingHorizontal: 14 },
-  setLine: { borderTopWidth: 1, borderTopColor: C.line },
-  chain: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingHorizontal: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.b200, borderRadius: 12 },
 })

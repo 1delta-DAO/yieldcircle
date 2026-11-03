@@ -11,7 +11,7 @@ import { num, usdShort } from '@yieldcircle/core/model/format'
 import { liteLeverTargets, saferTargets } from '@yieldcircle/core/model/lite'
 import { CLOSE_INTEREST_PAD, NO_ROUTE, closeKeepPad, hasRoute } from '@yieldcircle/core/model/ticket'
 import { quoteClose, useCloseQuote } from '../sdk/queries'
-import { slippageFor, useSettings } from '../state/Settings'
+import { slippageFor, debtAtPeg, useSettings } from '../state/Settings'
 import { useSticky } from '../sticky'
 import { stepsFrom, useTicketLadder } from '../ladder'
 import { useSession } from '../session'
@@ -33,7 +33,7 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   const account = session.account, isConnected = !!session.isConnected
   const actorOn = session.actorOn ?? (() => undefined)
   // Lite: a close, or "Lower risk" — one of three targets by distance from liquidation (More choices: `targets`), never a slider
-  const slip = slippageFor(useSettings().st, s ? isSavings(s.nature) : !h.directional)
+  const slip = slippageFor(useSettings().st, s ? isSavings(s.nature) && debtAtPeg(s) : !h.directional)
   const actor = actorOn(h.chainId)
   const holds = s?.holds ?? h.symbol, debt = s?.debt ?? h.debtSymbol ?? 'debt'
   // the book as the API reports it: equity and leverage from the position, prices only to size the legs in tokens

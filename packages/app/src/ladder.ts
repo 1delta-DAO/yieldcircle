@@ -49,6 +49,31 @@ type Scratch = ReturnType<typeof usePlatform>['scratch']
 const load = (x: Scratch, key: string): Saved | null => { try { const v = JSON.parse(x.get(SS) ?? 'null') as Saved | null; return v && v.key === key ? v : null } catch { return null } }
 const save = (x: Scratch, v: Saved | null) => { try { v ? x.set(SS, JSON.stringify(v)) : x.remove(SS) } catch { /* private mode */ } }
 
+type CallsWaiter = { waitForCallsStatus: (a: { id: string; timeout?: number }) => Promise<{ status?: string; receipts?: { transactionHash: string }[] }> }
+type BatchEnd = { status?: string; hash?: string }
+const batches = new Map<string, Promise<BatchEnd>>()
+/**
+ * A batch the wallet took, followed OUTSIDE the ticket: its trace starts here, once, the moment the
+ * wallet reports the one transaction it became. Waited on in the ticket's effect, it was lost
+ * whenever the ticket remounted first — the loop it opens appearing in the positions (a refetch as
+ * the tab regains focus from the wallet) changes the ticket's key, the effect is torn down, and the
+ * trace never started: in a block, and no re-read, no "Done" (an Alchemix open, 2026-11-03).
+ * `onLanded` is the first caller's; a later one (the remounted ticket) only waits for the end.
+ */
+function followBatch(id: string, wc: CallsWaiter, onLanded: (hash: string) => void | Promise<void>): Promise<BatchEnd> {
+  let p = batches.get(id)
+  if (!p) {
+    p = wc.waitForCallsStatus({ id, timeout: 300_000 }).then(async (st) => {
+      const hash = st.receipts?.[st.receipts.length - 1]?.transactionHash
+      if (st.status === 'success' && hash) await onLanded(hash)
+      return { status: st.status, hash }
+    })
+    batches.set(id, p)
+    p.catch(() => {}).finally(() => setTimeout(() => batches.delete(id), 10 * 60_000))
+  }
+  return p
+}
+
 /**
  * A venue with no native entry takes the gas coin as its own wallet steps — `WETH.deposit()` before
  * the action, `WETH.withdraw(amount)` after it. Said in the coin's name, which is the only thing
@@ -151,8 +176,6 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
     signer && traceTx({ hash, chainId, account: signer, title: bundle?.title ?? st.label, label: st.label, moves: st.moves ?? 'positions', touches: bundle?.touches, lastValidHeight, watch: watchOf(st) }, base)
   /** The step a batch is followed as: the one that moves the positions, else its last. */
   const mainOf = (steps: Step[]) => steps.find((s) => s.moves === 'positions') ?? steps[steps.length - 1]
-  /** A batch's baseline, read as it is sent: its hash only arrives once it has landed (`baselineOf`). */
-  const batchBase = React.useRef<Promise<Baseline | undefined> | null>(null)
   // a ladder restored after a reload whose trace did not survive (storage off): pick the hash up again
   React.useEffect(() => { if (pending && !tr && pendingStep) follow(pending, pendingStep, isSvmTx(pendingStep.tx) ? pendingStep.tx.lastValidBlockHeight : undefined) }, [pending, !!tr, signer])
   React.useEffect(() => {
@@ -187,10 +210,12 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
     if (together && walletClient) {
       setBatchSigning(true)
       const main = mainOf(together)
-      batchBase.current = signer ? baselineOf({ chainId, account: signer, moves: main.moves ?? 'positions', touches: bundle?.touches, watch: watchOf(main) }).catch(() => undefined) : null
+      // a batch's baseline is read as it is sent: its hash only arrives once it has landed (`baselineOf`)
+      const base = signer ? baselineOf({ chainId, account: signer, moves: main.moves ?? 'positions', touches: bundle?.touches, watch: watchOf(main) }).catch(() => undefined) : Promise.resolve(undefined)
       try {
         const calls = together.map((s) => { const tx = s.tx as ApiTx; return { to: tx.to as `0x${string}`, data: (tx.data || '0x') as `0x${string}`, value: BigInt(tx.value || '0') } })
         const { id } = await walletClient.sendCalls({ account: walletClient.account, chain: walletClient.chain, calls, forceAtomic: true })
+        void followBatch(id, walletClient, async (hash) => { follow(hash, main, undefined, await base) }).catch(() => {})
         setBatch(id)
       } catch (e) {
         if (isRejection(e)) setErr('Rejected in the wallet — nothing was sent.')
@@ -210,19 +235,14 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   React.useEffect(() => {
     if (!batch || !walletClient) return
     let live = true
-    walletClient.waitForCallsStatus({ id: batch, timeout: 300_000 }).then(async (st) => {
+    const sent = (bundle?.steps ?? []).filter((s) => !s.done && !s.hash)
+    // a batch picked up after a reload has no baseline from before it: the trace reads one, as a lone step does
+    followBatch(batch, walletClient, (hash) => { if (sent.length) follow(hash, mainOf(sent)) }).then(({ status, hash }) => {
       if (!live) return
-      const hash = st.receipts?.[st.receipts.length - 1]?.transactionHash
-      if (st.status === 'success' && hash) {
-        const sent = (bundle?.steps ?? []).filter((s) => !s.done && !s.hash)
-        // a batch picked up after a reload has no baseline from before it: the trace reads one, as a lone step does
-        const base = await batchBase.current ?? undefined
-        batchBase.current = null
-        if (!live) return
-        if (sent.length) follow(hash, mainOf(sent), undefined, base)
+      if (status === 'success' && hash) {
         setBundle((b) => b && { ...b, steps: b.steps.map((s) => (!s.done && !s.hash ? { ...s, hash } : s)) })
         setPending(hash)
-      } else setErr(st.status === 'failure' ? 'The batch reverted on chain — nothing was moved.' : 'The batch was sent; your wallet has not reported it yet. Check the wallet before sending again.')
+      } else setErr(status === 'failure' ? 'The batch reverted on chain — nothing was moved.' : 'The batch was sent; your wallet has not reported it yet. Check the wallet before sending again.')
       setBatch(undefined)
     }).catch(() => { if (live) { setErr('The batch was sent; its status could not be read. Check the wallet before sending again.'); setBatch(undefined) } })
     return () => { live = false }

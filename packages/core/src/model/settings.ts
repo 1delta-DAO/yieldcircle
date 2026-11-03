@@ -56,6 +56,16 @@ export interface Settings {
 
 /** What AUTO picks: tight between two of the same money, a little wider for a pair priced on its own (JLP against dollars). */
 export const AUTO_SLIPPAGE_BP = { pegged: 5, floating: 10 } as const
+/**
+ * How far a dollar debt may sit from $1 and still count as "the same money" for AUTO. A loop that
+ * SELLS a debt trading off its peg (alUSD at 0.956) does not swap like-for-like: its route runs
+ * through other assets (alUSD → WETH → USDC) and drifts past 5 bp between the build and the
+ * signature — 2026-11-03 an Alchemix open reverted `InsufficientReturnAmount` in the wallet.
+ */
+export const PEG_TOLERANCE = 0.005
+/** A loop's debt trades at its peg: a dollar debt within `PEG_TOLERANCE` of $1, or a price we cannot judge. */
+export const debtAtPeg = (s: { group: string; priceShort?: number }): boolean =>
+  s.group !== 'USD' || !(s.priceShort! > 0) || Math.abs(s.priceShort! - 1) <= PEG_TOLERANCE
 /** The slippage a build for this pair goes out with: the reader's override, else AUTO's pick. */
 export const slippageFor = (st: Settings, pegged: boolean): number => st.slippageBp ?? (pegged ? AUTO_SLIPPAGE_BP.pegged : AUTO_SLIPPAGE_BP.floating)
 

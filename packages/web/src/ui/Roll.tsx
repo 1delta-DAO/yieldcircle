@@ -9,7 +9,7 @@ import { earnDeposit, earnWithdraw, loopMigrate, loopRefinance, midnightSell } f
 import { bookAprAt, chainLabel, useLendingBooks } from '@yieldcircle/app/sdk/queries'
 import { stepsFrom, useTicketLadder, type Step } from '@yieldcircle/app/ladder'
 import { useRollTargets } from '@yieldcircle/app/tickets/roll'
-import { slippageFor, useSettings } from '@yieldcircle/app/state/Settings'
+import { slippageFor, debtAtPeg, useSettings } from '@yieldcircle/app/state/Settings'
 import { useApp } from '../state/AppState'
 import { useSticky } from '../state/sticky'
 import { Info, Sk, num, pct, usd, usdShort } from './bits'
@@ -136,7 +136,7 @@ function RollLoan({ s, h, targets, loading }: { s: LoopStrategy | null; h: Holdi
   const pD = s?.priceShort ?? 1
   const due = h.dueAt ?? s?.dueAt
   const late = due != null && now >= due
-  const slip = slippageFor(useSettings().st, s ? isSavings(s.nature) : !h.directional)
+  const slip = slippageFor(useSettings().st, s ? isSavings(s.nature) && debtAtPeg(s) : !h.directional)
   const debtRaw = toRaw(owed, h.debtDecimals ?? 18)
   const key = ['roll', h.key, to?.id ?? '', account ?? ''].join('|')
   const ladder = useTicketLadder(key, h.chainId, async () => {

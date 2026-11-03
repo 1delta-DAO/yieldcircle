@@ -15,7 +15,7 @@ import { withSignature } from '@yieldcircle/core/sdk/signedAction'
 import { num, usd, usdShort } from '@yieldcircle/core/model/format'
 import { NO_ROUTE, dayOf, defaultTenor, defaultTerm, hasRoute, paysNative, safetyOf, sameToken, tenorWord } from '@yieldcircle/core/model/ticket'
 import { bookAprAt, useIrm, useLendingBooks, useLoopPayAssets, useLoopQuote, useTenorQuotes } from '../sdk/queries'
-import { slippageFor, useSettings } from '../state/Settings'
+import { slippageFor, debtAtPeg, useSettings } from '../state/Settings'
 import { useSticky, useStickyAmount } from '../sticky'
 import { stepsFrom, useTicketLadder } from '../ladder'
 import { useSession } from '../session'
@@ -55,7 +55,7 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   const [dateId, setDateId] = useSticky<string | null>(`t:${s0.id}:date`, null)
   const s = dates?.find((d) => d.id === dateId) ?? s0
   // every loop on the menu is a carry (one money); an exposure loop (JLP against dollars) is not
-  const slip = slippageFor(useSettings().st, isSavings(s.nature))
+  const slip = slippageFor(useSettings().st, isSavings(s.nature) && debtAtPeg(s))
   const actor = actorOn(s.chainId)
   const [getOpen, setGetOpen] = React.useState(false)
   const unit = unitOf(s.asset)

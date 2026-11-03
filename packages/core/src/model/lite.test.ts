@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets } from './lite'
+import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
+import { borrowCapLtv, healthAt, healthAtLtv, liqBuffer, liqBufferAtLtv } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
 import { LITE_CONTROLS, LITE_FLOORS, liteWidened } from './lite'
@@ -364,5 +365,29 @@ describe('liteWidened', () => {
       const patch = c.kind === 'seg' ? { [c.key]: c.opts[c.opts.length - 1].v } : c.to(true)
       expect(liteWidened({ ...DEFAULTS, ...patch })).toBe(1)
     }
+  })
+})
+
+describe('liteLevRange / overLtv', () => {
+  it('holds the top where the loop still clears Lite’s floor', () => {
+    const [lo, hi] = liteLevRange(10, 0.9)
+    expect(lo).toBe(1.1)
+    expect(liqBuffer(0.9, hi)).toBeGreaterThanOrEqual(LITE_MIN_BUFFER)
+    expect(liqBuffer(0.9, hi + 0.02)).toBeLessThan(LITE_MIN_BUFFER)
+  })
+  it('keeps the venue’s own range when the floor is further out', () => {
+    expect(liteLevRange(2.8, 0.8)).toEqual([1.1, 2.76])
+  })
+  it('reads a max-LTV refusal', () => {
+    expect(overLtv('Alchemix open: 79 alUSD of debt against collateral worth 87 exceeds the 90% max LTV (with a 0.5% buffer). Borrow less or add margin.')).toBe(true)
+    expect(overLtv('No route')).toBe(false)
+  })
+})
+describe('liqBufferAtLtv', () => {
+  it('matches the leverage form at (L − 1) / L and reads a costlier open as closer', () => {
+    expect(liqBufferAtLtv(0.9, 5 / 6)).toBeCloseTo(liqBuffer(0.9, 6), 10)
+    expect(liqBufferAtLtv(0.9, 0.844)).toBeLessThan(liqBuffer(0.9, 6.02))
+    expect(healthAtLtv(0.9, 5 / 6)).toBeCloseTo(healthAt(0.9, 6), 10)
+    expect(borrowCapLtv(10)).toBeCloseTo(0.9, 10)
   })
 })

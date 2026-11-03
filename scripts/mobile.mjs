@@ -207,7 +207,9 @@ switch (cmd) {
     easReady()
     // runtimeVersion is the native fingerprint: the update reaches only builds whose native code matches
     // (after a native change it finds none — `pnpm mobile release` instead)
-    run('npx', [...EAS, 'update', '--channel', channel, '--message', message, '--non-interactive'], { env })
+    // --environment (required with --non-interactive): the EAS variables of the same name, which
+    // `env:push` keeps equal to `.env` for preview and production
+    run('npx', [...EAS, 'update', '--channel', channel, '--environment', channel, '--message', message, '--non-interactive'], { env })
     break
   }
 

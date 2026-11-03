@@ -41,6 +41,16 @@ export const liqBuffer = (liqLtv: number, L: number) => (L <= 1 ? 1 : 1 - ((L - 
 /** Health factor at open: collateral · liqFactor / debt. */
 export const healthAt = (liqLtv: number, L: number) => (L <= 1 ? Infinity : (L * liqLtv) / (L - 1))
 /**
+ * The same two at a KNOWN loan-to-value (debt / collateral, as a quote values them after the swap).
+ * The entry cost comes out of the collateral, so a quoted open sits above the (L − 1) / L its
+ * leverage implies: dSOL/wSOL on Kamino at 6.02× quotes 84.4 % against 83.4 %, an Alchemix 7.8×
+ * 90.6 % against 87.2 % — over its 90 % borrow cap, which the leverage alone never shows.
+ */
+export const liqBufferAtLtv = (liqLtv: number, ltv: number) => (ltv <= 0 ? 1 : 1 - ltv / liqLtv)
+export const healthAtLtv = (liqLtv: number, ltv: number) => (ltv <= 0 ? Infinity : liqLtv / ltv)
+/** The loan-to-value a venue lets a loop borrow to, off the pair's max leverage (1 / (1 − ltv)). */
+export const borrowCapLtv = (maxLev: number) => (maxLev > 1 ? 1 - 1 / maxLev : 0)
+/**
  * Leverage is chosen as a TIER, not a number: a fraction of the venue's own range. The range runs
  * from 1× to the pair's `maxLeverage` (the API derives it from the venue's borrow collateral
  * factor and borrow factor: 1 / (1 − cf / bf)), so Defensive / Balanced / Aggressive sit at 50 %,
@@ -63,8 +73,22 @@ export const tierLeverage = (maxLev: number, frac: number) => Math.round(Math.ma
  * The range a hand-picked leverage may take: from the tiers' own floor to 98 % of the way up the
  * venue's range. The venue's own maximum leaves nothing for price moves or the swap's slippage
  * between quote and execution, so the very top is not offered.
+ *
+ * With `slipBp`, the top is also held to where the loop still fits if the swap fills at its
+ * slippage floor (a builder sizes the collateral off that floor, Alchemix's included). The debt
+ * then buys (1 − s) of its value, so the LTV (L − 1) / L becomes x / (1 − x·s); that stays under
+ * the cap c = 1 − 1/maxLev while x ≤ c / (1 + c·s), less `SLIP_MARGIN` for impact past the
+ * quote. 2 % of the range is far less than 0.5 % slippage near the top: at a 10× venue ×9.82 sits
+ * at 89.8 % LTV against a 90 % cap, and every open there was refused (2026-11-03).
  */
-export const customRange = (maxLev: number): [number, number] => [1.1, Math.floor((1 + 0.98 * (Math.max(1, maxLev) - 1)) * 100) / 100]
+const SLIP_MARGIN = 0.002
+export const customRange = (maxLev: number, slipBp?: number): [number, number] => {
+  const top = 1 + 0.98 * (Math.max(1, maxLev) - 1)
+  if (slipBp == null || !(maxLev > 1)) return [1.1, Math.floor(top * 100) / 100]
+  const c = 1 - 1 / maxLev, s = Math.max(0, slipBp) / 10_000
+  const held = 1 / (1 - (c / (1 + c * s)) * (1 - SLIP_MARGIN))
+  return [1.1, Math.max(1.1, Math.floor(Math.min(top, held) * 100) / 100)]
+}
 export type TierLeverages = Record<TierId, number>
 export const tierLeverages = (maxLev: number): TierLeverages => ({ defensive: tierLeverage(maxLev, 0.5), balanced: tierLeverage(maxLev, 0.75), aggressive: tierLeverage(maxLev, 0.9) })
 /**

@@ -111,24 +111,29 @@ const TONE: Record<string, string> = { ok: C.ok, warn: C.warn, bad: C.bad }
  * Lite's lines (`.lite-lines`): the open ticket's three — what you earn, what you can lose, what it
  * costs — and the same shape for a withdrawal, a safer loop or a close. The first line leads.
  */
-export function Lines({ l }: { l: ThreeLines | Line[] }) {
+export function Lines({ l, edit }: { l: ThreeLines | Line[]; /** the first line's Edit: a button beside it and, open, its control under it (a loop's leverage) */ edit?: LineEdit }) {
   const rows = Array.isArray(l) ? l : [l.earn, l.lose, l.cost]
   return (
     <Sec>
       <View style={st.lines}>
-        {rows.map((x, i) => <LineRow key={x.k} l={x} hero={i === 0} />)}
+        {rows.map((x, i) => <LineRow key={x.k} l={x} hero={i === 0} edit={i === 0 ? edit : undefined} />)}
       </View>
     </Sec>
   )
 }
-function LineRow({ l, hero }: { l: Line; hero?: boolean }) {
+export type LineEdit = { open: boolean; onToggle: () => void; label: string; body: React.ReactNode }
+function LineRow({ l, hero, edit }: { l: Line; hero?: boolean; edit?: LineEdit }) {
   return (
-    <View style={[st.ll, hero && { backgroundColor: '#0b0b0e' }]}>
+    <View style={[st.ll, hero && { backgroundColor: '#0b0b0e' }, !!edit && { flexWrap: 'wrap' }]}>
       <Txt s={12} w={600} c={C.tx50} style={{ width: 80, paddingTop: 2 }}>{l.k}</Txt>
       <View style={{ flex: 1, gap: 1 }}>
         <Txt s={hero ? 24 : 15} w={600} lh={hero ? 29 : undefined} c={TONE[l.tone] ?? C.tx} style={{ fontVariant: ['tabular-nums'] }}>{l.v}</Txt>
         {!!l.s && <Txt s={12} c={C.tx50} lh={17}>{l.s}</Txt>}
       </View>
+      {edit && <Pressable accessibilityRole="button" accessibilityLabel={edit.label} onPress={edit.onToggle} hitSlop={8} style={{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, borderWidth: 1, borderColor: C.line }}>
+        <Txt s={12} w={600} c={C.primary}>{edit.open ? 'Done' : 'Edit'}</Txt>
+      </Pressable>}
+      {edit?.open && <View style={{ width: '100%', marginTop: 10, gap: 6 }}>{edit.body}</View>}
     </View>
   )
 }

@@ -8,20 +8,23 @@ import { Drawer } from '../Drawer'
  * earn, what you can lose, what it costs — and the same shape for a withdrawal, a safer loop or a
  * close, so every Lite body speaks one language. The first line leads.
  */
-export function LiteLines({ l }: { l: ThreeLines | Line[] }) {
+export function LiteLines({ l, edit }: { l: ThreeLines | Line[]; /** the first line's Edit: a button beside it and, open, its control under it (a loop's leverage) */ edit?: LineEdit }) {
   const rows = Array.isArray(l) ? l : [l.earn, l.lose, l.cost]
   return (
     <div className="tsec"><div className="lite-lines">
-      {rows.map((x, i) => <LineRow key={x.k} l={x} hero={i === 0} />)}
+      {rows.map((x, i) => <LineRow key={x.k} l={x} hero={i === 0} edit={i === 0 ? edit : undefined} />)}
     </div></div>
   )
 }
-function LineRow({ l, hero }: { l: Line; hero?: boolean }) {
+type LineEdit = { open: boolean; onToggle: () => void; label: string; body: React.ReactNode }
+function LineRow({ l, hero, edit }: { l: Line; hero?: boolean; edit?: LineEdit }) {
   return (
-    <div className={`ll${hero ? ' hero' : ''}`}>
+    <div className={`ll${hero ? ' hero' : ''}${edit ? ' editable' : ''}`}>
       <span className="k">{l.k}</span>
       <span className={`v ${l.tone}`}>{l.v}</span>
       {l.s && <span className="s">{l.s}</span>}
+      {edit && <button type="button" className="ll-edit-b" aria-expanded={edit.open} aria-label={edit.label} title={edit.label} onClick={edit.onToggle}>{edit.open ? 'Done' : 'Edit'}</button>}
+      {edit?.open && <div className="ll-edit">{edit.body}</div>}
     </div>
   )
 }

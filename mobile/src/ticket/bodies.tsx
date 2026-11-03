@@ -2,7 +2,7 @@ import React from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { fromUnits, heldRaw, portion, unitsOf, type Amount } from '@yieldcircle/core/model/amount'
 import { ZONES, collateralOf, dropOf, offerFromHolding, owedOf, type BorrowOffer } from '@yieldcircle/core/model/borrow'
-import { brandOf, closeLines, debtWord, depositLines, leverTag, liteTiers, loopLines, moneyWord, bufferOfHealth, plainName, riskWord, saferLines, shownDp, withdrawLines } from '@yieldcircle/core/model/lite'
+import { brandOf, closeLines, debtWord, depositLines, leverTag, liteTiers, loopLines, moneyWord, overLtv, bufferOfHealth, plainName, riskWord, saferLines, shownDp, withdrawLines } from '@yieldcircle/core/model/lite'
 import { DEFAULT_TIER, liqBuffer, netAprAtLeverage, type TierId } from '@yieldcircle/core/model/leverage'
 import { num, pct, usd, usdShort, cents } from '@yieldcircle/core/model/format'
 import { dayMonth, daysWord } from '@yieldcircle/core/model/ticket'
@@ -69,6 +69,24 @@ export function LoopBody({ s, idle, allIdle, holding, copyLev }: { s: LoopStrate
   const dollar = t.unit === '$' || (t.price > 0.9 && t.price < 1.1), dp = shownDp(dollar)
   // what the loop holds, in Lite's words: never a PT's or a share's ticker
   const holdsWord = plainName(s).title
+  // Edit on the Earn line (web's `levEdit`): − and + in tenths, inside Lite's range; a venue refusing the size (max LTV) opens it
+  const ltvRefused = t.overCap || overLtv(t.ladder.err) || overLtv((t.q.error as Error | null)?.message)
+  const [editLev, setEditLev] = React.useState(false)
+  React.useEffect(() => { if (ltvRefused) setEditLev(true) }, [ltvRefused])
+  const step = (d: number) => t.setLiteLev(Math.round((t.L + d) * 10) / 10)
+  const levEdit = t.heldL == null && t.liteHi > t.liteLo + 0.05 ? {
+    open: editLev, onToggle: () => setEditLev(!editLev), label: 'Set the leverage',
+    body: <>
+      {ltvRefused && <Txt s={12.5} c={C.warn}>{brandOf(s)} will not lend this much against the collateral{t.overCap && t.ltvQ != null ? ` once the swap is paid (${pct(t.ltvQ * 100, 1)} borrowed of the ${pct(t.capLtv * 100, 0)} it allows)` : ''}: lower the leverage.</Txt>}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Less leverage" disabled={t.L <= t.liteLo} onPress={() => step(-0.1)} style={stepSt}><Txt s={18} w={700}>−</Txt></Pressable>
+        <Txt s={18} w={600} c={t.drop < 0.05 ? C.bad : t.drop < 0.1 ? C.warn : C.tx} style={{ minWidth: 64, textAlign: 'center', fontVariant: ['tabular-nums'] }}>{num(t.L, 2)}×</Txt>
+        <Pressable accessibilityRole="button" accessibilityLabel="More leverage" disabled={t.L >= t.liteHi} onPress={() => step(0.1)} style={stepSt}><Txt s={18} w={700}>+</Txt></Pressable>
+        {t.liteLev != null && <Pressable onPress={() => t.pickLiteTier(t.liteTier)} hitSlop={8}><Txt s={12.5} c={C.primary}>Back to {t.liteTier ? 'the tier' : 'Lite’s pick'}</Txt></Pressable>}
+      </View>
+      <Txt s={12} c={C.tx50}>Lower earns less and sits further from liquidation.</Txt>
+    </>,
+  } : undefined
   return (
     <>
       <Sec>
@@ -82,7 +100,7 @@ export function LoopBody({ s, idle, allIdle, holding, copyLev }: { s: LoopStrate
           onTarget={(x) => t.setPayAddr(t.opts.find((o) => normAddr(o.address) === normAddr(x.address))?.address ?? null)} onClose={() => t.setGetOpen(false)} />}
         {t.short && <Txt s={12.5} c={C.warn} style={{ marginTop: 8 }}><Txt s={12.5} w={700} c={C.warn}>Too big for one lender.</Txt> {t.short.message}</Txt>}
       </Sec>
-      <Lines l={loopLines({ net: t.net, amountUsd: t.E, lev: t.L, drop: t.drop, holds: moneyWord(s.asset, s.group), debt: debtWord(s), dollarDebt: s.group === 'USD', expiry: s.expiry, cost: t.econ ? t.cost : null, payback: t.payback, quoting: t.q.isFetching && t.amount > 0, staleHours: t.staleRef ? t.staleRef.ageHours ?? 0 : null })} />
+      <Lines edit={levEdit} l={loopLines({ net: t.net, amountUsd: t.E, lev: t.L, drop: t.drop, holds: moneyWord(s.asset, s.group), debt: debtWord(s), dollarDebt: s.group === 'USD', expiry: s.expiry, cost: t.econ ? t.cost : null, payback: t.payback, quoting: t.q.isFetching && t.amount > 0, staleHours: t.staleRef ? t.staleRef.ageHours ?? 0 : null })} />
       {t.econ && <View style={{ paddingHorizontal: 16 }}><LossAck v={t.vc} what="Opening this loop" advice="Lower the amount, or pick a lower leverage in More choices: the swap is sized on the whole position." /></View>}
       {t.noRoute && <Txt s={12.5} c={C.bad} style={{ marginHorizontal: 16, marginVertical: 10 }}>{NO_ROUTE}</Txt>}
       <Action ladder={t.ladder} label={`Open ${leverTag(t.L)} loop · ${usd(t.E)}`} account={t.account} isConnected={t.isConnected}
@@ -91,7 +109,7 @@ export function LoopBody({ s, idle, allIdle, holding, copyLev }: { s: LoopStrate
       <MoreSheet>
         {t.heldL != null
           ? <MoreNote label="How hard to push it">Adding keeps your loop’s own leverage, {leverTag(t.heldL)}: one Add never pushes a running loop harder. Make it safer from its own ticket.</MoreNote>
-          : <Choices<'copy' | TierId> label="How hard to push it" on={t.liteTier ?? (t.copyL != null ? 'copy' : DEFAULT_TIER)} onPick={(id) => t.pickLiteTier(id === 'copy' ? null : id)}
+          : <Choices<'copy' | TierId> label="How hard to push it" on={t.liteLev != null ? null : t.liteTier ?? (t.copyL != null ? 'copy' : DEFAULT_TIER)} onPick={(id) => t.pickLiteTier(id === 'copy' ? null : id)}
             items={[
               ...(t.copyL != null ? [{ id: 'copy' as const, word: 'Theirs', line: `${leverTag(t.copyL)} · ${pct(liqBuffer(t.liqLtv, t.copyL) * 100, 1)} from liquidation`, side: `earns ${pct(netAprAtLeverage(t.dep, t.borAt(t.E * (t.copyL - 1)), t.copyL))}` }] : []),
               ...liteTiers(s.tiers, t.liqLtv, (l) => netAprAtLeverage(t.dep, t.borAt(t.E * (l - 1)), l)).map((x) => ({ id: x.id as TierId, word: x.word, line: `${leverTag(x.lev)} · ${pct(x.buffer * 100, 1)} from liquidation`, side: `earns ${pct(x.net)}`, tone: x.net >= 3 ? 'ok' : x.net < 0 ? 'bad' : '' })),
@@ -434,3 +452,5 @@ const st = StyleSheet.create({
   zone: { flex: 1, gap: 2, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderColor: C.b300, backgroundColor: '#0d0d0d' },
   box: { width: 16, height: 16, marginTop: 1, borderRadius: 4, borderWidth: 1.5, borderColor: C.tx50 },
 })
+
+const stepSt = { width: 40, height: 40, borderRadius: 999, backgroundColor: C.b300, alignItems: 'center', justifyContent: 'center' } as const

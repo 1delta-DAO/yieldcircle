@@ -104,6 +104,13 @@ const SYNC_WAITS = [0, 2_000, 3_000, 5_000, 8_000, 12_000, 15_000, 15_000]
  * has it; ≈ 90 s in all before giving up.
  */
 const NARROW_SYNC_WAITS = [0, 2_000, 2_000, 2_000, 3_000, 3_000, 3_000, 3_000, 3_000, 3_000, 4_000, 4_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000]
+/**
+ * The schedule for the watched balances: a read of two or three tokens is cheap, and the wallet's
+ * own read (invalidated at `final`) answered the new amount seconds before the old 5–15 s gaps
+ * knocked again — the balance had moved and the tray still said "Updating your balance".
+ * `balanceSync` also settles the moment one of the app's own balance reads shows the move.
+ */
+const BALANCE_SYNC_WAITS = [0, 1_500, 1_500, 2_000, 2_000, 2_000, 3_000, 3_000, 3_000, 4_000, 4_000, 5_000, 5_000, 5_000, 5_000, 5_000, 5_000]
 const BRIDGE_POLL_MS = 10_000
 const BRIDGE_TERMINAL = new Set(['DONE', 'FAILED', 'TRANSFER_REFUNDED', 'INVALID'])
 const KEEP = 20, KEEP_MS = 24 * 3600_000
@@ -413,11 +420,14 @@ async function balanceSync(id: string, carried?: string) {
     ? carried ?? 'Final on chain, but your wallet balance has not picked it up yet. It will on the next refresh.'
     : 'Arrived, but the balance has not shown it yet. It will on the next refresh.'
   let received: Trace['received']
-  for (const wait of SYNC_WAITS) {
-    await sleep(wait)
-    const now = await readWatched(t.account, w)
+  const moved = (now: Watched | null, base = get(id)?.watchBase): now is Watched => !!now && (!base || Object.keys(now).some((k) => now[k].raw !== base[k]))
+  // the app's own balance reads, refetched at `final`: when one shows the move, that is the answer
+  const seen = () => { const c = qc && get(id)?.watchBase ? cachedWatched(qc, t.account, w, t.at) : null; return moved(c) ? c : null }
+  for (const wait of BALANCE_SYNC_WAITS) {
+    await sleepUntil(wait, () => !!seen())
+    const now = seen() ?? await readWatched(t.account, w)
     const base = get(id)?.watchBase
-    if (now && (!base || Object.keys(now).some((k) => now[k].raw !== base[k]))) {
+    if (moved(now, base)) {
       note = carried
       if (base) received = Object.entries(now).flatMap(([k, b]) => { const d = BigInt(b.raw) - BigInt(base[k] ?? '0'); return d > 0n ? [{ symbol: b.symbol, amount: formatUnits(d, b.decimals) }] : [] })
       break
@@ -427,27 +437,65 @@ async function balanceSync(id: string, carried?: string) {
   patch(id, { phase: 'settled', doneAt: Date.now(), note, ...(received?.length ? { received } : {}) })
 }
 type Watched = Record<string, { raw: string; symbol: string; decimals: number }>
+type Row = { address: string; balanceRaw?: string; symbol?: string; decimals?: number }
 const rawOf = (b: Watched) => Object.fromEntries(Object.entries(b).map(([k, v]) => [k, v.raw]))
+const chainsOf = (w: NonNullable<Trace['watch']>) => [...new Set(w.map((x) => x.chainId))]
+const askedOn = (w: NonNullable<Trace['watch']>, c: string) => [...new Set(w.filter((x) => x.chainId === c).map((x) => normAddr(x.address)))]
+// one holder per chain: the entry's own (a bridge's destination wallet), else the signer
+const holderOn = (w: NonNullable<Trace['watch']>, c: string, account: string) => w.find((x) => x.chainId === c && x.account)?.account ?? account
+// the gas coin has several spellings (zero address, `0xeeee…`, the System Program id): any one matches
+const same = (a: string, b: string) => normAddr(a) === b || (isNativeAddress(a) && isNativeAddress(b))
+function pick(out: Watched, w: NonNullable<Trace['watch']>, c: string, asked: string[], items: Row[]) {
+  for (const a of asked) {
+    const b = items.find((x) => same(x.address, a))
+    out[`${c}:${a}`] = { raw: b?.balanceRaw ?? '0', symbol: b?.symbol || w.find((x) => x.chainId === c && normAddr(x.address) === a)?.symbol || '', decimals: b?.decimals ?? 0 }
+  }
+}
 /** The watched tokens, `chain:address` → raw amount (and how to say it); `null` if a read failed. */
 async function readWatched(account: string, w: NonNullable<Trace['watch']>): Promise<Watched | null> {
   const out: Watched = {}
   try {
-    for (const c of [...new Set(w.map((x) => x.chainId))]) {
-      const asked = [...new Set(w.filter((x) => x.chainId === c).map((x) => normAddr(x.address)))]
-      // the gas coin has several spellings (zero address, `0xeeee…`, the System Program id): any one matches
-      const same = (a: string, b: string) => normAddr(a) === b || (isNativeAddress(a) && isNativeAddress(b))
+    for (const c of chainsOf(w)) {
+      const asked = askedOn(w, c)
       // the route's `assets` filter wants the native coin as the zero address on EVM; Solana answers it unasked
       const ask = asked.map((a) => (isNativeAddress(a) && isEvmChain(c) ? '0x0000000000000000000000000000000000000000' : a)).filter((a) => !(isSvmChain(c) && isNativeAddress(a)))
-      // one holder per chain: the entry's own (a bridge's destination wallet), else the signer
-      const holder = w.find((x) => x.chainId === c && x.account)?.account ?? account
-      const r = await fetchTokenBalances(holder, c, ask, true)
-      for (const a of asked) {
-        const b = r.items.find((x) => same(x.address, a))
-        out[`${c}:${a}`] = { raw: b?.balanceRaw ?? '0', symbol: b?.symbol || w.find((x) => x.chainId === c && normAddr(x.address) === a)?.symbol || '', decimals: b?.decimals ?? 0 }
-      }
+      const r = await fetchTokenBalances(holderOn(w, c, account), c, ask, true)
+      pick(out, w, c, asked, r.items)
     }
     return out
   } catch { return null }
+}
+/**
+ * The watched tokens as the app's own balance reads (`['balances', account, chainId, assets]`) last
+ * answered them — only reads that landed after `since` (the send: against the balance at send, any
+ * difference is the transaction), and only tokens a read actually listed
+ * (a read that does not ask for a token is no word on it); `null` while any is missing.
+ */
+function cachedWatched(client: QueryClient, account: string, w: NonNullable<Trace['watch']>, since: number): Watched | null {
+  const out: Watched = {}
+  for (const c of chainsOf(w)) {
+    const holder = normAddr(holderOn(w, c, account))
+    const reads = client.getQueryCache().findAll({ queryKey: ['balances'] })
+      .filter((q) => normAddr(String(q.queryKey[1])) === holder && String(q.queryKey[2]) === c && q.state.dataUpdatedAt > since && q.state.data)
+      .sort((a, b) => b.state.dataUpdatedAt - a.state.dataUpdatedAt)
+    for (const a of askedOn(w, c)) {
+      const items = reads.map((q) => (q.state.data as { items?: Row[] }).items ?? []).find((it) => it.some((x) => same(x.address, a)))
+      if (!items) return null
+      pick(out, w, c, [a], items)
+    }
+  }
+  return out
+}
+/** `ms`, or sooner: the first time a balance read lands and `done()` says it is enough. */
+function sleepUntil(ms: number, done: () => boolean) {
+  if (!qc || !ms || done()) return sleep(0)
+  const cache = qc.getQueryCache()
+  return new Promise<void>((r) => {
+    let off = () => {}
+    const end = () => { clearTimeout(timer); off(); r() }
+    const timer = setTimeout(end, ms)
+    off = cache.subscribe((e) => { if (e.type === 'updated' && e.action.type === 'success' && e.query.queryKey[0] === 'balances' && done()) end() })
+  })
 }
 
 // ---------------------------------------------------------------- positions, narrowed and compared

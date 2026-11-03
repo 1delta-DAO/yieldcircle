@@ -6,7 +6,7 @@
  */
 import { deskOf, groupOf, nameOf, type GroupId } from './assets'
 import { isSavings } from './nature'
-import { liqBuffer } from './leverage'
+import { customRange, liqBuffer } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import type { Holding } from './positions'
 import { usdShort } from './format'
@@ -176,6 +176,19 @@ export function liteTiers(tiers: Record<LiteTierId, number>, liqLtv: number | nu
     .map((id) => ({ id, word: LITE_TIER_WORDS[id], lev: tiers[id], net: net(tiers[id]), buffer: liqLtv != null ? liqBuffer(liqLtv, tiers[id]) : 0 }))
     .filter((t) => t.lev > 1 && t.buffer >= LITE_MIN_BUFFER)
 }
+
+/**
+ * The range a Lite loop's own leverage moves in (the Earn line's Edit): the venue's custom range,
+ * held to where the loop still sits `LITE_MIN_BUFFER` from liquidation — the floor every Lite tier
+ * clears. Solved from `liqBuffer`: b ≥ m ⇔ L ≤ 1 / (1 − liqLtv · (1 − m)).
+ */
+export function liteLevRange(maxLev: number, liqLtv: number | null | undefined, slipBp?: number): [number, number] {
+  const [lo, hi] = customRange(maxLev, slipBp)
+  const cap = liqLtv != null && liqLtv > 0 && liqLtv < 1 ? Math.floor(100 / (1 - liqLtv * (1 - LITE_MIN_BUFFER))) / 100 : hi
+  return [lo, Math.max(lo, Math.min(hi, cap))]
+}
+/** A venue refusing the open for its size against the collateral (Alchemix: "exceeds the 90% max LTV"): lower leverage fixes it. */
+export const overLtv = (msg: string | null | undefined) => !!msg && /max(imum)?\s*LTV|loan[- ]to[- ]value|health ?factor|leverage too high|borrow less/i.test(msg)
 
 export const brandOf = (s: Strategy) => { const b = (s.kind === 'loop' ? s.venue : s.brand) ?? ''; return b.charAt(0).toUpperCase() + b.slice(1) }
 

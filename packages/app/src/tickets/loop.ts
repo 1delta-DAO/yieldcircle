@@ -1,9 +1,9 @@
 import React from 'react'
 import { useSignTypedData } from 'wagmi'
 import { unitOf } from '@yieldcircle/core/model/assets'
-import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, toRaw, type TierId } from '@yieldcircle/core/model/leverage'
+import { DEFAULT_TIER, TIERS, borrowAtSize, borrowCapLtv, curveRateNow, customRange, healthAt, healthAtLtv, liqBuffer, liqBufferAtLtv, netAprAtLeverage, toRaw, type TierId } from '@yieldcircle/core/model/leverage'
 import { fromUnits, payRaw, portion, unitsOf } from '@yieldcircle/core/model/amount'
-import { shownDp } from '@yieldcircle/core/model/lite'
+import { liteLevRange, shownDp } from '@yieldcircle/core/model/lite'
 import { loopRewards, type LoopStrategy, type LoopTerm } from '@yieldcircle/core/model/strategies'
 import type { LoopPayAsset } from '@yieldcircle/core/sdk/types'
 import type { Holding, Idle } from '@yieldcircle/core/model/positions'
@@ -102,7 +102,7 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   // a number of your own is behind the slider icon, never the default: the tiers are the advice,
   // the slider is for someone who already knows the number they want. `null` = on the tiers
   const [custom, setCustom] = useSticky<number | null>(`t:${s0.id}:lev`, null)
-  const [lo, hi] = customRange(s.maxLev), canCustom = hi > lo + 0.05
+  const [lo, hi] = customRange(s.maxLev, slip), canCustom = hi > lo + 0.05
   // a copy opens on the copied wallet's own leverage, held inside what this venue lets a new loop take;
   // any tier or the slider leaves it, and its tile brings it back
   const copyL = copyLev && copyLev > 1.05 ? Math.round(Math.min(hi, Math.max(lo, copyLev)) * 100) / 100 : null
@@ -116,8 +116,13 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   const heldL = holding?.leverage && holding.leverage > 1.05 ? Math.round(Math.min(hi, Math.max(lo, Math.min(holding.leverage, s.tiers[DEFAULT_TIER]))) * 100) / 100 : null
   // Lite's "More choices": a tier the reader picked there, in Lite's words (`liteTiers`); none = Lite's own pick
   const [liteTier, setLiteTier] = React.useState<TierId | null>(null)
-  const pickLiteTier = (t: TierId | null) => { setLiteTier(t); setTier(t ?? DEFAULT_TIER) }
-  const L = lite ? heldL ?? (liteTier ? s.tiers[liteTier] : copyL ?? s.tiers[DEFAULT_TIER]) : onCopy && copyL != null ? copyL : custom != null && canCustom ? Math.min(hi, Math.max(lo, custom)) : s.tiers[tier]
+  // …or a number of the reader's own, off the Earn line's Edit: a venue whose open refuses a tier
+  // (Alchemix's max LTV with its buffer) is fixed by pushing less. Held inside Lite's floor; a tier clears it
+  const [liteLo, liteHi] = liteLevRange(s.maxLev, s.liqLtv, slip)
+  const [liteLev, setLiteLev0] = React.useState<number | null>(null)
+  const setLiteLev = (l: number | null) => setLiteLev0(l == null ? null : Math.round(Math.min(liteHi, Math.max(liteLo, l)) * 100) / 100)
+  const pickLiteTier = (t: TierId | null) => { setLiteLev0(null); setLiteTier(t); setTier(t ?? DEFAULT_TIER) }
+  const L = lite ? heldL ?? (liteLev != null ? Math.min(liteHi, Math.max(liteLo, liteLev)) : liteTier ? s.tiers[liteTier] : copyL ?? s.tiers[DEFAULT_TIER]) : onCopy && copyL != null ? copyL : custom != null && canCustom ? Math.min(hi, Math.max(lo, custom)) : canCustom ? Math.min(hi, s.tiers[tier]) : s.tiers[tier]
   const E = amount * price, C = E * L, D = E * (L - 1)
   // a fixed-rate loop borrows for one term off the broker's card; `undefined` on a float loop
   const [termId, setTermId] = useSticky<string | null>(`t:${s0.id}:term`, null)
@@ -153,7 +158,7 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   const borAt0 = useBorrowAt(s, term, offer?.apr ?? bookApr ?? undefined)
   const borAt = (d: number) => borAt0(d) + rateShift
   const dep = s.depSpot, bor = borAt(D)
-  const net = netAprAtLeverage(dep, bor, L), drop = liqBuffer(liqLtv, L), hf = healthAt(liqLtv, L)
+  const net = netAprAtLeverage(dep, bor, L)
   const netWorst = netAprAtLeverage(dep, bor + 2, L)
   // when the term ends the debt is not due: it moves to the market's variable rate until it is fixed again
   const irm = useIrm(s.marketShortUid, !!term)
@@ -183,6 +188,17 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   // on a broker term it prices the debt at the market's variable rate, not the term's (2026-09-29):
   // there the payback is this ticket's own, off the net it shows. Null = never (no positive carry).
   const cost = econ?.entryCostUsd.total ?? 0
+  // how far from liquidation, off the quote once there is one: its debt over the collateral the swap
+  // actually bought (the entry cost is out of it, and the API sizes the borrow itself). Until then
+  // the leverage's own (L − 1) / L, which reads the open safer than it lands
+  const qn = econ?.notionalUsd
+  const ltvQ = qn && qn.collateral > 0 && qn.debt > 0 && E > 0 ? qn.debt / qn.collateral : null
+  const drop = ltvQ != null ? liqBufferAtLtv(liqLtv, ltvQ) : liqBuffer(liqLtv, L)
+  const hf = ltvQ != null ? healthAtLtv(liqLtv, ltvQ) : healthAt(liqLtv, L)
+  // over what the venue lets a loop borrow to once the swap's cost is paid: the open is refused (Alchemix)
+  // or the venue's own buffer bites — lower the leverage. A fixed-term or book loan has no such cap here
+  const capLtv = !s.terms && !s.tenors && !s.dueAt ? borrowCapLtv(s.maxLev) : 0
+  const overCap = ltvQ != null && capLtv > 0 && ltvQ > capLtv - 0.005
   const ownPayback = !econ ? null : cost <= 0 ? 0 : net > 0 && E > 0 ? cost / (E * net / 100 / 365) : null
   const payback = !econ ? null : term ? ownPayback : econ.breakEvenDays.total ?? ownPayback
   // the clock the payback runs against: the fixed debt's term, its due date, the PT's expiry
@@ -242,5 +258,5 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   const hfShown = simHf ?? hf, safe = safetyOf(drop)
   const rewardsNow = loopRewards(s, L)
   const fixedNote = term ? `fixed to ${ends}` : tenor ? `fixed for ${tenorWord(tenor)}` : s.dueAt ? `fixed to ${due}` : ''
-  return { liteTier, pickLiteTier, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote }
+  return { ltvQ, overCap, capLtv, liteTier, pickLiteTier, liteLev, setLiteLev, liteLo, liteHi, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote }
 }

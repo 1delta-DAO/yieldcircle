@@ -41,7 +41,7 @@ import { NATURES, isSavings } from '@yieldcircle/core/model/nature'
 import { SayWhy } from './SayWhy'
 import { TicketSocial } from './TicketSocial'
 import { AssetLink } from './TokenPage'
-import { heldBy, bufferOfHealth, brandOf, closeLines, debtWord, depositLines, holdingLine, leverTag, liteEligible, liteModes, liteTiers, loopLines, moneyWord, plainName, riskWord, saferLines, saferTargets, shownDp, trustKind, withdrawLines, type LiteMode } from '@yieldcircle/core/model/lite'
+import { heldBy, bufferOfHealth, brandOf, closeLines, debtWord, depositLines, holdingLine, leverTag, liteEligible, liteModes, liteTiers, loopLines, moneyWord, overLtv, plainName, riskWord, saferLines, saferTargets, shownDp, trustKind, withdrawLines, type LiteMode } from '@yieldcircle/core/model/lite'
 import { proHref } from '../state/AppState'
 import { LoopLoanPanes } from './BorrowTicket'
 import { LiteAmtSub, LiteChoices, LiteDetails, LiteLines, LiteMoreCtx, LiteMoreSheet, LiteNumbers, LitePresets } from './lite/LiteTicketBits'
@@ -641,10 +641,23 @@ function CopiedTier({ l, theirs, on, n, d, onPick }: { l: number; theirs: number
 function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: Idle[]; allIdle: Idle[]; holding: Holding | null }) {
   const { copyLev, lite } = React.useContext(TicketCtx)
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/loop`)
-  const { liteTier, pickLiteTier, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote } = useLoopTicket(s0, idle, allIdle, holding, { lite, copyLev })
+  const { ltvQ, overCap, capLtv, liteTier, pickLiteTier, liteLev, setLiteLev, liteLo, liteHi, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote } = useLoopTicket(s0, idle, allIdle, holding, { lite, copyLev })
   const dollar = unit === '$' || (price > 0.9 && price < 1.1), dp = shownDp(dollar)
   // what the loop holds, in Lite's words: never a PT's or a share's ticker (docs/lite-design-review.md §4.2)
   const holdsWord = plainName(s).title
+  // Lite's Edit on the Earn line: the leverage moves what it earns and what it can lose, so it is set
+  // there. A venue refusing the size against its collateral (max LTV) opens it, since less leverage is the fix
+  const ltvRefused = overCap || overLtv(ladder.err) || overLtv((q.error as Error | null)?.message)
+  const [editLev, setEditLev] = React.useState(false)
+  React.useEffect(() => { if (ltvRefused) setEditLev(true) }, [ltvRefused])
+  const levEdit = lite && heldL == null && liteHi > liteLo + 0.05 ? {
+    open: editLev, onToggle: () => setEditLev(!editLev), label: 'Set the leverage',
+    body: <>
+      {ltvRefused && <p className="warn">{brandOf(s)} will not lend this much against the collateral{overCap && ltvQ != null ? <> once the swap is paid ({pct(ltvQ * 100, 1)} borrowed of the {pct(capLtv * 100, 0)} it allows)</> : ''}: lower the leverage.</p>}
+      <div className="levr"><span className="t50">safer</span><input type="range" min={liteLo} max={liteHi} step={0.01} value={L} onChange={(e) => setLiteLev(parseFloat(e.target.value))} aria-label="Leverage" /><span className="t50">more</span><LevInput value={L} min={liteLo} max={liteHi} onChange={setLiteLev} className={drop < 0.05 ? 'bad' : drop < 0.1 ? 'warn' : ''} /></div>
+      <p className="t50">Lower earns less and sits further from liquidation.{liteLev != null && <> <button type="button" className="linkish" onClick={() => pickLiteTier(liteTier)}>Back to {liteTier ? 'the tier' : 'Lite’s pick'}</button></>}</p>
+    </>,
+  } : undefined
   if (lite) return (
     <>
       <div className="tsec">
@@ -658,13 +671,13 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
           onTarget={(t) => setPayAddr(opts.find((o) => normAddr(o.address) === normAddr(t.address))?.address ?? null)} onClose={() => setGetOpen(false)} />}
         {short && <div className="caution depth"><b>Too big for one lender.</b> {short.message}</div>}
       </div>
-      <LiteLines l={loopLines({ net, amountUsd: E, lev: L, drop, holds: moneyWord(s.asset, s.group), debt: debtWord(s), dollarDebt: s.group === 'USD', expiry: s.expiry, cost: econ ? cost : null, payback, quoting: q.isFetching && amount > 0, staleHours: staleRef ? staleRef.ageHours ?? 0 : null })} />
+      <LiteLines edit={levEdit} l={loopLines({ net, amountUsd: E, lev: L, drop, holds: moneyWord(s.asset, s.group), debt: debtWord(s), dollarDebt: s.group === 'USD', expiry: s.expiry, cost: econ ? cost : null, payback, quoting: q.isFetching && amount > 0, staleHours: staleRef ? staleRef.ageHours ?? 0 : null })} />
       {econ && <div className="tsec" style={{ paddingTop: 0 }}><LossAck v={vc} what="Opening this loop" advice="Lower the amount, or open Details for a lower leverage: the swap is sized on the whole position." /></div>}
       {noRoute && <div className="err" style={{ margin: '0 0 10px' }}>{NO_ROUTE}</div>}
       <LiteMoreSheet>
         {heldL != null
           ? <section className="lite-more-s"><h3>How hard to push it</h3><p className="plain">Adding keeps your loop’s own leverage, {leverTag(heldL)}: one Add never pushes a running loop harder. Make it safer from its own ticket.</p></section>
-          : <LiteChoices<'copy' | TierId> label="How hard to push it" on={liteTier ?? (copyL != null ? 'copy' : DEFAULT_TIER)} onPick={(id) => pickLiteTier(id === 'copy' ? null : id)}
+          : <LiteChoices<'copy' | TierId> label="How hard to push it" on={liteLev != null ? null : liteTier ?? (copyL != null ? 'copy' : DEFAULT_TIER)} onPick={(id) => pickLiteTier(id === 'copy' ? null : id)}
             items={[
               ...(copyL != null ? [{ id: 'copy' as const, word: 'Theirs', line: `${leverTag(copyL)} · ${pct(liqBuffer(liqLtv, copyL) * 100, 1)} from liquidation`, side: `earns ${pct(netAprAtLeverage(dep, borAt(E * (copyL - 1)), copyL))}` }] : []),
               ...liteTiers(s.tiers, liqLtv, (l) => netAprAtLeverage(dep, borAt(E * (l - 1)), l)).map((t) => ({ id: t.id as TierId, word: t.word, line: `${leverTag(t.lev)} · ${pct(t.buffer * 100, 1)} from liquidation`, side: `earns ${pct(t.net)}`, tone: t.net >= 3 ? 'ok' : t.net < 0 ? 'bad' : '' })),
@@ -752,6 +765,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
           {routeSel > 0 && <span className="t50">via {routes[routeSel].deltas?.aggregator}</span>}
           <span className="qe">break-even {staleRef ? <b className="warn">unknown</b> : <b className={payback == null ? 'bad' : clockDays != null && payback > clockDays ? 'warn' : 'ok'}>{payback == null ? 'never' : daysWord(payback)}</b>} <Info label="About the entry">{entryWhy} Over {pct(1, 0)} lost it turns amber; over {pct(3, 0)} you confirm the loss before signing.</Info></span>
         </div> : amount > 0 && <div className="entryline unk"><span>Entry</span><span className="t50">{noRoute ? 'no route at this size' : short ? 'too big for one lender' : q.error && !q.isFetching ? 'no quote at this size' : <Sk w={90} h={12} />}</span></div>}
+        {overCap && ltvQ != null && <div className="caution"><b>Over {s.venue}’s borrow limit.</b> After the swap’s cost the loop borrows {pct(ltvQ * 100, 1)} of its collateral; {s.venue} lends up to {pct(capLtv * 100, 1)}, so the open can be refused. Lower the leverage.</div>}
         {econ && <LossAck v={vc} what="Opening this loop" advice="Lower the leverage or the amount: the swap is sized on the whole position, not on what you put in." />}
       </div>
       {/* the three answers stay up — what it earns, how far from liquidation, what it costs to

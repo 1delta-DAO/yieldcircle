@@ -258,6 +258,7 @@ export function Landing() {
 
       <footer className="lp-foot">
         <Logo height={22} href="/" />
+        <a href="/privacy">Privacy</a>
         <Socials label="Telegram" />
       </footer>
     </div>

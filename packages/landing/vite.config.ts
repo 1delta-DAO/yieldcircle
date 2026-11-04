@@ -16,7 +16,9 @@ process.env.VITE_APP_URL ||= 'https://app.yieldcircle.io'
  */
 const gateCard = () => ({
   name: 'yc:gate-card',
-  transformIndexHtml(html: string) {
+  transformIndexHtml(html: string, ctx: { path: string }) {
+    // the privacy page is plain text with nothing to join from
+    if (ctx.path.endsWith('/privacy.html')) return html
     return html.replace('</body>', `${overlay({ hidden: true, app: process.env.VITE_APP_URL })}</body>`)
   },
 })
@@ -28,7 +30,8 @@ export default defineConfig({
   plugins: [react(), gateCard()],
   // landing/ and web/ each link their own copies; one instance of each, or hooks and contexts split
   resolve: { dedupe: ['react', 'react-dom', 'wagmi', 'viem', '@tanstack/react-query'] },
-  // Two pages: the landing, and the deck at /deck (Pages serves `deck.html` for `/deck`; in dev it is /deck.html).
-  build: { outDir: 'dist', emptyOutDir: true, rollupOptions: { input: { main: fileURLToPath(new URL('index.html', import.meta.url)), deck: fileURLToPath(new URL('deck.html', import.meta.url)) } } },
+  // Three pages: the landing, the deck at /deck and the privacy policy at /privacy (Pages serves `deck.html`
+  // for `/deck`; in dev it is /deck.html).
+  build: { outDir: 'dist', emptyOutDir: true, rollupOptions: { input: { main: fileURLToPath(new URL('index.html', import.meta.url)), deck: fileURLToPath(new URL('deck.html', import.meta.url)), privacy: fileURLToPath(new URL('privacy.html', import.meta.url)) } } },
   server: { port: 3201, open: false },
 })

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>YieldCircle — privacy</title>
+    <meta name="description" content="What YieldCircle stores about you, and what it does not." />
+    <meta name="application-name" content="YieldCircle" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- system fonts only: a privacy page that calls Google for its fonts would be its own counterexample -->
+    <style>
+      html { background: #000; color: #e8e8e8; }
+      body { margin: 0; font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+      main { max-width: 680px; margin: 0 auto; padding: 48px 22px 72px; }
+      header a { display: inline-flex; align-items: center; gap: 10px; color: #e8e8e8; text-decoration: none; font-weight: 600; }
+      header img { height: 28px; }
+      h1 { font-size: 32px; line-height: 1.2; margin: 40px 0 6px; }
+      h2 { font-size: 19px; margin: 36px 0 8px; }
+      p, li { color: #bdbdbd; }
+      strong { color: #e8e8e8; font-weight: 600; }
+      ul { padding-left: 20px; }
+      li { margin: 4px 0; }
+      a { color: #9fd3ff; }
+      .meta { color: #8a8a8a; font-size: 14px; margin: 0; }
+      .short { border: 1px solid #262626; border-radius: 12px; padding: 4px 20px; margin-top: 28px; background: #0b0b0b; }
+      footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid #262626; color: #8a8a8a; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header><a href="/"><img src="/logo.svg" alt="YieldCircle" /></a></header>
+
+      <h1>Privacy</h1>
+      <p class="meta">Last updated 4 November 2026 · covers yieldcircle.io, app.yieldcircle.io and the YieldCircle iPhone and Android apps</p>
+
+      <div class="short">
+        <p><strong>The short version.</strong> YieldCircle has no user accounts, no ads, no analytics and no tracking cookies, and we never sell data. Almost everything it shows is public blockchain data. What we hold beyond that: the email you give us for the waitlist, and whatever you choose to publish (a profile, comments, a linked X account), which is public by design. We never hold your funds, keys or seed phrase.</p>
+      </div>
+
+      <h2>Public blockchain data</h2>
+      <p>Rates, markets, positions and the leaderboard are built from public on-chain data: wallet addresses, their transactions and their positions in lending markets. Anyone can read this from the blockchain. We index it to compute rates, positions and what a position made, and the board ranks public wallet addresses by it. Blockchain data cannot be changed or deleted by us or anyone else.</p>
+
+      <h2>Your wallet</h2>
+      <p>You connect a wallet you already use; YieldCircle never sees your keys or seed phrase, and every transaction is signed by you, in your wallet. On the phone, wallets connect through WalletConnect (Reown), whose relay passes messages between the app and your wallet. When you connect, the app reads your public address and balances to show your positions.</p>
+
+      <h2>The waitlist and beta access</h2>
+      <ul>
+        <li>When you join the waitlist we store <strong>your wallet address, your email and the time</strong>, and the team gets a notification email with the same.</li>
+        <li>We use the email only to contact you about access to YieldCircle, including an invitation to test the iPhone app. If we invite you to the beta on iPhone, we give your email to Apple's TestFlight, which sends the invitation; Apple's own privacy policy then covers TestFlight.</li>
+        <li>Signing in to the web beta asks your wallet to sign a message; the app then keeps a cookie that says the wallet may enter. It holds nothing else.</li>
+      </ul>
+
+      <h2>What you choose to publish</h2>
+      <p>Profiles, follows, reactions and comments are messages signed with your wallet and are <strong>public</strong>: anyone can read them, together with your address. You can delete what you posted. If you link an X account, the link between your X handle and your wallet is public too; we receive your handle from X through its sign-in and keep the short-lived sign-in state for ten minutes.</p>
+
+      <h2>Paper money</h2>
+      <p>A paper account is opened with a name and a password. Both stay on your device: they derive the account's key there and are never sent to us. Our server stores the paper account's practice trades under the address that key produces.</p>
+
+      <h2>On your device</h2>
+      <p>Your settings (Lite or Pro, chains, filters) and caches are kept in your browser's storage or the app's storage on your phone. They do not leave your device. The website loads its fonts from Google Fonts, which sees your IP address when it does.</p>
+
+      <h2>Who we work with</h2>
+      <ul>
+        <li><strong>Cloudflare</strong> hosts the websites and stores the waitlist.</li>
+        <li><strong>WalletConnect / Reown</strong> connects your wallet to the app.</li>
+        <li><strong>Resend</strong> delivers the team's waitlist notification emails.</li>
+        <li><strong>Apple</strong> (TestFlight, the App Store) and <strong>Google</strong> (Google Play, Google Fonts) distribute the apps and fonts; TestFlight shares crash reports and the feedback you send us.</li>
+        <li><strong>Blockchain nodes and 1delta's APIs</strong> answer the app's reads of public chain data and build the transactions you sign.</li>
+      </ul>
+
+      <h2>Keeping and deleting</h2>
+      <p>We keep waitlist entries while the beta runs. Write to us to see what we hold about you, to correct it, or to delete it: we remove your waitlist entry, your email and your X link. On-chain data and what was signed and published may already have been copied by others and cannot be recalled. If you are in the EU or UK, you have these rights under the GDPR, and you may complain to your data protection authority.</p>
+
+      <h2>Contact</h2>
+      <p>YieldCircle is built by 1delta. Questions and requests: <a href="mailto:achim@1delta.io">achim@1delta.io</a>.</p>
+
+      <h2>Changes</h2>
+      <p>When this page changes, the date at the top changes with it.</p>
+
+      <footer><a href="/">yieldcircle.io</a></footer>
+    </main>
+  </body>
+</html>

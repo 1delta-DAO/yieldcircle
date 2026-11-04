@@ -10,7 +10,9 @@ const { getDefaultConfig } = require('expo/metro-config')
 
 const config = getDefaultConfig(__dirname)
 // the phone's direct dependencies only (their own dependencies follow from the copy chosen)
-const SINGLE = ['wagmi', 'viem', '@tanstack/react-query', 'react', 'react-dom']
+// `@reown/appkit-core-react-native` and `valtio`: `src/solana.ts` reads AppKit's own ConnectionsController (a valtio
+// proxy), which must be the one AppKit writes, through the valtio that made it
+const SINGLE = ['wagmi', 'viem', '@tanstack/react-query', 'react', 'react-dom', '@reown/appkit-core-react-native', 'valtio']
 const here = path.join(__dirname, 'package.json')
 const isSingle = (name) => SINGLE.some((p) => name === p || name.startsWith(p + '/'))
 

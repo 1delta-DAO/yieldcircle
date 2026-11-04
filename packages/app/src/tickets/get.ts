@@ -12,7 +12,8 @@ import { isSvmTx, type AnyTx, type ApiTx } from '@yieldcircle/core/sdk/types'
 import { isRejection } from '@yieldcircle/core/sdk/walletErrors'
 import { num } from '@yieldcircle/core/model/format'
 import { chainLabel, useBalances } from '../sdk/queries'
-import { hasLanded, isDone, isOk, tracePaper, traceTx, useTrace } from '../sdk/txTrace'
+import { baselineOf, batchFailed, batchLanded, hasLanded, isDone, isOk, markBatch, traceBatch, tracePaper, traceTx, useTrace } from '../sdk/txTrace'
+import { canBatchOn } from '../ladder'
 import { useNow } from '../sdk/txWords'
 import { balancesChanged } from '../sdk/liveBalances'
 import { loadGasPref, saveGasPref } from '../state/gasPref'
@@ -191,45 +192,56 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
   const { data: walletClient } = useWalletClient()
   // EIP-5792: does the wallet batch on the source chain? (`atomic` supported, or `ready` = it upgrades the EOA on first use)
   const caps = useCapabilities({ account: address, query: { enabled: !!address && !paper.active && cross && !srcSvm, retry: false, staleTime: 60_000 } })
-  const canBatch = (() => {
-    const c = (caps.data as Record<number, { atomic?: { status?: string } }> | undefined)?.[Number(src?.chainId)]
-    return c?.atomic?.status === 'supported' || c?.atomic?.status === 'ready'
-  })()
+  const canBatch = canBatchOn(caps.data, src?.chainId)
   /** The gas leg that did not go out after the bridge did (rejected in the wallet, or failed). */
   const [gasLegMiss, setGasLegMiss] = React.useState<{ leg: AnyTx; q: SwapRouteQuote; why: string } | null>(null)
   React.useEffect(() => { if (!sent) setGasLegMiss(null) }, [sent])
-  const traceBridge = (h: string, lastValidHeight?: number) => {
-    if (!src) return
-    const what = `${num(amount, 4)} ${src.symbol} → ${target.symbol}`
+  /** What the swap or bridge is traced as, whichever way its transaction comes to be known. */
+  const bridgeTrace = () => {
     const signer = srcSvm ? solSigner : address
-    if (signer) traceTx({
-      hash: h, chainId: src.chainId, account: signer, moves: 'balances', lastValidHeight,
+    if (!src || !signer) return undefined
+    const what = `${num(amount, 4)} ${src.symbol} → ${target.symbol}`
+    return {
+      chainId: src.chainId, account: signer, moves: 'balances' as const,
       title: cross ? `Bridge ${what}` : `Swap ${what}`, label: cross ? `${chainLabel(src.chainId)} → ${chainLabel(target.chainId)}` : `on ${chainLabel(src.chainId)}`,
       bridge: cross && best?.bridge ? { name: best.bridge, toChainId: target.chainId, tokenIn: src.address, tokenOut: target.address } : undefined,
       // "Received" means the target balance MOVED, not that the bridge said DONE
       watch: [{ chainId: target.chainId, address: target.address, account: walletOn(target.chainId) }],
-    })
+    }
+  }
+  const traceBridge = (h: string, lastValidHeight?: number) => {
+    const t = bridgeTrace()
+    if (t) traceTx({ ...t, hash: h, lastValidHeight })
   }
   /**
-   * Route + gas leg in one `wallet_sendCalls`. Returns the transaction hashes once the wallet reports them
-   * (one hash for both on an atomic batch), `rejected` when the user said no (nothing was sent), or
-   * undefined when the wallet would not take it — the caller then sends them one after the other.
+   * Route + gas leg in one `wallet_sendCalls`. Returns the batch's trace id at once — it is followed
+   * from send (`traceBatch`): the bridge's status keys on the source transaction, which the wallet
+   * reports or the chain shows, whichever first — `rejected` when the user said no (nothing was
+   * sent), or undefined when the wallet would not take it — the caller then sends them one after the other.
    */
-  const sendBatched = async (calls: ApiTx[]): Promise<{ bridge: string; gas?: string } | 'rejected' | 'stopped' | undefined> => {
-    if (!walletClient || !src) return undefined
+  const sendBatched = async (calls: ApiTx[]): Promise<string | 'rejected' | undefined> => {
+    const t = bridgeTrace()
+    if (!walletClient || !src || !t) return undefined
+    // read before the wallet has it: the destination's balance, and the nonce the batch will move
+    const base = baselineOf(t).catch(() => undefined)
+    const mark = markBatch(src.chainId, t.account).catch(() => undefined)
     let id: string
     try {
       ({ id } = await walletClient.sendCalls({ account: walletClient.account, chain: walletClient.chain, calls: calls.map((c) => ({ to: c.to as `0x${string}`, data: (c.data || '0x') as `0x${string}`, value: BigInt(c.value || '0') })) }))
     } catch (e) { return isRejection(e) ? 'rejected' : undefined }
-    // the bridge's status keys on the source transaction hash: read it off the batch's receipts
-    try {
-      const st = await walletClient.waitForCallsStatus({ id, timeout: 180_000 })
+    const [m, b] = await Promise.all([mark, base])
+    const tid = traceBatch({ ...t, walletId: id, mark: m }, b)
+    // the wallet's report, when it comes: the route's transaction (the first receipt), and a gas leg sent apart from it
+    const q = best
+    void walletClient.waitForCallsStatus({ id, timeout: 300_000 }).then((st) => {
       const rs = st.receipts ?? []
-      if (st.status === 'success' && rs[0]?.transactionHash) return { bridge: rs[0].transactionHash, gas: rs[rs.length - 1]?.transactionHash }
-      setErr(st.status === 'failure' ? 'The batch reverted on chain — nothing was moved.' : 'The batch was sent; your wallet has not reported it yet. Check the wallet for its status.')
-    } catch { setErr('The batch was sent; its status could not be read. Check the wallet before sending again.') }
-    balancesChanged(qc, src.chainId)
-    return 'stopped'
+      if (st.status === 'failure') { batchFailed(tid); return }
+      if (st.status !== 'success' || !rs[0]?.transactionHash) return
+      batchLanded(tid, rs[0].transactionHash)
+      const gas = rs[rs.length - 1]?.transactionHash
+      if (gas && gas !== rs[0].transactionHash && q) traceGas(gas, q, address)
+    }).catch(() => { /* in the background, or no status method: the chain answers */ })
+    return tid
   }
   const go = async () => {
     if (paper.active) return goPaper()
@@ -253,12 +265,9 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
       if (leg && !isSvmTx(leg) && !isSvmTx(tx) && canBatch && walletClient) {
         const r = await sendBatched([tx as ApiTx, leg as ApiTx])
         if (r === 'rejected') { setErr('Rejected in the wallet — nothing was sent.'); return }
-        if (r === 'stopped') return
         if (r) {
           onTarget?.(target)
-          traceBridge(r.bridge)
-          setSent({ hash: r.bridge, bridge: best?.bridge })
-          if (r.gas && r.gas !== r.bridge) traceGas(r.gas, best!, address)
+          setSent({ hash: r, bridge: best?.bridge })
           return
         }
         // the wallet did not take the batch: one transaction after the other, below

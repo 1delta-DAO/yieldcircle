@@ -4,7 +4,7 @@ import Svg, { Path } from 'react-native-svg'
 import { useAccount } from 'wagmi'
 import { router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { AppKitButton } from '@reown/appkit-react-native'
+import { useAppKit } from '@reown/appkit-react-native'
 import { labelFor, shortAddr } from '@yieldcircle/core/identity/name'
 import { liteWidened } from '@yieldcircle/core/model/lite'
 import { useSettings } from '@yieldcircle/app/state/Settings'
@@ -17,6 +17,7 @@ import { TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL, X_D, X_URL } from '@yieldcircl
 import { setMode, useMode, type Mode } from '../src/mode'
 import { useChains } from '../src/chains'
 import { usePaper } from '../src/paper'
+import { disconnectSol, useSolAccount } from '../src/solana'
 import { C } from '../src/theme'
 import { Btn, Seg } from '../src/ui/bits'
 import { Character } from '../src/ui/Character'
@@ -76,7 +77,7 @@ export default function Profile() {
                 ? <Btn sm kind="plain" title="Use my wallet" onPress={() => paper.use(false)} />
                 : <Btn sm kind="plain" title="Sign out" onPress={paper.signOut} />}
             </View>
-          ) : <View style={st.row}><AppKitButton /></View>}
+          ) : <Wallets />}
           {own && <Link label="Edit your name and face" onPress={() => router.push('/me')} />}
         </View>
 
@@ -114,6 +115,38 @@ function Fold({ label, state, on, children }: { label: string; state: string; on
         <Txt c={C.tx40}>{open ? '⌃' : '⌄'}</Txt>
       </Pressable>
       {open && children}
+    </View>
+  )
+}
+
+/**
+ * The wallets, one per VM as on the web: an EVM one (wagmi) and a Solana one (`src/solana.ts`).
+ * Connect opens AppKit's wallet list either way — a wallet holding both (Trust, Phantom over
+ * WalletConnect) connects both in one session; Phantom and Solflare connect Solana beside the EVM one.
+ */
+function Wallets() {
+  const { open, disconnect } = useAppKit()
+  const evm = useAccount()
+  const sol = useSolAccount()
+  const add = () => open({ view: 'Connect' })
+  return <>
+    <WalletRow vm="EVM" address={evm.address?.toLowerCase()} wallet={evm.connector?.name} onConnect={add} onDisconnect={() => disconnect('eip155')} />
+    <WalletRow vm="Solana" address={sol.account?.address} wallet={sol.wallet} onConnect={add} onDisconnect={() => void disconnectSol()} />
+    {sol.viaEvm && <Txt s={12} c={C.tx50} lh={17} style={{ paddingHorizontal: 14, paddingBottom: 12 }}>One session carries both: disconnecting one disconnects the other.</Txt>}
+    {!!evm.address !== !!sol.account && <Txt s={12} c={C.tx50} lh={17} style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
+      {evm.address ? 'Add Phantom or Solflare for Solana, beside this wallet.' : 'Add an EVM wallet beside this one for every other chain.'}
+    </Txt>}
+  </>
+}
+
+function WalletRow({ vm, address, wallet, onConnect, onDisconnect }: { vm: string; address?: string; wallet?: string; onConnect: () => void; onDisconnect: () => void }) {
+  return (
+    <View style={st.row}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Txt s={14} w={600}>{vm}</Txt>
+        <Txt s={12.5} c={C.tx50} numberOfLines={1}>{address ? `${shortAddr(address)}${wallet ? ` · ${wallet}` : ''}` : 'not connected'}</Txt>
+      </View>
+      {address ? <Btn sm kind="plain" title="Disconnect" onPress={onDisconnect} /> : <Btn sm title="Connect" onPress={onConnect} />}
     </View>
   )
 }

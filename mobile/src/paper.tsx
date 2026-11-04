@@ -1,6 +1,7 @@
 import React from 'react'
 import { privateKeyToAccount } from 'viem/accounts'
 import { useAccountEffect } from 'wagmi'
+import { useAppKitEventSubscription } from '@reown/appkit-react-native'
 import { createPaperSocial, usePaperEngine, type PaperEngine } from '@yieldcircle/app/paper/engine'
 import type { PaperKeys } from '@yieldcircle/app/paper/keys'
 
@@ -65,6 +66,12 @@ export function PhonePaper({ children }: { children: React.ReactNode }) {
   // a wallet connected now takes over (the web's: connecting another wallet leaves paper signed in, not in use);
   // the AppKit session coming back at launch is not a new choice and leaves paper as it was
   useAccountEffect({ onConnect: ({ isReconnected }) => { if (!isReconnected && session) setOn(false) } })
+  // the same for a Solana wallet, which wagmi does not see (Phantom's or Solflare's deep links): AppKit's own event
+  const onConnect = React.useCallback((e: { data: { event: string; properties?: unknown } }) => {
+    const reconnect = (e.data.properties as { reconnect?: boolean } | undefined)?.reconnect
+    if (!reconnect && session) setOn(false)
+  }, [])
+  useAppKitEventSubscription('CONNECT_SUCCESS', onConnect)
   const value = React.useMemo<PaperCtx>(() => ({
     ...engine,
     signIn: async (k, o) => { setSession(k); setOn(true); if (o.create) await createPaperSocial(k) },

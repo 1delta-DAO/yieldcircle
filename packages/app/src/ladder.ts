@@ -5,7 +5,7 @@ import { base58Encode, isSvmChain } from '@yieldcircle/core/model/address'
 import { nativeSymbol, WRAPPED_NATIVE } from '@yieldcircle/core/model/positions'
 import { venueLabel } from '@yieldcircle/core/model/strategies'
 import { useLiveBalances } from './sdk/liveBalances'
-import { baselineOf, hasLanded, isDone, tracePaper, traceTx, useTrace, type Baseline, type Moves } from './sdk/txTrace'
+import { baselineOf, batchFailed, batchLanded, batchTraceId, hasLanded, isBatchTrace, isDone, markBatch, tracePaper, traceBatch, traceTx, useTrace, type Baseline, type Moves } from './sdk/txTrace'
 import { isRejection } from '@yieldcircle/core/sdk/walletErrors'
 import type { PaperOp } from '@yieldcircle/core/model/paper'
 import { usePlatform } from './platform'
@@ -32,6 +32,10 @@ import { useSession } from './session'
  * or none does, so a step's `onFail` (which assumes the earlier ones landed) does not apply. On a
  * phone that is one trip to the wallet app instead of one per step. A wallet that refuses the
  * batch (other than the user saying no) drops the ladder back to one step per tap.
+ *
+ * The batch is traced from the moment the wallet takes it (`traceBatch`), not from when the wallet
+ * reports the transaction it became: a phone's wallet is another app, and in the background it
+ * cannot answer `wallet_getCallsStatus`. The chain answers too — see `txTrace.ts`.
  */
 /**
  * `onFail`: what a revert of THIS step means for the user's funds, when the generic "reverted" would mislead.
@@ -42,7 +46,18 @@ export type Step = { kind: 'permission' | 'setup' | 'route'; tx: AnyTx; label: s
 /** A token the action moves in the wallet — paid with, or paid back into (a close, a swap's leftover). */
 export type Watch = { address: string | undefined; symbol?: string }
 type Bundle = { steps: Step[]; title?: string; touches?: string[]; watch?: { address: string; symbol?: string }[] }
-/** `batch`: the `wallet_sendCalls` id in flight, until the wallet reports the transaction it became. */
+/**
+ * Does the wallet batch atomically on this chain (EIP-5792 `wallet_getCapabilities`)? `atomic` as
+ * `supported`, or `ready` — it upgrades the EOA on first use (EIP-7702) — and the draft's
+ * `atomicBatch: { supported }` that older wallets still answer. One that then refuses the batch
+ * falls back to one step per tap.
+ */
+export function canBatchOn(caps: unknown, chainId: string | number | undefined): boolean {
+  const c = (caps as Record<number, { atomic?: { status?: string }; atomicBatch?: { supported?: boolean } }> | undefined)?.[Number(chainId)]
+  return c?.atomic?.status === 'supported' || c?.atomic?.status === 'ready' || c?.atomicBatch?.supported === true
+}
+
+/** `batch`: the `wallet_sendCalls` id in flight, until the wallet reports the transaction it became (or the chain did first). */
 type Saved = { key: string; bundle: Bundle; pending?: string; batch?: string }
 const SS = 'yieldcircle.bundle'
 type Scratch = ReturnType<typeof usePlatform>['scratch']
@@ -53,8 +68,8 @@ type CallsWaiter = { waitForCallsStatus: (a: { id: string; timeout?: number }) =
 type BatchEnd = { status?: string; hash?: string }
 const batches = new Map<string, Promise<BatchEnd>>()
 /**
- * A batch the wallet took, followed OUTSIDE the ticket: its trace starts here, once, the moment the
- * wallet reports the one transaction it became. Waited on in the ticket's effect, it was lost
+ * The wallet's report on a batch it took, waited for OUTSIDE the ticket: once, handing the batch's
+ * trace (started at send) the one transaction it became. Waited on in the ticket's effect, it was lost
  * whenever the ticket remounted first — the loop it opens appearing in the positions (a refetch as
  * the tab regains focus from the wallet) changes the ticket's key, the effect is torn down, and the
  * trace never started: in a block, and no re-read, no "Done" (an Alchemix open, 2026-11-03).
@@ -146,8 +161,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   const { data: walletClient } = useWalletClient()
   const onPaper = !!useSession().paper?.active
   const caps = useCapabilities({ account: address, query: { enabled: !!address && !svm && !onPaper, retry: false, staleTime: 60_000 } })
-  const atomic = (caps.data as Record<number, { atomic?: { status?: string } }> | undefined)?.[Number(chainId)]?.atomic?.status
-  const canBatch = !svm && !noBatch && (atomic === 'supported' || atomic === 'ready')
+  const canBatch = !svm && !noBatch && canBatchOn(caps.data, chainId)
   const tr = useTrace(pending)
   // an open ticket reads its chain's balances live (pos-indexer tickets/0044); a final step re-reads them (txTrace)
   useLiveBalances(chainId)
@@ -177,10 +191,15 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   /** The step a batch is followed as: the one that moves the positions, else its last. */
   const mainOf = (steps: Step[]) => steps.find((s) => s.moves === 'positions') ?? steps[steps.length - 1]
   // a ladder restored after a reload whose trace did not survive (storage off): pick the hash up again
-  React.useEffect(() => { if (pending && !tr && pendingStep) follow(pending, pendingStep, isSvmTx(pendingStep.tx) ? pendingStep.tx.lastValidBlockHeight : undefined) }, [pending, !!tr, signer])
+  React.useEffect(() => { if (pending && !tr && pendingStep && !isBatchTrace(pending)) follow(pending, pendingStep, isSvmTx(pendingStep.tx) ? pendingStep.tx.lastValidBlockHeight : undefined) }, [pending, !!tr, signer])
   React.useEffect(() => {
     if (!pending || !tr) return
     if (hasLanded(tr)) { setBundle((b) => b && { ...b, steps: b.steps.map((s) => (s.hash === pending ? { ...s, done: true } : s)) }); setPending(undefined) }
+    else if (isDone(tr) && isBatchTrace(pending)) {
+      // all of it or none: no step's `onFail` applies, and the steps go out again as a batch
+      setErr(tr.err ?? 'The batch did not go through.'); setPending(undefined); setBatch(undefined)
+      setBundle((b) => b && { ...b, steps: b.steps.map((s) => (s.hash === pending ? { ...s, hash: undefined } : s)) })
+    }
     else if (isDone(tr)) { setErr(tr.phase === 'reverted' ? pendingStep?.onFail ?? 'the transaction reverted' : tr.err ?? 'the transaction did not go through'); setPending(undefined) }
   }, [pending, tr?.phase])
   const wrongChain = !svm && walletChain !== Number(chainId)
@@ -212,10 +231,17 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
       const main = mainOf(together)
       // a batch's baseline is read as it is sent: its hash only arrives once it has landed (`baselineOf`)
       const base = signer ? baselineOf({ chainId, account: signer, moves: main.moves ?? 'positions', touches: bundle?.touches, watch: watchOf(main) }).catch(() => undefined) : Promise.resolve(undefined)
+      // and the nonce the batch will move, read before the wallet has it (`txTrace`: how the chain is asked)
+      const mark = signer ? markBatch(chainId, signer).catch(() => undefined) : Promise.resolve(undefined)
       try {
         const calls = together.map((s) => { const tx = s.tx as ApiTx; return { to: tx.to as `0x${string}`, data: (tx.data || '0x') as `0x${string}`, value: BigInt(tx.value || '0') } })
         const { id } = await walletClient.sendCalls({ account: walletClient.account, chain: walletClient.chain, calls, forceAtomic: true })
-        void followBatch(id, walletClient, async (hash) => { follow(hash, main, undefined, await base) }).catch(() => {})
+        const sent = new Set(together)
+        const [m, b] = await Promise.all([mark, base])
+        const tid = signer ? traceBatch({ walletId: id, chainId, account: signer, title: bundle?.title ?? main.label, label: main.label, moves: main.moves ?? 'positions', touches: bundle?.touches, watch: watchOf(main), mark: m }, b) : batchTraceId(id)
+        // every step in it is followed as the batch: done together when it lands
+        setBundle((x) => x && { ...x, steps: x.steps.map((s) => (sent.has(s) ? { ...s, hash: tid } : s)) })
+        setPending(tid)
         setBatch(id)
       } catch (e) {
         if (isRejection(e)) setErr('Rejected in the wallet — nothing was sent.')
@@ -231,20 +257,16 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
       setPending(hash); setBundle((b) => b && { ...b, steps: b.steps.map((s) => (s === next ? { ...s, hash } : s)) })
     } catch (e) { setErr(next.onFail && /revert/i.test((e as Error).message) ? next.onFail : shortErr((e as Error).message)) }
   }
-  // a batch the wallet took: wait for the one transaction it became, then every step in it is followed as that hash
+  // a batch the wallet took: its report, when it comes, hands the trace the transaction (the chain may have first).
+  // A wallet that never reports — in the background on a phone — is no error: the trace asks the chain
   React.useEffect(() => {
     if (!batch || !walletClient) return
     let live = true
-    const sent = (bundle?.steps ?? []).filter((s) => !s.done && !s.hash)
-    // a batch picked up after a reload has no baseline from before it: the trace reads one, as a lone step does
-    followBatch(batch, walletClient, (hash) => { if (sent.length) follow(hash, mainOf(sent)) }).then(({ status, hash }) => {
-      if (!live) return
-      if (status === 'success' && hash) {
-        setBundle((b) => b && { ...b, steps: b.steps.map((s) => (!s.done && !s.hash ? { ...s, hash } : s)) })
-        setPending(hash)
-      } else setErr(status === 'failure' ? 'The batch reverted on chain — nothing was moved.' : 'The batch was sent; your wallet has not reported it yet. Check the wallet before sending again.')
-      setBatch(undefined)
-    }).catch(() => { if (live) { setErr('The batch was sent; its status could not be read. Check the wallet before sending again.'); setBatch(undefined) } })
+    const tid = batchTraceId(batch)
+    followBatch(batch, walletClient, (hash) => batchLanded(tid, hash)).then(({ status }) => {
+      if (status === 'failure') batchFailed(tid)
+      if (live) setBatch(undefined)
+    }).catch(() => { if (live) setBatch(undefined) })
     return () => { live = false }
   }, [batch, !!walletClient])
   const reset = () => { setBundle(null); setPending(undefined); setBatch(undefined); setErr(null) }

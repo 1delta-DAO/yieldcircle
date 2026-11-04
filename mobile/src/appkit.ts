@@ -1,8 +1,9 @@
 // WalletConnect's React Native polyfills (crypto.getRandomValues, TextEncoder, …): first, before AppKit loads.
 import '@walletconnect/react-native-compat'
 
-import { createAppKit } from '@reown/appkit-react-native'
+import { createAppKit, solana } from '@reown/appkit-react-native'
 import { WagmiAdapter } from '@reown/appkit-wagmi-react-native'
+import { PhantomConnector, SolanaAdapter, SolflareConnector } from '@reown/appkit-solana-react-native'
 import { mainnet, base, arbitrum, bsc, avalanche, optimism, hyperEvm, monad, plasma, polygon, arc, robinhood, stable, plumeMainnet } from 'wagmi/chains'
 import { defineChain } from 'viem'
 import { WC_PROJECT_ID } from './env'
@@ -26,11 +27,20 @@ const projectId = WC_PROJECT_ID ?? 'missing-EXPO_PUBLIC_WC_PROJECT_ID'
 
 export const wagmiAdapter = new WagmiAdapter({ projectId, networks: [...networks] })
 
+/**
+ * Solana beside EVM: one account per VM, as on the web (`packages/web/src/wallet/solana.ts`). A
+ * multichain wallet over WalletConnect (Trust, Phantom, …) approves both namespaces in one session;
+ * Phantom and Solflare also connect on their own deep-link protocol, next to an EVM wallet over
+ * WalletConnect — AppKit keeps one connection per namespace (`src/solana.ts` reads the Solana one).
+ */
+export const solanaAdapter = new SolanaAdapter()
+
 export const appKit = createAppKit({
   projectId,
-  networks: [...networks],
+  networks: [...networks, solana],
   defaultNetwork: base,
-  adapters: [wagmiAdapter],
+  adapters: [wagmiAdapter, solanaAdapter],
+  extraConnectors: [new PhantomConnector({ cluster: 'mainnet-beta' }), new SolflareConnector({ cluster: 'mainnet-beta' })],
   storage,
   metadata: {
     name: 'YieldCircle',

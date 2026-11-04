@@ -11,6 +11,7 @@ const WALLETS = [
   'io.zerion.android',
   'com.uniswap.mobile',
   'app.phantom',
+  'com.solflare.mobile',
   'io.gnosis.safe',
 ]
 

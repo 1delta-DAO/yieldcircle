@@ -2,7 +2,8 @@
  * The one Solana RPC consumer, mirroring what `wallet/wagmi.ts` is for EVM:
  * almost every number comes from the allocator API or the Solana index, and
  * the ONLY chain reads are the signature watcher in `sdk/txTrace.ts` — the
- * critical path after a send.
+ * critical path after a send — and `sendTransaction`, for a wallet that signs without sending (the
+ * phone's WalletConnect Solana wallets that lack `solana_signAndSendTransaction`).
  *
  * Reads ROTATE over public endpoints that serve browsers (CORS, no key), so no
  * single free tier's rate limit stalls a trace: each call goes to the next one
@@ -37,11 +38,13 @@ async function call<T>(url: string, method: string, params: unknown[]): Promise<
     signal: AbortSignal.timeout(8_000),
   })
   const j = (await r.json().catch(() => ({}))) as { result?: T; error?: { message?: string } }
+  // an error a healthy node answered (a failed simulation) is the answer, not a reason to ask the next one
+  if (j.error && r.ok) throw Object.assign(new Error(j.error.message || `${method} failed`), { answered: true })
   if (j.error || !r.ok || !('result' in j)) throw new Error(j.error?.message || `${method}: HTTP ${r.status}`)
   return j.result as T
 }
 /** The keyed node, then the public ones from the next in turn; benched ones only once every other has failed. */
-async function rpc<T>(method: string, params: unknown[], heightSafe = false): Promise<T> {
+async function rpc<T>(method: string, params: unknown[], heightSafe = false, stopOnAnswer = false): Promise<T> {
   const pool = PUBLIC.filter((e) => !heightSafe || e.height).map((e) => e.url)
   const start = turn++ % pool.length
   const ring = [...pool.slice(start), ...pool.slice(0, start)]
@@ -51,7 +54,10 @@ async function rpc<T>(method: string, params: unknown[], heightSafe = false): Pr
   let last: unknown
   for (const url of order) {
     try { const v = await call<T>(url, method, params); benched.delete(url); return v }
-    catch (e) { last = e; benched.set(url, Date.now() + COOLDOWN_MS) }
+    catch (e) {
+      if (stopOnAnswer && (e as { answered?: boolean }).answered) throw e
+      last = e; benched.set(url, Date.now() + COOLDOWN_MS)
+    }
   }
   throw last
 }
@@ -69,3 +75,10 @@ export async function getSignatureStatus(signature: string): Promise<SigStatus |
 }
 /** The current block height — what a transaction's `lastValidBlockHeight` expires against. */
 export const getBlockHeight = () => rpc<number>('getBlockHeight', [{ commitment: 'confirmed' }], true)
+/**
+ * Broadcast one signed transaction (its wire bytes, base64) → its base58 signature. A node that
+ * answers with an error (simulation failed, blockhash expired) ends it; one that cannot be reached
+ * hands it to the next — the same signed bytes twice are one transaction.
+ */
+export const sendTransaction = (base64: string) =>
+  rpc<string>('sendTransaction', [base64, { encoding: 'base64', preflightCommitment: 'confirmed' }], false, true)

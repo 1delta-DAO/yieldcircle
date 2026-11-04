@@ -66,7 +66,8 @@ export const chainInfo = (id: string | undefined): ChainInfo | undefined => (id 
  */
 /** A paper op (`paper:…`, tickets/0006) has no transaction to link to. */
 export const txUrl = (chainId: string | undefined, hash: string | undefined) =>
-  chainId && hash && !hash.startsWith('paper:') && chainInfo(chainId) ? `${chainInfo(chainId)!.explorer}/tx/${hash}` : undefined
+  // a paper op, or a batch whose transaction is not known yet (`batch:…`), has nothing to open
+  chainId && hash && !hash.startsWith('paper:') && !hash.startsWith('batch:') && chainInfo(chainId) ? `${chainInfo(chainId)!.explorer}/tx/${hash}` : undefined
 export const addressUrl = (chainId: string | undefined, address: string | undefined) =>
   chainId && address && chainInfo(chainId) ? `${chainInfo(chainId)!.explorer}${chainInfo(chainId)!.accountPath ?? '/address/'}${address}` : undefined
 

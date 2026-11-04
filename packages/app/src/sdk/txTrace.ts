@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { useSyncExternalStore } from 'react'
-import { getBlockNumber, getTransactionReceipt, waitForTransactionReceipt } from 'viem/actions'
+import { getBlock, getBlockNumber, getCode, getTransactionCount, getTransactionReceipt, waitForTransactionReceipt } from 'viem/actions'
 import { bridgeStatus, fetchEarnPositions, fetchTokenBalances, type PositionsScope } from '@yieldcircle/core/sdk/api'
 import { balancesChanged } from './liveBalances'
 import { isEvmAddr, isEvmChain, isSvmChain, normAddr } from '@yieldcircle/core/model/address'
@@ -23,6 +23,15 @@ import type { EarnPosition, EarnPositionsResponse } from '@yieldcircle/core/sdk/
  *
  * and the ends that are not success: `reverted`, `dropped` (never mined, or cancelled in the
  * wallet) and `failed` (the bridge said so).
+ *
+ * A `wallet_sendCalls` batch (EIP-5792) starts `pending` with no hash ({@link traceBatch}): only
+ * the wallet knows which transaction it became, and a wallet in another app — a phone's, over
+ * WalletConnect — cannot answer while it is in the background. So the chain is asked as well,
+ * and whichever answers first wins: the wallet's report ({@link batchLanded}); the account's
+ * nonce moving past the one at send (an EOA that sends its own batch, EIP-7702), then the
+ * transaction with that nonce found in the blocks since — from there on it is followed like any
+ * other; or what it touched moving against the baseline (a smart account, a relayer), which is
+ * landed with no hash to show.
  *
  * Nothing is re-read before FINAL. The receipt comes from the wallet-side RPC; the API reads off
  * its own, which can be a block behind — a refetch the moment the receipt lands was exactly how a
@@ -74,6 +83,11 @@ export interface Trace {
   /** What it touched, as it stood when it was sent — `null` when there was nothing to compare with. */
   snap?: Snap | null
   seen?: boolean
+  /**
+   * A `wallet_sendCalls` batch, while its transaction is not known (`hash` is empty): the wallet's
+   * id, and for an EOA the nonce it held at send and the last block it still held it in.
+   */
+  batch?: { id: string; nonce?: number; block?: number }
   /** a paper op (tickets/0006): nothing was sent, so nothing is watched — recorded at its end, a paper bridge at `bridging` until `arrivesAt` */
   paper?: true
   arrivesAt?: number
@@ -202,6 +216,51 @@ export function traceTx(t: Follow, base?: Baseline) {
   if (!base && t.watch?.length) void readWatched(account, t.watch).then((b) => { if (b && !get(t.hash)?.watchBase) patch(t.hash, { watchBase: rawOf(b) }) })
   void run(t.hash)
 }
+/** A batch's trace id, before (and after) the wallet or the chain says which transaction it became. */
+export const batchTraceId = (walletId: string) => `batch:${walletId}`
+export const isBatchTrace = (id: string | undefined) => !!id && id.startsWith('batch:')
+
+/** What a batch is told apart by on chain, read BEFORE it is sent: the EOA's nonce and the block it held it in. */
+export type BatchMark = { nonce: number; block: number }
+/**
+ * The account's nonce now, for {@link traceBatch} — undefined for a contract account (a Safe, a
+ * smart wallet: its batches are sent by a bundler, and its own nonce never moves). An EOA
+ * delegated under EIP-7702 is still an EOA: its code is the `0xef0100…` designator.
+ */
+export async function markBatch(chainId: string, account: string): Promise<BatchMark | undefined> {
+  const client = need().evm(Number(chainId))
+  const block = await getBlockNumber(client, { cacheTime: 0 })
+  const address = account as Hex
+  const [code, nonce] = await Promise.all([getCode(client, { address, blockNumber: block }), getTransactionCount(client, { address, blockNumber: block })])
+  if (code && code !== '0x' && !code.toLowerCase().startsWith('0xef0100')) return undefined
+  return { nonce, block: Number(block) }
+}
+
+/**
+ * Follow a batch the wallet just took (`wallet_sendCalls`), from the moment it took it — not from
+ * when it reports the transaction, which a backgrounded wallet may never do. `mark`: from
+ * {@link markBatch}, read before sending; `base`: the baseline, read before sending too.
+ */
+export function traceBatch(t: Omit<Follow, 'hash' | 'lastValidHeight'> & { walletId: string; mark?: BatchMark }, base?: Baseline): string {
+  const id = batchTraceId(t.walletId)
+  if (get(id)) return id
+  const account = normAddr(t.account)
+  traces = [{ id, hash: '', chainId: t.chainId, account, title: t.title, label: t.label ?? t.title, moves: t.moves, bridge: t.bridge, touches: [...new Set(t.touches?.filter((u): u is string => !!u))], watch: t.watch?.length ? t.watch : undefined, watchBase: base?.watchBase, phase: 'pending', at: Date.now(), need: FINAL_CONFIRMATIONS[t.chainId] ?? 1, snap: base?.snap ?? null, batch: { id: t.walletId, nonce: t.mark?.nonce, block: t.mark?.block } }, ...traces]
+  emit()
+  void run(id)
+  return id
+}
+/** The wallet reported the transaction a batch became: followed from here like any other (a no-op once the chain said so first). */
+export function batchLanded(id: string, hash: string) {
+  const t = get(id)
+  if (t && !t.hash && !isDone(t)) patch(id, { hash })
+}
+/** The wallet reported the batch failed on chain. */
+export function batchFailed(id: string) {
+  const t = get(id)
+  if (t && !isDone(t)) patch(id, { phase: 'reverted', doneAt: Date.now(), err: 'The batch reverted on chain — nothing was moved.' })
+}
+
 export function dismissTrace(id: string) { patch(id, { seen: true }) }
 export function clearSettled(account: string) { traces = traces.filter((t) => t.account !== normAddr(account) || !isDone(t)); emit() }
 
@@ -213,6 +272,8 @@ export function useTraces(account: string | undefined): Trace[] {
   return a ? all.filter((t) => t.account === a) : NONE
 }
 const NONE: Trace[] = []
+/** One trace, outside React. */
+export const traceOf = (id: string): Trace | undefined => get(id)
 export function useTrace(id: string | undefined): Trace | undefined {
   return useSyncExternalStore(subscribe, () => (id ? get(id) : undefined))
 }
@@ -259,6 +320,11 @@ async function step(id: string) {
   // viem's actions on wagmi's client, not wagmi's wrappers: wagmi's receipt wait THROWS on a revert
   // (after an extra eth_call for the reason), and a revert is an answer here, not an error
   const client = need().evm(Number(t.chainId))
+  if (t.phase === 'pending' && !t.hash) {
+    if (!t.batch) throw new Error('a trace with no hash')
+    if (!(await batchStep(id, client))) return
+    t = get(id)!
+  }
   if (t.phase === 'pending') {
     const slow = setTimeout(() => { if (get(id)?.phase === 'pending') patch(id, { note: 'Taking longer than usual. If your wallet shows it as dropped, send it again.' }) }, Math.max(0, SLOW_MS - (Date.now() - t.at)))
     let cancelled = false
@@ -308,6 +374,67 @@ async function step(id: string) {
   }
   if (t.phase === 'bridging') return bridge(id)
   if (t.phase === 'syncing') return t.moves === 'positions' ? sync(id) : balanceSync(id)
+}
+
+const BATCH_POLL_MS = 3_000
+/** how many blocks one look at the chain reads for the batch's transaction, at most */
+const BATCH_SCAN = 10
+/**
+ * A batch until its transaction is known — `true` once it has a hash (or has landed without one)
+ * and `step` goes on; `false` when it ended here. See {@link traceBatch} for the three ways in.
+ */
+async function batchStep(id: string, client: Client): Promise<boolean> {
+  const slow = setTimeout(() => { const t = get(id); if (t?.phase === 'pending' && !t.hash) patch(id, { note: 'Taking longer than usual. Your wallet shows whether the batch went out.' }) }, Math.max(0, SLOW_MS - (Date.now() - get(id)!.at)))
+  try {
+    for (let i = 0; ; i++) {
+      const t = get(id)
+      if (!t || isDone(t)) return false
+      if (t.hash) return true
+      if (Date.now() - t.at > DROP_MS) { patch(id, { phase: 'dropped', doneAt: Date.now(), err: 'Never seen on chain. Your wallet shows whether the batch went out.' }); return false }
+      const b = t.batch!
+      if (b.nonce != null && b.block != null) {
+        const head = Number(await getBlockNumber(client, { cacheTime: 0 }))
+        if (head > b.block) {
+          // asked AT a block, so a node behind the head cannot answer the old nonce for a newer block
+          const upto = Math.min(head, b.block + BATCH_SCAN)
+          const n = await getTransactionCount(client, { address: t.account as Hex, blockNumber: BigInt(upto) })
+          if (n > b.nonce) {
+            const hash = await findByNonce(client, t.account, b.nonce, b.block + 1, upto)
+            if (hash) { patch(id, { hash, note: undefined }); return true }
+          } else patch(id, { batch: { ...b, block: upto } })
+        }
+      }
+      // what it touched, against the baseline — every other look: the API read costs more than the node's
+      if (i % 2 === 1 && await touchedMoved(t)) {
+        // landed, with no transaction to point at: a bridge's status keys on one, so it goes straight to the destination's balance
+        patch(id, { phase: t.bridge ? 'syncing' : 'final', note: undefined })
+        return true
+      }
+      await sleep(BATCH_POLL_MS)
+    }
+  } finally { clearTimeout(slow) }
+}
+/** The account's transaction with this nonce, in blocks `from`..`to` — a block a node does not have yet throws, and `run` retries. */
+async function findByNonce(client: Client, account: string, nonce: number, from: number, to: number): Promise<string | undefined> {
+  for (let n = from; n <= to; n++) {
+    const blk = await getBlock(client, { blockNumber: BigInt(n), includeTransactions: true })
+    const tx = blk.transactions.find((x) => typeof x !== 'string' && normAddr(x.from) === account && x.nonce === nonce)
+    if (tx && typeof tx !== 'string') return tx.hash
+  }
+  return undefined
+}
+/** Has what the batch touched moved against the baseline taken at send? Never with no baseline: "nothing to compare" is not "moved". */
+async function touchedMoved(t: Trace): Promise<boolean> {
+  if (t.moves === 'positions' && t.snap) {
+    const scope = scopeOf(t.touches ?? [])
+    const r = await readScope(t.account, t.chainId, scope).catch(() => null)
+    if (r && changed(t.snap, fingerprint(r.items, t.chainId, scope))) return true
+  }
+  if (t.watch?.length && t.watchBase) {
+    const now = await readWatched(t.account, t.watch).catch(() => null)
+    if (now && Object.keys(now).some((k) => now[k].raw !== t.watchBase![k])) return true
+  }
+  return false
 }
 
 /**

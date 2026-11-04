@@ -125,7 +125,25 @@ mobile/
 **Not on the phone yet**, in the order they would come: the ticket (opening
 and closing a position: the web's `Ticket.tsx` + `useLadder.ts`), the rest of
 the social layer (the feed, threads and signed comments; profiles and follows
-are in), Solana.
+are in).
+
+**Solana** (2026-11-04): AppKit's Solana adapter beside the wagmi one (`src/appkit.ts`), with the
+Phantom and Solflare deep-link connectors — an EVM and a Solana wallet at once, one account per VM
+as on the web. Two ways in, both from AppKit's wallet list (Profile and settings → EVM / Solana →
+Connect): a wallet that holds both (Trust, Phantom over WalletConnect) approves both namespaces in
+one session, and then disconnecting one disconnects the other; or Phantom / Solflare connect Solana
+on their own protocol beside any EVM wallet. A second *WalletConnect* wallet replaces the first —
+AppKit keeps one WalletConnect session. `src/solana.ts` fills `Platform.useSol`, `solSignAndSend`
+and `solSignMessage`: WalletConnect requests go base64, deep links base58; a WalletConnect wallet
+that did not approve `solana_signAndSendTransaction` signs and the app broadcasts (core's
+`solRpc.sendTransaction`). It reads the Solana connection off AppKit's `ConnectionsController` by
+namespace — AppKit's "active" account goes blank on Solana once the EVM wallet is disconnected —
+so `@reown/appkit-core-react-native` and `valtio` are direct dependencies and single copies in
+`metro.config.js`. The session (`src/session.tsx`) is the web's: the EVM wallet leads, the Solana
+one is `solSigner` and acts on Solana, a Solana-only user is the account. Phantom's and
+Solflare's answers come back as `yieldcircle://?nonce=…&data=…`; `+native-intent.tsx` keeps them
+(and the bare `yieldcircle://`) from navigating. Untested on a phone: connect, a Solana ticket, a
+Solana-signed social write, per wallet.
 
 **The ticket on the phone** runs on the web's own ticket engine — the
 ladder, the transaction trace and one controller per ticket body live in
@@ -272,8 +290,28 @@ Base and to Ethereum, read the card, fill in:
 | Uniswap | | | | |
 | Safe | | | | |
 
-`supported` / `ready` → the ladder can go out as one batch; `unsupported`,
-`not reported` or an error → step by step, as the web already falls back.
+`supported` / `ready` (or the draft's `atomicBatch: { supported: true }`, `canBatchOn` in
+`app/ladder.ts`) → the ladder can go out as one batch; `unsupported`, `not reported` or an error
+→ step by step, as the web already falls back. A wallet that answers the draft shape but refuses
+viem's `wallet_sendCalls` 2.0 drops back to steps on the first try.
+
+**A batch is followed from send, not from the wallet's report** (2026-11-04). Over WalletConnect
+the wallet is another app, and in the background iOS keeps it from answering
+`wallet_getCallsStatus`, so a batch that had landed sat as "not reported yet". Now
+`txTrace.traceBatch` starts the trace the moment the wallet takes the batch (the ladder and the
+bridge ticket's route + gas leg), and the first of three answers wins:
+
+1. the wallet's report (`batchLanded` / `batchFailed`): its transaction, followed as any other;
+2. the account's nonce moving past the one read before sending (`markBatch`: an EOA, EIP-7702
+   delegated or not): the transaction with that nonce is found in the blocks since, then followed
+   as any other: receipt, revert, depth, reorg;
+3. what it touched moving against the baseline (a smart account or a relayer, whose batches never
+   move the EOA's nonce): landed, with no transaction to link. A bridge sent this way goes
+   straight to the destination balance; its status needs the source hash.
+
+Not covered: a bridge ticket's gas leg sent as a separate transaction (non-atomic) is traced on
+its own only if the wallet reports it; its balance still shows on the next read. Tested against a
+fake chain (`app/src/sdk/txTrace.batch.test.ts`), not yet on a phone; fill in the table above.
 
 ## Decisions in the setup
 
@@ -339,9 +377,10 @@ Share text and its link are core's (`shareOf`, `canShare` in `model/lite.ts`); b
   - **The X proof text** goes to X or the share sheet, since there is no clipboard module (it
     would need a dev-client rebuild).
 
-- **Solana:** not wired. AppKit's Solana adapter + its Phantom / Solflare
-  connectors replace the web's Wallet Standard (`wallet/solana.ts`), which has
-  no window to live in here. Adding Solana turns Link Mode off (below).
+- **Solana on a real phone:** wired (above) but not yet run on a device. Needs a `release`
+  (Solflare joined the wallet lists in `app.json` and the Android queries). Solana in the
+  WalletConnect namespaces turns Link Mode off (below). `@solana/web3.js` came with the adapter:
+  the bundle went from 9.3 to 12 MB.
 - **Universal links for shared Copy links** (`https://app.yieldcircle.io/#/lite/…`): the map and
   the handler are in (above); the same `apple-app-site-association` / `assetlinks.json` as below
   make the system hand them to the app.

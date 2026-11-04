@@ -5,6 +5,7 @@ import { getConnections } from 'wagmi/actions'
 import { PlatformProvider, type Platform } from '@yieldcircle/app/platform'
 import { wagmiAdapter } from './appkit'
 import { usePaperSigner } from './paper'
+import { solSignAndSend, solSignMessage, useSolAccount } from './solana'
 
 /**
  * The wallet a request went to, brought forward: the WalletConnect session's own redirect (the
@@ -25,7 +26,6 @@ const usePhoneSwitchTo = () => {
   const { switchChainAsync, isPending } = useSwitchChain()
   return { switchTo: async (chainId: number) => { await switchChainAsync({ chainId }) }, switching: isPending }
 }
-const NO_SOL = () => ({ account: null })
 
 /** The phone's side of the shared ticket machinery (`@yieldcircle/app/platform`). */
 const PHONE: Platform = {
@@ -35,10 +35,10 @@ const PHONE: Platform = {
   // every wallet on the phone is another app (WalletConnect)
   isRemote: () => true,
   useSwitchTo: usePhoneSwitchTo,
-  // Solana comes with AppKit's Solana adapter (docs/mobile-plan.md phase 7)
-  useSol: NO_SOL,
-  solSignAndSend: async () => { throw new Error('Solana wallets are not on the phone yet') },
-  solSignMessage: async () => { throw new Error('Solana wallets are not on the phone yet') },
+  // AppKit's Solana connection: a WalletConnect session or Phantom's / Solflare's deep links (src/solana.ts)
+  useSol: useSolAccount,
+  solSignAndSend,
+  solSignMessage,
   // the paper account's key signs social writes: there is no connector to carry it on the phone
   useLocalSigner: usePaperSigner,
   // the web's closed-beta gate is a cookie the gate service sets; the phone has no gate yet (owner's call)

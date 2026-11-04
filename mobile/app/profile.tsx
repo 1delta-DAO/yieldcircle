@@ -12,7 +12,6 @@ import { useSession } from '@yieldcircle/app/session'
 import { useBook } from '@yieldcircle/app/book'
 import { useProfile } from '@yieldcircle/app/social/queries'
 import { useSocialWrite } from '@yieldcircle/app/social/sign'
-import { CHAINS } from '@yieldcircle/app/sdk/queries'
 import { TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL, X_D, X_URL } from '@yieldcircle/design/brand/links'
 import { setMode, useMode, type Mode } from '../src/mode'
 import { useChains } from '../src/chains'
@@ -22,6 +21,7 @@ import { C } from '../src/theme'
 import { Btn, Seg } from '../src/ui/bits'
 import { Character } from '../src/ui/Character'
 import { Filters } from '../src/ui/Filters'
+import { ChainList, useChainLabel } from '../src/ui/ChainChip'
 import { IconBack } from '../src/ui/icons'
 import { PAPER, PaperAccount } from '../src/ui/paper'
 import { LinkedWallets, PendingChanges } from '../src/ui/social'
@@ -43,11 +43,11 @@ export default function Profile() {
   const wallet = useAccount()
   const mode = useMode()
   const { st: cur, widened } = useSettings()
-  const { chains, allChains, setChains, toggleChain } = useChains()
+  const { allChains } = useChains()
+  const chainState = useChainLabel()
   const p = useProfile(b.account).data?.profile ?? null
   const lite = mode === 'lite'
   const n = lite ? liteWidened(cur) : widened
-  const chainState = allChains ? 'All chains' : chains.length === 1 ? CHAINS.find((c) => c.id === chains[0])?.label ?? '1 chain' : `${chains.length} chains`
   const own = isConnected && !viewAs
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -87,10 +87,7 @@ export default function Profile() {
         <Txt s={16} w={600} style={st.h}>Settings</Txt>
         <View style={{ gap: 10 }}>
           <Fold label="Chains" state={chainState} on={!allChains}>
-            <View style={{ paddingBottom: 6 }}>
-              <ChainRow label="All chains" on={allChains} onPress={() => setChains([])} />
-              {CHAINS.map((c) => <ChainRow key={c.id} label={c.label} on={chains.includes(c.id)} onPress={() => toggleChain(c.id)} />)}
-            </View>
+            <ChainList />
           </Fold>
           <Fold label={lite ? 'What Lite shows' : 'Filters'} state={n ? `${n} widened` : 'Curated'} on={n > 0}><Filters lite={lite} /></Fold>
         </View>
@@ -159,15 +156,6 @@ function Link({ label, onPress }: { label: string; onPress: () => void }) {
   )
 }
 
-function ChainRow({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={st.chain} accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
-      <Txt s={14} w={700} c={C.primary} style={{ width: 18 }}>{on ? '✓' : ''}</Txt>
-      <Txt s={14} c={on ? C.tx : C.tx70}>{label}</Txt>
-    </Pressable>
-  )
-}
-
 /** The community links (the design's `Socials`): Telegram as a pill in its own blue, X as an icon. */
 function Socials() {
   return (
@@ -204,7 +192,6 @@ const st = StyleSheet.create({
   group: { backgroundColor: C.b200, borderRadius: 12, overflow: 'hidden', marginTop: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 10, paddingHorizontal: 14 },
   line: { borderTopWidth: 1, borderTopColor: C.line },
-  chain: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingHorizontal: 14 },
   tg: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.line, backgroundColor: C.b200 },
   x: { width: 40, height: 40, borderRadius: 999, borderWidth: 1, borderColor: C.line, backgroundColor: C.b200, alignItems: 'center', justifyContent: 'center' },
   paperPill: { backgroundColor: PAPER.bg, borderWidth: 1, borderColor: PAPER.line, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },

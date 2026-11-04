@@ -7,6 +7,7 @@ import { GROUPS } from '@yieldcircle/core/model/assets'
 import { totalsOf } from '@yieldcircle/core/model/positions'
 import { usd } from '@yieldcircle/core/model/format'
 import { C } from '../../src/theme'
+import { ChainChip } from '../../src/ui/ChainChip'
 import { GroupIcon, T } from '../../src/ui/bits'
 import { ProRow } from '../../src/ui/pro'
 
@@ -17,6 +18,7 @@ export default function ProHome() {
   const t = totalsOf(b)
   return (
     <ScrollView contentContainerStyle={st.page}>
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}><ChainChip /></View>
       {b.account && (
         <View style={st.card}>
           <Text style={T.dim}>Your money</Text>

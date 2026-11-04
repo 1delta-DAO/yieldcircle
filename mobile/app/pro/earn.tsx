@@ -5,6 +5,7 @@ import { useBook } from '@yieldcircle/app/book'
 import { useRateHistory } from '@yieldcircle/app/sdk/queries'
 import { GROUPS, type GroupId } from '@yieldcircle/core/model/assets'
 import { C } from '../../src/theme'
+import { ChainChip } from '../../src/ui/ChainChip'
 import { Seg, T } from '../../src/ui/bits'
 import { ProRow } from '../../src/ui/pro'
 import { LiteRowSk } from '../../src/ui/lite'
@@ -27,7 +28,10 @@ export default function ProEarn() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={C.tx50} />}
       ListHeaderComponent={
         <View style={{ padding: 16, gap: 10 }}>
-          <Seg items={GROUPS.map((g) => ({ id: g.id, word: g.id === 'USD' ? '$' : g.id === 'STOCKS' ? 'Stocks' : g.id === 'MORE' ? 'More' : g.id }))} value={group} onChange={setGroup} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ flex: 1 }}><Seg items={GROUPS.map((g) => ({ id: g.id, word: g.id === 'USD' ? '$' : g.id === 'STOCKS' ? 'Stocks' : g.id === 'MORE' ? 'More' : g.id }))} value={group} onChange={setGroup} /></View>
+            <ChainChip />
+          </View>
           <Text style={T.dim}>{rows.length} ways to earn{b.isFetching ? ' · updating…' : ''} · {GROUPS.find((g) => g.id === group)?.desc}</Text>
         </View>
       }

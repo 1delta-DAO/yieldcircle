@@ -13,6 +13,7 @@ import { useMyFollows } from '@yieldcircle/app/social/queries'
 import { EarnTools } from '../../src/ui/EarnTools'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { C, alpha, mix } from '../../src/theme'
+import { ChainChip } from '../../src/ui/ChainChip'
 import { GroupIcon, Sk } from '../../src/ui/bits'
 import { LiteRowSk, LiteRowView, rowStyles } from '../../src/ui/lite'
 import { Txt } from '../../src/ui/Txt'
@@ -54,7 +55,10 @@ export default function LiteEarn() {
 
   return (
     <ScrollView contentContainerStyle={st.page} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={C.tx50} />}>
-      <Txt s={18} w={700} lh={26} style={st.h1}>Earn</Txt>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2, marginBottom: 16 }}>
+        <Txt s={18} w={700} lh={26} style={[st.h1, { flex: 1, marginTop: 0, marginBottom: 0 }]}>Earn</Txt>
+        <ChainChip />
+      </View>
       <View style={st.tiles}>
         {groups.map((g) => {
           const gr = L.rows.filter((r) => r.s.group === g.id)

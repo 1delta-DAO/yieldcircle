@@ -15,6 +15,7 @@ import { GROUPS, groupOf } from '@yieldcircle/core/model/assets'
 import { BOARD_HELD, boardHeld, boardStrategies, boardWallets, leverTag, type BoardSort, type BoardStrategy, type BoardWallet, type LiteRow } from '@yieldcircle/core/model/lite'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { C, alpha, mix } from '../theme'
+import { ChainChip } from './ChainChip'
 import { Btn, LeverPill, Pill, Seg, Sk, Tok } from './bits'
 import { Character, Who } from './Character'
 import { openStrategy, openWallet } from './lite'
@@ -51,7 +52,10 @@ export function Board({ by0, t0, x0 }: { by0?: string; t0?: string; x0?: string 
         <Txt s={18} w={700} lh={26} style={{ letterSpacing: -0.36 }}>Leaderboard</Txt>
         <Seg items={[{ id: 'strategy', word: 'Strategies' }, { id: 'wallet', word: 'Wallets' }]} value={by} onChange={setBy} />
       </View>
-      <Seg items={SORTS} value={sort} onChange={setSort} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ flex: 1 }}><Seg items={SORTS} value={sort} onChange={setSort} /></View>
+        <ChainChip />
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 10 }}>
         {BOARD_HELD.map((c) => {
           const on = held === c.id

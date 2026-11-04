@@ -20,6 +20,7 @@ import type { Accounts } from '@yieldcircle/app/book'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { useNav } from '@yieldcircle/app/nav'
 import { C } from '../src/theme'
+import { ChainChip } from '../src/ui/ChainChip'
 import { Btn, Sk, Tok } from '../src/ui/bits'
 import { Character } from '../src/ui/Character'
 import { BalanceChip } from '../src/ui/TopBar'
@@ -62,6 +63,8 @@ export default function You() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2, marginBottom: 16 }}>
           <Txt s={18} w={700} lh={26} style={{ letterSpacing: -0.36 }}>You</Txt>
           {b.paper && <PaperPill />}
+          <View style={{ flex: 1 }} />
+          <ChainChip />
         </View>
         {!b.account ? (
           <View style={{ gap: 14 }}>

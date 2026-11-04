@@ -1,5 +1,7 @@
 /**
- * What happened while you were away.
+ * Alerts: the rules that reach you with the tab closed (`AlertRules.tsx`:
+ * Telegram, your rules, what fired) and, under them, what happened while
+ * you were away.
  *
  * Computed in the browser from the following feed and the follower list, with
  * a last-seen mark in localStorage. That is deliberate for a first version: it
@@ -18,12 +20,13 @@ import { useSocialWrite } from '../social/sign'
 import { Ago, Who, describeBundle } from './social-bits'
 import { Sk } from './bits'
 import { primaryLeg, TxMoney } from './Feed'
+import { AlertCenter, type AlertPrefill } from './AlertRules'
 
 // what the people you follow did since the last look: shared with the phone (`@yieldcircle/app/social/seen`)
 export { readSeen, useUnseen, writeSeen } from '@yieldcircle/app/social/seen'
 import { readSeen, writeSeen } from '@yieldcircle/app/social/seen'
 
-export function Alerts() {
+export function Alerts({ prefill }: { prefill?: AlertPrefill }) {
   const { chainIds, allChains } = useApp()
   const { account } = useSocialWrite()
   const f = useMyFollows(account)
@@ -36,8 +39,7 @@ export function Alerts() {
   const [seen] = React.useState(readSeen)
   React.useEffect(() => { if (txs.length) writeSeen(Date.now()) }, [txs.length])
 
-  if (!account) return <div className="note">Connect a wallet to see what the people and markets you follow have been doing.</div>
-  if (!has) return <div className="note"><b>Nothing to watch yet.</b> Follow a wallet or a market and their moves collect here. <a className="pri" href="#/board">The board</a> is a good place to start.</div>
+  if (!account) return <div className="note">Connect a wallet to set alerts and to see what the people and markets you follow have been doing.</div>
 
   const fresh = txs.filter((t) => Date.parse(t.blockTs) > seen)
   const older = txs.filter((t) => Date.parse(t.blockTs) <= seen)
@@ -45,14 +47,16 @@ export function Alerts() {
 
   return (
     <>
-      <div className="feed-h"><h1>Alerts</h1><span className="sp" /><span className="sub t50">{f.wallets.length} wallet{f.wallets.length === 1 ? '' : 's'} · {f.markets.length} market{f.markets.length === 1 ? '' : 's'}</span></div>
+      <div className="feed-h"><h1>Alerts</h1><span className="sp" /><span className="sub t50">{f.wallets.length} wallet{f.wallets.length === 1 ? '' : 's'} · {f.markets.length} market{f.markets.length === 1 ? '' : 's'} followed</span></div>
+      <AlertCenter account={account} prefill={prefill} />
+      {!has && <div className="note" style={{ marginTop: 18 }}><b>Nothing followed yet.</b> Follow a wallet or a market and their moves collect here. <a className="pri" href="#/board">The board</a> is a good place to start.</div>}
       {newFollowers.length > 0 && (
         <div className="card pad" style={{ marginBottom: 14 }}>
           <span className="lbl">New followers</span>
           <div className="faces">{newFollowers.map((x) => <Who key={x.account} account={x.account} size={26} />)}</div>
         </div>
       )}
-      <Group title="Since you last looked" rows={fresh} profile={profile} loading={feed.isLoading} empty="Nothing new." />
+      {has && <Group title="Since you last looked" rows={fresh} profile={profile} loading={feed.isLoading} empty="Nothing new." />}
       {older.length > 0 && <Group title="Earlier" rows={older} profile={profile} loading={false} empty="" />}
     </>
   )

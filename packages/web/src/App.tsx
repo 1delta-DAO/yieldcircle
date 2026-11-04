@@ -47,7 +47,7 @@ export default function App() {
         : r.view === 'token' ? (r.token ? <TokenPage key={r.token} group={r.token} /> : <TokenBook />)
         : r.view === 'board' ? <Board window={r.t} by={r.by} x={r.x} s={r.s} />
         : r.view === 'me' ? <ProfilePage />
-        : r.view === 'alerts' ? <Alerts />
+        : r.view === 'alerts' ? <Alerts prefill={r.ak ? { kind: r.ak, target: r.at } : undefined} />
         : group ? <AssetPage key={group.id} group={group} route={r} />
         : r.view === 'earn' ? <Earn />
         : r.view === 'borrow' ? <BorrowPage route={r} />

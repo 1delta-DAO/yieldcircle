@@ -1,5 +1,7 @@
 import React from 'react'
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import Svg, { Path } from 'react-native-svg'
+import { useAccount } from 'wagmi'
 import { router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AppKitButton } from '@reown/appkit-react-native'
@@ -11,6 +13,7 @@ import { useBook } from '@yieldcircle/app/book'
 import { useProfile } from '@yieldcircle/app/social/queries'
 import { useSocialWrite } from '@yieldcircle/app/social/sign'
 import { CHAINS } from '@yieldcircle/app/sdk/queries'
+import { TELEGRAM_BLUE, TELEGRAM_D, TELEGRAM_URL, X_D, X_URL } from '@yieldcircle/design/brand/links'
 import { setMode, useMode, type Mode } from '../src/mode'
 import { useChains } from '../src/chains'
 import { usePaper } from '../src/paper'
@@ -19,15 +22,16 @@ import { Btn, Seg } from '../src/ui/bits'
 import { Character } from '../src/ui/Character'
 import { Filters } from '../src/ui/Filters'
 import { IconBack } from '../src/ui/icons'
-import { PAPER } from '../src/ui/paper'
+import { PAPER, PaperAccount } from '../src/ui/paper'
 import { LinkedWallets, PendingChanges } from '../src/ui/social'
 import { Txt } from '../src/ui/Txt'
 
 /**
  * Profile and settings, behind the face top-left (the web's `ProfileSheet`): who you are, your name
  * and face, your wallets under one profile, what waits for a signature, Lite / Pro, and the settings
- * every list reads — chains, filters (Lite's four in Lite, all of them in Pro) and slippage. Folded,
- * each says its value. Your money is behind the chip top-right (You).
+ * every list reads — chains, filters (Lite's four in Lite, all of them in Pro) and slippage — and the
+ * paper account (optional: in use, or stepped aside for the wallet). Folded, each says its value.
+ * Your money is behind the chip top-right (You).
  */
 export default function Profile() {
   const insets = useSafeAreaInsets()
@@ -35,6 +39,7 @@ export default function Profile() {
   const b = useBook()
   const { account: author } = useSocialWrite()
   const paper = usePaper()
+  const wallet = useAccount()
   const mode = useMode()
   const { st: cur, widened } = useSettings()
   const { chains, allChains, setChains, toggleChain } = useChains()
@@ -62,11 +67,14 @@ export default function Profile() {
         </View>
 
         <View style={st.group}>
-          {paper.session ? (
+          {/* paper in use is the account; otherwise the wallet, connected or not (paper stays signed in below) */}
+          {paper.active && paper.session ? (
             <View style={st.row}>
               <View style={st.paperPill}><Txt s={11} w={600} c={PAPER.fg} lh={16.5}>paper</Txt></View>
               <Txt s={14} style={{ flex: 1 }} numberOfLines={1}>{paper.session.name}</Txt>
-              <Btn sm kind="plain" title="Sign out" onPress={paper.signOut} />
+              {wallet.isConnected
+                ? <Btn sm kind="plain" title="Use my wallet" onPress={() => paper.use(false)} />
+                : <Btn sm kind="plain" title="Sign out" onPress={paper.signOut} />}
             </View>
           ) : <View style={st.row}><AppKitButton /></View>}
           {own && <Link label="Edit your name and face" onPress={() => router.push('/me')} />}
@@ -86,7 +94,10 @@ export default function Profile() {
           <Fold label={lite ? 'What Lite shows' : 'Filters'} state={n ? `${n} widened` : 'Curated'} on={n > 0}><Filters lite={lite} /></Fold>
         </View>
 
+        <View style={[st.group, { borderWidth: 1, borderColor: PAPER.line }]}><PaperAccount walletConnected={wallet.isConnected} /></View>
+
         <ModeSwitch mode={mode} />
+        <Socials />
       </ScrollView>
     </View>
   )
@@ -124,6 +135,21 @@ function ChainRow({ label, on, onPress }: { label: string; on: boolean; onPress:
   )
 }
 
+/** The community links (the design's `Socials`): Telegram as a pill in its own blue, X as an icon. */
+function Socials() {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 24 }}>
+      <Pressable onPress={() => void Linking.openURL(TELEGRAM_URL)} accessibilityRole="link" style={st.tg}>
+        <Svg width={18} height={18} viewBox="0 0 24 24"><Path d={TELEGRAM_D} fill={TELEGRAM_BLUE} /></Svg>
+        <Txt s={13} w={600}>Join the community on Telegram</Txt>
+      </Pressable>
+      <Pressable onPress={() => void Linking.openURL(X_URL)} accessibilityRole="link" accessibilityLabel="YieldCircle on X" style={st.x}>
+        <Svg width={15} height={15} viewBox="0 0 24 24"><Path d={X_D} fill={C.tx} /></Svg>
+      </Pressable>
+    </View>
+  )
+}
+
 /** Lite / Pro (the web's ModeSwitch): saved, and `/` opens the saved one. */
 function ModeSwitch({ mode }: { mode: Mode }) {
   const choose = (m: Mode) => { setMode(m); if (router.canDismiss()) router.dismissAll(); router.replace(m === 'pro' ? '/pro' : '/lite') }
@@ -146,5 +172,7 @@ const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 10, paddingHorizontal: 14 },
   line: { borderTopWidth: 1, borderTopColor: C.line },
   chain: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingHorizontal: 14 },
+  tg: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.line, backgroundColor: C.b200 },
+  x: { width: 40, height: 40, borderRadius: 999, borderWidth: 1, borderColor: C.line, backgroundColor: C.b200, alignItems: 'center', justifyContent: 'center' },
   paperPill: { backgroundColor: PAPER.bg, borderWidth: 1, borderColor: PAPER.line, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
 })

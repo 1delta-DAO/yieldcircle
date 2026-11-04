@@ -118,6 +118,7 @@ export function Market({ uid }: { uid: string }) {
         <span className="sp" />
         <div className="mhdr-a">
           <FollowButton kind="market" target={uid} quiet />
+          <a className="btn sm" href={`#/alerts?ak=rate&at=${encodeURIComponent(uid)}`} title="A message when this market's rate crosses a level">Alert</a>
           {s && <button className="btn sm pri" onClick={() => go(s.group, { u: s.asset, s: s.id, k: s.kind })}>Open ›</button>}
         </div>
       </header>

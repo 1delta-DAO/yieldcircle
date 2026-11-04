@@ -2621,3 +2621,43 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .pw.curated .chip{border-style:dashed}
 .pw.curated.warn .pw-h b{color:var(--warning)}
 .wpnl-scope{margin-left:auto}
+/* alerts (ui/AlertRules.tsx): Telegram, the rules, the new-rule form, the fired inbox */
+.al-tg{margin-bottom:14px}
+.al-tg-h{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.al-tg-h .lbl{margin:0}
+.al-tg-i{color:#2aabee;flex:none}
+.al-tg-step .actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0}
+.al-wait{display:inline-flex;align-items:center;gap:6px}
+.pill.warn{border-color:#5a3b17;color:var(--warning,#e0a040)}
+.al-empty{display:flex;gap:6px;flex-wrap:wrap;align-items:baseline}
+.al-rule{display:grid;grid-template-columns:96px minmax(0,1fr) auto auto;align-items:center;gap:6px 12px;padding:10px 16px;border-top:1px solid var(--line)}
+.al-rule:first-child{border-top:0}
+.al-rule.off .al-what{color:var(--tx50)}
+.al-rule .err{grid-column:1/-1;margin:0}
+.al-kind{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--tx50)}
+.al-what{font-size:13.5px;line-height:1.45;min-width:0}
+.al-who{display:inline-flex;vertical-align:-4px}
+.al-state{display:flex;gap:8px;align-items:center;font-size:12px;white-space:nowrap}
+.al-act{display:flex;gap:4px}
+.al-new{margin-bottom:14px}
+.al-kinds{flex-wrap:wrap;margin-bottom:14px}
+.al-form .plain{margin:0 0 8px}
+.al-row{display:flex;flex-wrap:wrap;gap:4px 18px;align-items:flex-end;margin-top:10px}
+.al-f{min-width:150px}
+.al-f .amt{max-width:220px}
+.al-sel{background:var(--bg);color:var(--tx);border:1px solid var(--line2);border-radius:var(--r);min-height:40px;padding:0 10px;font-size:13px}
+.al-check{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--tx70);margin-bottom:22px}
+.al-who-line{margin:-6px 0 6px;font-size:13px}
+.al-feeds{display:flex;flex-direction:column;border:1px solid var(--line2);border-radius:var(--r);max-height:260px;overflow:auto;margin-bottom:6px}
+.al-feeds:empty{display:none}
+.al-feed{display:flex;align-items:center;gap:10px;padding:8px 12px;text-align:left;font-size:13px;border-top:1px solid var(--line)}
+.al-feed:first-child{border-top:0}
+.al-feed:hover{background:#131313}
+.al-freq{width:52px;text-align:right;font-size:11.5px}
+.al-picked{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13.5px;margin-bottom:6px}
+.al-new .actions{display:flex;gap:8px;margin-top:14px}
+.al-note{padding:10px 16px;border-top:1px solid var(--line)}
+.al-note:first-child{border-top:0}
+.al-note-h{display:flex;align-items:center;gap:8px;font-size:13.5px}
+.al-note-b{font-size:12.5px;line-height:1.45;margin-top:3px}
+@media (max-width:640px){.al-rule{grid-template-columns:minmax(0,1fr) auto;padding:10px 12px}.al-kind{grid-column:1/-1}.al-state{grid-column:1}.al-f{min-width:0;flex:1 1 140px}}

@@ -98,6 +98,15 @@ export function useSocialWrite() {
         note: o.note ?? '',
       }),
     remove: (messageId: number) => send('Delete', { messageId }),
+    /**
+     * An alert rule (pos-indexer docs/alerts.md). The service validates
+     * `params` per kind and answers a 400 that names the field; a newer
+     * `set` of the same `ruleId` replaces the rule and starts a fresh episode.
+     */
+    alertRule: (ruleId: string, kind: string, params: Record<string, unknown>, action: 'set' | 'remove' | 'pause' | 'resume' = 'set') =>
+      send('AlertRule', { ruleId, kind, params: JSON.stringify(params), action }),
+    /** The wallet half of a Telegram link; the chat completes it with `/start <linkNonce>` within the hour. */
+    telegramLink: (linkNonce: string, action: 'link' | 'unlink') => send('TelegramLink', { linkNonce, action }),
     profile: (p: ProfileOp) => send('Profile', p),
     /** The pending queue in one signature (`social/pending.ts` builds it). */
     batch: (follows: FollowOp[], profile: ProfileOp | null) =>

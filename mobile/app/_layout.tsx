@@ -49,6 +49,7 @@ export default function RootLayout() {
                 <Stack.Screen name="profile" options={{ headerShown: false }} />
                 <Stack.Screen name="position" options={{ headerShown: false }} />
                 <Stack.Screen name="made" options={{ headerShown: false }} />
+                <Stack.Screen name="paper-book" options={{ headerShown: false }} />
                 <Stack.Screen name="details" options={{ ...header, headerShown: true, title: 'Details' }} />
                 <Stack.Screen name="probe" options={{ ...header, headerShown: true, title: 'Wallet probe' }} />
               </Stack>

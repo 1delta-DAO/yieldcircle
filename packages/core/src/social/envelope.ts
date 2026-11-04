@@ -94,6 +94,30 @@ export const TYPES = {
     { name: 'signedAt', type: 'uint256' },
   ],
   /**
+   * An alert rule (pos-indexer docs/alerts.md): `params` is the rule's JSON,
+   * validated per kind by the service; `action` set | remove | pause | resume.
+   */
+  AlertRule: [
+    { name: 'author', type: 'address' },
+    { name: 'ruleId', type: 'string' },
+    { name: 'kind', type: 'string' },
+    { name: 'params', type: 'string' },
+    { name: 'action', type: 'string' },
+    { name: 'nonce', type: 'string' },
+    { name: 'signedAt', type: 'uint256' },
+  ],
+  /**
+   * The wallet half of a Telegram link: the bot binds the chat that sends
+   * `/start <linkNonce>` within an hour. `unlink` removes the channel.
+   */
+  TelegramLink: [
+    { name: 'author', type: 'address' },
+    { name: 'linkNonce', type: 'string' },
+    { name: 'action', type: 'string' },
+    { name: 'nonce', type: 'string' },
+    { name: 'signedAt', type: 'uint256' },
+  ],
+  /**
    * The pending queue, signed once (docs/social.md §17): follows and at most
    * one profile edit. The ops are `Follow` / `Profile` minus the envelope
    * fields, which the batch carries once; the service applies all or none.

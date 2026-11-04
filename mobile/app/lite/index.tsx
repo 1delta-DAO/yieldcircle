@@ -65,7 +65,7 @@ export default function LiteHome() {
             <Btn sm title="Connect wallet" onPress={() => open()} />
           </>
         )}
-        {(!b.account || empty) && <View style={{ marginTop: 14 }}><PaperOffer empty={!!b.account} /></View>}
+        {(!b.account || empty) && <View style={{ marginTop: 14 }}><PaperOffer empty={!!b.account} lite /></View>}
         {idleBook && idleTo && (
           <Pressable onPress={() => openStrategy(idleTo.s)} style={st.idle}>
             <Txt s={13} c={C.tx70} style={{ flex: 1 }}>

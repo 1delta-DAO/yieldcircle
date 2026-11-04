@@ -2,33 +2,31 @@ import React from 'react'
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { router, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useAppKit, AppKitButton } from '@reown/appkit-react-native'
+import { useAppKit } from '@reown/appkit-react-native'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Svg, { Defs, G, Line, LinearGradient, Path, Stop } from 'react-native-svg'
 import * as idx from '@yieldcircle/core/index/api'
 import { useDayLog, useLiteMenu } from '@yieldcircle/app/lite'
 import { pnlNotReadYet } from '@yieldcircle/core/model/holdingPnl'
-import { pnlWaiting, unsupportedLine, useAccountPnlBook, useHoldingPnl } from '@yieldcircle/app/index/pnl'
+import { pnlWaiting, unsupportedLine, useAccountsPnlBook, useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { useAccountSync } from '@yieldcircle/app/index/queries'
-import { isEvmAddr, normAddr } from '@yieldcircle/core/model/address'
+import { isSolAddr, normAddr } from '@yieldcircle/core/model/address'
 import { bookKeyOf } from '@yieldcircle/core/model/uid'
 import { totalsOf, type Holding } from '@yieldcircle/core/model/positions'
 import { boardPositions, holdingLine, moneyWord, pnlSummary, signedMoney, streakWord, type LiteRow } from '@yieldcircle/core/model/lite'
 import { owedOf } from '@yieldcircle/core/model/borrow'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
+import type { Accounts } from '@yieldcircle/app/book'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
-import { setMode, useMode, type Mode } from '../src/mode'
-import { useChains } from '../src/chains'
-import { useSession } from '@yieldcircle/app/session'
 import { useNav } from '@yieldcircle/app/nav'
-import { CHAINS } from '@yieldcircle/app/sdk/queries'
 import { C } from '../src/theme'
-import { Btn, Seg, Sk, Tok } from '../src/ui/bits'
+import { Btn, Sk, Tok } from '../src/ui/bits'
 import { Character } from '../src/ui/Character'
 import { BalanceChip } from '../src/ui/TopBar'
 import { IconBack, IconFlame } from '../src/ui/icons'
 import { openStrategy } from '../src/ui/lite'
-import { PAPER, PaperOffer } from '../src/ui/paper'
+import { PAPER, PaperNotice, PaperOffer, paperStatusWord } from '../src/ui/paper'
+import { usePaperDaily } from '@yieldcircle/app/social/queries'
 import { usePaper } from '../src/paper'
 import { paperPnlBook } from '@yieldcircle/core/model/paperView'
 import { Txt } from '../src/ui/Txt'
@@ -69,7 +67,7 @@ export default function You() {
           <View style={{ gap: 14 }}>
             <View style={st.note}><Txt s={12.5} c={C.tx50}>Connect a wallet to see what you have, your streak and your rank — or play the whole thing with paper money first.</Txt></View>
             <Btn sm title="Connect wallet" onPress={() => open()} />
-            <PaperOffer />
+            <PaperOffer lite />
           </View>
         ) : (
           <>
@@ -80,7 +78,7 @@ export default function You() {
               {!b.paper && <Stat k="Rank ›" v={rank.rank != null ? `#${rank.rank}` : '—'} s={rank.rank != null ? `on the board · ${usdShort(rank.perDay)}/day` : 'top 100 by what they earn a day'} onPress={() => router.push('/lite/board')} />}
             </View>
 
-            {b.paper ? <PaperMade /> : <Made account={b.account} rows={L.rows} positions={b.positionsLoading || b.isFetching ? undefined : mine.filter((h) => h.kind !== 'borrow').length} />}
+            {b.paper ? <PaperMade account={b.account} /> : <Made account={b.account} accounts={b.accounts} rows={L.rows} positions={b.positionsLoading || b.isFetching ? undefined : mine.filter((h) => h.kind !== 'borrow').length} />}
 
             <Txt s={16} w={600} style={{ letterSpacing: -0.16, marginTop: 26, marginBottom: 10 }}>Your money</Txt>
             {b.positionsError && <Txt s={12.5} c={C.bad}>Positions could not be read: {b.positionsError.message}</Txt>}
@@ -97,15 +95,19 @@ export default function You() {
   )
 }
 
+const unreadWallet = (a: string) => `your ${isSolAddr(a) ? 'Solana' : 'EVM'} wallet’s record (the index did not answer just now)`
+
 const PaperPill = () => <View style={st.paperPill}><Txt s={11} w={600} c={PAPER.fg} lh={16.5}>paper</Txt></View>
 
 /**
  * What you made on paper (the web's `PaperMade`): the same figure, farming / price split and
  * sentence as the real one, off the paper ledger (`paperPnlBook`) — nothing waits to be drawn —
- * plus what went on fees, swaps and bridges, and the return on what was put in.
+ * plus what went on fees, swaps and bridges, the return on what was put in, the server's daily line,
+ * and "Every number" (`/paper-book`: the bank, what is at work, what it cost).
  */
-function PaperMade() {
+function PaperMade({ account }: { account: string }) {
   const paper = usePaper()
+  const daily = usePaperDaily(account, 90)
   // accrual moves the figure by the second: re-folded twice a minute
   const [, tick] = React.useReducer((x: number) => x + 1, 0)
   React.useEffect(() => { const t = setInterval(tick, 30_000); return () => clearInterval(t) }, [])
@@ -113,9 +115,12 @@ function PaperMade() {
   if (!l || !b) return null
   const pb = paperPnlBook(l, paper.viewNow, paper.price)
   const s = pnlSummary(pb)
+  const pts = (daily.data?.days ?? []).map((d) => d.pnlUsd)
+  const sync = paperStatusWord(paper)
   return (
     <>
-      <View style={{ marginTop: 26, marginBottom: 10, gap: 4 }}><Txt s={16} w={600} style={{ letterSpacing: -0.16 }}>What you made</Txt><Txt s={12.5} c={C.tx50}>on paper · since each position opened</Txt></View>
+      <View style={{ marginTop: 26, marginBottom: 10, gap: 4 }}><Txt s={16} w={600} style={{ letterSpacing: -0.16 }}>What you made</Txt><Txt s={12.5} c={C.tx50}>on paper · since each position opened{paper.skewDays ? ` · previewing +${paper.skewDays} days` : ''}{sync ? ` · ${sync}` : ''}</Txt></View>
+      <PaperNotice />
       <View style={[st.pnl, { borderWidth: 1, borderColor: PAPER.line }]}>
         {!s ? <Txt s={13} c={C.tx50} lh={19}>Nothing made yet. Open a deposit or a loop on paper and its figure shows here at once, accruing by the minute.</Txt> : <>
           <View style={{ gap: 4 }}>
@@ -123,10 +128,16 @@ function PaperMade() {
             <Txt s={12.5} c={C.tx50}>{s.aprPct != null ? `${pct(s.aprPct, 1)} a year on what was in · ` : ''}{pct(b.returnPct, 2)} of what was put in</Txt>
           </View>
           {s.yield != null && s.price != null && (
-            <View style={{ flexDirection: 'row', gap: 18 }}>
-              <Txt s={12.5} c={C.tx70}><Dot c={C.ok} />  Farming <Txt s={12.5} w={700} c={s.yield >= 0 ? C.ok : C.bad}>{signedMoney(s.yield)}</Txt></Txt>
-              <Txt s={12.5} c={C.tx70}><Dot c={C.violet} />  Price <Txt s={12.5} w={700} c={s.price >= 0 ? C.ok : C.bad}>{signedMoney(s.price)}</Txt></Txt>
-            </View>
+            <>
+              {s.split && <View style={st.bar2}>
+                <Seg2 neg={s.yield < 0} color={C.ok} flex={`${Math.round(s.split.yield * 100)}%`} />
+                <Seg2 neg={s.price < 0} color={C.violet} grow />
+              </View>}
+              <View style={{ flexDirection: 'row', gap: 18 }}>
+                <Txt s={12.5} c={C.tx70}><Dot c={C.ok} />  Farming <Txt s={12.5} w={700} c={s.yield >= 0 ? C.ok : C.bad}>{signedMoney(s.yield)}</Txt></Txt>
+                <Txt s={12.5} c={C.tx70}><Dot c={C.violet} />  Price <Txt s={12.5} w={700} c={s.price >= 0 ? C.ok : C.bad}>{signedMoney(s.price)}</Txt></Txt>
+              </View>
+            </>
           )}
           <Txt s={13.5} lh={19.6}>{s.word}</Txt>
           {b.frictionUsd > 0.005 && <Txt s={13} c={C.tx50}>{usdShort(b.frictionUsd)} of it went on fees, swaps and bridges.</Txt>}
@@ -137,6 +148,8 @@ function PaperMade() {
             </View>
           ))}
           {pb.positions.length > 4 && <Txt s={12} c={C.tx50}>and {pb.positions.length - 4} more</Txt>}
+          {pts.length > 1 ? <PnlLine pts={pts} up={s.total >= 0} /> : <Txt s={12.5} c={C.tx50}>The day-by-day line starts after a second day.</Txt>}
+          <View style={{ marginHorizontal: -16, marginTop: -10, marginBottom: -14 }}><Details title="Every number" what="each position, what is at work, what it cost" onOpen={() => router.push('/paper-book')} /></View>
         </>}
       </View>
     </>
@@ -164,11 +177,15 @@ function useRank(account: string | undefined) {
 }
 
 /** What you made (the web's `LitePnl`, real accounts): one number, one bar, one sentence, each position's own figure. */
-function Made({ account, rows, positions }: { account: string; rows: LiteRow[]; positions?: number }) {
-  const q = useAccountPnlBook(account, { own: true })
-  const sync = useAccountSync(isEvmAddr(account) ? account : undefined)
+function Made({ account, accounts, rows, positions }: { account: string; /** every wallet of the owner's, one per VM (`useBook`): what they made is summed over all of them */ accounts: Accounts; rows: LiteRow[]; positions?: number }) {
+  const q = useAccountsPnlBook(accounts, { own: true })
+  // the live book's legs go to each index as hints, and the book is re-read once a sync lands (both indexes, pos-indexer tickets/0099)
+  const { evm, sol } = accounts
+  const sync = useAccountSync(evm)
+  const solSync = useAccountSync(sol)
   const qc = useQueryClient()
-  React.useEffect(() => { if (sync.data) void qc.invalidateQueries({ queryKey: ['pnl-book', account.toLowerCase()] }) }, [sync.data, account, qc])
+  React.useEffect(() => { if (sync.data && evm) void qc.invalidateQueries({ queryKey: ['pnl-book', evm.toLowerCase()] }) }, [sync.data, evm, qc])
+  React.useEffect(() => { if (solSync.data && sol) void qc.invalidateQueries({ queryKey: ['pnl-book', sol] }) }, [solSync.data, sol, qc])
   const liteByKey = React.useMemo(() => {
     const m = new Map<string, LiteRow>()
     for (const r of rows) { const k = bookKeyOf(r.s); if (k) m.set(k.toLowerCase(), r) }
@@ -178,12 +195,12 @@ function Made({ account, rows, positions }: { account: string; rows: LiteRow[]; 
   const s = b ? pnlSummary(b) : null
   const head = <View style={{ marginTop: 26, marginBottom: 10, gap: 4 }}><Txt s={16} w={600} style={{ letterSpacing: -0.16 }}>What you made</Txt><Txt s={12.5} c={C.tx50}>since each position opened · from the index’s records</Txt></View>
   if (q.isLoading) return <>{head}<View style={st.pnl}><Sk w={160} h={34} /><Sk w={240} h={12} /></View></>
-  const syncing = isEvmAddr(account) && !sync.data && !sync.isError
+  const syncing = (!!evm && !sync.data && !sync.isError) || (!!sol && !solSync.data && !solSync.isError)
   // no book, or one with nothing in it: say so while there is money at work, instead of a blank
-  if (!b || !b.coverage.positions) return positions ? <>{head}<View style={st.pnl}><Txt s={13} c={C.tx50} lh={19}>{pnlNotReadYet(positions, syncing, q.isError)}</Txt></View></> : null
+  if (!b || !b.coverage.positions) return positions ? <>{head}<View style={st.pnl}><Txt s={13} c={C.tx50} lh={19}>{pnlNotReadYet(positions, syncing, q.isError)}{!q.isError && q.failed.length ? ` Not in this yet: ${q.failed.map(unreadWallet).join(' · ')}.` : ''}</Txt></View></> : null
   const ps = boardPositions(b, (k) => liteByKey.get(k.toLowerCase())?.title ?? null)
   const w = pnlWaiting(b)
-  const notIn = [w.drawing ? `${w.drawing} drawing now` : '', w.waiting ? `${w.waiting} waiting` : '', unsupportedLine(b)].filter(Boolean)
+  const notIn = [w.drawing ? `${w.drawing} drawing now` : '', w.waiting ? `${w.waiting} waiting` : '', unsupportedLine(b), ...q.failed.map(unreadWallet)].filter(Boolean)
   return (
     <>
       {head}
@@ -222,7 +239,7 @@ function Made({ account, rows, positions }: { account: string; rows: LiteRow[]; 
               {ps.length > 4 && <Txt s={12} c={C.tx50} style={{ paddingVertical: 7 }}>and {ps.length - 4} more</Txt>}
             </View>
           )}
-          <View style={{ marginHorizontal: -16, marginTop: -10, marginBottom: -14 }}><Details title="Every number" what="the day-by-day line, yield against price, each strategy" onOpen={() => router.push(`/made?${new URLSearchParams({ a: account })}` as Href)} /></View>
+          <View style={{ marginHorizontal: -16, marginTop: -10, marginBottom: -14 }}><Details title="Every number" what="the day-by-day line, yield against price, each strategy" onOpen={() => router.push(`/made?${new URLSearchParams({ a: account, ...(sol && sol !== account ? { s: sol } : {}) })}` as Href)} /></View>
         </>}
       </View>
     </>

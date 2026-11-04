@@ -251,6 +251,7 @@ export function Wallet({ addr }: { addr: string }) {
         </div>
         <div className="wc-a">
           {isMe ? <a className="btn sm" href="#/me">Edit profile</a> : <FollowButton kind="wallet" target={addr} />}
+          {addr.startsWith('0x') && <a className="btn sm" href={`#/alerts?ak=wallet&at=${addr}`} title={isMe ? 'A message when this wallet moves or is liquidated' : 'A message when this wallet or its profile moves'}>Alert</a>}
           <span className="foot">{followers.data?.followers.length ?? 0} follower{(followers.data?.followers.length ?? 0) === 1 ? '' : 's'}</span>
         </div>
       </header>

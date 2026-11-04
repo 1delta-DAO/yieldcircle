@@ -281,3 +281,53 @@ export const postWalletLink = (primary: unknown, member: unknown) =>
 /** One half, either role: consent withdrawn by either party ends the claim. */
 export const postWalletUnlink = (half: unknown) =>
   call<{ ok: boolean }>('/wallet-link', post('/wallet-link', { half }))
+
+/**
+ * Alerts (pos-indexer docs/alerts.md): a rule is a signed `AlertRule` on
+ * `/write`; the service evaluates it every 30 s against the index and sends
+ * what fires to the wallet's linked Telegram chat, keeping every one in the
+ * inbox whether it was sent or not. Rules are public like every social row;
+ * the chat id is the one private value and is never served.
+ */
+export type AlertKind = 'price' | 'move' | 'rate' | 'liquidated' | 'walletEvent' | 'following'
+export interface AlertRule {
+  account: string
+  ruleId: string
+  kind: AlertKind
+  params: Record<string, unknown>
+  enabled: boolean
+  firedAt: string | null
+  fireCount: number
+  signedAt: string
+  /** a price / move rule's feed, named, with its newest answer (absent on an older service) */
+  feed?: { name: string; chainId: string; price: number; updatedAt: string }
+  /** a `following` rule: how many wallets its owner follows now */
+  watching?: number
+}
+export type TelegramState = 'linked' | 'stopped' | 'blocked' | 'none'
+export interface AlertsConfig {
+  telegram: { enabled: boolean; bot?: string | null; linkUrl?: string | null }
+  /** what this deployment accepts: a kind missing here is not offered */
+  kinds: AlertKind[]
+  maxRules: number
+}
+export interface AlertsOf { account: string; channel: { telegram: TelegramState }; rules: AlertRule[] }
+export interface AlertNotification {
+  id: number
+  ruleId: string
+  kind: AlertKind
+  title: string
+  body: string
+  data: Record<string, unknown> | null
+  createdAt: string
+  /** `skipped` = no linked chat (or no bot) when it fired; it is still here */
+  delivery: 'pending' | 'sent' | 'skipped' | 'failed'
+  sentAt: string | null
+}
+export interface PriceSource { feed: string; chainId: string; name: string; kind: string; price: number; updatedAt: string; updatesPerDay: number }
+
+export const alertsConfig = () => call<AlertsConfig>('/alerts/config')
+export const alertsOf = (account: string) => call<AlertsOf>(`/alerts/${encodeURIComponent(normAddr(account))}`, fresh)
+export const alertInbox = (account: string, limit = 50) =>
+  call<{ notifications: AlertNotification[] }>(`/alerts/${encodeURIComponent(normAddr(account))}/notifications?limit=${limit}`, fresh)
+export const priceSources = (q: string) => call<{ sources: PriceSource[] }>(`/alerts/price-sources?q=${encodeURIComponent(q)}&limit=20`)

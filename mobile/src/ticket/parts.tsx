@@ -2,6 +2,7 @@ import React from 'react'
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
+import { useGoPaper } from '../ui/paper'
 import { useAppKit } from '@reown/appkit-react-native'
 import Svg, { Path } from 'react-native-svg'
 import { normaliseDecimal, type Amount } from '@yieldcircle/core/model/amount'
@@ -198,13 +199,14 @@ export const ThreadCtx = React.createContext<ThreadRef | null>(null)
 export function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string }) {
   const { open } = useAppKit()
   const thread = React.useContext(ThreadCtx)
+  const goPaper = useGoPaper()
   if (!l.bundle) return (
     <View style={st.cta}>
       {!!l.err && <Txt s={12.5} c={C.bad} style={{ marginBottom: 8 }}>{l.err}</Txt>}
       {!account ? <>
           <Btn wide title="Connect a wallet to continue" onPress={() => open()} />
           <View style={{ height: 8 }} />
-          <Btn wide kind="paper" title="Or try it with paper money" onPress={() => router.push('/paper')} />
+          <Btn wide kind="paper" title={`Or ${goPaper.word.charAt(0).toLowerCase()}${goPaper.word.slice(1)}`} onPress={goPaper.go} />
         </>
         // someone else's address on screen (the browser render's `?as=`): nothing to sign with
         : !isConnected ? <Btn wide kind="plain" disabled title={`Viewing ${account.slice(0, 6)}… · connect to sign`} />

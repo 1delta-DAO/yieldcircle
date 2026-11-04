@@ -7,7 +7,8 @@ import type { PnlBookPoint } from '@yieldcircle/core/index/types'
 import { boardPositions, pnlSummary, signedMoney } from '@yieldcircle/core/model/lite'
 import { day } from '@yieldcircle/core/model/positionRecord'
 import { pct, usdShort } from '@yieldcircle/core/model/format'
-import { useAccountPnlBook } from '@yieldcircle/app/index/pnl'
+import { useAccountsPnlBook } from '@yieldcircle/app/index/pnl'
+import { isEvmAddr, isSolAddr } from '@yieldcircle/core/model/address'
 import { useBoardNames, useLiteByKey } from '@yieldcircle/app/board'
 import { useNav } from '@yieldcircle/app/nav'
 import { C } from '../src/theme'
@@ -18,13 +19,14 @@ import { Txt } from '../src/ui/Txt'
 /**
  * Every number of what you made (the web's "Every number" under You's "What you made"): the
  * day-by-day line — all of it, and what farming made of it — then each strategy's figures, then
- * every position, each opening its own record (`/position`). The index's book, `a` the account.
+ * every position, each opening its own record (`/position`). The index's books, summed as on You:
+ * `a` the account, `s` the owner's Solana wallet beside it (tickets/0018).
  */
 export default function Made() {
   const insets = useSafeAreaInsets()
   const nav = useNav()
-  const { a } = useLocalSearchParams<{ a: string }>()
-  const q = useAccountPnlBook(a, { own: true })
+  const { a, s: sol } = useLocalSearchParams<{ a: string; s?: string }>()
+  const q = useAccountsPnlBook({ evm: isEvmAddr(a) ? a : undefined, sol: sol ?? (isSolAddr(a) ? a : undefined) }, { own: true })
   const liteByKey = useLiteByKey()
   const names = useBoardNames()
   const b = q.data

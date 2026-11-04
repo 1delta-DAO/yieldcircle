@@ -7,6 +7,7 @@
   "exports": {
     ".": "./index.ts",
     "./brand": "./brand/index.ts",
+    "./brand/links": "./brand/links.ts",
     "./index.css": "./index.css",
     "./*.css": "./*.css"
   },

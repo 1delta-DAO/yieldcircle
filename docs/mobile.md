@@ -67,6 +67,13 @@ held position the ticket can carry, as on the web.
   without a JIT: 0.15 s in Node, 8 s with `--jitless` on a laptop, so roughly 15–30 s on a phone. The
   sign-in shows a bar and says it runs once per phone. A native scrypt (`react-native-quick-crypto`)
   would make it instant, at the cost of a dev-client rebuild and of paper in Expo Go.
+  Paper is optional and steps aside, as on the web (2026-11-04): a wallet connected while paper is in
+  use takes over (an AppKit session restored at launch does not), and paper stays signed in —
+  "Use it" (profile, the offers, the ticket's "Continue as …") brings it back at once, with no new
+  derivation. Profile and settings has the paper account (in use or not, Use my wallet, Export the
+  book through the share sheet, Sign out); You's paper figure has the farming / price bar, the
+  server's daily line and **Every number** (`app/paper-book.tsx`: earned · at work · put in ·
+  friction, each position with what it made, the bank and what is bridging, the paper clock).
 | Feed · Borrow | — | "comes next" (the feed needs the social layer; borrowing comes with the ticket) |
 
 A row opens the **strategy screen**: what it is in words, the rate (amber on a

@@ -234,6 +234,44 @@ export function useRatingCounts(subjects: { kind: api.RatingSubjectKind; key: st
 }
 
 /** After a write, drop what it changed so the next render reads the server's version. */
+/** What the service's alerts accept (kinds, Telegram on, the bot); a service without alerts answers nothing. */
+export function useAlertsConfig() {
+  return useQuery({ queryKey: ['alerts-config'], queryFn: api.alertsConfig, staleTime: 30 * MIN, retry: false })
+}
+/** One wallet's rules and channel state. `poll` while a Telegram link is waiting for its `/start`. */
+export function useAlerts(account: string | undefined, poll = false) {
+  return useQuery({
+    enabled: !!account,
+    queryKey: ['alerts', normAddr(account)],
+    queryFn: () => api.alertsOf(account!),
+    staleTime: 20_000,
+    refetchInterval: poll ? 3000 : false,
+    retry: false,
+  })
+}
+/** The inbox: everything that fired, sent to Telegram or not. */
+export function useAlertInbox(account: string | undefined) {
+  return useQuery({
+    enabled: !!account,
+    queryKey: ['alert-inbox', normAddr(account)],
+    queryFn: () => api.alertInbox(account!),
+    staleTime: 20_000,
+    refetchInterval: MIN,
+    retry: false,
+  })
+}
+/** USD price feeds a price / move rule may name, the most frequently updated first. */
+export function usePriceSources(q: string) {
+  const t = q.trim()
+  return useQuery({
+    enabled: t.length >= 2,
+    queryKey: ['price-sources', t.toLowerCase()],
+    queryFn: () => api.priceSources(t),
+    staleTime: 5 * MIN,
+    retry: false,
+  })
+}
+
 export function useSocialRefresh() {
   const qc = useQueryClient()
   return {
@@ -245,6 +283,7 @@ export function useSocialRefresh() {
       void qc.invalidateQueries({ queryKey: ['latest'] })
     },
     follows: (account?: string) => { void qc.invalidateQueries({ queryKey: ['follows', normAddr(account)] }); void qc.invalidateQueries({ queryKey: ['followers'] }); void qc.invalidateQueries({ queryKey: ['feed1'] }) },
+    alerts: (account?: string) => { void qc.invalidateQueries({ queryKey: ['alerts', normAddr(account)] }); void qc.invalidateQueries({ queryKey: ['alert-inbox', normAddr(account)] }) },
     profile: (account?: string) => { void qc.invalidateQueries({ queryKey: ['profile', normAddr(account)] }); void qc.invalidateQueries({ queryKey: ['profiles'] }) },
     links: () => { void qc.invalidateQueries({ queryKey: ['wallet-links'] }); void qc.invalidateQueries({ queryKey: ['profiles'] }); void qc.invalidateQueries({ queryKey: ['profile'] }) },
     ratings: (kind: api.RatingSubjectKind, key: string) => { void qc.invalidateQueries({ queryKey: ['ratings', kind, key] }); void qc.invalidateQueries({ queryKey: ['rating-counts'] }) },

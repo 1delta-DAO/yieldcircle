@@ -31,7 +31,8 @@ import { readMode, writeMode, type AppMode } from './mode'
  *                            by=wallet|position|paper; x=usd|eth|btc|stocks… the held-in chip; s=<strategy key>;
  *                            c=ethereum,base sets the chains — `c=all` every chain, no `c` the reader's own)
  *   #/me                     profile editor
- *   #/alerts                 what happened while you were away
+ *   #/alerts                 your alert rules, Telegram, the inbox, and what happened while you were away
+ *                            (`?ak=rate|wallet|following|price&at=<uid or addr>` opens the new-alert form prefilled)
  *   #/t                      the asset book (every token the index lends)
  *   #/t/<group>              one asset (group percent-encoded: `Lista Staked BNB::slisBNB`)
  *
@@ -98,6 +99,9 @@ export interface Route {
   debt?: string
   /** a borrow list's "Against what you hold" pill, set by hand (`1` on, `0` off); unset, it is on when the wallet holds something the list lends against */
   hold?: '1' | '0'
+  /** `#/alerts?ak=rate&at=<uid>` / `?ak=wallet&at=<addr>` / `?ak=following`: the new-alert form opens prefilled */
+  ak?: string
+  at?: string
 }
 const GROUP_IDS = new Set(['USD', 'ETH', 'BTC', 'STOCKS', 'MORE'])
 
@@ -149,6 +153,8 @@ function parsePage(seg: string[], p: URLSearchParams, hash: string): Page {
     out: (['ETH', 'BTC', 'MORE'] as const).find((x) => x === p.get('out')),
     debt: p.get('debt') ?? undefined,
     hold: (['1', '0'] as const).find((x) => x === p.get('hold')),
+    ak: p.get('ak') ?? undefined,
+    at: p.get('at') ?? undefined,
   }
   const head = seg[0]
   if (head === 'earn' || head === 'explore') return { view: 'earn', ...base }

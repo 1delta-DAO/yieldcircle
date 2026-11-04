@@ -25,6 +25,7 @@
     "@walletconnect/safe-json": "*",
     "@yieldcircle/app": "workspace:*",
     "@yieldcircle/core": "workspace:*",
+    "@yieldcircle/design": "workspace:*",
     "expo": "~58.0.19",
     "expo-application": "~58.1.2",
     "expo-constants": "~58.0.13",

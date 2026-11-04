@@ -56,7 +56,13 @@ export default function PaperSignIn() {
 
   if (paper.session) return (
     <Frame insets={insets}>
-      <Txt s={14} c={C.tx70} lh={20}>Signed in as <Txt s={14} w={700}>{paper.session.name}</Txt>. Everything you see is paper money until you sign out.</Txt>
+      {paper.active ? <>
+        <Txt s={14} c={C.tx70} lh={20}>Signed in as <Txt s={14} w={700}>{paper.session.name}</Txt>. Everything you see is paper money until you use your wallet or sign out.</Txt>
+        <Btn wide kind="plain" title="Use my wallet instead" onPress={() => { paper.use(false); done() }} />
+      </> : <>
+        <Txt s={14} c={C.tx70} lh={20}>Signed in as <Txt s={14} w={700}>{paper.session.name}</Txt>, not in use: what you see is your wallet. The keys stay on this phone, so switching back is instant.</Txt>
+        <Btn wide kind="paper" title={`Use ${paper.session.name} on paper`} onPress={() => { paper.use(true); done() }} />
+      </>}
       <Btn wide kind="plain" title="Sign out of paper" onPress={() => { paper.signOut(); done() }} />
     </Frame>
   )

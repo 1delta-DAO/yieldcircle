@@ -29,9 +29,11 @@
  * one index failing never takes the other's rows down with it.
  */
 import { INDEX_BASE_URL, SOL_INDEX_BASE_URL } from '../config/backend'
-import { isEvmChain, isSolAddr, isSvmChain } from '../model/address'
+import { isEvmAddr, isEvmChain, isSolAddr, isSvmChain } from '../model/address'
 import { isSolGroup } from '../model/assetGroup'
 import { bestOf } from '../search/rank'
+import { follows } from '../social/api'
+import type { Follow } from '../social/types'
 import { mergeAssetBook, mergeAssetDetail, mergeAssetHistory, mergeAssetHolders } from './assetMerge'
 import type { AssetClass, AssetClassMatch } from '../model/assetClass'
 import { groupByStrategy, groupKeyOf, groupRank } from '../model/boardGroups'
@@ -126,6 +128,32 @@ function feedScope(chainIds: string | null | undefined, curator: string | undefi
   if (evmCandidate(curator)) sc.sol = false
   return sc
 }
+/**
+ * The EVM index reads `follower` as a 0x address and answers a base58 one 400
+ * (`bad follower address`), so for a Solana follower the follow set is read
+ * from the social service here and handed to the EVM index as an explicit
+ * `accounts`/`markets` set — the EVM share pos-indexer's `evmFollowTargets`
+ * keeps, less followed curators (their desks resolve only on the index).
+ * `null` = nothing on EVM: skip that index, because an EMPTY explicit set is
+ * the global feed there, never "you follow nobody".
+ */
+const FOLLOW_KINDS: Record<string, Follow['targetKind'][]> = { all: ['wallet', 'market', 'strategy'], wallets: ['wallet'], markets: ['market', 'strategy'] }
+async function evmFollowQuery<Q extends { follower?: string; follow?: string; accounts?: string; markets?: string }>(q: Q): Promise<Q | null> {
+  if (!q.follower || !isSolAddr(q.follower)) return q
+  const kinds = FOLLOW_KINDS[q.follow ?? 'all'] ?? FOLLOW_KINDS.all
+  const evmUid = (u: string) => /^\d+$/.test(u.split(':')[1] ?? '')
+  const accounts = new Set((q.accounts ?? '').split(',').filter((a) => a && !isSolAddr(a)))
+  // the index matches `lower(market_uid)`
+  const markets = new Set((q.markets ?? '').split(',').filter(Boolean).map((u) => u.toLowerCase()))
+  for (const f of (await follows(q.follower)).follows ?? []) {
+    if (!kinds.includes(f.targetKind)) continue
+    if (f.targetKind === 'wallet' && isEvmAddr(f.target)) accounts.add(f.target.toLowerCase())
+    else if (f.targetKind === 'market' && evmUid(f.target)) markets.add(f.target.toLowerCase())
+    else if (f.targetKind === 'strategy') for (const u of f.target.slice(f.target.indexOf(':') + 1).split('|')) if (evmUid(u)) markets.add(u.toLowerCase())
+  }
+  if (!accounts.size && !markets.size) return null
+  return { ...q, follower: undefined, follow: undefined, accounts: [...accounts].join(',') || undefined, markets: [...markets].join(',') || undefined }
+}
 /** newest first; both lists are already sorted so this is one pass of interleaving */
 const byTime = (a: TxBundle[], b: TxBundle[], limit?: number) =>
   [...a, ...b].sort((x, y) => Date.parse(y.blockTs) - Date.parse(x.blockTs)).slice(0, limit)
@@ -172,12 +200,13 @@ export async function recentTxs(q: RecentQuery, signal?: AbortSignal): Promise<{
   const split = q.accounts ? q.accounts.split(',').filter(Boolean) : null
   const solAccts = split?.filter(isSolAddr).join(',')
   const evmAccts = split?.filter((a) => !isSolAddr(a)).join(',')
-  const ask = (base: string, chainIds: string | undefined, accounts?: string) =>
-    get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...q, chainIds, accounts, group: 'tx' }, signal, base).then(guard(base))
+  const ask = (base: string, chainIds: string | undefined, accounts?: string, from: RecentQuery = q) =>
+    get<{ txs: TxBundle[]; following: Following | null }>('/events/recent', { ...from, chainIds, accounts, group: 'tx' }, signal, base).then(guard(base))
+  const eq = evm !== null && (!split || evmAccts) ? await evmFollowQuery(q) : null
   const [e, s] = await Promise.all([
     // the EVM index's errors still throw (no silent regression); the Solana
     // one degrading — down, or still on its old shapes — costs its rows only
-    evm !== null && (!split || evmAccts) ? ask(INDEX_BASE_URL, evm, split ? evmAccts : undefined) : Promise.resolve(null),
+    eq ? ask(INDEX_BASE_URL, evm!, eq === q ? (split ? evmAccts : undefined) : eq.accounts, eq) : Promise.resolve(null),
     sol && (!split || solAccts) ? ask(SOL_INDEX_BASE_URL, undefined, split ? solAccts : undefined).then(safeTxs).catch(() => EMPTY_TXS) : Promise.resolve(null),
   ])
   const stale = classStale ? { classStale } : {}
@@ -213,11 +242,11 @@ const FALLBACK_SCAN = 200
  */
 export async function recentTxsIn(q: RecentQuery, uids: string[], signal?: AbortSignal): Promise<MenuFeed> {
   const { evm, sol } = feedScope(q.chainIds, q.curator)
-  const one = async (base: string, chainIds: string | undefined, set: string[]): Promise<MenuFeed> => {
-    const r = await oneRaw(base, chainIds, set)
+  const one = async (base: string, chainIds: string | undefined, set: string[], from: RecentQuery = q): Promise<MenuFeed> => {
+    const r = await oneRaw(base, chainIds, set, from)
     return honoursClasses(base, q, legsOf(r.txs)) ? r : { ...r, txs: [], outside: undefined, classStale: true }
   }
-  const oneRaw = async (base: string, chainIds: string | undefined, set: string[]): Promise<MenuFeed> => {
+  const oneRaw = async (base: string, chainIds: string | undefined, set: string[], q: RecentQuery): Promise<MenuFeed> => {
     if (!set.length) return EMPTY_TXS
     if (!postUnsupported.get(base)) {
       const r = await fetch(base + '/events/recent' + qs({ ...q, chainIds, group: 'tx' }), {
@@ -236,8 +265,9 @@ export async function recentTxsIn(q: RecentQuery, uids: string[], signal?: Abort
     const hit = all.txs.filter((t) => t.legs.some((l) => l.marketUid && want.has(l.marketUid)))
     return { txs: hit, following: all.following, outside: all.txs.length - hit.length }
   }
+  const eq = evm !== null ? await evmFollowQuery(q) : null
   const [e, s] = await Promise.all([
-    evm !== null ? one(INDEX_BASE_URL, evm, uids.filter((u) => !isSvmChain(u.split(':')[1]))) : Promise.resolve(null),
+    eq ? one(INDEX_BASE_URL, evm!, uids.filter((u) => !isSvmChain(u.split(':')[1])), eq) : Promise.resolve(null),
     sol ? one(SOL_INDEX_BASE_URL, undefined, uids.filter((u) => isSvmChain(u.split(':')[1]))).catch(() => EMPTY_TXS as MenuFeed) : Promise.resolve(null),
   ])
   if (!s) return e ?? EMPTY_TXS
@@ -248,12 +278,13 @@ export async function recentTxsIn(q: RecentQuery, uids: string[], signal?: Abort
 }
 export async function recentEvents(q: RecentQuery, signal?: AbortSignal): Promise<{ events: LedgerEvent[]; following: Following | null }> {
   const { evm, sol } = feedScope(q.chainIds, q.curator)
-  const ask = (base: string, chainIds: string | undefined) =>
-    get<{ events: LedgerEvent[]; following: Following | null }>('/events/recent', { ...q, chainIds }, signal, base)
+  const ask = (base: string, chainIds: string | undefined, from: RecentQuery = q) =>
+    get<{ events: LedgerEvent[]; following: Following | null }>('/events/recent', { ...from, chainIds }, signal, base)
   const safe = (j: { events?: unknown; following?: Following | null } | null) =>
     j && Array.isArray(j.events) ? (j as { events: LedgerEvent[]; following: Following | null }) : { events: [] as LedgerEvent[], following: null }
+  const eq = evm !== null ? await evmFollowQuery(q) : null
   const [e, s] = await Promise.all([
-    evm !== null ? ask(INDEX_BASE_URL, evm) : Promise.resolve(null),
+    eq ? ask(INDEX_BASE_URL, evm!, eq) : Promise.resolve(null),
     sol ? ask(SOL_INDEX_BASE_URL, undefined).then(safe).catch(() => safe(null)) : Promise.resolve(null),
   ])
   if (!s) return e ?? safe(null)
@@ -461,7 +492,15 @@ export interface MarketTapeQuery extends Params {
   follower?: string
 }
 export const marketTxs = async (uid: string, limit = 50, f: MarketTapeQuery = {}, signal?: AbortSignal) => {
-  const j = await get<{ marketUid: string; txs: TxBundle[] }>(`/markets/${encodeURIComponent(uid)}/events`, { ...f, limit, group: 'tx' }, signal, indexForUid(uid))
+  const base = indexForUid(uid)
+  let tape: MarketTapeQuery & { accounts?: string } = f
+  if (base === INDEX_BASE_URL && f.follower && isSolAddr(f.follower)) {
+    // `evmFollowQuery`; the tape follows wallets only, and following none on EVM is an empty tape
+    const ef = await evmFollowQuery<{ follower?: string; follow?: string; accounts?: string }>({ follower: f.follower, follow: 'wallets' })
+    if (!ef?.accounts) return { marketUid: uid, txs: [] as TxBundle[] }
+    tape = { ...f, follower: undefined, accounts: ef.accounts }
+  }
+  const j = await get<{ marketUid: string; txs: TxBundle[] }>(`/markets/${encodeURIComponent(uid)}/events`, { ...tape, limit, group: 'tx' }, signal, base)
   return Array.isArray(j.txs) ? j : { marketUid: uid, txs: [] }
 }
 export const marketHolders = async (uid: string, p: { side?: string; limit?: number } & AssetClassQuery = {}) => {

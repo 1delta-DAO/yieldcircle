@@ -1,6 +1,6 @@
 import type { Holding } from './positions'
 import { canonUid } from './uid'
-import { signedMoney } from './lite'
+import { holdingRow, holdingTitle, signedMoney } from './lite'
 import { pct } from './format'
 
 /** The index's figure for one position (`/accounts/:a/pnl` → `positions[]`), the fields read here. */
@@ -44,6 +44,22 @@ export function pnlOfHolding<P extends PnlRecord>(positions: readonly P[] | unde
   const exact = cands.filter((p) => { const [, , s = '', lender = ''] = p.key.split('|'); return (!h.lender || lender === h.lender) && (s === sub || (s === '0' && !sub)) })
   const p = (exact.length ? exact : cands.length === 1 ? cands : [])[0]
   return p && p.status === 'ok' && p.pnlUsd != null && Number.isFinite(p.pnlUsd) ? p : null
+}
+
+/**
+ * Each drawn record's live position, by the record's key: the name and the value You shows for it,
+ * so "Every number" says the same (`madeRows`). A record two live positions share adds them up;
+ * a holding put up behind a loan is not a position of its own.
+ */
+export function liveByRecord<P extends PnlRecord>(positions: readonly P[] | undefined, holdings: readonly Holding[]) {
+  const m = new Map<string, { valueUsd: number; title: string; what: string }>()
+  for (const h of holdings) {
+    const p = h.putUp ? null : pnlOfHolding(positions, h)
+    if (!p) continue
+    const title = holdingTitle(h)
+    m.set(p.key, { valueUsd: (m.get(p.key)?.valueUsd ?? 0) + h.valueUsd, title, what: holdingRow(h, title).what })
+  }
+  return m
 }
 
 /**

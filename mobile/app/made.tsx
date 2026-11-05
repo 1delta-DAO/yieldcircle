@@ -4,12 +4,16 @@ import { router, useLocalSearchParams, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Line, Path } from 'react-native-svg'
 import type { PnlBookPoint } from '@yieldcircle/core/index/types'
-import { boardPositions, pnlSummary, signedMoney } from '@yieldcircle/core/model/lite'
+import { madeRows, pnlSummary, signedMoney, type MadeRow } from '@yieldcircle/core/model/lite'
+import { liveByRecord } from '@yieldcircle/core/model/holdingPnl'
+import { venueOf } from '@yieldcircle/core/model/positionRecord'
 import { day } from '@yieldcircle/core/model/positionRecord'
-import { pct, usdShort } from '@yieldcircle/core/model/format'
+import { pct, usd } from '@yieldcircle/core/model/format'
 import { useAccountsPnlBook } from '@yieldcircle/app/index/pnl'
 import { isEvmAddr, isSolAddr } from '@yieldcircle/core/model/address'
-import { useBoardNames, useLiteByKey } from '@yieldcircle/app/board'
+import { useBoardNames } from '@yieldcircle/app/board'
+import { useLiteMenu } from '@yieldcircle/app/lite'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { useNav } from '@yieldcircle/app/nav'
 import { C } from '../src/theme'
 import { Sk } from '../src/ui/bits'
@@ -18,20 +22,21 @@ import { Txt } from '../src/ui/Txt'
 
 /**
  * Every number of what you made (the web's "Every number" under You's "What you made"): the
- * day-by-day line — all of it, and what farming made of it — then each strategy's figures, then
- * every position, each opening its own record (`/position`). The index's books, summed as on You:
- * `a` the account, `s` the owner's Solana wallet beside it (tickets/0018).
+ * day-by-day line — all of it, and what farming made of it — then each position once, named and
+ * valued as on You (`madeRows`, docs/you-unified.md), opening its own record (`/position`); a
+ * strategy held in several positions unfolds into them. The index's books, summed as on You: `a`
+ * the account, `s` the owner's Solana wallet beside it (tickets/0018).
  */
 export default function Made() {
   const insets = useSafeAreaInsets()
   const nav = useNav()
   const { a, s: sol } = useLocalSearchParams<{ a: string; s?: string }>()
   const q = useAccountsPnlBook({ evm: isEvmAddr(a) ? a : undefined, sol: sol ?? (isSolAddr(a) ? a : undefined) }, { own: true })
-  const liteByKey = useLiteByKey()
   const names = useBoardNames()
   const b = q.data
   const s = b ? pnlSummary(b) : null
-  const ps = b ? boardPositions(b, (k) => liteByKey.get(k.toLowerCase())?.title ?? null) : []
+  const { holdings } = useLiteMenu().b
+  const rows = React.useMemo(() => (b ? madeRows(b, (k) => names.get(k.toLowerCase())?.title ?? null, liveByRecord(b.positions, holdings)) : []), [b, names, holdings])
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <View style={[st.bar, { paddingTop: insets.top, height: 60 + insets.top }]}>
@@ -49,49 +54,66 @@ export default function Made() {
             </View>
             {b.series.length > 1 && <Lines pts={b.series} />}
 
-            {b.strategies.length > 0 && <>
-              <Txt s={16} w={600} style={st.h}>By strategy</Txt>
-              <View style={st.card}>
-                {[...b.strategies].sort((x, y) => Math.abs(y.pnlUsd) - Math.abs(x.pnlUsd)).map((g, i) => {
-                  const n = names.get(g.key.toLowerCase())
-                  return (
-                    <View key={g.key} style={[st.row, i > 0 && st.line]}>
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Txt s={14} w={700} numberOfLines={1}>{n?.title ?? [...g.held, ...g.debt].join(' / ')}</Txt>
-                        <Txt s={12} c={C.tx50} numberOfLines={1}>{usdShort(g.equityUsd)} in it{g.since ? ` · since ${day(g.since)}` : ''} · farming {signedMoney(g.yieldUsd)}</Txt>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Txt w={700} c={g.pnlUsd >= 0 ? C.ok : C.bad}>{signedMoney(g.pnlUsd)}</Txt>
-                        {g.pnlAprPct != null && <Txt s={11.5} c={C.tx50}>{pct(g.pnlAprPct, 1)} a year</Txt>}
-                      </View>
-                    </View>
-                  )
-                })}
-              </View>
-            </>}
-
-            {ps.length > 0 && <>
+            {rows.length > 0 && <>
               <Txt s={16} w={600} style={st.h}>Each position</Txt>
               <View style={st.card}>
-                {ps.map((p, i) => (
-                  <Pressable key={p.key} onPress={() => router.push(`/position?${new URLSearchParams({ a, k: p.key })}` as Href)} style={({ pressed }) => [st.row, i > 0 && st.line, pressed && { backgroundColor: C.b300 }]}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Txt s={14} w={700} numberOfLines={1}>{p.title}</Txt>
-                      <Txt s={12} c={C.tx50} numberOfLines={1}>{p.sub}{p.equityUsd != null ? ` · ${usdShort(p.equityUsd)} in it` : ''}</Txt>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Txt w={700} c={p.pnlUsd >= 0 ? C.ok : C.bad}>{signedMoney(p.pnlUsd)}</Txt>
-                      {p.aprPct != null && <Txt s={11.5} c={C.tx50}>{pct(p.aprPct, 1)} a year</Txt>}
-                    </View>
-                    <Txt c={C.tx40}>›</Txt>
-                  </Pressable>
-                ))}
+                {rows.map((r, i) => <Row key={r.key} r={r} a={a} first={i === 0} />)}
               </View>
             </>}
           </>}
         <Pressable onPress={() => nav.pro(`#/w/${a}`)} style={{ marginTop: 24, alignItems: 'center' }}><Txt s={13} c={C.tx50}>Open this in Pro, with every venue and setting ›</Txt></Pressable>
       </ScrollView>
     </View>
+  )
+}
+
+const openRecord = (a: string, k: string, title: string) => router.push(`/position?${new URLSearchParams({ a, k, t: title })}` as Href)
+const yearly = (p: number | null) => (p != null && Number.isFinite(p) && Math.abs(p) <= 100 ? `${pct(p, 1)} a year` : null)
+
+/**
+ * One position: its name and what it is, as on You; what it is worth, what farming made of it and
+ * since when; what it made and that a year. A tap opens its record — or, where the strategy is held
+ * in several positions, unfolds them, each by its chain and venue.
+ */
+function Row({ r, a, first }: { r: MadeRow; a: string; first: boolean }) {
+  const [open, setOpen] = React.useState(false)
+  const many = r.records.length > 1
+  const one = r.records.length === 1 ? r.records[0] : null
+  const facts = [r.valueUsd != null && r.valueUsd >= 0.01 ? `${usd(r.valueUsd)} now` : '', r.yieldUsd != null ? `farming ${signedMoney(r.yieldUsd)}` : '', r.since ? `since ${day(r.since)}` : ''].filter(Boolean).join(' · ')
+  const rate = yearly(r.aprPct)
+  const onPress = many ? () => setOpen((o) => !o) : one ? () => openRecord(a, one.key, r.title) : undefined
+  return (
+    <>
+      <Pressable onPress={onPress} disabled={!onPress} accessibilityState={many ? { expanded: open } : undefined} style={({ pressed }) => [st.row, !first && st.line, pressed && { backgroundColor: C.b300 }]}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Txt s={14} w={700} numberOfLines={1}>{r.title}</Txt>
+          <Txt s={12} c={C.tx50} numberOfLines={1}>{many ? `${r.what} · ${r.records.length} positions` : r.what}</Txt>
+          {!!facts && <Txt s={12} c={C.tx50} numberOfLines={1}>{facts}</Txt>}
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Txt w={700} c={r.pnlUsd >= 0 ? C.ok : C.bad}>{signedMoney(r.pnlUsd)}</Txt>
+          {!!rate && <Txt s={11.5} c={C.tx50}>{rate}</Txt>}
+        </View>
+        {!!onPress && <Txt c={C.tx40}>{many ? (open ? '⌃' : '⌄') : '›'}</Txt>}
+      </Pressable>
+      {open && r.records.map((p) => {
+        const rate = yearly(p.aprPct)
+        const where = [chainLabel(p.chainId), venueOf(p.key.split('|')[3])].filter(Boolean).join(' · ')
+        return (
+          <Pressable key={p.key} onPress={() => openRecord(a, p.key, r.title)} style={({ pressed }) => [st.row, st.sub, pressed && { backgroundColor: C.b300 }]}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt s={13} numberOfLines={1}>{where}</Txt>
+              {p.valueUsd != null && p.valueUsd >= 0.01 && <Txt s={12} c={C.tx50} numberOfLines={1}>{usd(p.valueUsd)} now</Txt>}
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Txt s={13} w={700} c={p.pnlUsd >= 0 ? C.ok : C.bad}>{signedMoney(p.pnlUsd)}</Txt>
+              {!!rate && <Txt s={11.5} c={C.tx50}>{rate}</Txt>}
+            </View>
+            <Txt c={C.tx40}>›</Txt>
+          </Pressable>
+        )
+      })}
+    </>
   )
 }
 
@@ -128,4 +150,5 @@ const st = StyleSheet.create({
   card: { backgroundColor: C.b200, borderRadius: 12, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, paddingHorizontal: 14 },
   line: { borderTopWidth: 1, borderTopColor: '#1a1a1f' },
+  sub: { borderTopWidth: 1, borderTopColor: '#1a1a1f', paddingLeft: 28 },
 })

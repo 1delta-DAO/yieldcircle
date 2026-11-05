@@ -12,6 +12,8 @@ Status (2026-11-05): built, except the sort control and the "reading…" row sta
 | Paper rows carry what each made (off the paper ledger) | done | done |
 | Sort control, "reading…" states | not built | not built |
 | Closed positions on paper | not built | not built |
+| "Every number" as one list: each position once, live name and value (`madeRows`) | done | not needed, the drawer has only its strategy table |
+| The position record keeps the row's name | done | not done |
 
 Where it differs from the text below: older closed positions open in Pro, as on the board, not in
 "Every number"; and the fold's count comes from the keys, corrected once the records load.

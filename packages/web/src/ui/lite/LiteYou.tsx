@@ -1,6 +1,6 @@
 import React from 'react'
 import { go, liteHref, proHref, useApp, useRoute, walletHref } from '../../state/AppState'
-import { holdingRow, moneyWord, signedMoney, streakWord, type BoardPosition } from '@yieldcircle/core/model/lite'
+import { holdingRow, holdingTitle, signedMoney, streakWord, type BoardPosition } from '@yieldcircle/core/model/lite'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { ConnectButton } from '../../wallet/ConnectButton'
@@ -18,7 +18,7 @@ import { LiteHoldingTicket } from '../Ticket'
 import { LiteLoanTicket } from '../BorrowTicket'
 import { useAsideTop } from '../AssetPage'
 import { owedOf } from '@yieldcircle/core/model/borrow'
-import { useClosedRecord, useLiteByKey } from '@yieldcircle/app/board'
+import { useClosedRecord, useBoardNames } from '@yieldcircle/app/board'
 import { paperPnlBook } from '@yieldcircle/core/model/paperView'
 import { usePaper } from '../../state/Paper'
 import { PnlDrawer } from '../PnlDrawer'
@@ -110,7 +110,7 @@ function Stat({ k, v, s, href }: { k: string; v: React.ReactNode; s: string; hre
  * Pro, the one kind Lite has no actions for.
  */
 function Position({ h, s, on, made }: { h: Holding; s: Strategy | null; on: boolean; /** a paper position's figure, off the paper ledger */ made?: number }) {
-  const title = `${moneyWord(h.asset, h.group)}${h.kind === 'borrow' ? ' loan' : ''}`
+  const title = holdingTitle(h)
   const row = holdingRow(h, title)
   // what it made since it was opened, the index's figure for it
   const pnl = useHoldingPnl(h)
@@ -147,9 +147,9 @@ const dayOf = (t: string) => new Date(t).toLocaleDateString('en-GB', { day: 'num
 function Closed({ account }: { account: string | undefined }) {
   const [open, setOpen] = React.useState(false)
   const [pnl, setPnl] = React.useState<string>()
-  const liteByKey = useLiteByKey()
+  const names = useBoardNames()
   const { chainIds, allChains } = useApp()
-  const { had, count, more, isLoading } = useClosedRecord(account, liteByKey, CLOSED_SHOWN, { enabled: open, chainIds: allChains ? undefined : chainIds })
+  const { had, count, more, isLoading } = useClosedRecord(account, names, CLOSED_SHOWN, { enabled: open, chainIds: allChains ? undefined : chainIds })
   if (!account || !count) return null
   const sum = had.reduce((n, p) => n + p.pnlUsd, 0)
   const loaded = open && !isLoading
@@ -164,7 +164,7 @@ function Closed({ account }: { account: string | undefined }) {
         <div className="lrows">
           {isLoading && !had.length ? [0, 1].map((i) => <div key={i} className="lrow sk"><Sk w={28} h={28} /><span className="lrow-n"><Sk w={140} h={14} /></span></div>)
             : !had.length ? <div className="empty">Nothing that was ever at work.</div>
-            : had.map((p) => <ClosedRow key={p.key} p={p} s={liteByKey.get(p.strategyKey.toLowerCase())?.s} onOpen={() => setPnl(p.key)} />)}
+            : had.map((p) => <ClosedRow key={p.key} p={p} s={names.get(p.strategyKey.toLowerCase())?.s} onOpen={() => setPnl(p.key)} />)}
           {more > 0 && <a className="lfold-more t50" href={proHref(walletHref(account))}>{more} older closed position{more === 1 ? '' : 's'}, in Pro ›</a>}
         </div>
       )}

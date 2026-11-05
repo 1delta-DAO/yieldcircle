@@ -22,7 +22,7 @@ import { Txt } from '../src/ui/Txt'
  */
 export default function Position() {
   const insets = useSafeAreaInsets()
-  const p = useLocalSearchParams<{ a: string; k: string }>()
+  const p = useLocalSearchParams<{ a: string; k: string; /** its name where it was tapped, so it keeps it here */ t?: string }>()
   // the key names the account for a position the index files under another (a desk's vault)
   const account = p.k?.split('|')[1] || p.a
   const [pick, setPick] = React.useState<'own' | 'USD'>('own')
@@ -42,7 +42,7 @@ export default function Position() {
       <ScrollView contentContainerStyle={[st.page, { paddingBottom: insets.bottom + 40 }]}>
         {loading && <View style={{ gap: 10 }}><Sk w={220} h={20} /><Sk w={300} /><Sk w={260} /></View>}
         {err ? <View style={st.note}><Txt s={13} c={C.tx70}>The index could not build this record: {(err as Error).message}</Txt></View> : null}
-        {s && !loading && <Body s={s} priceBet={!money} unit={unit} label={unit === 'USD' ? '$' : money?.label ?? unit}
+        {s && !loading && <Body s={s} title={p.t} priceBet={!money} unit={unit} label={unit === 'USD' ? '$' : money?.label ?? unit}
           toggle={money && money.unit !== 'USD' ? { own: money.label, pick, setPick } : null} />}
       </ScrollView>
     </View>
@@ -60,7 +60,7 @@ type Fmt = ReturnType<typeof fmtOf>
 const tone = (x: number | null | undefined) => ((x ?? 0) >= 0 ? C.ok : C.bad)
 const moveTone: Record<string, string> = { 'k-in': C.ok, 'k-out': C.warn, 'k-borrow': C.violet, 'k-liq': C.bad }
 
-function Body({ s, priceBet, unit, label, toggle }: { s: PositionSeries; priceBet: boolean; unit: string; label: string; toggle: { own: string; pick: 'own' | 'USD'; setPick: (p: 'own' | 'USD') => void } | null }) {
+function Body({ s, title, priceBet, unit, label, toggle }: { s: PositionSeries; title?: string; priceBet: boolean; unit: string; label: string; toggle: { own: string; pick: 'own' | 'USD'; setPick: (p: 'own' | 'USD') => void } | null }) {
   const f = React.useMemo(() => fmtOf(unit, label), [unit, label])
   const m = s.summary
   const last = s.points.at(-1)
@@ -71,8 +71,8 @@ function Body({ s, priceBet, unit, label, toggle }: { s: PositionSeries; priceBe
   return (
     <View style={{ gap: 16 }}>
       <View style={{ gap: 4 }}>
-        <Txt s={18} w={700}>{syms.join(' / ')}</Txt>
-        <Txt s={13} c={C.tx50}>{venueOf(s.legs[0]?.lenderKey)} · {chainLabel(s.chainId)} · {s.since ? `older than the ledger — counted from ${day(s.since)}` : s.start ? `opened ${day(s.start)}` : 'no history'}</Txt>
+        <Txt s={18} w={700}>{title || syms.join(' / ')}</Txt>
+        <Txt s={13} c={C.tx50}>{title ? `${syms.join(' / ')} · ` : ''}{venueOf(s.legs[0]?.lenderKey)} · {chainLabel(s.chainId)} · {s.since ? `older than the ledger — counted from ${day(s.since)}` : s.start ? `opened ${day(s.start)}` : 'no history'}</Txt>
       </View>
 
       <View style={st.card}>

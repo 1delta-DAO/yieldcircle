@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
+import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, madeRows, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
 import { borrowCapLtv, healthAt, healthAtLtv, liqBuffer, liqBufferAtLtv } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
@@ -221,6 +221,30 @@ describe('managing a position', () => {
   it('splits the row into what it is and how far from the line, naming the token once', () => {
     expect(holdingRow({ kind: 'loop', leverage: 21, health: 1.01, symbol: 'USDY' }, 'Dollars via Ondo')).toEqual({ what: 'USDY · Levered ×21', risk: { text: '1.0% from liquidation', tone: 'bad' } })
     expect(holdingRow({ kind: 'simple', symbol: 'USDC' }, 'USDC')).toEqual({ what: 'Earning', risk: null })
+  })
+})
+
+describe('every number, as one list', () => {
+  const strat = (key: string, pnlUsd: number, more = {}) => ({ key, kind: 'loop', held: ['USDY'], debt: ['USDC'], protocol: null, pnlUsd, yieldUsd: pnlUsd, pnlAprPct: 6, equityUsd: 2000, since: '2026-10-01', ...more })
+  const pos = (key: string, strategyKey: string, pnlUsd: number | null, more = {}) => ({ key, chainId: '1', strategyKey, pnlUsd, yieldUsd: pnlUsd, pnlAprPct: 6, equityUsd: 2000, since: '2026-10-01', status: 'ok', ...more })
+  it('lists a strategy with one position once, in its live name and value', () => {
+    const live = new Map([['p1', { valueUsd: 1955, title: 'Dollars via Ondo', what: 'USDY · Levered ×8.7' }]])
+    const rows = madeRows({ strategies: [strat('s1', 7.58)], positions: [pos('p1', 's1', 7.58)] }, () => 'Other name', live)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ title: 'Dollars via Ondo', what: 'USDY · Levered ×8.7', valueUsd: 1955, pnlUsd: 7.58 })
+    expect(rows[0].records).toHaveLength(1)
+  })
+  it('carries several positions of one strategy under its row and sums their values', () => {
+    const rows = madeRows({ strategies: [strat('s1', 10)], positions: [pos('p1', 's1', 4, { equityUsd: 100 }), pos('p2', 's1', 6, { equityUsd: 200 })] }, () => 'Dollars')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].valueUsd).toBe(300)
+    expect(rows[0].records.map((r) => r.key)).toEqual(['p2', 'p1'])
+  })
+  it('falls back to the catalogue name, then the tokens, and loses no position', () => {
+    const rows = madeRows({ strategies: [strat('s1', 1)], positions: [pos('p1', 's1', 1), pos('p2', 'gone', -5, { status: 'ok' }), pos('p3', 's1', null, { status: 'pending' })] }, () => null)
+    expect(rows.map((r) => [r.key, r.title])).toEqual([['gone', 'A position'], ['s1', 'USDY']])
+    expect(rows[1]).toMatchObject({ what: 'Levered · borrows USDC' })
+    expect(rows[1].records).toHaveLength(1)
   })
 })
 

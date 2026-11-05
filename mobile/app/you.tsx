@@ -12,13 +12,13 @@ import { pnlWaiting, unsupportedLine, useAccountsPnlBook, useHoldingPnl } from '
 import { useAccountSync } from '@yieldcircle/app/index/queries'
 import { isSolAddr, normAddr } from '@yieldcircle/core/model/address'
 import { totalsOf, type Holding } from '@yieldcircle/core/model/positions'
-import { holdingRow, moneyWord, pnlSummary, signedMoney, streakWord, type BoardPosition, type PnlSummary } from '@yieldcircle/core/model/lite'
+import { holdingRow, holdingTitle, pnlSummary, signedMoney, streakWord, type BoardPosition, type PnlSummary } from '@yieldcircle/core/model/lite'
 import { owedOf } from '@yieldcircle/core/model/borrow'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import type { Accounts } from '@yieldcircle/app/book'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { useNav } from '@yieldcircle/app/nav'
-import { useClosedRecord, useLiteByKey } from '@yieldcircle/app/board'
+import { useClosedRecord, useBoardNames } from '@yieldcircle/app/board'
 import { useChains } from '../src/chains'
 import { C } from '../src/theme'
 import { ChainChip } from '../src/ui/ChainChip'
@@ -246,7 +246,7 @@ function Made({ account, accounts, have, positions }: { account: string; /** eve
         <Split s={s} />
         {notIn.length > 0 && <Txt s={13} c={C.tx50} lh={19}>Not in what you made: {notIn.join(' · ')}.</Txt>}
         {b.series.length > 1 && <PnlLine pts={b.series.map((p) => p.pnl)} up={s.total >= 0} />}
-        <View style={{ marginHorizontal: -16, marginTop: -10, marginBottom: -14 }}><Details title="Every number" what="the day-by-day line, yield against price, each strategy" onOpen={() => router.push(`/made?${new URLSearchParams({ a: account, ...(sol && sol !== account ? { s: sol } : {}) })}` as Href)} /></View>
+        <View style={{ marginHorizontal: -16, marginTop: -10, marginBottom: -14 }}><Details title="Every number" what="the day-by-day line, yield against price, each position" onOpen={() => router.push(`/made?${new URLSearchParams({ a: account, ...(sol && sol !== account ? { s: sol } : {}) })}` as Href)} /></View>
       </>}
     </View>
   )
@@ -287,7 +287,7 @@ const TONE = { bad: C.bad, warn: C.warn, ok: C.ok, '': C.tx50 } as Record<string
  * (manage, share) is a tap away. No figure from the index is no line, never a zero.
  */
 function Position({ h, s, made }: { h: Holding; s: Strategy | null; /** a paper position's figure, off the paper ledger */ made?: number }) {
-  const title = `${moneyWord(h.asset, h.group)}${h.kind === 'borrow' ? ' loan' : ''}`
+  const title = holdingTitle(h)
   const row = holdingRow(h, title)
   // what it made since it was opened, the index's figure for it
   const pnl = useHoldingPnl(h)
@@ -331,10 +331,10 @@ const dayOf = (t: string) => new Date(t).toLocaleDateString('en-GB', { day: 'num
  */
 function Closed({ account }: { account: string | undefined }) {
   const [open, setOpen] = React.useState(false)
-  const liteByKey = useLiteByKey()
+  const names = useBoardNames()
   const { chainIds, allChains } = useChains()
   const nav = useNav()
-  const { had, count, more, isLoading } = useClosedRecord(account, liteByKey, CLOSED_SHOWN, { enabled: open, chainIds: allChains ? undefined : chainIds })
+  const { had, count, more, isLoading } = useClosedRecord(account, names, CLOSED_SHOWN, { enabled: open, chainIds: allChains ? undefined : chainIds })
   if (!account || !count) return null
   const sum = had.reduce((n, p) => n + p.pnlUsd, 0)
   const loaded = open && !isLoading
@@ -349,7 +349,7 @@ function Closed({ account }: { account: string | undefined }) {
         <View style={{ gap: 6, marginTop: 6 }}>
           {isLoading && !had.length ? [0, 1].map((i) => <View key={i} style={st.row}><Sk w={28} h={28} r={14} /><Sk w={140} /></View>)
             : !had.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing that was ever at work.</Txt>
-            : had.map((p) => <ClosedRow key={p.key} p={p} account={account} logo={logoOf(liteByKey.get(p.strategyKey.toLowerCase())?.s)} />)}
+            : had.map((p) => <ClosedRow key={p.key} p={p} account={account} logo={logoOf(names.get(p.strategyKey.toLowerCase())?.s)} />)}
           {more > 0 && <Pressable onPress={() => nav.pro(`#/w/${account}`)} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 14 }}><Txt s={12.5} c={C.tx50}>{more} older closed position{more === 1 ? '' : 's'}, in Pro ›</Txt></Pressable>}
         </View>
       )}
@@ -361,7 +361,7 @@ const logoOf = (s: Strategy | undefined) => (s ? (s.kind === 'loop' ? s.logoLong
 function ClosedRow({ p, account, logo }: { p: BoardPosition; account: string; logo?: string }) {
   const yearly = p.aprPct != null && Number.isFinite(p.aprPct) && Math.abs(p.aprPct) <= 100
   return (
-    <Pressable onPress={() => router.push(`/position?${new URLSearchParams({ a: account, k: p.key })}` as Href)} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]} accessibilityHint="What this position made, day by day">
+    <Pressable onPress={() => router.push(`/position?${new URLSearchParams({ a: account, k: p.key, t: p.title })}` as Href)} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]} accessibilityHint="What this position made, day by day">
       <View style={{ opacity: 0.6 }}><Tok sym={p.held[0] ?? '?'} logo={logo} size={28} /></View>
       <View style={{ flex: 1, gap: 2 }}>
         <Txt s={14.5} w={600} c={C.tx70} numberOfLines={1}>{p.title}</Txt>

@@ -465,6 +465,9 @@ export function holdingLine(h: Pick<Holding, 'kind' | 'leverage' | 'health' | 'd
   return { text: 'Earning', tone: '' }
 }
 
+/** A live position's one name, wherever it is shown (docs/you-unified.md). */
+export const holdingTitle = (h: Pick<Holding, 'asset' | 'group' | 'kind'>) => `${moneyWord(h.asset, h.group)}${h.kind === 'borrow' ? ' loan' : ''}`
+
 /**
  * A position's row on You, as two lines (docs/you-unified.md): what it is — its token and how it
  * is held — and, for one that can be liquidated, how far from the line, on a line of its own. The
@@ -554,6 +557,65 @@ export function boardPositions(
       }
     })
     .sort((a, b) => b.pnlUsd - a.pnlUsd)
+}
+
+/** One position inside a row of `madeRows`. */
+export interface MadeRecord { key: string; chainId: string; valueUsd: number | null; pnlUsd: number; aprPct: number | null }
+/** One thing the wallet runs on "Every number": a strategy and the positions it is made of, once. */
+export interface MadeRow {
+  key: string
+  title: string
+  /** its token and how it is held */
+  what: string
+  /** what it is worth now: live where the wallet's book has the position, else the index's equity */
+  valueUsd: number | null
+  pnlUsd: number
+  yieldUsd: number | null
+  aprPct: number | null
+  since: string | null
+  /** its drawn positions: one is the row itself, several unfold under it */
+  records: MadeRecord[]
+}
+/**
+ * "Every number" as one list (docs/you-unified.md): the book's strategies and positions name the
+ * same things, nearly always one each, so each strategy is one row carrying its positions. `live`
+ * (`liveByRecord`) gives a position the name and value it has on You; `name` covers one the live
+ * book does not hold (out of the chain scope). Nothing the book counts is dropped: a position
+ * whose strategy the book does not list is a row of its own. Biggest figure first.
+ */
+export function madeRows(
+  book: {
+    strategies: { key: string; kind: string; held: string[]; debt: string[]; market?: string | null; protocol: string | null; pnlUsd: number; yieldUsd: number | null; pnlAprPct: number | null; equityUsd: number; since: string | null }[]
+    positions: { key: string; chainId: string; strategyKey: string; pnlUsd: number | null; yieldUsd: number | null; pnlAprPct: number | null; equityUsd: number | null; since: string | null; status: string }[]
+  },
+  name: (strategyKey: string) => string | null,
+  live: ReadonlyMap<string, { valueUsd: number; title: string; what: string }> = new Map(),
+): MadeRow[] {
+  const drawn = book.positions.filter((p) => p.status === 'ok' && p.pnlUsd != null && Number.isFinite(p.pnlUsd))
+  const of = new Map<string, typeof drawn>()
+  for (const p of drawn) of.set(p.strategyKey, [...(of.get(p.strategyKey) ?? []), p])
+  const sum = (xs: (number | null)[]) => { const v = xs.filter((x): x is number => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : null }
+  const build = (key: string, ps: typeof drawn, s: (typeof book.strategies)[number] | undefined): MadeRow => {
+    const first = ps.map((p) => live.get(p.key)).find(Boolean)
+    const records = ps.map((p) => ({ key: p.key, chainId: p.chainId, valueUsd: live.get(p.key)?.valueUsd ?? p.equityUsd, pnlUsd: p.pnlUsd!, aprPct: p.pnlAprPct })).sort((a, b) => b.pnlUsd - a.pnlUsd)
+    const held = (s?.protocol?.startsWith('vault.') && s.market && !s.debt.length ? [s.market] : s?.held ?? []).slice(0, 2).join(' + ')
+    const title = first?.title ?? name(key) ?? held ?? ''
+    const how = s?.debt.length ? `Levered · borrows ${s.debt.slice(0, 2).join(' + ')}` : 'Deposit'
+    const tok = held && !title.toLowerCase().includes(held.toLowerCase()) ? `${held} · ` : ''
+    return {
+      key, title: title || 'A position', what: first?.what ?? tok + how, records,
+      valueUsd: records.length ? sum(records.map((r) => r.valueUsd)) : s?.equityUsd ?? null,
+      pnlUsd: s?.pnlUsd ?? sum(ps.map((p) => p.pnlUsd)) ?? 0,
+      yieldUsd: s ? s.yieldUsd : sum(ps.map((p) => p.yieldUsd)),
+      aprPct: s ? s.pnlAprPct : ps.length === 1 ? ps[0].pnlAprPct : null,
+      since: s?.since ?? ps[0]?.since ?? null,
+    }
+  }
+  const known = new Set(book.strategies.map((s) => s.key))
+  return [
+    ...book.strategies.filter((s) => of.has(s.key) || Math.abs(s.pnlUsd) >= 0.005).map((s) => build(s.key, of.get(s.key) ?? [], s)),
+    ...[...of].filter(([k]) => !known.has(k)).map(([k, ps]) => build(k, ps, undefined)),
+  ].sort((a, b) => Math.abs(b.pnlUsd) - Math.abs(a.pnlUsd))
 }
 
 /**

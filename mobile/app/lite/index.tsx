@@ -16,6 +16,7 @@ import { Btn, Seg, Sk } from '../../src/ui/bits'
 import { LiteCard, LiteCardSk } from '../../src/ui/cards'
 import { openStrategy } from '../../src/ui/lite'
 import { PAPER, PaperOffer } from '../../src/ui/paper'
+import { ChainChip } from '../../src/ui/ChainChip'
 import { Txt } from '../../src/ui/Txt'
 import { IconFlame } from '../../src/ui/icons'
 
@@ -78,7 +79,10 @@ export default function LiteHome() {
       </View>
 
       <View style={{ marginBottom: 4 }}><Seg items={LENSES.map((x) => ({ id: x.id, word: x.word }))} value={lens} onChange={setLens} /></View>
-      <Txt s={12.5} c={C.tx50} style={{ marginTop: 6, marginBottom: 12 }}>{LENSES.find((x) => x.id === lens)!.why}</Txt>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 12 }}>
+        <Txt s={12.5} c={C.tx50} style={{ flex: 1 }}>{LENSES.find((x) => x.id === lens)!.why}</Txt>
+        <ChainChip />
+      </View>
       <View style={{ gap: 12 }}>
         {loading ? [0, 1, 2].map((i) => <LiteCardSk key={i} />)
           : !cards.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing here on these chains right now.</Txt>

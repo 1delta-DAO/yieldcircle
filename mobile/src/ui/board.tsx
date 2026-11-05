@@ -1,11 +1,8 @@
 import React from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import Svg, { Defs, RadialGradient, Rect, Stop, Path } from 'react-native-svg'
-import { useQuery } from '@tanstack/react-query'
 import { router, type Href } from 'expo-router'
-import * as idx from '@yieldcircle/core/index/api'
-import { RATE_BOARD_LIMIT } from '@yieldcircle/app/index/queries'
-import { useBoardNames, useLiteByKey, useWalletRecord } from '@yieldcircle/app/board'
+import { useBoardNames, useLiteByKey, useStrategyBoard, useWalletBoard, useWalletRecord } from '@yieldcircle/app/board'
 import { useNav } from '@yieldcircle/app/nav'
 import { useSession } from '@yieldcircle/app/session'
 import { useMyFollows, useProfiles } from '@yieldcircle/app/social/queries'
@@ -16,6 +13,7 @@ import { BOARD_HELD, boardHeld, boardStrategies, boardWallets, leverTag, type Bo
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { C, alpha, mix } from '../theme'
 import { ChainChip } from './ChainChip'
+import { useChains } from '../chains'
 import { Btn, LeverPill, Pill, Seg, Sk, Tok } from './bits'
 import { Character, Who } from './Character'
 import { openStrategy, openWallet } from './lite'
@@ -84,18 +82,19 @@ const CLOSED_SHOWN = 6
  * words where Lite does not list it (`useBoardNames`), Copy only where it does. A strategy the
  * catalogue does not hold has only a ticker: it stays Pro's, and the foot counts it.
  */
+/** The chain scope as the index takes it: absent for every chain. */
+function useChainScope() {
+  const { allChains, chainIds } = useChains()
+  return allChains ? undefined : chainIds.join(',')
+}
+
 function Strategies({ sort, held, liteByKey }: { sort: BoardSort; held: Held; liteByKey: Map<string, LiteRow> }) {
   const { account } = useSession()
+  const chains = useChainScope()
   const nav = useNav()
   const names = useBoardNames()
   const [many, setMany] = React.useState(false)
-  const q = useQuery({
-    // the web's key: one cached answer for both
-    queryKey: ['earners', 'strategy', sort, 'default', true, 'all', held ?? 'all', 'all', 'all', 50] as const,
-    queryFn: () => idx.strategyBoard({ sort, people: true, exposure: held, limit: 50 }),
-    staleTime: 60_000,
-    retry: 1,
-  })
+  const q = useStrategyBoard({ sort, held, chains })
   const colorOf = (g: string) => GROUPS.find((x) => x.id === g)?.color ?? '#8fa6ff'
   const ranked = React.useMemo(() => boardStrategies(q.data?.rows ?? [], sort, (k) => {
     const n = names.get(k.toLowerCase())
@@ -113,7 +112,7 @@ function Strategies({ sort, held, liteByKey }: { sort: BoardSort; held: Held; li
   const holder = (s: BoardStrategy) => s.best && openWallet(s.best.account)
   if (q.isLoading) return <View style={{ gap: 8 }}><View style={[st.hero, { gap: 12 }]}><Sk w={120} h={12} /><Sk w={220} h={26} /><Sk w={140} h={40} /></View>{[0, 1, 2].map((i) => <View key={i} style={st.lsRow}><Sk w={24} h={18} /><Sk w={36} h={36} r={18} /><Sk w={160} /></View>)}</View>
   if (q.error) return <Txt s={13} c={C.tx50} style={{ padding: 14 }}>The board could not be read right now.</Txt>
-  if (!top) return <Txt s={13} c={C.tx50} style={{ padding: 14 }}>{held ? 'Nothing on the board in this money right now.' : 'Nothing on the board right now.'}</Txt>
+  if (!top) return <Txt s={13} c={C.tx50} style={{ padding: 14 }}>{chains ? (held ? 'Nothing in this money on these chains right now.' : 'Nothing on the board on these chains right now.') : held ? 'Nothing on the board in this money right now.' : 'Nothing on the board right now.'}</Txt>
   const gc = top.color ?? C.primary
   return (
     <View style={{ gap: 8 }}>
@@ -206,14 +205,8 @@ function Marks({ s, size }: { s: BoardStrategy; size: number }) {
 
 function Wallets({ sort, held, liteByKey }: { sort: BoardSort; held: Held; liteByKey: Map<string, LiteRow> }) {
   const { account } = useSession()
-  const q = useQuery({
-    // `earners-me` is the $/day board the header and You already read on the web: one request for both
-    queryKey: sort === 'perDay' && !held ? ['earners-me'] : ['earners-lite', sort, held ?? 'all'],
-    // a rate board at the size the index pre-warms (`RATE_BOARD_LIMIT`); dollars a day at 100, as You reads it
-    queryFn: () => idx.walletEarners({ sort, people: true, exposure: held, limit: sort === 'apr' ? RATE_BOARD_LIMIT : 100 }),
-    staleTime: 5 * 60_000,
-    retry: 1,
-  })
+  const chains = useChainScope()
+  const q = useWalletBoard({ sort, held, chains })
   // Everyone, or only the people you follow (and you)
   const f = useMyFollows(account)
   const [mine, setMine] = React.useState(false)
@@ -230,7 +223,7 @@ function Wallets({ sort, held, liteByKey }: { sort: BoardSort; held: Held; liteB
       {me && !mine && <View style={st.meNote}><Txt s={12.5} c={C.tx70}>You are <Txt s={12.5} w={700}>#{me.rank}</Txt> · {sort === 'apr' ? `${pct(me.value, 1)} a year` : `${usdShort(me.value)} a day`}</Txt></View>}
       {q.isLoading ? [0, 1, 2, 3, 4, 5].map((i) => <View key={i} style={[st.lbItem, st.lbRow]}><Sk w={24} h={18} /><Sk w={26} h={26} r={13} /><Sk w={140} /></View>)
         : q.error ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>The board could not be read right now.</Txt>
-        : !rows.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>{mine ? 'Nobody you follow is on the board yet.' : held ? 'Nobody on the board in this money right now.' : 'Nobody on the board right now.'}</Txt>
+        : !rows.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>{mine ? 'Nobody you follow is on the board yet.' : chains ? (held ? 'Nobody in this money on these chains right now.' : 'Nobody on the board on these chains right now.') : held ? 'Nobody on the board in this money right now.' : 'Nobody on the board right now.'}</Txt>
         : rows.map((r) => <WalletRow key={r.account} r={r} sort={sort} profile={profile(r.account)} me={!!account && normAddr(r.account) === normAddr(account)} open={open === r.account} onToggle={() => setOpen(open === r.account ? null : r.account)} liteByKey={liteByKey} />)}
       {all.length > rows.length && <Pressable onPress={() => setMany(true)} style={st.more}><Txt s={13} c={C.tx70}>Show the top {all.length}</Txt></Pressable>}
     </View>

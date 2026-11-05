@@ -1,7 +1,5 @@
 import React from 'react'
-import { useQuery } from '@tanstack/react-query'
 import * as idx from '@yieldcircle/core/index/api'
-import { RATE_BOARD_LIMIT } from '@yieldcircle/app/index/queries'
 import { useMyFollows, useProfiles } from '../../social/queries'
 import { go, liteWalletHref, proHref, useApp, walletHref } from '../../state/AppState'
 import { normAddr } from '@yieldcircle/core/model/address'
@@ -10,7 +8,7 @@ import { GROUPS, groupOf } from '@yieldcircle/core/model/assets'
 import { Face } from '../social-bits'
 import { FollowButton, Who } from '../social-bits'
 import { Sk, Tok, pct, usd, usdShort } from '../bits'
-import { useBoardNames, useLiteByKey, useWalletRecord } from '@yieldcircle/app/board'
+import { useBoardNames, useLiteByKey, useStrategyBoard, useWalletBoard, useWalletRecord } from '@yieldcircle/app/board'
 import { openRow } from './LiteBits'
 import { ChainChip } from '../ChainPicker'
 import { PnlDrawer } from '../PnlDrawer'
@@ -47,15 +45,9 @@ const CLOSED_SHOWN = 6
 const BOARD_ROWS = 20
 
 function Wallets({ sort, held, liteByKey }: { sort: BoardSort; held?: idx.ExposureChip; liteByKey: Map<string, LiteRow> }) {
-  const { account } = useApp()
-  const q = useQuery({
-    // `earners-me` is the $/day board the header and You already read: one request for both
-    queryKey: sort === 'perDay' && !held ? ['earners-me'] : ['earners-lite', sort, held ?? 'all'],
-    // a rate board at the size the index pre-warms (the same query as `useRateLeaders`); dollars a day at 100, as the header reads it
-    queryFn: () => idx.walletEarners({ sort, people: true, exposure: held, limit: sort === 'apr' ? RATE_BOARD_LIMIT : 100 }),
-    staleTime: 5 * 60_000,
-    retry: 1,
-  })
+  const { account, allChains, chainIds } = useApp()
+  const chains = allChains ? undefined : chainIds.join(',')
+  const q = useWalletBoard({ sort, held, chains })
   const f = useMyFollows(account)
   const [mine, setMine] = React.useState(false)
   const only = mine ? new Set([...f.wallets, ...(account ? [normAddr(account)] : [])].map((a) => a.toLowerCase())) : undefined
@@ -82,7 +74,7 @@ function Wallets({ sort, held, liteByKey }: { sort: BoardSort; held?: idx.Exposu
       <div className="lboard">
         {q.isLoading ? [0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="lb-row sk"><Sk w={24} h={18} /><Sk w={26} h={26} /><Sk w={140} h={14} /><span className="sp" /><Sk w={60} h={18} /></div>)
           : q.error ? <div className="empty">The board could not be read right now.</div>
-          : !rows.length ? <div className="empty">{mine ? 'Nobody you follow is on the board yet.' : held ? 'Nobody on the board in this money right now.' : 'Nobody on the board right now.'}</div>
+          : !rows.length ? <div className="empty">{mine ? 'Nobody you follow is on the board yet.' : chains ? (held ? 'Nobody in this money on these chains right now.' : 'Nobody on the board on these chains right now.') : held ? 'Nobody on the board in this money right now.' : 'Nobody on the board right now.'}</div>
           : rows.map((r) => <WalletRow key={r.account} r={r} sort={sort} profile={profile(r.account)} me={!!account && normAddr(r.account) === normAddr(account)} open={open === r.account} onToggle={() => setOpen(open === r.account ? null : r.account)} liteByKey={liteByKey} />)}
         {all.length > rows.length && <button type="button" className="lrow lite-showall" onClick={() => setMany(true)}>Show the top {all.length}</button>}
       </div>
@@ -205,15 +197,11 @@ const STRAT_WHY: Record<BoardSort, string> = {
  * a ranking before a single number is read. Copy opens Lite's ticket where Lite carries it.
  */
 function Strategies({ sort, held, liteByKey }: { sort: BoardSort; held?: idx.ExposureChip; liteByKey: Map<string, LiteRow> }) {
-  const { account } = useApp()
+  const { account, allChains, chainIds } = useApp()
   const names = useBoardNames()
   const [many, setMany] = React.useState(false)
-  const q = useQuery({
-    queryKey: ['earners', 'strategy', sort, 'default', true, 'all', held ?? 'all', 'all', 'all', 50] as const,
-    queryFn: () => idx.strategyBoard({ sort, people: true, exposure: held, limit: 50 }),
-    staleTime: 60_000,
-    retry: 1,
-  })
+  const chains = allChains ? undefined : chainIds.join(',')
+  const q = useStrategyBoard({ sort, held, chains })
   const colorOf = (g: string) => GROUPS.find((x) => x.id === g)?.color ?? '#8fa6ff'
   const ranked = React.useMemo(() => boardStrategies(q.data?.rows ?? [], sort, (k) => {
     const n = names.get(k.toLowerCase())
@@ -236,7 +224,7 @@ function Strategies({ sort, held, liteByKey }: { sort: BoardSort; held?: idx.Exp
       <p className="t70 lite-lens-why">{STRAT_WHY[sort]}. Copy opens it at the best holder’s leverage, your own size.</p>
       {q.isLoading ? <div className="lstrat"><div className="ls-hero" aria-hidden><Sk w={120} h={12} /><Sk w={220} h={26} /><div className="ls-rate"><Sk w={140} h={44} /></div></div>{[0, 1, 2].map((i) => <div key={i} className="ls-row sk"><Sk w={24} h={18} /><Sk w={36} h={36} /><Sk w={160} h={14} /><Sk w={70} h={18} /></div>)}</div>
         : q.error ? <div className="empty">The board could not be read right now.</div>
-        : !top ? <div className="empty">{held ? 'Nothing on the board in this money right now.' : 'Nothing on the board right now.'}</div>
+        : !top ? <div className="empty">{chains ? (held ? 'Nothing in this money on these chains right now.' : 'Nothing on the board on these chains right now.') : held ? 'Nothing on the board in this money right now.' : 'Nothing on the board right now.'}</div>
         : (
           <div className="lstrat">
             <section className="ls-hero" style={{ '--gc': top.color ?? undefined } as React.CSSProperties} aria-label="The top strategy">

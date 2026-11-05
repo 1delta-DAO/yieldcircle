@@ -21,7 +21,7 @@ It runs on the same code as the web below the screens:
 |---|---|---|
 | Home | balance and a day's earnings, streak, the idle nudge, three lenses of cards (proven · trending · most held), the moves (Following · Everyone, with Copy, Follow and the mover's reason), a dot on the tab for new moves by people you follow | your money, the best three rows per money |
 | Earn | four money tiles (the best deposit, the levered rate beside it), the best rates safest first or a money's rows, search · sort · filters, "show all" | every row of a money, every venue and chain |
-| Board | wallets and strategies (best rate · most a day) in all money or Dollars · ETH · BTC, Everyone · People you follow, the top 20 then more; an opened wallet shows each position's share and what it made, its closed ones, Follow and its profile | the same board |
+| Board | wallets and strategies (best rate · most a day) in all money or Dollars · ETH · BTC, on the chains in scope (the chip, `src/ui/ChainChip.tsx`), Everyone · People you follow, the top 20 then more; an opened wallet shows each position's share and what it made, its closed ones, Follow and its profile | the same board |
 | Profiles | a wallet's page (`/w/<addr>`), your name and face (`/me`), Follow on faces | the same pages |
 | Search | recent picks (the same list the web keeps), people you follow, the best rates, the four categories; results with what each name rests on | — |
 

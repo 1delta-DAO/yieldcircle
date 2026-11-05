@@ -1,12 +1,39 @@
 import React from 'react'
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import * as idx from '@yieldcircle/core/index/api'
 import { bookKeyOf } from '@yieldcircle/core/model/uid'
-import { boardPositions, closedPosition, plainName, type LiteRow } from '@yieldcircle/core/model/lite'
+import { boardPositions, closedPosition, plainName, type BoardSort, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { useAccountPnlBook } from './index/pnl'
-import { useClosedPositions } from './index/queries'
+import { RATE_BOARD_LIMIT, useClosedPositions } from './index/queries'
 import { useLiteMenu } from './lite'
+
+/**
+ * What a board is cut to: the sort, the money held, and the chain scope as the index takes it —
+ * a CSV, absent for every chain. A Solana-only scope asks only the Solana index (`splitScope`).
+ */
+export interface BoardCut { sort: BoardSort; held?: idx.ExposureChip; chains?: string }
+
+/** The wallet board, for the chains in scope. All chains keeps the key the header and You read, so they stay one request. */
+export function useWalletBoard({ sort, held, chains }: BoardCut) {
+  return useQuery({
+    queryKey: chains ? ['earners-lite', sort, held ?? 'all', chains] : sort === 'perDay' && !held ? ['earners-me'] : ['earners-lite', sort, held ?? 'all'],
+    // a rate board at the size the index pre-warms (`RATE_BOARD_LIMIT`); dollars a day at 100, as the header reads it
+    queryFn: () => idx.walletEarners({ sort, people: true, chainIds: chains, exposure: held, limit: sort === 'apr' ? RATE_BOARD_LIMIT : 100 }),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+}
+
+/** The strategy board, for the chains in scope: the key of Pro's (`earnersQuery`), so one cached answer for both. */
+export function useStrategyBoard({ sort, held, chains }: BoardCut) {
+  return useQuery({
+    queryKey: ['earners', 'strategy', sort, 'default', true, chains ?? 'all', held ?? 'all', 'all', 'all', 50] as const,
+    queryFn: () => idx.strategyBoard({ sort, people: true, chainIds: chains, exposure: held, limit: 50 }),
+    staleTime: 60_000,
+    retry: 1,
+  })
+}
 
 /** The Lite row each strategy key opens, for the Copy and the words. */
 export function useLiteByKey(): Map<string, LiteRow> {

@@ -10,7 +10,8 @@ import type { Holding, Idle } from '@yieldcircle/core/model/positions'
 import { loopOpen, nativeAsset } from '@yieldcircle/core/sdk/api'
 import { isSvmChain, normAddr } from '@yieldcircle/core/model/address'
 import { isSavings } from '@yieldcircle/core/model/nature'
-import { clampRate, rateToWad, recommendedOf, userSetOfBook } from '@yieldcircle/core/model/userSetRate'
+import { rateToWad, recommendedOf, userSetOfBook } from '@yieldcircle/core/model/userSetRate'
+import { useTicketChoices } from './choices'
 import { withSignature } from '@yieldcircle/core/sdk/signedAction'
 import { num, usd, usdShort } from '@yieldcircle/core/model/format'
 import { NO_ROUTE, dayOf, defaultTenor, defaultTerm, hasRoute, paysNative, safetyOf, sameToken, tenorWord } from '@yieldcircle/core/model/ticket'
@@ -145,7 +146,10 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   const urate = picksRate ? userSetOfBook(queueBook) ?? s.userSet! : null
   const suggested = recommendedOf(urate)?.apr
   const [rate0, setRate] = useSticky<number | null>(`t:${s0.id}:rate`, null)
-  const rate = urate ? clampRate(urate, rate0 ?? suggested ?? s.borSpot) : null
+  const { rate, bands, pickers, blockedBy: choiceBlock } = useTicketChoices({
+    uid: s.marketShortUid, enabled: !holding && (!!s.userSet || !!s.hasChoices), u: urate, size: s.priceShort ? (E * (L - 1)) / s.priceShort : 0, ltv: L > 1 ? (L - 1) / L : 0,
+    book: queueBook, rate0, onRate: setRate, debtSymbol: s.debt, fallbackApr: s.borSpot,
+  })
   const rateShift = rate != null && suggested != null ? rate - suggested : 0
   // a dated book prices the debt at size: the levels this loan walks, for every maturity on offer
   const books = useLendingBooks(dates ? dates.map((d) => d.marketShortUid) : [])
@@ -220,6 +224,7 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   // on paper, what the chain would refuse is refused too (tickets/0006): a quote with a route, the
   // market's free liquidity, a dated book deep enough for the size
   const paperRefuse = !paper.active ? null
+    : choiceBlock ? choiceBlock
     : overLiquidity ? `The market has only ${usdShort(s.borrowLiquidityUsd)} of ${s.debt} free to borrow — lower the amount or the leverage.`
     : bookShort ? `The book does not hold ${usd(D)} of ${s.debt} at this date — borrow less or pick another date.`
     : q.isFetching && !q.data ? 'Quoting the route…'
@@ -232,6 +237,7 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
       payAsset: chosen?.address, payAmountRaw: marginRaw, termId: term?.id, tenor,
       // a new user-set-rate trove opens at the picked rate (absent → the API's suggested pick)
       ...(rate != null ? { interestRate: rateToWad(rate) } : {}),
+      ...(bands != null ? { bands } : {}),
       // into the position the after-figures below are computed for, not a fresh account beside it
       accountId: holding?.accountId, simulate: !!holding,
     }
@@ -258,5 +264,5 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   const hfShown = simHf ?? hf, safe = safetyOf(drop)
   const rewardsNow = loopRewards(s, L)
   const fixedNote = term ? `fixed to ${ends}` : tenor ? `fixed for ${tenorWord(tenor)}` : s.dueAt ? `fixed to ${due}` : ''
-  return { ltvQ, overCap, capLtv, liteTier, pickLiteTier, liteLev, setLiteLev, liteLo, liteHi, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote }
+  return { ltvQ, overCap, capLtv, liteTier, pickLiteTier, liteLev, setLiteLev, liteLo, liteHi, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, pickers, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote }
 }

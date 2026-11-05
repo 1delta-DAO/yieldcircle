@@ -465,6 +465,18 @@ export function holdingLine(h: Pick<Holding, 'kind' | 'leverage' | 'health' | 'd
   return { text: 'Earning', tone: '' }
 }
 
+/**
+ * A position's row on You, as two lines (docs/you-unified.md): what it is — its token and how it
+ * is held — and, for one that can be liquidated, how far from the line, on a line of its own. The
+ * token is left out where the row's title already says it (plain "USDC" under no desk).
+ */
+export function holdingRow(h: Pick<Holding, 'kind' | 'leverage' | 'health' | 'directional' | 'symbol'>, title = ''): { what: string; risk: { text: string; tone: Tone } | null } {
+  const l = holdingLine(h)
+  const [what, risk] = l.text.split(' · ')
+  const tok = h.symbol && !title.toLowerCase().includes(h.symbol.toLowerCase()) ? `${h.symbol} · ` : ''
+  return { what: tok + what, risk: risk ? { text: risk, tone: l.tone } : null }
+}
+
 // ---------------------------------------------------------------- the leaderboard
 
 /** What the board ranks by (docs/lite.md §6): the rate a wallet earns on all its money now, or the dollars a day. */

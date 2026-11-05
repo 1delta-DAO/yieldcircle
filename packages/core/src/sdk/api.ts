@@ -7,7 +7,7 @@ import { ApiError, apiFetch, apiFetchEnvelope, apiFetchLoose, type ApiParams } f
 import { isNativeAddress } from '../model/positions'
 import { isSvmChain } from '../model/address'
 import type { RateHistoryResponse } from '../model/rateHistory'
-import type { AnyTx, ApiTx, BorosHedgeData, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmResponse, LendingActionData, LendingBook, LendingRange, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
+import type { AnyTx, ApiTx, BorosHedgeData, EarnPositionLeg, EarnPositionsResponse, EarnResponse, IrmResponse, LendingActionData, LendingBook, LendingChoices, LendingRange, LoopActions, LoopCloseData, LoopPayAssetsData, LoopQuoteData, OptimizerResponse, TokenBalance } from './types'
 
 /**
  * The catalogue listings (earn + optimizer) answer in 0.5–4 s; a chain is settled once every one
@@ -98,6 +98,11 @@ export function fetchIrm(marketUids: string[]) {
  * fills); `side=lend` is what a fixed-rate deposit takes (the borrowers' offers). Display and sizing
  * only — the builders fill the book server-side. `marketUid` is the LOAN token's market.
  */
+/** One market's choices resolved at this size and LTV (`rate` percent, `bands` a count). */
+export function fetchLendingChoices(p: { marketUid: string; size?: number; ltv?: number; rate?: number; bands?: number }) {
+  return apiFetch<LendingChoices>('/v1/data/lending/choices', { params: p })
+}
+
 export function fetchLendingBook(marketUid: string, side: 'borrow' | 'lend' = 'borrow', count = 50) {
   return apiFetch<LendingBook>('/v1/data/lending/book', { params: { marketUid, side, count } })
 }
@@ -290,6 +295,8 @@ export interface LoopOpenParams {
   accountId?: string
   /** a user-set-rate debt's rate for a NEW trove, WAD fraction; absent → the queue's recommended pick */
   interestRate?: string
+  /** a NEW LlamaLend loan's band count; absent → the market's default */
+  bands?: number
   /**
    * Read the account first (`data.simulation`). Sent on every build into an account that already
    * holds something: without it an Aave-type build assumes eMode 0 and may switch the mode
@@ -302,7 +309,7 @@ export function loopOpen(p: LoopOpenParams) {
     params: {
       marketUidIn: p.debtMarketUid,      // API: in = debt on OPEN
       marketUidOut: p.collateralMarketUid,
-      debtAmount: p.debtAmountRaw, slippage: p.slippageBp, leverage: p.leverage, account: p.account, payAsset: p.payAsset, payAmount: p.payAmountRaw, termId: p.termId, accountId: p.accountId, interestRate: p.interestRate, simulate: p.simulate ? 'true' : undefined,
+      debtAmount: p.debtAmountRaw, slippage: p.slippageBp, leverage: p.leverage, account: p.account, payAsset: p.payAsset, payAmount: p.payAmountRaw, termId: p.termId, accountId: p.accountId, interestRate: p.interestRate, bands: p.bands, simulate: p.simulate ? 'true' : undefined,
       duration: p.tenor?.duration, durationType: p.tenor?.durationType,
     },
   })
@@ -324,9 +331,9 @@ export function enableCollateral(p: { marketUid: string; operator: string; accou
  * the withdraw-and-repay route below names them the other way round. Neither leg is ever sent as 0:
  * a borrow with nothing to put up, or collateral with nothing to borrow, goes through {@link lendingAction}.
  */
-export function lendingDepositAndBorrow(p: { collateralMarketUid: string; debtMarketUid: string; operator: string; collateralRaw: string; borrowRaw: string; payAsset?: string; receiveAsset?: string; accountId?: string; modeId?: string; simulate?: boolean; /** a user-set-rate loan's rate, WAD fraction (`model/userSetRate.ts` `rateToWad`); absent → the queue's recommended pick */ interestRate?: string }) {
+export function lendingDepositAndBorrow(p: { collateralMarketUid: string; debtMarketUid: string; operator: string; collateralRaw: string; borrowRaw: string; payAsset?: string; receiveAsset?: string; accountId?: string; modeId?: string; simulate?: boolean; /** a user-set-rate loan's rate, WAD fraction (`model/userSetRate.ts` `rateToWad`); absent → the queue's recommended pick */ interestRate?: string; /** a NEW LlamaLend loan's band count */ bands?: number }) {
   return apiFetchEnvelope<LendingActionData, LoopActions>('/v1/actions/lending/deposit-and-borrow', {
-    params: { marketUid: p.collateralMarketUid, debtMarketUid: p.debtMarketUid, operator: p.operator, collateralAmount: p.collateralRaw, borrowAmount: p.borrowRaw, payAsset: p.payAsset, receiveAsset: p.receiveAsset, accountId: p.accountId, modeId: p.modeId, interestRate: p.interestRate, simulate: p.simulate ? 'true' : undefined },
+    params: { marketUid: p.collateralMarketUid, debtMarketUid: p.debtMarketUid, operator: p.operator, collateralAmount: p.collateralRaw, borrowAmount: p.borrowRaw, payAsset: p.payAsset, receiveAsset: p.receiveAsset, accountId: p.accountId, modeId: p.modeId, interestRate: p.interestRate, bands: p.bands, simulate: p.simulate ? 'true' : undefined },
   })
 }
 /**

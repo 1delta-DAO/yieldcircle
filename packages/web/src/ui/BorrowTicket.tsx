@@ -44,7 +44,7 @@ import { Action, AmountBox, GetLine, TicketCtx } from './Ticket'
 import { GetAsset } from './GetAsset'
 import { IrmLink } from './Irm'
 import { BookLink } from './Book'
-import { RatePicker } from './RatePicker'
+import { ChoicePicker } from './ChoicePicker'
 import { Thread } from './Thread'
 import { Who } from './social-bits'
 import { BorrowRewards, DecimalInput, Info, KindPill, RiskDot, SubAccountPill, Tok, Toks, num, pct, usd, usdShort } from './bits'
@@ -155,7 +155,7 @@ function WhereLine({ o, choices, idle, onPick }: { o: BorrowOffer; choices: Borr
 // ----------------------------------------------------------------- Borrow
 function BorrowPane({ o, h, idle, alternatives, loop }: { o: BorrowOffer; h: Holding | null; idle: Idle[]; alternatives: BorrowOffer[]; /** a held loop's own account (`LoopLoanPanes`): nothing is borrowed unless asked for, and the words are a loop's */ loop?: boolean }) {
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/borrow`)
-  const { account, isConnected, opts, balOf, setRole, chosen, bal, price, debtPrice, heldUnits, mixed, owedUsd, owedUnits, putAmt, put, setPut, putUsd, collUsd, borders, z, range, cap, pick, setPick, take, debtUnits, setTake, over, usdOut, unit, setUnit, boxValue, typed, floorUnits, wantUnits, totalDebt, drop, zone, queueBook, u, rate, setRate, apr, monthly, collUnits, liqPx, liqRatio, ratioNow, simHf, effHf, ladder, short, ack, setAck, blocked, takeWord, label, zbar } = useBorrowTicket(o, h, idle, { loop })
+  const { pickers, account, isConnected, opts, balOf, setRole, chosen, bal, price, debtPrice, heldUnits, mixed, owedUsd, owedUnits, putAmt, put, setPut, putUsd, collUsd, borders, z, range, cap, pick, setPick, take, debtUnits, setTake, over, usdOut, unit, setUnit, boxValue, typed, floorUnits, wantUnits, totalDebt, drop, zone, queueBook, u, rate, setRate, apr, monthly, collUnits, liqPx, liqRatio, ratioNow, simHf, effHf, ladder, short, ack, setAck, blocked, takeWord, label, zbar } = useBorrowTicket(o, h, idle, { loop })
   const [getOpen, setGetOpen] = React.useState(false)
   const outAmt = (usdV: number) => (usdOut ? usd(usdV) : `${sig4(usdV / debtPrice)} ${o.debt.symbol}`)
   const debtKey = keyOfToken({ chainId: o.chainId, address: o.debt.address, symbol: o.debt.symbol }) ?? o.debt.symbol
@@ -209,7 +209,7 @@ function BorrowPane({ o, h, idle, alternatives, loop }: { o: BorrowOffer; h: Hol
         </div>
       </div>
 
-      {u && rate != null && <RatePicker u={u} book={queueBook} rate={rate} onRate={setRate} debtSymbol={o.debt.symbol} price={debtPrice} />}
+      {pickers.map((p) => <ChoicePicker key={p.choice.id} {...p} debtSymbol={o.debt.symbol} price={debtPrice} />)}
 
       {/* the sentence: the zone, what it costs in money, and the line in the asset's own price */}
       <div className="tsec bsum">

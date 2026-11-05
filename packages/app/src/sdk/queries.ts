@@ -1,7 +1,7 @@
 import { keepPreviousData, useQueries, useQuery, type QueryClient, type QueryFunctionContext } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError } from '@yieldcircle/core/vendor/allocator/http'
-import { fetchBorosHedge, fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopDepthShort, loopOpen, type LoopCloseParams, type OptimizerQuery } from '@yieldcircle/core/sdk/api'
+import { fetchBorosHedge, fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, fetchLendingBook, fetchLendingChoices, fetchLoopPayAssets, fetchOptimizerPairs, fetchTokenBalances, loopClose, loopDepthShort, loopOpen, type LoopCloseParams, type OptimizerQuery } from '@yieldcircle/core/sdk/api'
 import { bookOpen, capPerAsset, classifyEarn, classifyPair, dedupe, FIXED_BOOK_PROTOCOLS, foldBookDates, foldDates, rowKey, type Candidate, type LoopStrategy, type LoopTenor, type SimpleStrategy, type Strategy } from '@yieldcircle/core/model/strategies'
 import { capOf, HIDES, hideDetail, softHide, type HideCode } from '@yieldcircle/core/model/visibility'
 import { parseUid } from '@yieldcircle/core/model/uid'
@@ -1079,6 +1079,10 @@ export function useFundingLock(l: LoopStrategy | null, positionUsdLive: number) 
 export function useLendingBooks(debtMarketUids: string[], side: 'borrow' | 'lend' = 'borrow') {
   const qs = useQueries({ queries: debtMarketUids.map((uid) => ({ queryKey: ['book', side, uid], queryFn: () => fetchLendingBook(uid, side), staleTime: 30_000, retry: 1 })) })
   return debtMarketUids.map((uid, i) => ({ uid, book: qs[i].data ?? null, pending: qs[i].isPending, failed: qs[i].isError }))
+}
+/** One market's choices resolved at this size and LTV; '' stays idle. A miss leaves the row's own picks standing. */
+export function useLendingChoices(uid: string, p: { size?: number; ltv?: number; rate?: number; bands?: number }) {
+  return useQuery({ queryKey: ['choices', uid, p], enabled: !!uid, queryFn: () => fetchLendingChoices({ marketUid: uid, ...p }), staleTime: 15_000, retry: 0 })
 }
 /** How much a book can fill right now, in its token: the last level's running total (0 for an empty book). */
 export const bookDepth = (book: LendingBook | null): number => book?.levels.at(-1)?.cumulativeAssets ?? 0

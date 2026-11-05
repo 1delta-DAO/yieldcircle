@@ -8,6 +8,7 @@
 import type { EarnCapability, EarnMarket, OptimizerRowRaw } from '../sdk/types'
 import { assetRiskOf, type AssetRisk } from './assetRisk'
 import { isUserSetRow, userSetOfRow, type UserSetRate } from './userSetRate'
+import { hasChoices } from './choices'
 import { baseOfCollateral, baseOfSymbol, denomOf, deskOf, EXPOSURE_ASSETS, exposureOf, fiatOf, groupOf, isFiat, sameMoney, type GroupId } from './assets'
 import { creditDesk, deskKey, moneyOf, noteToken } from './desk'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
@@ -267,6 +268,8 @@ export interface LoopStrategy extends Base {
    * the ticket's rate picker shifts them. `model/userSetRate.ts`.
    */
   userSet?: UserSetRate
+  /** the debt leg has a knob besides a user-set rate (a band count): the ticket asks `/choices` */
+  hasChoices?: boolean
 }
 /** One fixed term: `apr` is effective (on `borrowAprShort`'s footing), `days` from the day it is opened. */
 export interface LoopTerm { id: string; days: number; apr: number }
@@ -740,7 +743,9 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   // no leverage and no collateral value are the two the ticket cannot build around;
   // a collateral paying nothing simply lands in the negative-carry bucket below
   if (!(maxLev >= 2)) return no('no-leverage')
-  const liq = num(r.borrowLiquidityUsdShort)
+  // a queue that fills borrows (Flex): idle cash is not the limit, the rate is — $0 idle still opens
+  const queueCap = isUserSetRow(r) ? Math.max(0, ...(userSetOfRow(r)?.picks ?? []).map((p) => p.capacity ?? 0)) : 0
+  const liq = Math.max(num(r.borrowLiquidityUsdShort), queueCap * (r.underlyingInfoShort.prices?.priceUsd ?? 0))
   const worst = Math.max(0, ...r.risk.breakdown.map((b) => b.score ?? 0), r.risk.maxTokenScore ?? 0)
   const liqLtv = num(r.collateralFactorLong) || num(r.ltv)
   if (!(liqLtv > 0.3)) return no('thin-ltv')
@@ -771,6 +776,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     ...(r.fixedTerm?.model === 'loopscale' ? { tenors: loopscaleTenors(r) } : {}),
     ...(dueAt ? { dueAt } : {}),
     ...(isUserSetRow(r) ? (() => { const u = userSetOfRow(r); return u ? { userSet: u } : {} })() : {}),
+    ...(hasChoices(r) ? { hasChoices: true } : {}),
   }
   return { s, hide: null, label, chainId: r.chainId }
 }

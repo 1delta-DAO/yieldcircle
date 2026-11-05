@@ -2503,7 +2503,7 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .get .routes.mini .route .ro b{font-size:13px}
 .get .routes.mini .route .rbar{height:6px}
 .get .route-set{width:48px;border-radius:14px}
-/* the rate picker of a user-set-rate loan (ui/RatePicker.tsx) */
+/* the rate picker of a user-set-rate loan (ui/ChoicePicker.tsx) */
 .ratepick{display:flex;flex-direction:column;gap:8px}
 .rp-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 @media (max-width:520px){.rp-presets{grid-template-columns:1fr}}

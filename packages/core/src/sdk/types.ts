@@ -134,7 +134,7 @@ export interface OptimizerRowRaw {
   /** the collateral token's own yield (staking, savings), already inside `depositAprLong` */
   intrinsicYieldLong?: string | number
   /** `maturityKind: 'fixed-date'` is a debt that falls due on one date (Midnight, Term, TermMax) */
-  debtTerms?: { maturityKind?: string; canOpen?: boolean } | null
+  debtTerms?: { maturityKind?: string; canOpen?: boolean; choices?: { id: string }[] } | null
   /**
    * How the debt leg is priced: `userSet` = the borrower picks the rate (the Liquity family, Flex),
    * and redemptions take the lowest rates first. `borrowAprShort` is then the redemption queue's
@@ -253,14 +253,60 @@ export interface LendingBook {
    * above it. Nothing fills — the borrower picks a rate and the book says who is ahead of it.
    */
   pricing: 'marginal' | 'uniform' | 'queue'; maturity?: number
-  levels: { aprPct: number; assets: number; cumulativeAssets: number }[]
+  /** `fillable` (a queue that fills borrows, Flex): what a borrow at any rate above this level can take */
+  levels: { aprPct: number; assets: number; cumulativeAssets: number; fillable?: number }[]
   /** `'queue'` only */
   range?: { min: number; max: number }; totalDebt?: number; picks?: RatePick[]; recommended?: RatePickId | null
   pressure?: { driver: 'below-peg' | 'lender-liquidity'; signal: number | null; level: 'low' | 'elevated' | 'high' }
+  /** present where a borrow is filled out of the queue (Flex): idle cash, then troves paying less */
+  fill?: { idle: number }
 }
 export type RatePickId = 'cheapest' | 'balanced' | 'protected'
 /** One pickable rate of a redemption queue: the lowest rate with `share` of the market's debt ahead of it. */
-export interface RatePick { id: RatePickId; apr: number; debtAhead: number; share: number; upfrontFeePct: number }
+export interface RatePick { id: RatePickId; apr: number; debtAhead: number; share: number; upfrontFeePct: number; capacity?: number }
+
+/** What one value of a choice gets you; only the computed axes are present. */
+export interface ChoiceEffects {
+  aprPct?: number; upfrontFeePct?: number
+  /** borrow-token units a new borrow can take at this value now */
+  capacity?: number
+  maxLtv?: number
+  ahead?: { assets: number; share: number }
+  /** soft liquidation: the share of the price the band range spans */
+  rangeWidth?: number
+}
+export interface ChoiceOption { value: number | string; label?: string; effects: ChoiceEffects }
+export type ChoicePreset = ChoiceOption & { id: RatePickId }
+/**
+ * One knob the borrower turns (`/v1/data/lending/choices`, lending-sdks
+ * docs/terms/POSITION_CHOICES_PLAN.md): the SAME shape for a rate, a band count, a liquidation
+ * LTV, a term and a mode, so one picker serves them all. `moves` says which axes it must show.
+ */
+export interface PositionChoice {
+  id: 'rate' | 'bands' | 'liqLtv' | 'term' | 'mode' | (string & {})
+  kind: string
+  param: { name: string; encoding: string }
+  unit: 'percent-apr' | 'count' | 'percent-ltv' | 'id' | (string & {})
+  domain: { min: number; max: number; step: number } | { values: (number | string)[] }
+  default?: number | string
+  moves: ('cost' | 'capacity' | 'protection' | (string & {}))[]
+  presets?: ChoicePreset[]
+  recommended?: RatePickId
+  options?: ChoiceOption[]
+  ladder?: { pricing: string }
+  lock: { adjustable: boolean; cooldownSecs?: number; cost?: 'upfront-fee-again' | 'close-and-reopen' | 'none' | (string & {}) }
+  pressure?: LendingBook['pressure']
+  dependsOn?: string[]
+}
+export interface ChoiceWarning { code: 'EXCEEDS_CAPACITY' | 'LTV_ABOVE_MAX' | 'NOTHING_AHEAD' | (string & {}); blocking: boolean; choice: string }
+/** `/v1/data/lending/choices`: a market's choices resolved at one size and LTV. */
+export interface LendingChoices {
+  marketUid: string; live: boolean
+  choices: PositionChoice[]
+  selected: Record<string, number | string>
+  outcome: ChoiceEffects
+  warnings: ChoiceWarning[]
+}
 /**
  * `params.market.liquity` / `.flex` as pair rows carry it (yield-tracer trims addresses and the
  * queue's levels). Liquity bounds are WAD strings, Flex's fractions — read them through

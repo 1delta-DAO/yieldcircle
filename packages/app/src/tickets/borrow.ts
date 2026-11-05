@@ -8,7 +8,8 @@ import { isSvmChain, normAddr } from '@yieldcircle/core/model/address'
 import { denomOf } from '@yieldcircle/core/model/assets'
 import type { LoopStrategy } from '@yieldcircle/core/model/strategies'
 import { lendingAction, lendingDepositAndBorrow, lendingRange, nativeAsset } from '@yieldcircle/core/sdk/api'
-import { clampRate, rateToWad, recommendedOf, userSetOfBook } from '@yieldcircle/core/model/userSetRate'
+import { rateToWad, userSetOfBook } from '@yieldcircle/core/model/userSetRate'
+import { useTicketChoices } from './choices'
 import { num, usd } from '@yieldcircle/core/model/format'
 import { ceil6, sameToken } from '@yieldcircle/core/model/ticket'
 import { useIrm, useLendingBooks } from '../sdk/queries'
@@ -144,9 +145,11 @@ export function useBorrowTicket(o: BorrowOffer, h: Holding | null, idle: Idle[],
   const [queueQ] = useLendingBooks(picksRate ? [o.debt.uid] : [], 'borrow')
   const queueBook = queueQ?.book ?? null
   const u = picksRate ? userSetOfBook(queueBook) ?? o.userSet! : null
-  const suggested = recommendedOf(u)?.apr
   const [rate0, setRate] = React.useState<number | null>(null)
-  const rate = u ? clampRate(u, rate0 ?? suggested ?? o.borrowApr) : null
+  const { rate, bands, pickers, blockedBy: choiceBlock } = useTicketChoices({
+    uid: o.debt.uid, enabled: !h && (!!o.userSet || !!o.hasChoices), u, size: debtUnits, ltv: collUsd > 0 ? totalDebt / collUsd : 0,
+    book: queueBook, rate0, onRate: setRate, debtSymbol: o.debt.symbol, fallbackApr: o.borrowApr,
+  })
   // the rate at THIS size, off the market's own curve: it visibly climbs as more is taken
   const irm = useIrm(o.userSet ? '' : o.debt.uid)
   const apr = rate != null ? rate : o.userSet ? o.borrowApr : irm.isPending ? o.borrowApr : borrowAtSize(o.borrowApr, o.borrowApr, take, irm.data)
@@ -160,11 +163,11 @@ export function useBorrowTicket(o: BorrowOffer, h: Holding | null, idle: Idle[],
   const build = (simulate: boolean) => {
     const base = { operator: actor!, accountId: h?.accountId, simulate }
     const pay = chosen.role === 'native' ? chosen.address : undefined
-    if (put > 0 && take > 0) return lendingDepositAndBorrow({ ...base, collateralMarketUid: o.collateral.uid, debtMarketUid: o.debt.uid, collateralRaw: putRaw, borrowRaw: toRaw(debtUnits, o.debt.decimals), payAsset: pay, modeId: o.modeId, ...(rate != null ? { interestRate: rateToWad(rate) } : {}) })
+    if (put > 0 && take > 0) return lendingDepositAndBorrow({ ...base, collateralMarketUid: o.collateral.uid, debtMarketUid: o.debt.uid, collateralRaw: putRaw, borrowRaw: toRaw(debtUnits, o.debt.decimals), payAsset: pay, modeId: o.modeId, ...(rate != null ? { interestRate: rateToWad(rate) } : {}), ...(bands != null ? { bands } : {}) })
     if (put > 0) return lendingAction('deposit', { ...base, marketUid: o.collateral.uid, amountRaw: putRaw, payAsset: pay })
     return lendingAction('borrow', { ...base, marketUid: o.debt.uid, amountRaw: toRaw(debtUnits, o.debt.decimals) })
   }
-  const simKey = [o.id, putRaw, Math.round(take * 100), chosen.role, actor ?? '', h?.accountId ?? '', rate ?? ''].join('|')
+  const simKey = [o.id, putRaw, Math.round(take * 100), chosen.role, actor ?? '', h?.accountId ?? '', rate ?? '', bands ?? ''].join('|')
   const dKey = useDebounced(simKey, 500)
   const sim = useQuery({
     enabled: !!actor && isConnected && !paper.active && (put > 0 || take > 0) && dKey === simKey,
@@ -183,7 +186,7 @@ export function useBorrowTicket(o: BorrowOffer, h: Holding | null, idle: Idle[],
     : (pre?.borrowCapacity ?? 0) > 0 || (pre?.balanceData?.collateral ?? 0) > 0)
   const simHf = simTrusted ? sim.data?.data?.simulation?.post?.healthFactor ?? undefined : undefined
   const effHf = simHf != null && simHf > 0 ? simHf : hf
-  const key = [o.id, h?.accountId ?? '', putRaw, Math.round(take * 100), chosen.role, actor ?? '', rate ?? ''].join('|')
+  const key = [o.id, h?.accountId ?? '', putRaw, Math.round(take * 100), chosen.role, actor ?? '', rate ?? '', bands ?? ''].join('|')
   // (a borrow on collateral already in whose flag is off switches it on first, or the borrow reverts: tickets/0015)
   const ladder = useTicketLadder(key, o.chainId, async () => [...(take > 0 ? await collateralOnFirst(h, actor!) : []), ...stepsFrom((await build(false)).actions, put > 0 && take > 0 ? 'Put up and borrow' : put > 0 ? 'Add collateral' : 'Borrow', o.chainId)],
     [o.collateral.uid, o.debt.uid], [{ address: chosen.address, symbol: chosen.symbol }, { address: o.debt.address, symbol: o.debt.symbol }],
@@ -195,6 +198,7 @@ export function useBorrowTicket(o: BorrowOffer, h: Holding | null, idle: Idle[],
   const [ack, setAck] = React.useState(false)
   const outAmt = (usdV: number) => (usdOut ? usd(usdV) : `${sig4(usdV / debtPrice)} ${o.debt.symbol}`)
   const blocked = !(put > 0 || take > 0) ? (loop ? 'Put some collateral in or borrow something' : 'Put something up or take something out')
+    : choiceBlock ? choiceBlock
     : paper.active && o.assetClass ? `Paper loans against ${o.ticker ?? 'stocks'} open once their prices can be trusted`
     : short ? `You have ${num(bal?.amount ?? 0, 4)} ${chosen.symbol}`
     : over && take > 0 ? (cap > 0 ? `The most you can take here is ${outAmt(cap)}` : `Put something up to take ${usdOut ? 'dollars' : o.debt.symbol} out`)
@@ -206,7 +210,7 @@ export function useBorrowTicket(o: BorrowOffer, h: Holding | null, idle: Idle[],
   const label = take > 0 ? `Borrow ${takeWord}` : `Add ${num(put, 4)} ${chosen.symbol}`
   // the slider's zone bar: how much of it lands in each zone
   const zbar = cap > 0 ? ZONE_ORDER.map((k) => { const at = (d: number) => Math.min(cap, Math.max(0, collUsd * o.liqLtv * (1 - d) - owedUsd)); const lo = k === 'safe' ? 0 : at(k === 'watch' ? borders.safe : borders.watch), hi = k === 'safe' ? at(borders.safe) : k === 'watch' ? at(borders.watch) : cap; return { k, w: Math.max(0, hi - lo) / cap } }) : []
-  return { account, isConnected, actor, paper, opts, balOf, role, setRole, chosen, bal, price, debtPrice, heldUnits, otherUsd, mixed, heldUsd, owedUsd, owedUnits, putAmt, put, putRaw, setPut, putUsd, collUsd, borders, z, range, cap, pick, setPick, take, debtUnits, setTake, over, usdOut, unit, setUnit, boxValue, typed, floorUnits, wantUnits, totalDebt, drop, zone, hf, picksRate, queueBook, u, rate, setRate, apr, monthly, collUnits, liqPx, liqRatio, ratioNow, simHf, effHf, key, ladder, short, ack, setAck, blocked, takeWord, label, zbar, zoneWord: ZONES[zone].word }
+  return { account, isConnected, actor, paper, opts, balOf, role, setRole, chosen, bal, price, debtPrice, heldUnits, otherUsd, mixed, heldUsd, owedUsd, owedUnits, putAmt, put, putRaw, setPut, putUsd, collUsd, borders, z, range, cap, pick, setPick, take, debtUnits, setTake, over, usdOut, unit, setUnit, boxValue, typed, floorUnits, wantUnits, totalDebt, drop, zone, hf, picksRate, queueBook, u, rate, setRate, pickers, apr, monthly, collUnits, liqPx, liqRatio, ratioNow, simHf, effHf, key, ladder, short, ack, setAck, blocked, takeWord, label, zbar, zoneWord: ZONES[zone].word }
 }
 
 /**

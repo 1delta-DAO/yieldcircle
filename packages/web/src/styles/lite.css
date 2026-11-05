@@ -98,6 +98,16 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .lrow-n small{font-size:var(--fs-sm);color:var(--tx70);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow-v{display:flex;flex-direction:column;align-items:flex-end;gap:1px;font-variant-numeric:tabular-nums}
 .lrow-v small{font-size:var(--fs-sm)}
+/* You, one row per position (docs/you-unified.md): what it made wears the weight, the closed ones fold under */
+.lrow-n small.t50{color:var(--tx50)}
+.lrow-v small.made,.lfold .made{font-weight:600}
+.lrow.was .tok{opacity:.6}.lrow.was .lrow-n > b{color:var(--tx70)}
+.lclosed{margin-top:18px;display:flex;flex-direction:column;gap:6px}
+.lfold{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 14px;border-radius:var(--r);background:var(--b200);color:var(--tx70);text-align:left;cursor:pointer;font-variant-numeric:tabular-nums}
+.lfold:hover{background:var(--b300)}
+.lfold > b{flex:1;font-weight:600;font-size:var(--fs-body)}
+.lfold .made{font-size:var(--fs-sm)}
+.lfold-more{display:block;padding:12px 14px;font-size:var(--fs-sm)}
 .lite-rate{font-family:var(--sans);font-size:var(--fs-strong);font-weight:600;font-variant-numeric:tabular-nums;min-width:62px;text-align:right}
 .lite-rate.r1{color:var(--success)}.lite-rate.r2{color:var(--warning)}.lite-rate.r3{color:var(--error)}
 .pill.lever{background:var(--violet-bg);color:var(--violet)}

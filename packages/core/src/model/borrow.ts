@@ -16,6 +16,7 @@
  * Pure: the only state it touches is the asset model's memo (`noteStock` / `keyOfToken`), which a
  * row fills as it is read.
  */
+import { hasChoices } from './choices'
 import type { OptimizerRowRaw } from '../sdk/types'
 import type { Holding } from './positions'
 import { isUserSetRow, userSetOfRow, type UserSetRate } from './userSetRate'
@@ -78,16 +79,18 @@ export interface BorrowOffer {
   modeId?: string
   /**
    * A venue that needs an input the ticket does not ask yet — a fixed term, a smart-debt leg,
-   * LlamaLend bands, Inverse's DBR, a user-set-rate trove whose queue the row does not carry, an
+   * Inverse's DBR, a user-set-rate trove whose queue the row does not carry, an
    * institutional (permissioned) market. Not offered in v1.
    */
-  needsInput?: 'term' | 'smart' | 'bands' | 'dbr' | 'trove' | 'permissioned'
+  needsInput?: 'term' | 'smart' | 'dbr' | 'trove' | 'permissioned'
   /**
    * The borrower picks the rate (Liquity family, Flex) — `model/userSetRate.ts`. `borrowApr` is then
    * the queue's recommended pick (+ the amortised upfront fee), the rate a new loan opens at unless
    * the ticket's rate picker says otherwise.
    */
   userSet?: UserSetRate
+  /** the debt leg has a knob besides a user-set rate (a band count): the ticket asks `/choices` */
+  hasChoices?: boolean
 }
 
 const num = (v: string | number | null | undefined): number => { if (v == null || v === '') return 0; const n = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(n) ? n : 0 }
@@ -125,7 +128,6 @@ export function offerFromRow(r: OptimizerRowRaw): BorrowOffer | null {
   const userSet = isUserSetRow(r) ? userSetOfRow(r) : null
   const needsInput: BorrowOffer['needsInput'] = r.variableBorrowDisabledShort || FIXED.has(model) || r.debtTerms?.maturityKind === 'fixed-date' ? 'term'
     : r.isBasketLong ? 'smart'
-    : /^(LLAMALEND|CURVE_LEND)/.test(r.lender) ? 'bands'
     : /^INVERSE/.test(r.lender) ? 'dbr'
     // a user-set rate is offered when the row carries the queue's picks: the ticket's picker needs them
     : isUserSetRow(r) && !userSet?.picks.length ? 'trove'
@@ -133,6 +135,7 @@ export function offerFromRow(r: OptimizerRowRaw): BorrowOffer | null {
   const util = num(r.utilizationShort)
   return {
     ...(userSet ? { userSet } : {}),
+    ...(hasChoices(r) ? { hasChoices: true } : {}),
     id: `b:${r.marketLongUid}|${r.marketShortUid}`, chainId: r.chainId, lender: r.lender, venue: venueLabel(r.lender, r.curatorNameLong, r.marketNameLong),
     asset, group: groupOf(asset),
     collateral: { uid: r.marketLongUid, symbol: L.symbol, address: L.address, decimals: L.decimals ?? 18, logo: L.logoURI || undefined, price: r.underlyingInfoLong.prices?.priceUsd ?? undefined, group: L.assetGroup },

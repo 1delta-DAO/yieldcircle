@@ -11,14 +11,15 @@ import { pnlNotReadYet } from '@yieldcircle/core/model/holdingPnl'
 import { pnlWaiting, unsupportedLine, useAccountsPnlBook, useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { useAccountSync } from '@yieldcircle/app/index/queries'
 import { isSolAddr, normAddr } from '@yieldcircle/core/model/address'
-import { bookKeyOf } from '@yieldcircle/core/model/uid'
 import { totalsOf, type Holding } from '@yieldcircle/core/model/positions'
-import { boardPositions, holdingLine, moneyWord, pnlSummary, signedMoney, streakWord, type LiteRow } from '@yieldcircle/core/model/lite'
+import { holdingRow, moneyWord, pnlSummary, signedMoney, streakWord, type BoardPosition, type PnlSummary } from '@yieldcircle/core/model/lite'
 import { owedOf } from '@yieldcircle/core/model/borrow'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import type { Accounts } from '@yieldcircle/app/book'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { useNav } from '@yieldcircle/app/nav'
+import { useClosedRecord, useLiteByKey } from '@yieldcircle/app/board'
+import { useChains } from '../src/chains'
 import { C } from '../src/theme'
 import { ChainChip } from '../src/ui/ChainChip'
 import { Btn, Sk, Tok } from '../src/ui/bits'
@@ -37,9 +38,11 @@ import { useProfile } from '@yieldcircle/app/social/queries'
 import { useSocialWrite } from '@yieldcircle/app/social/sign'
 
 /**
- * You (the web's LiteYou, docs/lite.md §6): what you have and what it earns, your streak, points
- * and rank, what you made, every position — each opens its own ticket — and what the people you
- * follow did. Your profile, wallets and settings are behind the face (`profile.tsx`).
+ * You (the web's LiteYou, docs/lite.md §6; docs/you-unified.md): your streak and rank, one card
+ * with what you have beside what you made, then ONE row per position — its value, what it made and
+ * what it earns a day, each opening its own ticket — the closed ones folded under them, and what
+ * the people you follow did. The card totals and the rows itemise: no position is listed twice.
+ * Your profile, wallets and settings are behind the face (`profile.tsx`).
  */
 export default function You() {
   const insets = useSafeAreaInsets()
@@ -51,6 +54,17 @@ export default function You() {
   const { open } = useAppKit()
   const p = useProfile(b.account).data?.profile ?? null
   const mine = b.holdings.filter((h) => !h.putUp).sort((x, y) => y.valueUsd - x.valueUsd)
+  // a paper position's figure is the paper ledger's (the index never holds one): keyed as its holding is
+  const paper = usePaper()
+  const paperMade = React.useMemo(() => new Map<string, number>(b.paper && paper.ledger ? paperPnlBook(paper.ledger, paper.viewNow, paper.price).positions.map((x) => [`paper:${x.key}`, x.pnlUsd] as const) : []), [b.paper, paper.ledger, paper.viewNow, paper.price])
+  const perDay = t.yearly / 365
+  const have = (
+    <View style={{ flex: 1, gap: 3 }}>
+      <Txt s={12} w={600} c={C.tx50}>You have</Txt>
+      {b.positionsLoading && !b.books.length ? <Sk w={110} h={26} /> : <Txt s={26} w={700} lh={32} style={{ letterSpacing: -0.52 }}>{usd(t.tot)}</Txt>}
+      <Txt s={12} c={C.tx50} lh={16}>{signedMoney(perDay)} a day{t.idle >= 1 ? ` · ${usdShort(t.idle)} idle` : ''}</Txt>
+    </View>
+  )
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <View style={[st.bar, { paddingTop: insets.top, height: 60 + insets.top }]}>
@@ -75,21 +89,20 @@ export default function You() {
         ) : (
           <>
             <View style={st.stats}>
-              <Stat k="You have" v={b.positionsLoading && !b.books.length ? <Sk w={80} h={20} /> : usd(t.tot)} s={t.idle >= 1 ? `${usdShort(t.idle)} idle` : 'all of it at work'} />
-              <Stat k="Earning" v={<Txt s={22} w={600} c={C.ok}>+{usd(t.yearly / 365)}</Txt>} s={`a day · ${usdShort(t.yearly)} a year`} />
-              <Stat k="Streak" v={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><IconFlame color={C.warn} size={18} /><Txt s={22} w={600}>{day.streak}</Txt></View>} s={day.streak ? `${streakWord(day.streak)} in a row with money at work` : 'put money to work to start one'} />
+              <Stat k="Streak" v={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><IconFlame color={C.warn} size={18} /><Txt s={22} w={600}>{day.streak}</Txt></View>} s={day.streak ? `${streakWord(day.streak)} in a row with money at work` : 'put money to work to start one'} wide={b.paper} />
               {!b.paper && <Stat k="Rank ›" v={rank.rank != null ? `#${rank.rank}` : '—'} s={rank.rank != null ? `on the board · ${usdShort(rank.perDay)}/day` : 'top 100 by what they earn a day'} onPress={() => router.push('/lite/board')} />}
             </View>
 
-            {b.paper ? <PaperMade account={b.account} /> : <Made account={b.account} accounts={b.accounts} rows={L.rows} positions={b.positionsLoading || b.isFetching ? undefined : mine.filter((h) => h.kind !== 'borrow').length} />}
+            {b.paper ? <PaperMade account={b.account} have={have} /> : <Made account={b.account} accounts={b.accounts} have={have} positions={b.positionsLoading || b.isFetching ? undefined : mine.filter((h) => h.kind !== 'borrow').length} />}
 
-            <Txt s={16} w={600} style={{ letterSpacing: -0.16, marginTop: 26, marginBottom: 10 }}>Your money</Txt>
+            <Txt s={16} w={600} style={{ letterSpacing: -0.16, marginTop: 26, marginBottom: 10 }}>Positions</Txt>
             {b.positionsError && <Txt s={12.5} c={C.bad}>Positions could not be read: {b.positionsError.message}</Txt>}
             <View style={{ gap: 6 }}>
               {b.positionsLoading && !mine.length ? [0, 1].map((i) => <View key={i} style={st.row}><Sk w={28} h={28} r={14} /><Sk w={120} /></View>)
                 : !mine.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing at work yet.</Txt>
-                : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} />)}
+                : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} made={paperMade.get(h.key)} />)}
             </View>
+            {!b.paper && <Closed account={b.accounts.evm} />}
             <LiteMoves rows={L.rows} account={b.account} limit={12} title="What the people you follow did" followingOnly />
           </>
         )}
@@ -108,49 +121,27 @@ const PaperPill = () => <View style={st.paperPill}><Txt s={11} w={600} c={PAPER.
  * plus what went on fees, swaps and bridges, the return on what was put in, the server's daily line,
  * and "Every number" (`/paper-book`: the bank, what is at work, what it cost).
  */
-function PaperMade({ account }: { account: string }) {
+function PaperMade({ account, have }: { account: string; have: React.ReactNode }) {
   const paper = usePaper()
   const daily = usePaperDaily(account, 90)
   // accrual moves the figure by the second: re-folded twice a minute
   const [, tick] = React.useReducer((x: number) => x + 1, 0)
   React.useEffect(() => { const t = setInterval(tick, 30_000); return () => clearInterval(t) }, [])
   const l = paper.ledger, b = paper.book
-  if (!l || !b) return null
+  if (!l || !b) return <View style={[st.pnl, st.pnlTop]}>{have}</View>
   const pb = paperPnlBook(l, paper.viewNow, paper.price)
   const s = pnlSummary(pb)
   const pts = (daily.data?.days ?? []).map((d) => d.pnlUsd)
   const sync = paperStatusWord(paper)
   return (
     <>
-      <View style={{ marginTop: 26, marginBottom: 10, gap: 4 }}><Txt s={16} w={600} style={{ letterSpacing: -0.16 }}>What you made</Txt><Txt s={12.5} c={C.tx50}>on paper · since each position opened{paper.skewDays ? ` · previewing +${paper.skewDays} days` : ''}{sync ? ` · ${sync}` : ''}</Txt></View>
+      <Txt s={12.5} c={C.tx50} style={{ marginTop: 22, marginBottom: 8 }}>on paper{paper.skewDays ? ` · previewing +${paper.skewDays} days` : ''}{sync ? ` · ${sync}` : ''}</Txt>
       <PaperNotice />
-      <View style={[st.pnl, { borderWidth: 1, borderColor: PAPER.line }]}>
-        {!s ? <Txt s={13} c={C.tx50} lh={19}>Nothing made yet. Open a deposit or a loop on paper and its figure shows here at once, accruing by the minute.</Txt> : <>
-          <View style={{ gap: 4 }}>
-            <Txt s={36} w={700} lh={38} c={s.total >= 0 ? C.ok : C.bad} style={{ letterSpacing: -0.72 }}>{signedMoney(s.total)}</Txt>
-            <Txt s={12.5} c={C.tx50}>{s.aprPct != null ? `${pct(s.aprPct, 1)} a year on what was in · ` : ''}{pct(b.returnPct, 2)} of what was put in</Txt>
-          </View>
-          {s.yield != null && s.price != null && (
-            <>
-              {s.split && <View style={st.bar2}>
-                <Seg2 neg={s.yield < 0} color={C.ok} flex={`${Math.round(s.split.yield * 100)}%`} />
-                <Seg2 neg={s.price < 0} color={C.violet} grow />
-              </View>}
-              <View style={{ flexDirection: 'row', gap: 18 }}>
-                <Txt s={12.5} c={C.tx70}><Dot c={C.ok} />  Farming <Txt s={12.5} w={700} c={s.yield >= 0 ? C.ok : C.bad}>{signedMoney(s.yield)}</Txt></Txt>
-                <Txt s={12.5} c={C.tx70}><Dot c={C.violet} />  Price <Txt s={12.5} w={700} c={s.price >= 0 ? C.ok : C.bad}>{signedMoney(s.price)}</Txt></Txt>
-              </View>
-            </>
-          )}
-          <Txt s={13.5} lh={19.6}>{s.word}</Txt>
-          {b.frictionUsd > 0.005 && <Txt s={13} c={C.tx50}>{usdShort(b.frictionUsd)} of it went on fees, swaps and bridges.</Txt>}
-          {pb.positions.slice(0, 4).map((p) => (
-            <View key={p.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={{ flex: 1 }}><Txt s={13.5} w={700} numberOfLines={1}>{p.title}</Txt><Txt s={12} c={C.tx50} numberOfLines={1}>{p.sub} · {usdShort(p.equityUsd)} in it</Txt></View>
-              <Txt w={700} c={p.pnlUsd >= 0 ? C.ok : C.bad}>{signedMoney(p.pnlUsd)}</Txt>
-            </View>
-          ))}
-          {pb.positions.length > 4 && <Txt s={12} c={C.tx50}>and {pb.positions.length - 4} more</Txt>}
+      <View style={[st.pnl, { marginTop: 0, borderWidth: 1, borderColor: PAPER.line }]}>
+        <MadeTop have={have} s={s} />
+        {!s ? <Txt s={13} c={C.tx50} lh={19}>Nothing made yet. Open a deposit or a loop on paper and its figure shows on its row at once, accruing by the minute.</Txt> : <>
+          <Split s={s} />
+          <Txt s={13} c={C.tx50}>{pct(b.returnPct, 2)} of what was put in{b.frictionUsd > 0.005 ? ` · ${usdShort(b.frictionUsd)} went on fees, swaps and bridges` : ''}</Txt>
           {pts.length > 1 ? <PnlLine pts={pts} up={s.total >= 0} /> : <Txt s={12.5} c={C.tx50}>The day-by-day line starts after a second day.</Txt>}
           <View style={{ marginHorizontal: -16, marginTop: -10, marginBottom: -14 }}><Details title="Every number" what="each position, what is at work, what it cost" onOpen={() => router.push('/paper-book')} /></View>
         </>}
@@ -159,8 +150,50 @@ function PaperMade({ account }: { account: string }) {
   )
 }
 
+/**
+ * The card's head: what you have beside what your open positions made — the two totals a reader
+ * came for, once each (the bar's chip carries the first while the page is scrolled).
+ */
+function MadeTop({ have, s, of }: { have: React.ReactNode; s: PnlSummary | null; /** "on 2 of 3 positions", where the index has not drawn them all */ of?: boolean }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 12 }}>
+      {have}
+      {s && (
+        <View style={{ alignItems: 'flex-end', gap: 3, flexShrink: 1 }}>
+          <Txt s={12} w={600} c={C.tx50}>Made · open positions</Txt>
+          <Txt s={26} w={700} lh={32} c={s.total >= 0 ? C.ok : C.bad} style={{ letterSpacing: -0.52 }}>{signedMoney(s.total)}</Txt>
+          <Txt s={12} c={C.tx50} lh={16} style={{ textAlign: 'right' }}>{[s.aprPct != null ? `${pct(s.aprPct, 1)} a year` : '', of && s.on < s.of ? `on ${s.on} of ${s.of}` : ''].filter(Boolean).join(' · ')}</Txt>
+        </View>
+      )}
+    </View>
+  )
+}
+
+/**
+ * How much of it was farming and how much the coin's price: the bar and its two figures. The
+ * sentence is kept for a mixed or a losing split — where one side made nearly all of a gain, the
+ * bar has already said it.
+ */
+function Split({ s }: { s: PnlSummary }) {
+  if (s.yield == null || s.price == null) return <Txt s={13.5} lh={19.6}>{s.word}</Txt>
+  const plain = !!s.split && s.yield >= 0 && s.price >= 0 && Math.max(s.split.yield, s.split.price) >= 0.8
+  return (
+    <>
+      {s.split && <View style={st.bar2}>
+        <Seg2 neg={s.yield < 0} color={C.ok} flex={`${Math.round(s.split.yield * 100)}%`} />
+        <Seg2 neg={s.price < 0} color={C.violet} grow />
+      </View>}
+      <View style={{ flexDirection: 'row', gap: 18 }}>
+        <Txt s={12.5} c={C.tx70}><Dot c={C.ok} />  Farming <Txt s={12.5} w={700} c={s.yield >= 0 ? C.ok : C.bad}>{signedMoney(s.yield)}</Txt></Txt>
+        <Txt s={12.5} c={C.tx70}><Dot c={C.violet} />  Price <Txt s={12.5} w={700} c={s.price >= 0 ? C.ok : C.bad}>{signedMoney(s.price)}</Txt></Txt>
+      </View>
+      {!plain && <Txt s={13.5} lh={19.6}>{s.word}</Txt>}
+    </>
+  )
+}
+
 /** A stat card (`.lstat`). */
-function Stat({ k, v, s, onPress }: { k: string; v: React.ReactNode; s: string; onPress?: () => void }) {
+function Stat({ k, v, s, onPress, wide }: { k: string; v: React.ReactNode; s: string; onPress?: () => void; /** alone on its row */ wide?: boolean }) {
   const body = (
     <>
       <Txt s={12} w={600} c={C.tx50}>{k}</Txt>
@@ -168,7 +201,7 @@ function Stat({ k, v, s, onPress }: { k: string; v: React.ReactNode; s: string; 
       <Txt s={11.5} c={C.tx50} lh={15.5}>{s}</Txt>
     </>
   )
-  return onPress ? <Pressable onPress={onPress} style={st.stat}>{body}</Pressable> : <View style={st.stat}>{body}</View>
+  return onPress ? <Pressable onPress={onPress} style={st.stat}>{body}</Pressable> : <View style={[st.stat, wide && { width: '100%', maxWidth: '100%' }]}>{body}</View>
 }
 
 /** Where you rank on the wallet board — the web's `useMyStats` rank, off the same board answer. */
@@ -179,8 +212,12 @@ function useRank(account: string | undefined) {
   return { rank: i >= 0 ? i + 1 : null, perDay: i >= 0 ? board.data!.rows[i].perDayUsd : null }
 }
 
-/** What you made (the web's `LitePnl`, real accounts): one number, one bar, one sentence, each position's own figure. */
-function Made({ account, accounts, rows, positions }: { account: string; /** every wallet of the owner's, one per VM (`useBook`): what they made is summed over all of them */ accounts: Accounts; rows: LiteRow[]; positions?: number }) {
+/**
+ * The card (the web's `LitePnl`, real accounts): what you have beside what your open positions
+ * made, the farming / price bar, the day-by-day line. Each position's own figure is on its row
+ * below (`useHoldingPnl`), never listed here a second time (docs/you-unified.md).
+ */
+function Made({ account, accounts, have, positions }: { account: string; /** every wallet of the owner's, one per VM (`useBook`): what they made is summed over all of them */ accounts: Accounts; have: React.ReactNode; positions?: number }) {
   const q = useAccountsPnlBook(accounts, { own: true })
   // the live book's legs go to each index as hints, and the book is re-read once a sync lands (both indexes, pos-indexer tickets/0099)
   const { evm, sol } = accounts
@@ -189,63 +226,29 @@ function Made({ account, accounts, rows, positions }: { account: string; /** eve
   const qc = useQueryClient()
   React.useEffect(() => { if (sync.data && evm) void qc.invalidateQueries({ queryKey: ['pnl-book', evm.toLowerCase()] }) }, [sync.data, evm, qc])
   React.useEffect(() => { if (solSync.data && sol) void qc.invalidateQueries({ queryKey: ['pnl-book', sol] }) }, [solSync.data, sol, qc])
-  const liteByKey = React.useMemo(() => {
-    const m = new Map<string, LiteRow>()
-    for (const r of rows) { const k = bookKeyOf(r.s); if (k) m.set(k.toLowerCase(), r) }
-    return m
-  }, [rows])
   const b = q.data
   const s = b ? pnlSummary(b) : null
-  const head = <View style={{ marginTop: 26, marginBottom: 10, gap: 4 }}><Txt s={16} w={600} style={{ letterSpacing: -0.16 }}>What you made</Txt><Txt s={12.5} c={C.tx50}>since each position opened · from the index’s records</Txt></View>
-  if (q.isLoading) return <>{head}<View style={st.pnl}><Sk w={160} h={34} /><Sk w={240} h={12} /></View></>
+  if (q.isLoading) return <View style={[st.pnl, st.pnlTop]}><MadeTop have={have} s={null} /><Sk w={240} h={12} /></View>
   const syncing = (!!evm && !sync.data && !sync.isError) || (!!sol && !solSync.data && !solSync.isError)
   // no book, or one with nothing in it: say so while there is money at work, instead of a blank
-  if (!b || !b.coverage.positions) return positions ? <>{head}<View style={st.pnl}><Txt s={13} c={C.tx50} lh={19}>{pnlNotReadYet(positions, syncing, q.isError)}{!q.isError && q.failed.length ? ` Not in this yet: ${q.failed.map(unreadWallet).join(' · ')}.` : ''}</Txt></View></> : null
-  const ps = boardPositions(b, (k) => liteByKey.get(k.toLowerCase())?.title ?? null)
+  if (!b || !b.coverage.positions) return (
+    <View style={[st.pnl, st.pnlTop]}>
+      <MadeTop have={have} s={null} />
+      {!!positions && <Txt s={13} c={C.tx50} lh={19}>{pnlNotReadYet(positions, syncing, q.isError)}{!q.isError && q.failed.length ? ` Not in this yet: ${q.failed.map(unreadWallet).join(' · ')}.` : ''}</Txt>}
+    </View>
+  )
   const w = pnlWaiting(b)
   const notIn = [w.drawing ? `${w.drawing} drawing now` : '', w.waiting ? `${w.waiting} waiting` : '', unsupportedLine(b), ...q.failed.map(unreadWallet)].filter(Boolean)
   return (
-    <>
-      {head}
-      <View style={st.pnl}>
-        {!s ? <Txt s={13} c={C.tx50}>No record yet. {positions != null && positions > b.coverage.positions ? `${positions - b.coverage.positions} of your ${positions} the index has not read yet. ` : ''}The index draws one per position within a few hours of opening.</Txt> : <>
-          <View style={{ gap: 4 }}>
-            <Txt s={36} w={700} lh={38} c={s.total >= 0 ? C.ok : C.bad} style={{ letterSpacing: -0.72 }}>{signedMoney(s.total)}</Txt>
-            <Txt s={12.5} c={C.tx50}>{s.aprPct != null ? `${pct(s.aprPct, 1)} a year on what was in` : ''}{s.on < s.of ? ` · on ${s.on} of ${s.of} positions` : ''}</Txt>
-          </View>
-          {s.split && s.yield != null && s.price != null && (
-            <>
-              <View style={st.bar2}>
-                <Seg2 neg={s.yield < 0} color={C.ok} flex={`${Math.round(s.split.yield * 100)}%`} />
-                <Seg2 neg={s.price < 0} color={C.violet} grow />
-              </View>
-              <View style={{ flexDirection: 'row', gap: 18 }}>
-                <Txt s={12.5} c={C.tx70}><Dot c={C.ok} />  Farming <Txt s={12.5} w={700} c={s.yield >= 0 ? C.ok : C.bad}>{signedMoney(s.yield)}</Txt></Txt>
-                <Txt s={12.5} c={C.tx70}><Dot c={C.violet} />  Price <Txt s={12.5} w={700} c={s.price >= 0 ? C.ok : C.bad}>{signedMoney(s.price)}</Txt></Txt>
-              </View>
-            </>
-          )}
-          <Txt s={13.5} lh={19.6}>{s.word}</Txt>
-          {notIn.length > 0 && <Txt s={13.5} c={C.tx50} lh={19.6}>Not in this figure: {notIn.join(' · ')}.</Txt>}
-          {b.series.length > 1 && <PnlLine pts={b.series.map((p) => p.pnl)} up={s.total >= 0} />}
-          {ps.length > 0 && (
-            <View style={{ borderTopWidth: 1, borderTopColor: '#1a1a1f', paddingTop: 6 }}>
-              {ps.slice(0, 4).map((p) => (
-                <View key={p.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 7 }}>
-                  <View style={{ flex: 1 }}>
-                    <Txt s={13.5} w={700} numberOfLines={1}>{p.title}</Txt>
-                    <Txt s={12} c={C.tx50} numberOfLines={1}>{p.sub}{p.equityUsd != null ? ` · ${usdShort(p.equityUsd)} in it` : ''}</Txt>
-                  </View>
-                  <Txt w={700} c={p.pnlUsd >= 0 ? C.ok : C.bad}>{signedMoney(p.pnlUsd)}</Txt>
-                </View>
-              ))}
-              {ps.length > 4 && <Txt s={12} c={C.tx50} style={{ paddingVertical: 7 }}>and {ps.length - 4} more</Txt>}
-            </View>
-          )}
-          <View style={{ marginHorizontal: -16, marginTop: -10, marginBottom: -14 }}><Details title="Every number" what="the day-by-day line, yield against price, each strategy" onOpen={() => router.push(`/made?${new URLSearchParams({ a: account, ...(sol && sol !== account ? { s: sol } : {}) })}` as Href)} /></View>
-        </>}
-      </View>
-    </>
+    <View style={[st.pnl, st.pnlTop]}>
+      <MadeTop have={have} s={s} of />
+      {!s ? <Txt s={13} c={C.tx50} lh={19}>What you made: no record yet. {positions != null && positions > b.coverage.positions ? `${positions - b.coverage.positions} of your ${positions} the index has not read yet. ` : ''}The index draws one per position within a few hours of opening.</Txt> : <>
+        <Split s={s} />
+        {notIn.length > 0 && <Txt s={13} c={C.tx50} lh={19}>Not in what you made: {notIn.join(' · ')}.</Txt>}
+        {b.series.length > 1 && <PnlLine pts={b.series.map((p) => p.pnl)} up={s.total >= 0} />}
+        <View style={{ marginHorizontal: -16, marginTop: -10, marginBottom: -14 }}><Details title="Every number" what="the day-by-day line, yield against price, each strategy" onOpen={() => router.push(`/made?${new URLSearchParams({ a: account, ...(sol && sol !== account ? { s: sol } : {}) })}` as Href)} /></View>
+      </>}
+    </View>
   )
 }
 const Dot = ({ c }: { c: string }) => <Txt s={12.5} c={c}>●</Txt>
@@ -275,11 +278,20 @@ function PnlLine({ pts, up }: { pts: number[]; up: boolean }) {
   )
 }
 
-/** A position (the web's You `Position`): what it is, how far from the line, its value, what it made and its rate — its ticket (manage, share) a tap away. */
-function Position({ h, s }: { h: Holding; s: Strategy | null }) {
-  const line = holdingLine(h)
+const TONE = { bad: C.bad, warn: C.warn, ok: C.ok, '': C.tx50 } as Record<string, string>
+
+/**
+ * A position, once (the web's You `Position`; docs/you-unified.md): its name in Lite's words, its
+ * token and how it is held, how far from the line on a line of its own; its value, what it MADE —
+ * a fact, so it wears the colour — and what it earns a day, a forecast, in grey. Its ticket
+ * (manage, share) is a tap away. No figure from the index is no line, never a zero.
+ */
+function Position({ h, s, made }: { h: Holding; s: Strategy | null; /** a paper position's figure, off the paper ledger */ made?: number }) {
+  const title = `${moneyWord(h.asset, h.group)}${h.kind === 'borrow' ? ' loan' : ''}`
+  const row = holdingRow(h, title)
   // what it made since it was opened, the index's figure for it
   const pnl = useHoldingPnl(h)
+  const m = made ?? pnl?.pnlUsd ?? null
   const perDay = h.apr != null && h.kind !== 'borrow' && Math.abs(h.valueUsd * h.apr / 100 / 365) >= 0.01 ? h.valueUsd * h.apr / 100 / 365 : null
   const nav = useNav()
   const open = () => {
@@ -291,14 +303,73 @@ function Position({ h, s }: { h: Holding; s: Strategy | null }) {
     <Pressable onPress={open} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]}>
       <Tok sym={h.symbol} logo={h.logo} size={28} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Txt s={14.5} w={600} numberOfLines={1}>{moneyWord(h.asset, h.group)}{h.kind === 'borrow' ? ' loan' : ''}</Txt>
-        <Txt s={12} c={line.tone === 'bad' ? C.bad : line.tone === 'warn' ? C.warn : C.tx50} numberOfLines={1}>{h.kind === 'borrow' ? line.text.replace(/^A loan/, `owes ${usd(owedOf(h))}`) : line.text}{h.directional ? ' · managed in Pro' : ''}</Txt>
+        <Txt s={14.5} w={600} numberOfLines={1}>{title}</Txt>
+        <Txt s={12} c={C.tx50} numberOfLines={1}>{h.kind === 'borrow' ? row.what.replace(/A loan$/, `owes ${usd(owedOf(h))}`) : row.what}{h.directional ? ' · managed in Pro' : ''}</Txt>
+        {row.risk && <Txt s={12} c={TONE[row.risk.tone] ?? C.tx50} numberOfLines={1}>{row.risk.text}</Txt>}
       </View>
-      <View style={{ alignItems: 'flex-end' }}>
+      <View style={{ alignItems: 'flex-end', gap: 1 }}>
         <Txt w={700}>{usd(h.valueUsd)}</Txt>
-        {/* what it earns in dollars a day, the number the home leads with (hidden under a cent), and what it made */}
-        {perDay != null && <Txt s={12} c={perDay >= 0 ? C.ok : C.bad}>{signedMoney(perDay)} a day</Txt>}
-        {pnl && <Txt s={12} c={C.tx70}>{signedMoney(pnl.pnlUsd!)} made</Txt>}
+        {m != null && <Txt s={12} w={600} c={m >= 0 ? C.ok : C.bad}>{signedMoney(m)} made</Txt>}
+        {/* what it earns in dollars a day (hidden under a cent) */}
+        {perDay != null && <Txt s={12} c={C.tx50}>{signedMoney(perDay)} a day</Txt>}
+      </View>
+      <Txt c={C.tx40}>›</Txt>
+    </Pressable>
+  )
+}
+
+/** How many closed positions the fold lists; the older ones are Pro's (as on the board). */
+const CLOSED_SHOWN = 5
+const dayOf = (t: string) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+
+/**
+ * What you HAD, folded under what you have (docs/you-unified.md): the closed positions on the
+ * chains in scope, the same row with what each made where a live one has its value. The fold's
+ * head counts them off their keys (one request); each one's record is read only once it is
+ * opened, and then the head says what they made together. EVM only — the Solana index keeps no
+ * list of closed positions. A row opens its record (`/position`).
+ */
+function Closed({ account }: { account: string | undefined }) {
+  const [open, setOpen] = React.useState(false)
+  const liteByKey = useLiteByKey()
+  const { chainIds, allChains } = useChains()
+  const nav = useNav()
+  const { had, count, more, isLoading } = useClosedRecord(account, liteByKey, CLOSED_SHOWN, { enabled: open, chainIds: allChains ? undefined : chainIds })
+  if (!account || !count) return null
+  const sum = had.reduce((n, p) => n + p.pnlUsd, 0)
+  const loaded = open && !isLoading
+  return (
+    <View style={{ marginTop: 18 }}>
+      <Pressable onPress={() => setOpen((o) => !o)} style={st.fold} accessibilityRole="button" accessibilityState={{ expanded: open }}>
+        <Txt s={14} w={600} c={C.tx70} style={{ flex: 1 }}>Closed · {loaded && !more ? had.length : count}</Txt>
+        {loaded && had.length > 0 && <Txt s={13} w={600} c={sum >= 0 ? C.ok : C.bad}>{signedMoney(sum)} made{more ? ` on the last ${had.length}` : ''}</Txt>}
+        <Txt c={C.tx40}>{open ? '⌃' : '⌄'}</Txt>
+      </Pressable>
+      {open && (
+        <View style={{ gap: 6, marginTop: 6 }}>
+          {isLoading && !had.length ? [0, 1].map((i) => <View key={i} style={st.row}><Sk w={28} h={28} r={14} /><Sk w={140} /></View>)
+            : !had.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing that was ever at work.</Txt>
+            : had.map((p) => <ClosedRow key={p.key} p={p} account={account} logo={logoOf(liteByKey.get(p.strategyKey.toLowerCase())?.s)} />)}
+          {more > 0 && <Pressable onPress={() => nav.pro(`#/w/${account}`)} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 14 }}><Txt s={12.5} c={C.tx50}>{more} older closed position{more === 1 ? '' : 's'}, in Pro ›</Txt></Pressable>}
+        </View>
+      )}
+    </View>
+  )
+}
+const logoOf = (s: Strategy | undefined) => (s ? (s.kind === 'loop' ? s.logoLong : s.tokenLogo ?? s.logo) : undefined)
+
+function ClosedRow({ p, account, logo }: { p: BoardPosition; account: string; logo?: string }) {
+  const yearly = p.aprPct != null && Number.isFinite(p.aprPct) && Math.abs(p.aprPct) <= 100
+  return (
+    <Pressable onPress={() => router.push(`/position?${new URLSearchParams({ a: account, k: p.key })}` as Href)} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]} accessibilityHint="What this position made, day by day">
+      <View style={{ opacity: 0.6 }}><Tok sym={p.held[0] ?? '?'} logo={logo} size={28} /></View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Txt s={14.5} w={600} c={C.tx70} numberOfLines={1}>{p.title}</Txt>
+        <Txt s={12} c={C.tx50} numberOfLines={1}>{p.closed ? `Closed ${dayOf(p.closed.at)}` : p.sub}{p.closed?.avgUsd != null ? ` · ${usdShort(p.closed.avgUsd)} at work on average` : ''}</Txt>
+      </View>
+      <View style={{ alignItems: 'flex-end', gap: 1 }}>
+        <Txt w={700} c={p.pnlUsd >= 0 ? C.ok : C.bad}>{signedMoney(p.pnlUsd)}</Txt>
+        {yearly && <Txt s={12} c={C.tx50}>{pct(p.aprPct!, 1)} a year</Txt>}
       </View>
       <Txt c={C.tx40}>›</Txt>
     </Pressable>
@@ -315,5 +386,7 @@ const st = StyleSheet.create({
   pnl: { backgroundColor: C.b200, borderRadius: 18, paddingVertical: 18, paddingHorizontal: 20, gap: 12, overflow: 'hidden' },
   bar2: { flexDirection: 'row', height: 10, borderRadius: 999, overflow: 'hidden', backgroundColor: C.b400, gap: 2 },
   paperPill: { backgroundColor: PAPER.bg, borderWidth: 1, borderColor: PAPER.line, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  pnlTop: { marginTop: 14 },
+  fold: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44, paddingHorizontal: 14, borderRadius: 12, backgroundColor: C.b200 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.b200, borderRadius: 12 },
 })

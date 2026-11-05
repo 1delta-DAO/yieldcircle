@@ -82,6 +82,17 @@ export function debtAheadAt(book: LendingBook | null | undefined, apr: number): 
   return t
 }
 
+/**
+ * What a new borrow at `apr` can take, where the queue fills borrows (Flex): idle cash plus debt
+ * STRICTLY below the rate. Undefined where the debt token is minted and nothing has to fill.
+ */
+export function capacityAt(book: LendingBook | null | undefined, apr: number): number | undefined {
+  if (!book?.fill) return undefined
+  let t = book.fill.idle
+  for (const l of book.levels) if (l.aprPct < apr - 1e-9) t += l.assets
+  return t
+}
+
 /** A rate on the 1 bp grid, inside the range. */
 export const clampRate = (u: UserSetRate, apr: number): number => Math.min(u.max, Math.max(u.min, Math.round(apr * 100) / 100))
 

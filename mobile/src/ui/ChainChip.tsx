@@ -15,13 +15,19 @@ export function useChainLabel() {
 }
 
 /**
+ * A logo for a chain `/v1/data/chains` does not list — Solana, the one non-EVM chain (the web's
+ * `CHAIN_INFO.solana.logo`). The directory's wins when it has one.
+ */
+const OWN_LOGO: Record<string, string> = { solana: 'https://raw.githubusercontent.com/1delta-DAO/chains/main/solana.webp' }
+
+/**
  * A chain's mark: the API's logo (`/v1/data/chains`), else its name's letters on a disc (`Tok`'s
  * fallback). `ring` is the colour of what it sits on, so overlapped marks cut cleanly into each other.
  */
 export function ChainMark({ id, size = 16, ring = C.b200 }: { id: string; size?: number; ring?: string }) {
   const meta = useChainMeta()
   const label = CHAINS.find((c) => c.id === id)?.label ?? id
-  return <Tok sym={label} logo={meta[id]?.logo} size={size} ring={{ w: 1.5, color: ring }} />
+  return <Tok sym={label} logo={[meta[id]?.logo, OWN_LOGO[id]]} size={size} ring={{ w: 1.5, color: ring }} />
 }
 
 /**

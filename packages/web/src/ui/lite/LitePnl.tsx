@@ -18,7 +18,7 @@ import { proHref, walletHref } from '../../state/AppState'
 /**
  * What you made (docs/lite.md §6), for Lite: one number, one bar, one sentence — the lifetime PnL
  * of your open positions, and how much of it was farming and how much the coin's price. Each
- * position's own figure is on its row in Your money (`useHoldingPnl`), not listed here a second
+ * position's own figure is on its row in Positions (`useHoldingPnl`), not listed here a second
  * time (tickets/0017). The same index record Pro's wallet page shows in full (`WalletPnl`);
  * "Every number" opens that page's version in a drawer. A paper account has its
  * own ledger: what the strategies earned, and its daily line.
@@ -114,8 +114,9 @@ function Waiting({ b, live, syncing, gaps, failed }: { b: AccountPnlBook; live?:
 
 /**
  * The paper account, on par with the real one (pos-indexer tickets/0093): the same figure, the same
- * farming / price bar and sentence, the same per-position rows and the same "Every number" drawer
- * — off the paper ledger (`paperPnlBook`), so nothing ever waits to be drawn. What paper adds is
+ * farming / price bar and sentence and the same "Every number" drawer — off the paper ledger
+ * (`paperPnlBook`), so nothing ever waits to be drawn. Each position's own figure is on its row in
+ * Positions, as the real one's is (docs/you-unified.md). What paper adds is
  * the friction line (its costs are known to the cent) and the return on what was put in.
  */
 function PaperMade({ account }: { account: string }) {
@@ -155,17 +156,6 @@ function PaperMade({ account }: { account: string }) {
           <p className="lpnl-word">{s.word}</p>
           {b.frictionUsd > 0.005 && <p className="lpnl-word t50">{usdShort(b.frictionUsd)} of it went on fees, swaps and bridges.</p>}
           {pts.length > 1 ? <Spark pts={pts} up={s.total >= 0} /> : <p className="lpnl-word t50">The day-by-day line starts after a second day.</p>}
-          {pb.positions.length > 0 && (
-            <div className="lpnl-pos">
-              {pb.positions.slice(0, 4).map((p) => (
-                <div key={p.key} className="lpnl-p">
-                  <span className="lpnl-pn"><b>{p.title}</b><small className="t50">{p.sub} · {usdShort(p.equityUsd)} in it</small></span>
-                  <b className={p.pnlUsd >= 0 ? 'ok' : 'bad'}>{signedMoney(p.pnlUsd)}</b>
-                </div>
-              ))}
-              {pb.positions.length > 4 && <div className="lpnl-p t50"><small>and {pb.positions.length - 4} more</small></div>}
-            </div>
-          )}
           <button type="button" className="lite-details lpnl-more" onClick={() => setMore(true)}><span><b>Every number</b><small>each position, what is at work, what it cost</small></span><span aria-hidden>›</span></button>
           <LiteDetailsDrawer open={more} onClose={() => setMore(false)} pro={proHref(walletHref(account))}>
             <div className="lpnl-full"><PaperWalletBook account={account} inScope={() => true} /></div>

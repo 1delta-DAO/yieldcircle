@@ -245,6 +245,9 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
     // a venue may answer a sign step first (`actions.signs`: Inverse's ALE borrows on a per-action permit); paper asks, never signs
     const env = await withSignature(await loopOpen(openParams), paper.active ? null : (td) => signTypedDataAsync(td as never))
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
+    // Solana: the quote stands, nothing was built. Worded for the paper ladder's FUNDS_ONLY: the paper
+    // address holds nothing on chain, which is no refusal of the action
+    if (env.data?.insufficientBalance) throw new Error(`Not enough ${chosen?.symbol ?? 'margin'} in this wallet to open the loop.`)
     if (chosen?.role === 'native' && !paysNative(env.actions)) throw new Error(`This loop does not take ${chosen.symbol} directly. Pay with another asset.`)
     const route = Math.max(0, (env.data?.quotes ?? []).findIndex((r) => r.deltas?.aggregator === routeName))
     return [...pre, ...stepsFrom(env.actions, `Open ${num(L, 2)}× loop${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)} term` : s.dueAt ? ` · due ${due}` : ''}`, s.chainId, route)]

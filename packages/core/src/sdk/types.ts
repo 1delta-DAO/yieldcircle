@@ -215,6 +215,11 @@ export interface LoopQuoteData {
   economics?: TradeEconomics | null
   simulation?: { pre?: { healthFactor?: number }; post?: { healthFactor?: number } }
   /**
+   * Solana: the wallet does not hold the margin it named (`required` against `held`, raw units of
+   * `mint`), so this is the quote and nothing was built. A preview shows it; a build refuses.
+   */
+  insufficientBalance?: { mint: string; required: string; held: string }
+  /**
    * Loopscale only: the offer the loan fills at this size and tenor. Every figure in CBPS (1e6 = 100 %):
    * `apy` the fixed borrow rate (a simple annual rate, despite the name), `ltv` the most it lends,
    * `lqt` the liquidation threshold; `amount` the offer's depth in principal units.

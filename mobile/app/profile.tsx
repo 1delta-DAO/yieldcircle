@@ -178,7 +178,7 @@ function ModeSwitch({ mode }: { mode: Mode }) {
     <View style={{ alignItems: 'center', gap: 12, marginTop: 28 }}>
       <Seg items={[{ id: 'lite', word: 'Lite' }, { id: 'pro', word: 'Pro' }]} value={mode} onChange={choose} />
       <Txt s={12.5} c={C.tx50} style={{ textAlign: 'center' }}>{mode === 'lite' ? 'The best rates in plain words. Pro has every venue, chain, tier and borrowing.' : 'Every venue, chain, tier and borrowing. Lite has the best rates in plain words.'}</Txt>
-      <Pressable onPress={() => router.push('/probe')}><Txt s={12} c={C.tx40}>Wallet probe ›</Txt></Pressable>
+      {__DEV__ && <Pressable onPress={() => router.push('/probe')}><Txt s={12} c={C.tx40}>Wallet probe ›</Txt></Pressable>}
     </View>
   )
 }

@@ -2661,3 +2661,5 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .al-note-h{display:flex;align-items:center;gap:8px;font-size:13.5px}
 .al-note-b{font-size:12.5px;line-height:1.45;margin-top:3px}
 @media (max-width:640px){.al-rule{grid-template-columns:minmax(0,1fr) auto;padding:10px 12px}.al-kind{grid-column:1/-1}.al-state{grid-column:1}.al-f{min-width:0;flex:1 1 140px}}
+.pnl-svg.paper-sm{height:120px}
+.pnl-tick.move{stroke:var(--tx40)}

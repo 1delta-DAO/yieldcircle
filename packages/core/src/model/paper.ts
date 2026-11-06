@@ -198,6 +198,8 @@ export interface PaperPosition {
   rate: PaperRate
   /** dollars put in, net of the share already taken out — what the PnL is measured against */
   basisUsd: number
+  /** what amounts added after the open had already moved against the stamped prices: no gain of this position's, kept out of its price part */
+  addedMoveUsd?: number
   entryCostUsd: number
   openedAt: number
 }
@@ -214,6 +216,12 @@ export interface PaperLedger {
   putInUsd: number
   /** realized PnL: what closed positions, withdrawals and trades gained or lost against their basis */
   realizedUsd: number
+  /**
+   * The part of `realizedUsd` that was the legs' price move rather than what the position earned:
+   * without it a position's price gain turns into "farming" the moment it is withdrawn or closed.
+   * Absent on a ledger with no exit since it existed.
+   */
+  realizedPriceUsd?: number
   topups: number
   positions: PaperPosition[]
   inflight: PaperTransfer[]
@@ -349,6 +357,31 @@ export function legPrices(p: PaperPosition, price?: PriceFn): { pHeld: number; p
   }
   return { pHeld: priceOr(price, p.chainId, p.snap.held.address, p.snap.held.priceUsd) ?? 0, pDebt }
 }
+/** The price move on these amounts since the position's stamped open prices. */
+const moveOn = (p: PaperPosition, units: number, debtUnits: number, pHeld: number, pDebt: number) =>
+  units * (pHeld - p.snap.held.priceUsd) - (p.snap.debt ? debtUnits * (pDebt - p.snap.debt.priceUsd) : 0)
+/** How much of a position's value is price: its legs' move since open, less what came in at later prices. */
+export const priceMoveOf = (p: PaperPosition, units: number, debtUnits: number, pHeld: number, pDebt: number) =>
+  moveOn(p, units, debtUnits, pHeld, pDebt) - (p.addedMoveUsd ?? 0)
+/** Amounts added after the open came in at today's prices: that is no move of theirs. */
+const addedAt = (p: PaperPosition, units: number, debtUnits: number, pHeld: number, pDebt: number) => {
+  p.addedMoveUsd = (p.addedMoveUsd ?? 0) + moveOn(p, units, debtUnits, pHeld, pDebt)
+}
+/** Amounts leaving take their price move along into `realizedPriceUsd`. Call before the units change. */
+const tookOut = (l: PaperLedger, p: PaperPosition, units: number, debtUnits: number, pHeld: number, pDebt: number) => {
+  const share = p.units > 0 ? Math.min(1, units / p.units) : 1
+  const added = (p.addedMoveUsd ?? 0) * share
+  l.realizedPriceUsd = (l.realizedPriceUsd ?? 0) + moveOn(p, units, debtUnits, pHeld, pDebt) - added
+  p.addedMoveUsd = (p.addedMoveUsd ?? 0) - added
+}
+/** Whether the feed answered for every leg a position's value reads: otherwise `legPrices` fell back to its stamped price. */
+export function positionPriced(p: PaperPosition, price?: PriceFn): boolean {
+  const has = (leg: PaperLeg) => priceOr(price, p.chainId, leg.address) != null
+  if (p.snap.debt && !has(p.snap.debt)) return false
+  if (p.snap.mode !== 'peg') return has(p.snap.held)
+  const ref = p.kind !== 'simple' ? p.snap.debt : p.snap.money
+  return !ref || has(ref)
+}
 export interface PaperValue { units: number; debtUnits: number; heldUsd: number; debtUsd: number; equityUsd: number; leverage: number | null; health: number | null; pnlUsd: number; aprNet: number }
 export function valueOf(p: PaperPosition, at: number, price?: PriceFn): PaperValue {
   const { units, debtUnits } = accrued(p, at)
@@ -366,6 +399,10 @@ export interface PaperBook {
   navUsd: number
   /** realized + the open positions' value over their basis — what strategies earned, not what the gas coins did */
   pnlUsd: number
+  /** the part of `pnlUsd` that is the legs' price move; the rest is what the strategies farmed, costs included */
+  priceUsd: number
+  /** every open position was valued at the feed's prices, not at a stamped fallback */
+  priced: boolean
   returnPct: number
   annualUsd: number
   netAprPct: number | null
@@ -378,7 +415,7 @@ export interface PaperBook {
 }
 export function bookOf(l: PaperLedger, at: number, price?: PriceFn): PaperBook {
   let bankUsd = 0, inflightUsd = 0, deployedUsd = 0, open = 0, annualUsd = 0
-  let worst: number | null = null
+  let worst: number | null = null, priceUsd = l.realizedPriceUsd ?? 0, priced = true
   const chains = new Set<string>()
   for (const [c, b] of Object.entries(l.bank)) for (const [t, u] of Object.entries(b)) bankUsd += u * (priceOr(price, c, t) ?? starterRef(c, t) ?? 0)
   for (const t of l.inflight) inflightUsd += t.units * (priceOr(price, t.toChainId, t.token) ?? starterRef(t.toChainId, t.token) ?? 0)
@@ -386,13 +423,16 @@ export function bookOf(l: PaperLedger, at: number, price?: PriceFn): PaperBook {
     const v = valueOf(p, at, price)
     deployedUsd += v.equityUsd
     open += v.pnlUsd
+    const { pHeld, pDebt } = legPrices(p, price)
+    priceUsd += priceMoveOf(p, v.units, v.debtUnits, pHeld, pDebt)
+    if (!positionPriced(p, price)) priced = false
     annualUsd += (v.heldUsd * supplyAt(p, at) - v.debtUsd * p.rate.borrow) / 100
     if (v.health != null) worst = worst == null ? v.health : Math.min(worst, v.health)
     chains.add(p.chainId)
   }
   const pnlUsd = l.realizedUsd + open
   return {
-    bankUsd, inflightUsd, deployedUsd, navUsd: bankUsd + inflightUsd + deployedUsd, pnlUsd,
+    bankUsd, inflightUsd, deployedUsd, navUsd: bankUsd + inflightUsd + deployedUsd, pnlUsd, priceUsd, priced,
     returnPct: l.putInUsd > 0 ? (pnlUsd / l.putInUsd) * 100 : 0,
     annualUsd, netAprPct: deployedUsd > 0 ? (annualUsd / deployedUsd) * 100 : null,
     worstHealth: worst, positions: l.positions.length, chains: [...chains].sort(),
@@ -564,8 +604,9 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
         const p = findPos(l, op.into)
         if (p.kind !== op.kind || p.chainId !== c || p.strategyId !== op.strategyId) throw new PaperError('can only add to the same strategy')
         // a saving keeps its first open's price: units bought at today's are restated at it, so their value is today's
-        const { pHeld } = legPrices(p, ctx.price)
+        const { pHeld, pDebt } = legPrices(p, ctx.price)
         const conv = p.snap.mode === 'peg' && heldP && pHeld > 0 ? heldP / pHeld : 1
+        addedAt(p, units * conv, debtUnits, pHeld, pDebt)
         p.units += units * conv; p.debtUnits += debtUnits; p.basisUsd += basis
         p.entryCostUsd += nonNeg(op.entryCostUsd ?? 0, 'entryCostUsd')
         p.rate = clampRate(op.rate)
@@ -602,6 +643,7 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       // the position is collateral less debt: what was put in, net of what came out
       const basis = collU * heldP - debtU * debtP
       if (p0) {
+        addedAt(p0, collU, debtU, heldP, debtP)
         p0.units = units; p0.debtUnits = debtUnits; p0.basisUsd += basis
         p0.rate = clampRate({ ...op.rate, supply: op.rate.supply })
       } else {
@@ -622,6 +664,7 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       const { pHeld, pDebt } = legPrices(p, ctx.price)
       fee(p.chainId, 'repay')
       if (repay > 0) debit(l, p.chainId, p.snap.debt!.address, repay)
+      tookOut(l, p, out, repay, pHeld, pDebt)
       p.debtUnits -= repay; p.units -= out
       if (p.debtUnits <= DUST) p.debtUnits = 0
       if (p.units <= DUST) p.units = 0
@@ -655,6 +698,7 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       if (lands > ctx.now) l.inflight.push({ id: `${p.id}:${l0.seq + 1}`, fromChainId: p.chainId, toChainId: p.chainId, token: tokenKey(p.chainId, op.receive.token), units: recvU, bridge: op.queue ? String(op.queue).slice(0, 40) : 'exit queue', sentAt: ctx.now, arrivesAt: lands })
       else credit(l, p.chainId, op.receive.token, recvU)
       l.realizedUsd += (outUsd ?? units * pHeld) - basisOut
+      tookOut(l, p, units, 0, pHeld, 0)
       p.basisUsd -= basisOut
       p.units -= units
       if (op.all || p.units <= DUST || share > 1 - 1e-9) l.positions = l.positions.filter((x) => x !== p)
@@ -668,6 +712,7 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       bound(addU * pHeld, addD * pDebt, 'leverage step')
       fee(p.chainId, 'lever')
       fr.entryUsd += nonNeg(op.costUsd ?? 0, 'costUsd')
+      addedAt(p, addU, addD, pHeld, pDebt)
       p.units += addU; p.debtUnits += addD
       p.entryCostUsd += nonNeg(op.costUsd ?? 0, 'costUsd')
       if (p.snap.liqLtv && pDebt > 0 && (p.units * pHeld * p.snap.liqLtv) / (p.debtUnits * pDebt) < 1) throw new PaperError('this would put the loop past liquidation — pick a lower leverage')
@@ -692,6 +737,7 @@ export function apply(l0: PaperLedger, op: PaperOp, ctx: ApplyCtx): PaperLedger 
       const basisOut = p.basisUsd * share
       for (const r of op.receive) credit(l, p.chainId, r.token, r.units)
       l.realizedUsd += (priced ? outUsd : eqOut) - basisOut
+      tookOut(l, p, units, repay, pHeld, pDebt)
       p.basisUsd -= basisOut
       p.units -= units; p.debtUnits -= repay
       if (op.all || p.units <= DUST) {

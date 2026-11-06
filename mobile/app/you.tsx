@@ -28,8 +28,8 @@ import { BalanceChip } from '../src/ui/TopBar'
 import { IconBack, IconFlame } from '../src/ui/icons'
 import { openStrategy } from '../src/ui/lite'
 import { PAPER, PaperNotice, PaperOffer, paperStatusWord } from '../src/ui/paper'
-import { usePaperDaily } from '@yieldcircle/app/social/queries'
 import { usePaper } from '../src/paper'
+import { PaperPnlChart } from '../src/ui/PaperPnlChart'
 import { paperPnlBook } from '@yieldcircle/core/model/paperView'
 import { Txt } from '../src/ui/Txt'
 import { Details } from '../src/ticket/parts'
@@ -123,7 +123,6 @@ const PaperPill = () => <View style={st.paperPill}><Txt s={11} w={600} c={PAPER.
  */
 function PaperMade({ account, have }: { account: string; have: React.ReactNode }) {
   const paper = usePaper()
-  const daily = usePaperDaily(account, 90)
   // accrual moves the figure by the second: re-folded twice a minute
   const [, tick] = React.useReducer((x: number) => x + 1, 0)
   React.useEffect(() => { const t = setInterval(tick, 30_000); return () => clearInterval(t) }, [])
@@ -131,7 +130,6 @@ function PaperMade({ account, have }: { account: string; have: React.ReactNode }
   if (!l || !b) return <View style={[st.pnl, st.pnlTop]}>{have}</View>
   const pb = paperPnlBook(l, paper.viewNow, paper.price)
   const s = pnlSummary(pb)
-  const pts = (daily.data?.days ?? []).map((d) => d.pnlUsd)
   const sync = paperStatusWord(paper)
   return (
     <>
@@ -142,7 +140,7 @@ function PaperMade({ account, have }: { account: string; have: React.ReactNode }
         {!s ? <Txt s={13} c={C.tx50} lh={19}>Nothing made yet. Open a deposit or a loop on paper and its figure shows on its row at once, accruing by the minute.</Txt> : <>
           <Split s={s} />
           <Txt s={13} c={C.tx50}>{pct(b.returnPct, 2)} of what was put in{b.frictionUsd > 0.005 ? ` · ${usdShort(b.frictionUsd)} went on fees, swaps and bridges` : ''}</Txt>
-          {pts.length > 1 ? <PnlLine pts={pts} up={s.total >= 0} /> : <Txt s={12.5} c={C.tx50}>The day-by-day line starts after a second day.</Txt>}
+          <PaperPnlChart account={account} />
           <View style={{ marginHorizontal: -16, marginTop: -10, marginBottom: -14 }}><Details title="Every number" what="each position, what is at work, what it cost" onOpen={() => router.push('/paper-book')} /></View>
         </>}
       </View>

@@ -19,9 +19,14 @@ export const postPaperOp = (e: PaperOpEnvelope) =>
   call<PaperOpResult>('/paper/ops', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(e) })
 export const paperBook = (account: string) =>
   call<{ ledger: PaperLedger; book: PaperBook; computedAt: string }>(`/paper/book/${account.toLowerCase()}`)
-export interface PaperDay { day: string; navUsd: number; pnlUsd: number; putInUsd: number; returnPct: number }
+/** `priceUsd`: the part of `pnlUsd` that is price; absent or null on a day from before the server kept it */
+export interface PaperDay { day: string; navUsd: number; pnlUsd: number; putInUsd: number; returnPct: number; priceUsd?: number | null }
+/** One hour's valuation (`paper.book_hourly`) */
+export interface PaperHour { t: string; navUsd: number; pnlUsd: number; priceUsd: number; putInUsd: number }
 export const paperDaily = (account: string, days = 90) =>
   call<{ days: PaperDay[] }>(`/paper/book/${account.toLowerCase()}/daily?days=${days}`)
+export const paperHourly = (account: string, days = 14) =>
+  call<{ points: PaperHour[] }>(`/paper/book/${account.toLowerCase()}/hourly?days=${days}`)
 export interface PaperBoardRow {
   account: string; sol: string | null; handle: string | null; displayName: string | null; tags: string[]
   navUsd: number; pnlUsd: number; returnPct: number; netAprPct: number | null; annualUsd: number; deployedUsd: number

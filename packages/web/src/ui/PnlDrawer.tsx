@@ -280,7 +280,7 @@ function EventRow({ e, s, f, since }: { e: SeriesEvent; s: PositionSeries; f: Fm
  * where the chart draws it. In order of priority — a label that would sit on
  * one already placed (the zero line just above the low) is left out.
  */
-function yLabels(vs: number[], y: (v: number) => number, h: number, fmt: (v: number) => string) {
+export function yLabels(vs: number[], y: (v: number) => number, h: number, fmt: (v: number) => string) {
   const placed: number[] = []
   return vs.map((v, i) => {
     const at = y(v)

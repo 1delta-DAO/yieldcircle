@@ -308,3 +308,74 @@ describe('loans (tickets/0008)', () => {
     expect(valueOf(part.positions[0], T0, feed()).pnlUsd).toBeCloseTo(0)
   })
 })
+
+describe('the farming / price split across moves', () => {
+  const E = 2500, L = 4
+  const liveSnap: PaperSnap = {
+    asset: 'ETH', group: 'ETH', label: 'wstETH', venue: 'Aave', marketUid: 'AAVE_V3:42161:wsteth',
+    held: { symbol: 'wstETH', decimals: 18, address: WSTETH_ARB, priceUsd: 3000 }, mode: 'live',
+  }
+  const deposit: PaperOp = { t: 'open', id: 'd1', chainId: '42161', kind: 'simple', strategyId: 's:wst', snap: liveSnap, pay: { token: ZERO_EVM, units: 1 }, units: E / 3000, debtUnits: 0, rate: { supply: 0, borrow: 0 }, entryCostUsd: 0 }
+  const loop: PaperOp = { t: 'open', id: 'l1', chainId: '42161', kind: 'loop', strategyId: 'l:wst|weth', snap: { ...loopSnap, mode: 'live' }, pay: { token: ZERO_EVM, units: 1 }, units: (E * L) / 3000, debtUnits: (E * (L - 1)) / 2500, rate: { supply: 0, borrow: 0 }, entryCostUsd: 0 }
+  const up = { [`42161:${WSTETH_ARB}`]: 3600 }
+  const split = (l: PaperLedger, days: number, over: Record<string, number>) => { const b = bookOf(l, T0 + days * DAY, feed(over)); return { price: b.priceUsd, farmed: b.pnlUsd - b.priceUsd } }
+
+  it('a price gain stays price when part of the deposit is withdrawn, and when all of it is', () => {
+    const l = apply(genesis(), deposit, ctx())
+    const before = split(l, 1, up)
+    expect(before.price).toBeCloseTo(500, 6)
+    const half = apply(l, { t: 'withdraw', id: 'd1', units: E / 6000, receive: { token: WSTETH_ARB, units: E / 6000 } }, ctx(1, up))
+    expect(split(half, 1, up).price).toBeCloseTo(500, 6)
+    const gone = apply(half, { t: 'withdraw', id: 'd1', units: 0, all: true, receive: { token: WSTETH_ARB, units: E / 6000 } }, ctx(1, up))
+    expect(gone.positions).toHaveLength(0)
+    expect(gone.realizedPriceUsd).toBeCloseTo(500, 6)
+    expect(split(gone, 2, up).price).toBeCloseTo(500, 6)
+  })
+  it('a closed loop keeps its price part, debt side included', () => {
+    const l = apply(genesis(), loop, ctx())
+    const move = { [`42161:${WSTETH_ARB}`]: 3300, [`42161:${WETH_ARB}`]: 2600 }
+    const before = split(l, 1, move).price
+    expect(before).toBeCloseTo((E * L) / 3000 * 300 - (E * (L - 1)) / 2500 * 100, 6)
+    const closed = apply(l, { t: 'reduce', id: 'l1', units: 0, debtUnits: 0, all: true, receive: [] }, ctx(1, move))
+    expect(split(closed, 1, move).price).toBeCloseTo(before, 6)
+  })
+  it('levering up at a later price is no gain', () => {
+    const l = apply(genesis(), loop, ctx())
+    const before = split(l, 1, up).price
+    const more = apply(l, { t: 'lever', id: 'l1', addUnits: 0.48, addDebt: 0.7 }, ctx(1, up))
+    expect(split(more, 1, up).price).toBeCloseTo(before, 6)
+    // … and what it adds moves with the position from there
+    const next = { [`42161:${WSTETH_ARB}`]: 3700 }
+    expect(split(more, 1, next).price - split(l, 1, next).price).toBeCloseTo(0.48 * 100, 6)
+  })
+  it('adding to a deposit at a later price is no gain', () => {
+    const l = apply(genesis(), deposit, ctx())
+    const more = apply(l, { ...deposit, into: 'd1', units: 0.1, pay: { token: ZERO_EVM, units: 0.15 } } as PaperOp, ctx(1, up))
+    expect(split(more, 1, up).price).toBeCloseTo(split(l, 1, up).price, 6)
+  })
+  it('an added amount that leaves takes its share of what it brought in', () => {
+    const first = { ...deposit, units: 0.25, pay: { token: ZERO_EVM, units: 0.3 } } as PaperOp
+    const l = apply(apply(genesis(), first, ctx()), { ...first, into: 'd1', pay: { token: ZERO_EVM, units: 0.4 } } as PaperOp, ctx(1, up))
+    const before = split(l, 1, up).price
+    const u = l.positions[0].units / 2
+    const half = apply(l, { t: 'withdraw', id: 'd1', units: u, receive: { token: WSTETH_ARB, units: u } }, ctx(1, up))
+    expect(split(half, 1, up).price).toBeCloseTo(before, 6)
+  })
+  it('a loan keeps its price part through a repay', () => {
+    const snap: PaperSnap = { ...liveSnap, label: 'loan', held: { symbol: 'WETH', decimals: 18, address: WETH_ARB, priceUsd: 2500 }, debt: { symbol: 'USDC', decimals: 6, address: USDC_ARB, priceUsd: 1 }, liqLtv: 0.8, maxLtv: 0.7 }
+    const l = apply(genesis(), { t: 'borrow', id: 'b1', chainId: '42161', strategyId: 'b:1', snap, collateral: { token: ZERO_EVM, units: 0.5 }, debtUnits: 500, rate: { supply: 0, borrow: 0 } } as PaperOp, ctx())
+    const move = { [`42161:${WETH_ARB}`]: 3000, [`42161:${ZERO_EVM}`]: 3000 }
+    const before = split(l, 1, move).price
+    expect(before).toBeCloseTo(250, 6)
+    const repaid = apply(l, { t: 'repay', id: 'b1', debtUnits: 0, repayAll: true, withdraw: 0, withdrawAll: true }, ctx(1, move))
+    expect(repaid.positions).toHaveLength(0)
+    expect(split(repaid, 1, move).price).toBeCloseTo(before, 6)
+  })
+  it('a position the feed cannot price makes the book unpriced, and a stamped fallback never moves it', () => {
+    const l = apply(genesis(), deposit, ctx())
+    expect(bookOf(l, T0, feed()).priced).toBe(true)
+    const gap: PriceFn = (c, t) => (t === WSTETH_ARB ? undefined : feed()(c, t))
+    expect(bookOf(l, T0, gap).priced).toBe(false)
+    expect(bookOf(l, T0, gap).priceUsd).toBeCloseTo(0, 6)
+  })
+})

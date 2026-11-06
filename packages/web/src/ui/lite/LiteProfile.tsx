@@ -2,7 +2,7 @@ import React from 'react'
 import type * as idx from '@yieldcircle/core/index/api'
 import { boardWallets } from '@yieldcircle/core/model/lite'
 import { liteHref, proHref, useApp, walletHref } from '../../state/AppState'
-import { normAddr } from '@yieldcircle/core/model/address'
+import { isEvmAddr, normAddr } from '@yieldcircle/core/model/address'
 import { labelFor, shortAddr } from '@yieldcircle/core/identity/name'
 import { useFeedPage, useRateLeaders, useTopEarners } from '@yieldcircle/app/index/queries'
 import { useLiteMenu } from '@yieldcircle/app/lite'
@@ -15,6 +15,7 @@ import { useLiteByKey, WalletPositions } from './LiteBoard'
 import { rowOfTx } from './LiteBits'
 import { Moves } from './LiteSocial'
 import { ProfileWallets } from '../LinkedWallets'
+import { PaperWalletBook } from '../PaperPanel'
 
 /**
  * A wallet's profile in Lite (docs/lite-social-search.md §4.3, fomo's profile): who it is, who
@@ -29,6 +30,8 @@ export function LiteProfile({ addr }: { addr: string }) {
   React.useEffect(() => { if (own) location.replace(liteHref('you')) }, [own])
   const p = useProfile(addr).data?.profile ?? null
   const name = labelFor(addr, p)
+  // a paper account's book is the paper ledger's: the index has nothing to say about it
+  const paperBook = !!p?.tags?.includes('paper') && isEvmAddr(addr)
   const followers = useFollowers(addr)
   const f = useMyFollows(account)
   const mutual = (followers.data?.followers ?? []).map((x) => normAddr(x.account)).filter((a) => f.wallets.includes(a))
@@ -95,7 +98,12 @@ export function LiteProfile({ addr }: { addr: string }) {
         <FollowButton kind="wallet" target={addr} />
       </header>
 
-      {nothingYet ? (
+      {paperBook ? (
+        <section className="sec lite-sec">
+          <div className="sec-h"><h2>On paper</h2><span className="sub">play money on real rates, never on chain</span></div>
+          <PaperWalletBook account={addr} inScope={() => true} chart />
+        </section>
+      ) : nothingYet ? (
         <div className="card lite-prof-empty">
           <b>Nothing on record for this wallet yet</b>
           <p className="t50">The index has drawn no position for it. A new one shows here within a few hours of opening; its explorers are under the address above.</p>

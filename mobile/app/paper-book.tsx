@@ -2,14 +2,13 @@ import React from 'react'
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import Svg, { Line, Path } from 'react-native-svg'
 import { MAX_TOPUPS, type PaperBook } from '@yieldcircle/core/model/paper'
 import { metaKey, paperHoldings, paperPnlBook } from '@yieldcircle/core/model/paperView'
 import { signedMoney } from '@yieldcircle/core/model/lite'
 import { num, pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
-import { usePaperDaily } from '@yieldcircle/app/social/queries'
 import { usePaper } from '../src/paper'
+import { PaperPnlChart } from '../src/ui/PaperPnlChart'
 import { C } from '../src/theme'
 import { Btn, Seg } from '../src/ui/bits'
 import { IconBack } from '../src/ui/icons'
@@ -26,7 +25,6 @@ const DAYS = ['0', '7', '30', '90'] as const
 export default function PaperBookScreen() {
   const insets = useSafeAreaInsets()
   const paper = usePaper()
-  const daily = usePaperDaily(paper.session?.evm, 90)
   const [bank, setBank] = React.useState(false)
   React.useEffect(() => { if (paper.active) void paper.sync() }, [paper.active]) // eslint-disable-line react-hooks/exhaustive-deps
   const l = paper.ledger, b = paper.book
@@ -34,7 +32,6 @@ export default function PaperBookScreen() {
   const rows = l ? paperHoldings(l, at, paper.price) : []
   const made = new Map((l ? paperPnlBook(l, at, paper.price).positions : []).map((p) => [`paper:${p.key}`, p]))
   const balances = l ? Object.entries(l.bank).flatMap(([c, toks]) => Object.entries(toks).map(([t, u]) => ({ c, t, u, m: paper.tokens[metaKey(c, t)], p: paper.price(c, t) }))).filter((r) => r.u > 0).sort((a, z) => (z.p ?? 0) * z.u - (a.p ?? 0) * a.u) : []
-  const pts = (daily.data?.days ?? []).map((d) => d.pnlUsd)
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <View style={[st.bar, { paddingTop: insets.top, height: 60 + insets.top }]}>
@@ -53,8 +50,8 @@ export default function PaperBookScreen() {
             <Friction b={b} />
           </View>
 
-          <Txt s={16} w={600} style={st.h}>Day by day</Txt>
-          {pts.length > 1 ? <Spark pts={pts} /> : <Txt s={12.5} c={C.tx50}>{daily.isLoading ? '' : 'The daily line starts after a second day.'}</Txt>}
+          <Txt s={16} w={600} style={st.h}>Over time</Txt>
+          {paper.session && <PaperPnlChart account={paper.session.evm} />}
 
           <Txt s={16} w={600} style={st.h}>Each position</Txt>
           {!rows.length && <Txt s={13} c={C.tx50}>Nothing at work yet — it is all in the paper bank.</Txt>}
@@ -129,20 +126,6 @@ function Friction({ b }: { b: PaperBook }) {
   const parts = ([['swaps', f.tradeUsd], ['bridges', f.bridgeUsd], ['network fees', f.gasUsd], ['loop entries', f.entryUsd], ['exits', f.exitUsd]] as const).filter(([, v]) => v > 0.005)
   return <Stat k="Friction so far" v={b.frictionUsd > 0 ? `−${costWord(b.frictionUsd)}` : '$0'} tone={b.frictionUsd > 0 ? C.warn : undefined}
     s={parts.length ? parts.slice().sort((a, z) => z[1] - a[1]).slice(0, 2).map(([k, v]) => `${k} ${costWord(v)}`).join(' · ') : 'fees, slippage, bridges'} />
-}
-
-/** What the strategies earned, one point a day as the server valued it, with its zero. */
-function Spark({ pts }: { pts: number[] }) {
-  const w = 340, h = 64
-  const lo = Math.min(0, ...pts), hi = Math.max(0, ...pts), span = hi - lo || 1
-  const x = (i: number) => 2 + (i * (w - 4)) / Math.max(1, pts.length - 1), y = (v: number) => 3 + ((hi - v) * (h - 6)) / span
-  const d = pts.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')
-  return (
-    <Svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-      <Line x1={2} x2={w - 2} y1={y(0)} y2={y(0)} stroke={C.line} strokeDasharray="3 4" />
-      <Path d={d} fill="none" stroke={PAPER.fg} strokeWidth={1.8} />
-    </Svg>
-  )
 }
 
 const st = StyleSheet.create({

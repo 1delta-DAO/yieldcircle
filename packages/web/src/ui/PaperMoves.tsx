@@ -98,7 +98,7 @@ export function usePaperLedgerFor(account: string | undefined) {
   const ledger = local && (!remote || local.seq >= remote.seq) ? local : remote ?? local
   // someone else's book: the starter tokens at their reference prices, positions at their own stamped prices
   const price: PriceFn = mine ? paper.price : (c, t) => starterRef(c, t)
-  return { ledger, price, mine, loading: !ledger && server.isLoading, error: !ledger && server.isError }
+  return { ledger, price, mine, serverBook: server.data?.book ?? null, loading: !ledger && server.isLoading, error: !ledger && server.isError }
 }
 /** The book on the chains in scope only — what the page's chain filter says, like the chip and the moves. */
 export function scopedBook(l: PaperLedger | null, inScope: (chainId: string) => boolean, price: PriceFn): PaperBook | null {

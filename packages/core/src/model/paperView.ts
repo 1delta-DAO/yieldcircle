@@ -5,7 +5,7 @@
  */
 import type { TokenBalance } from '../sdk/types'
 import { idleFrom, type Holding, type Idle } from './positions'
-import { knownTokens, legPrices, tokenKey, valueOf, type PaperLedger, type PaperPosition, type PriceFn } from './paper'
+import { bookOf, knownTokens, legPrices, priceMoveOf, tokenKey, valueOf, type PaperLedger, type PaperPosition, type PriceFn } from './paper'
 
 /** What a bank token is called: its symbol, decimals and logo, keyed `chainId:token`. */
 export type TokenMeta = Record<string, { symbol: string; decimals: number; logo?: string }>
@@ -88,25 +88,23 @@ export interface PaperPnlPosition {
  * on what was in, and each position's own figure.
  *
  * Display only — nothing here is in `paper.ts` (the model the server runs), and nothing changes
- * what `bookOf` ranks. The split, per open position: `price` = the units held now × each leg's
- * move since its open price (`snap.*.priceUsd`, stamped at the open), `yield` = the rest. A
- * position added to later (`into`) keeps its first open's prices, so units bought after a move
- * book that move as price and the same amount as a farming loss — the total is exact, the split
- * approximate there. `realizedUsd` (closes, swaps, bridges, fees) has no split: it counts as
+ * what `bookOf` ranks. The split, per open position: `price` = `priceMoveOf`, the units held now
+ * × each leg's move since its open price (`snap.*.priceUsd`, stamped at the open), less what amounts
+ * added later had already moved; `yield` = the rest. What leaves a position takes its price part
+ * into `realizedPriceUsd`; the rest of `realizedUsd` (earnings, swaps, bridges, fees) counts as
  * farming, and `frictionUsd` says how much of it was cost. The APR is the open positions' PnL over
  * their basis × days open (≥ 1 day), the real book's capital-days rule with the basis as capital.
  */
 export function paperPnlBook(l: PaperLedger, at: number, price: PriceFn) {
-  let open = 0, priceUsd = 0, capDays = 0, openPnl = 0
+  let open = 0, capDays = 0, openPnl = 0
   const positions: PaperPnlPosition[] = []
   for (const p of l.positions) {
     const v = valueOf(p, at, price)
     const { pHeld, pDebt } = legPrices(p, price)
-    const px = v.units * (pHeld - p.snap.held.priceUsd) - (p.snap.debt ? v.debtUnits * (pDebt - p.snap.debt.priceUsd) : 0)
+    const px = priceMoveOf(p, v.units, v.debtUnits, pHeld, pDebt)
     const days = (at - p.openedAt) / DAY
     const cap = days >= 1 && p.basisUsd > 0 ? p.basisUsd * days : 0
     open += v.pnlUsd
-    priceUsd += px
     if (cap > 0) { capDays += cap; openPnl += v.pnlUsd }
     positions.push({
       key: p.id,
@@ -121,6 +119,7 @@ export function paperPnlBook(l: PaperLedger, at: number, price: PriceFn) {
     })
   }
   const pnlUsd = l.realizedUsd + open
+  const { priceUsd } = bookOf(l, at, price)
   return {
     total: { pnlUsd, yieldUsd: pnlUsd - priceUsd, directionalUsd: priceUsd, pnlAprPct: capDays > 0 ? (openPnl / capDays) * 365 * 100 : null },
     // every paper position has its figure at once: nothing waits to be drawn. With none open, the

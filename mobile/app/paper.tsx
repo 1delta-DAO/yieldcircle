@@ -98,7 +98,7 @@ export default function PaperSignIn() {
             </View>
           )}
           <Btn wide kind="paper" title={step.at === 'working' ? 'Working…' : 'Continue'} disabled={!nameOk || !pwOk || step.at === 'working'} onPress={() => void go()} />
-          <Txt s={12} c={C.tx50} lh={17}>New name: you will be asked to create it. Your password never leaves this phone; the keys made from it stay on it until you sign out.</Txt>
+          <Txt s={12} c={C.tx50} lh={17}>New name: you will be asked to create it, and it is also your public handle. Your password never leaves this phone; the keys made from it stay on it until you sign out.</Txt>
         </View>
       )}
     </Frame>

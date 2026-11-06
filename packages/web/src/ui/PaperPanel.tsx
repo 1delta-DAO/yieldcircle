@@ -9,33 +9,14 @@ import { usePaper } from '../state/Paper'
 import { openPaperSignIn } from './PaperSignIn'
 import { bookOf, MAX_TOPUPS, type PaperBook } from '@yieldcircle/core/model/paper'
 import { metaKey, paperHoldings, paperPnlBook } from '@yieldcircle/core/model/paperView'
+import { PaperPnlChart } from './PaperPnlChart'
 import { signedMoney } from '@yieldcircle/core/model/lite'
-import { usePaperDaily } from '../social/queries'
 import { costWord, usePaperLedgerFor } from './PaperMoves'
 import { HealthPill, Sk } from './bits'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { num, pct, usd } from './bits'
 
 const DAYS = [0, 7, 30, 90]
-
-/**
- * What the strategies earned, one point a day as the server valued it (`paper.book_daily`) — the
- * paper account's PnL line. Real time only: the paper clock never writes a day.
- */
-function PaperPnlLine({ account }: { account: string }) {
-  const q = usePaperDaily(account, 90)
-  const pts = (q.data?.days ?? []).map((d) => d.pnlUsd)
-  if (pts.length < 2) return <span className="t50" style={{ fontSize: 11 }}>{q.isLoading ? '' : 'The daily line starts after a second day.'}</span>
-  const w = 220, h = 36, lo = Math.min(0, ...pts), hi = Math.max(0, ...pts), span = hi - lo || 1
-  const x = (i: number) => 2 + (i * (w - 4)) / (pts.length - 1), y = (v: number) => 2 + ((hi - v) * (h - 4)) / span
-  const d = pts.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} role="img" aria-label={`earned by strategies over ${pts.length} days`}>
-      <line x1={2} x2={w - 2} y1={y(0)} y2={y(0)} stroke="var(--line2)" strokeDasharray="2 3" />
-      <path d={d} fill="none" stroke="var(--paper)" strokeWidth={1.6} />
-    </svg>
-  )
-}
 
 /** The head of the positions sheet on paper: what strategies earned, the paper clock, the bank, the way out. */
 export function PaperPanel() {
@@ -57,7 +38,7 @@ export function PaperPanel() {
         <div className="stat"><small>Put in</small><b>{usd(l?.putInUsd ?? 0)}</b><small>{l?.topups ? `${l.topups} of ${MAX_TOPUPS} top-ups` : 'the starting bank'}</small></div>
         <FrictionStat b={b} />
       </div>}
-      {paper.session && <div className="row2"><span className="lbl" style={{ margin: 0 }}>Daily</span><PaperPnlLine account={paper.session.evm} /></div>}
+      {paper.session && <PaperPnlChart account={paper.session.evm} ledger={paper.ledger} price={paper.price} compact />}
       {risky.length > 0 && <div className="liq-warn">{risky.map((h) => h.label).join(', ')} would have been liquidated (health {risky.map((h) => h.health!.toFixed(2)).join(', ')}). On paper it stays open — close it to see what is left.</div>}
       <div className="paper-clock">
         <span className="lbl" style={{ margin: 0 }}>Paper clock</span>
@@ -129,10 +110,11 @@ export function PaperSettings() {
  * paper ledger's — your own from here, anyone else's from the server (paper books are public, like
  * the board). Valued at each position's own prices when the page has no feed for them.
  */
-export function PaperWalletBook({ account, inScope }: { account: string; inScope: (chainId: string) => boolean }) {
-  const { ledger, price, loading, error } = usePaperLedgerFor(account)
-  // what the strategies earned is the whole account's; the rows follow the page's chain filter
-  const book = ledger ? bookOf(ledger, Date.now(), price) : null
+export function PaperWalletBook({ account, inScope, chart }: { account: string; inScope: (chainId: string) => boolean; chart?: boolean }) {
+  const { ledger, price, mine, serverBook, loading, error } = usePaperLedgerFor(account)
+  // what the strategies earned is the whole account's; the rows follow the page's chain filter.
+  // Someone else's book reads the server's figure: this page has no feed for its tokens, and the chart beside it is the server's
+  const book = !ledger ? null : !mine && serverBook ? serverBook : bookOf(ledger, Date.now(), price)
   const rows = ledger ? paperHoldings(ledger, Date.now(), price).filter((h) => inScope(h.chainId)) : []
   // each position's own figure since its open (the real wallet page's "What it made" rows)
   const made = new Map((ledger ? paperPnlBook(ledger, Date.now(), price).positions : []).map((p) => [`paper:${p.key}`, p]))
@@ -146,6 +128,7 @@ export function PaperWalletBook({ account, inScope }: { account: string; inScope
         <div className="paper-sec"><div className="stat"><small>Put in</small><b>{usd(ledger.putInUsd)}</b><small>{ledger.topups ? `the starting bank + ${ledger.topups} top-up${ledger.topups === 1 ? '' : 's'}` : 'the starting bank'}</small></div></div>
         <div className="paper-sec"><FrictionStat b={book} /></div>
       </div>}
+      {chart && book && <div style={{ padding: '0 16px 12px' }}><PaperPnlChart account={account} ledger={ledger} price={price} /></div>}
       {!rows.length && <div className="empty">Nothing at work on these chains — the rest of the book is in the paper bank.</div>}
       {rows.map((h) => (
         <div key={h.key} className="xrow" style={{ cursor: 'default' }}>

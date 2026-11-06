@@ -4,12 +4,12 @@ import { pnlWaiting, unsupportedLine, useAccountsPnlBook, type AccountPnlBook } 
 import type { Accounts } from '@yieldcircle/app/book'
 import { useAccountSync } from '@yieldcircle/app/index/queries'
 import { isSolAddr } from '@yieldcircle/core/model/address'
-import { usePaperDaily } from '../../social/queries'
 import { usePaper } from '../../state/Paper'
 import { pnlSummary, signedMoney } from '@yieldcircle/core/model/lite'
 import { Sk, pct, usdShort } from '../bits'
 import { LiteDetailsDrawer } from './LiteTicketBits'
 import { WalletPnl } from '../WalletPnl'
+import { PaperPnlChart } from '../PaperPnlChart'
 import { pnlNotReadYet } from '@yieldcircle/core/model/holdingPnl'
 import { PaperWalletBook } from '../PaperPanel'
 import { paperPnlBook } from '@yieldcircle/core/model/paperView'
@@ -121,7 +121,6 @@ function Waiting({ b, live, syncing, gaps, failed }: { b: AccountPnlBook; live?:
  */
 function PaperMade({ account }: { account: string }) {
   const paper = usePaper()
-  const daily = usePaperDaily(account, 90)
   const [more, setMore] = React.useState(false)
   // accrual moves the figure by the second; re-fold it twice a minute like the positions sheet
   const [, tick] = React.useReducer((x: number) => x + 1, 0)
@@ -131,7 +130,6 @@ function PaperMade({ account }: { account: string }) {
   if (!l || !b) return null
   const pb = paperPnlBook(l, paper.viewNow, paper.price)
   const s = pnlSummary(pb)
-  const pts = (daily.data?.days ?? []).map((d) => d.pnlUsd)
   return (
     <section className="sec lite-sec">
       <div className="sec-h"><h2>What you made</h2><span className="sub">on paper · since each position opened{paper.skewDays ? ` · previewing +${paper.skewDays} days` : ''}</span></div>
@@ -155,7 +153,7 @@ function PaperMade({ account }: { account: string }) {
           )}
           <p className="lpnl-word">{s.word}</p>
           {b.frictionUsd > 0.005 && <p className="lpnl-word t50">{usdShort(b.frictionUsd)} of it went on fees, swaps and bridges.</p>}
-          {pts.length > 1 ? <Spark pts={pts} up={s.total >= 0} /> : <p className="lpnl-word t50">The day-by-day line starts after a second day.</p>}
+          <PaperPnlChart account={account} ledger={l} price={paper.price} />
           <button type="button" className="lite-details lpnl-more" onClick={() => setMore(true)}><span><b>Every number</b><small>each position, what is at work, what it cost</small></span><span aria-hidden>›</span></button>
           <LiteDetailsDrawer open={more} onClose={() => setMore(false)} pro={proHref(walletHref(account))}>
             <div className="lpnl-full"><PaperWalletBook account={account} inScope={() => true} /></div>

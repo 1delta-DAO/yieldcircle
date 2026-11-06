@@ -311,7 +311,7 @@ export function Wallet({ addr }: { addr: string }) {
         scope={entity && groupAddrs.length > 1 ? { name: entity.name, n: groupAddrs.length, all: groupAll, onAll: setGroupAll } : undefined} />}
 
       <section className="sec">
-        {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} inScope={inScope} /></> : <>
+        {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} inScope={inScope} chart /></> : <>
         <div className="sec-h"><h2>Positions</h2>{cardPnl && cardPnl.byKey.size > 1 && (
           <div className="seg sm book-order" role="group" aria-label="order the positions by">
             <button aria-pressed={order === 'value'} onClick={() => setOrder('value')}>Value</button>

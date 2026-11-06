@@ -298,6 +298,10 @@ export function usePaperBook(account: string | undefined) {
 export function usePaperDaily(account: string | undefined, days = 90) {
   return useQuery({ queryKey: ['paper-daily', account, days], queryFn: () => paperApi.paperDaily(account!, days), enabled: !!account, staleTime: 5 * 60_000, retry: false })
 }
+/** The last days hour by hour, for the chart: a service from before the route just answers none. */
+export function usePaperHourly(account: string | undefined, days = 14) {
+  return useQuery({ queryKey: ['paper-hourly', account, days], queryFn: () => paperApi.paperHourly(account!, days), enabled: !!account, staleTime: 5 * 60_000, retry: false })
+}
 /** The paper board (pos-indexer tickets/0076): ranked by return since start or by net APR. */
 export function usePaperBoard(sort: 'return' | 'apr', enabled = true) {
   return useQuery({ queryKey: ['paper-board', sort], queryFn: () => paperApi.paperBoard(sort, 100), enabled, staleTime: 60_000, retry: false })

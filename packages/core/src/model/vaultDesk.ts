@@ -29,8 +29,23 @@ export function vaultDesk(...words: (string | null | undefined)[]): { id: string
   }
 }
 
-/** Platforms whose uncurated vaults are the house's own: a Lista vault no curator is named for is Lista's, a Fluid fToken Fluid's. */
-const HOUSES: Record<string, string> = { 'vault.lista': 'lista', 'vault.fluid': 'fluid' }
+/**
+ * Any curator or issuer the icon set has a mark for, by its slugged name (`Mezzanine` →
+ * `lender/mezzanine.webp`, `August Digital` → `lender/august_digital.webp`): the long tail the
+ * table above does not name. Only names `scripts/brand-icons.mjs` found in the set, so a row
+ * never asks for a file that is not there.
+ */
+import BRAND_ICONS from '../data/brand-icons.json'
+const BRANDS = new Set<string>(BRAND_ICONS)
+export function brandMark(...names: (string | null | undefined)[]): { id: string; logo: string } | undefined {
+  for (const n of names) {
+    const id = n?.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+    if (id && BRANDS.has(id)) return { id, logo: `${PROTOCOL_ICONS}lender/${id}.webp` }
+  }
+}
+
+/** Platforms whose uncurated vaults are the house's own: a Lista vault no curator is named for is Lista's, a Fluid fToken Fluid's, a yvUSDC Yearn's. */
+const HOUSES: Record<string, string> = { 'vault.lista': 'lista', 'vault.fluid': 'fluid', 'vault.yearn': 'yearn', 'vault.termmax': 'termmax' }
 export function houseDesk(venue: string): { id: string; logo: string } | undefined {
   const id = HOUSES[venue]
   return id ? { id, logo: `${PROTOCOL_ICONS}lender/${id}.webp` } : undefined

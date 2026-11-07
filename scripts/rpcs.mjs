@@ -27,7 +27,7 @@ const UNKNOWN = '0x' + '11'.repeat(32)
 const EXTRA = { 4217: ['https://rpc.tempo.xyz', 'https://tempo.drpc.org'] }
 
 // the chains the app offers: `CHAINS` in src/sdk/queries.ts, read from there rather than repeated
-const queriesSrc = readFileSync(new URL('../packages/web/src/sdk/queries.ts', import.meta.url), 'utf8')
+const queriesSrc = readFileSync(new URL('../packages/app/src/sdk/queries.ts', import.meta.url), 'utf8')
 const chainsSrc = queriesSrc.slice(queriesSrc.indexOf('export const CHAINS'), queriesSrc.indexOf('\n]', queriesSrc.indexOf('export const CHAINS')))
 const offered = [...chainsSrc.matchAll(/id:\s*'(\d+)'/g)].map((m) => Number(m[1]))
 

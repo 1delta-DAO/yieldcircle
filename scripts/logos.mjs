@@ -183,7 +183,7 @@ if (missing.length) {
 //   desks.json. The CoinGecko prefix is folded to `cg:` to keep the chunk small.
 // ---------------------------------------------------------------------------------------------
 {
-  const q = readFileSync(new URL('../packages/web/src/sdk/queries.ts', import.meta.url), 'utf8')
+  const q = readFileSync(new URL('../packages/app/src/sdk/queries.ts', import.meta.url), 'utf8')
   const cs = q.slice(q.indexOf('export const CHAINS'), q.indexOf('\n]', q.indexOf('export const CHAINS')))
   const offered = [...cs.matchAll(/id:\s*'([^']+)'/g)].map((m) => m[1])
   const nrm = (a) => (/^0x[0-9a-fA-F]*$/.test(a) ? a.toLowerCase() : a)
@@ -230,7 +230,7 @@ if (missing.length) {
 // ---------------------------------------------------------------------------------------------
 const API = process.env.VITE_BACKEND_BASE_URL ?? 'https://allocator.api.1delta.io'
 // every chain the app lists (`CHAINS` in src/sdk/queries.ts), read from the source so a new one is not forgotten
-const CHAINS = [...readFileSync(new URL('../packages/web/src/sdk/queries.ts', import.meta.url), 'utf8')
+const CHAINS = [...readFileSync(new URL('../packages/app/src/sdk/queries.ts', import.meta.url), 'utf8')
   .slice(0, 4000).matchAll(/\{ id: '([^']+)', label: '[^']+' \}/g)].map((m) => m[1])
 // base58 keeps its case (model/address.ts `normAddr`); only EVM addresses are lowered
 const norm = (chain, a) => (/^\d+$/.test(chain) ? String(a).toLowerCase() : String(a))
@@ -243,7 +243,7 @@ for (const chain of CHAINS) {
   const byAddr = new Map(Object.entries(list).map(([a, t]) => [norm(chain, a), t]))
   let rows
   try {
-    const res = await fetch(`${API}/v1/data/earn?chainIds=${chain}&count=1000&sort=tvl&maxRiskScore=5&minTvlUsd=100000&terms=none`)
+    const res = await fetch(`${API}/v1/data/earn?chainIds=${chain}&count=1000&sort=tvl&maxRiskScore=6&minTvlUsd=100000&terms=none`)
     const j = await res.json(); rows = (j.data ?? j).items
     if (!Array.isArray(rows)) throw new Error(`no items (${res.status})`)
   } catch (e) { console.error('earn fetch failed for chain', chain, e.message); continue }

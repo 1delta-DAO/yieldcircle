@@ -21,7 +21,7 @@ const root = process.argv[2] ?? process.env.TOKEN_LISTS_DIR ?? '/home/axtar/toke
 // 3Jane's and Reserve's — an unattributed savings token stays unattributed until token-lists
 // names it (a ticker is not an identity).
 // ---------------------------------------------------------------------------------------------
-const queriesSrc = readFileSync(new URL('../packages/web/src/sdk/queries.ts', import.meta.url), 'utf8')
+const queriesSrc = readFileSync(new URL('../packages/app/src/sdk/queries.ts', import.meta.url), 'utf8')
 // the chains the app offers: `CHAINS` in src/sdk/queries.ts, read from there rather than repeated
 const chainsSrc = queriesSrc.slice(queriesSrc.indexOf('export const CHAINS'), queriesSrc.indexOf('\n]', queriesSrc.indexOf('export const CHAINS')))
 // every chain, `solana` included: positions and balances there are resolved through this table too

@@ -102,7 +102,7 @@ function TalkCard({ m, profile, strategy: s }: { m: Message; profile: ReturnType
         {s ? (
           <button className="tc-s" onClick={open}>
             <span className="t50">on</span>
-            {s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={18} />}
+            {s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} size={18} />}
             <b>{strategyName(s)}</b>
             <span className="t50">{s.kind === 'loop' ? s.venue : s.via} · {chainLabel(s.chainId)}</span>
           </button>

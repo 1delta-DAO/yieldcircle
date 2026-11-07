@@ -176,7 +176,7 @@ const MATCH_ROWS = 30
 function MatchRow({ s, get }: { s: Strategy; get: HistoryGet }) {
   return (
     <tr onClick={() => go(s.group, { u: s.asset, s: s.id, k: s.kind })}>
-      <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}`}</span></span><GroupTag gid={s.group} className="hide-m" /></div></td>
+      <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}`}</span></span><GroupTag gid={s.group} className="hide-m" /></div></td>
       <td className="r upto"><span className={s.rate >= 3 ? 'ok' : ''}>{pct(s.rate)}</span><small>{s.kind === 'loop' ? `${s.rec}× loop` : 'deposit'} · {chainLabel(s.chainId)} · {s.riskLabel.toLowerCase()} risk{s.tvlUsd > 0 ? ` · ${usdShort(s.tvlUsd)}` : ''}<Avg30 s={s} get={get} prefix=" · 30d " /></small></td>
       <td className="r t40" style={{ width: 20 }}>›</td>
     </tr>
@@ -209,7 +209,7 @@ function FixedShelf({ rows, idle, loading }: { rows: SimpleStrategy[]; idle: num
         {loading && !top.length && [0, 1].map((i) => <tr key={i}><td><Sk w={160} /></td><td className="r"><Sk w={80} /></td><td /></tr>)}
         {top.map((s) => (
           <tr key={s.id} onClick={() => go(s.group, { u: s.asset, s: s.id, k: 'fixed' })}>
-            <td><div className="nm"><StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} /><span><b>{s.holds}</b> <span className="t50">· {s.via.replace(/ · [^·]+$/, '')}</span></span><GroupTag gid={s.group} className="hide-m" /></div></td>
+            <td><div className="nm"><StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} /><span><b>{s.holds}</b> <span className="t50">· {s.via.replace(/ · [^·]+$/, '')}</span></span><GroupTag gid={s.group} className="hide-m" /></div></td>
             <td className="r upto"><span className={s.rate >= 3 ? 'ok' : ''}>{pct(s.rate)}</span><small>to {dateOf(s.maturity!)}{(s.dates?.length ?? 0) > 1 ? ` +${s.dates!.length - 1} date${s.dates!.length > 2 ? 's' : ''}` : ''} · {chainLabel(s.chainId)}</small></td>
             <td className="r t40" style={{ width: 20 }}>›</td>
           </tr>

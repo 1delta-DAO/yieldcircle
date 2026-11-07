@@ -21,6 +21,7 @@
     "deploy:landing": "pnpm --filter @yieldcircle/landing run deploy",
     "whitelist": "node scripts/whitelist.mjs",
     "logos": "node scripts/logos.mjs",
+    "brand-icons": "node scripts/brand-icons.mjs",
     "notes": "node scripts/notes.mjs",
     "lagoon": "node scripts/lagoon.mjs",
     "rpcs": "node scripts/rpcs.mjs",

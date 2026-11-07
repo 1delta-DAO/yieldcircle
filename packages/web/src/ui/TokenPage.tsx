@@ -186,7 +186,7 @@ function EarnWith({ group, sym, members, solCounted, max = 8 }: { group: string;
           const chip = held ?? (lifted === 'unrated' ? null : lifted)
           return (
             <tr key={s.id} className={held ? 'held' : undefined} onClick={() => { location.hash = strategyHref(s) }}>
-              <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}
+              <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} />}
                 <a href={strategyHref(s)} onClick={(e) => e.stopPropagation()}><b>{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds}</b></a>
                 <span className="t50 hide-m"> · {s.kind === 'loop' ? s.venue : s.via}</span><KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} />
                 {chip && <span className="heldchip" title={`${HIDES[chip].why}${hideDetail(s, chip) ? ` (${hideDetail(s, chip)})` : ''}`}>{HIDES[chip].word}{!held && hideDetail(s, chip) ? ` · ${hideDetail(s, chip)}` : ''}</span>}</div>

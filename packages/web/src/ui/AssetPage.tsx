@@ -176,7 +176,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
     return {
       on: s ? sel?.id === s.id : offMenu?.key === h.key,
       tap: s ? () => { open('add') } : can ? openOff : undefined,
-      mark: s ? (s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />) : <Tok sym={h.symbol} logo={h.logo} />,
+      mark: s ? (s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} />) : <Tok sym={h.symbol} logo={h.logo} />,
       meta: `${chainLabel(h.chainId)}${h.leverage && h.leverage > 1.05 ? ` · ${h.leverage.toFixed(1)}×` : ''}${h.kind === 'loop' && h.debtSymbol ? ` · owes ${amt(h.debtSymbol, h.debtAmount ?? 0)}` : ''}`,
       unit: h.kind === 'loop' ? 'equity' : num(h.amount, h.amount >= 100 ? 0 : 3),
       total,
@@ -297,7 +297,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                 : list.map((s) => { const h = held(s); const pu = h ? undefined : putUpOf(s)[0]; const pick = picks.has(s.id); const ser = seriesFor(s, get, withRewards); const n = commentsOn(s); return (
                 <div key={s.id} className="scard" role="button" tabIndex={0} aria-selected={sel?.id === s.id} onClick={() => go(group.id, { u, s: s.id, k: s.kind })} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(group.id, { u, s: s.id, k: s.kind }) } }}>
                   <div className="sc-top">
-                    {s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}
+                    {s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} />}
                     <b>{s.holds}</b>
                     {pick && <span className="pick-star" title="our pick">★</span>}
                     {n > 0 && <Comments n={n} onClick={() => talkOn(s)} />}
@@ -322,7 +322,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                 <thead><tr><th>{kind === 'loop' ? 'Loop' : 'Deposit'}</th><th className="r">{kind !== 'loop' ? 'APR' : <>Net yield <Info label="Net yield">Net yield on your money at the Balanced tier (Defensive for a market-exposure loop, whose price moves on its own): earn the collateral rate on the whole position, pay the borrow rate on the borrowed part. The ticket shows all three tiers.</Info></>}<button className="rw-toggle" aria-pressed={withRewards} title={withRewards ? 'The 30-day line includes reward streams — click to show the rate without them' : 'The 30-day line excludes reward streams — click to include them'} onClick={() => setWithRewards(!withRewards)}>{withRewards ? '+rewards' : 'no rewards'}</button></th><th /></tr></thead>
                 <tbody>{list.map((s) => { const h = held(s); const pu = h ? undefined : putUpOf(s)[0]; const pick = picks.has(s.id); const on = sel?.id === s.id; const uid = on ? uidOf(s) : null; return (<React.Fragment key={s.id}>
                   <tr aria-selected={on} onClick={() => go(group.id, { u, s: s.id, k: s.kind })}>
-                    <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}{pu && <span className="pill run" title={`Your ${num(pu.amount, 4)} ${pu.symbol} already sits in this market: the loop can start from it`}>{num(pu.amount, pu.amount >= 100 ? 0 : 2)} {pu.symbol} in</span>}<NaturePill n={s.nature} /><WhyIn s={s} /></div>
+                    <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} />}<span><b>{s.holds}</b> <span className="t50">{s.kind === 'simple' ? `· ${s.via}` : `/ ${s.debt} · ${s.venue}${s.terms ? ' · fixed rate' : ''}`}</span></span>{pick && <><span className="pill pick">our pick</span><span className="pick-star" title="our pick">★</span></>}{h && <span className="pill run">running</span>}{pu && <span className="pill run" title={`Your ${num(pu.amount, 4)} ${pu.symbol} already sits in this market: the loop can start from it`}>{num(pu.amount, pu.amount >= 100 ? 0 : 2)} {pu.symbol} in</span>}<NaturePill n={s.nature} /><WhyIn s={s} /></div>
                       {/* the qualifiers read as one sentence. Risk had a column of
                           its own where eight rows in nine said the same word; here it
                           sits second, so it is the part a narrow screen keeps rather

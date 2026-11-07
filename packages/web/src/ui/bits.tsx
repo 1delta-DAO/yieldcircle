@@ -130,11 +130,12 @@ export function BorrowRewards({ apr, rewards, sep = '' }: { apr: number; rewards
 }
 
 /** Token mark: the icon when we have one, else a coloured disc with the first letters. */
-export function Tok({ sym, logo, size = 22 }: { sym: string; logo?: string | (string | undefined)[]; size?: number }) {
+export function Tok({ sym, logo, fallback, size = 22 }: { sym: string; logo?: string | (string | undefined)[]; fallback?: string; size?: number }) {
   // a strategy passes its own picture (the vault, the LST, the venue token) — or several, tried in order; a bare
-  // symbol gets the base-asset mark from the token list — and so does a passed picture that fails to load
+  // symbol gets the base-asset mark from the token list — and so does a passed picture that fails to load.
+  // `fallback` comes last of all: a picture that is not quite this token's, but beats the initials
   const wide = React.useSyncExternalStore(subscribeWideLogos, wideLogosReady)
-  const urls = React.useMemo(() => [...new Set([...[logo].flat(), assetLogo(sym)].filter(liveLogo))], [String(logo), sym, wide])
+  const urls = React.useMemo(() => [...new Set([...[logo].flat(), assetLogo(sym), fallback].filter(liveLogo))], [String(logo), sym, fallback, wide])
   const [i, setI] = React.useState(0)
   React.useEffect(() => setI(0), [urls.join()])
   if (i < urls.length) return <img className="tok" src={urls[i]} alt="" width={size} height={size} style={{ width: size, height: size }} onError={() => setI((n) => n + 1)} title={sym} />
@@ -159,8 +160,8 @@ const FAMILY: [RegExp, string][] = [
   [/^KAMINO|^vault\.kamino/i, 'kamino'], [/^JUPITER_LEND|^vault\.jupiter-lend$/i, 'jupiter_lend'], [/^LOOPSCALE|^vault\.loopscale$/i, 'loopscale'],
   [/^PROJECT_0/i, 'project_0'], [/^SAVE(_|$)/i, 'save'], [/^vault\.exponent$/i, 'exponent'],
   // vault platforms: the platform's mark, not the curator's (a Lagoon vault run by 9Summits is still a Lagoon vault)
-  [/^vault\.lagoon$/i, 'lagoon'], [/^vault\.upshift$/i, 'upshift'], [/^vault\.gmx$/i, 'gmx'], [/^vault\.hypercore$/i, 'hyperliquid'], [/^vault\.spectra$/i, 'spectra'],
-  [/^TERM_FINANCE/i, 'term_finance'], [/^TERMMAX/i, 'termmax'], [/^TELLER/i, 'teller'], [/^JUPITER_OFFERBOOK/i, 'jupiter_offerbook'],
+  [/^vault\.lagoon$/i, 'lagoon'], [/^vault\.upshift$/i, 'upshift'], [/^vault\.gmx$/i, 'gmx'], [/^vault\.hypercore$/i, 'hyperliquid'], [/^vault\.spectra$/i, 'spectra'], [/^vault\.yearn$/i, 'yearn'],
+  [/^TERM_FINANCE/i, 'term_finance'], [/^TERMMAX|^vault\.termmax$/i, 'termmax'], [/^TELLER/i, 'teller'], [/^JUPITER_OFFERBOOK/i, 'jupiter_offerbook'],
   [/^CURVANCE/i, 'curvance'], [/^FLYING_TULIP/i, 'flying_tulip'], [/^FRANKENCOIN/i, 'frankencoin'], [/^CAPY_FI/i, 'capy_fi'], [/^AVALON/i, 'avalon'], [/^EXACTLY/i, 'exactly'], [/^XLEND/i, 'xlend'],
 ]
 /**
@@ -227,9 +228,13 @@ export function VenueBadge({ venueKey, brand }: { venueKey: string; brand: strin
   if (i < urls.length) return <img className="badge" src={urls[i]} alt="" aria-hidden onError={() => setI((n) => n + 1)} title={brand} />
   return <i className="badge txt" style={{ background: colorOf(brand) }} title={brand} aria-hidden>{brand.replace(/[^A-Za-z0-9]/g, '').slice(0, 2)}</i>
 }
-/** The mark of a plain-deposit strategy: the token you end up holding, with the venue in the corner. */
-export function StratMark({ sym, logo, venueKey, brand, size = 22 }: { sym: string; logo?: string; venueKey: string; brand: string; size?: number }) {
-  return <span className="mark" style={{ width: size, height: size }}><Tok sym={sym} logo={logo} size={size} /><VenueBadge venueKey={venueKey} brand={brand} /></span>
+/**
+ * The mark of a plain-deposit strategy: the token you end up holding, with the venue in the corner.
+ * A share token nobody has a picture for (an uncurated Euler Earn or Morpho vault) wears `fallback`,
+ * the coin it is deposited in: the badge already says whose vault it is.
+ */
+export function StratMark({ sym, logo, fallback, venueKey, brand, size = 22 }: { sym: string; logo?: string; fallback?: string; venueKey: string; brand: string; size?: number }) {
+  return <span className="mark" style={{ width: size, height: size }}><Tok sym={sym} logo={logo} fallback={fallback} size={size} /><VenueBadge venueKey={venueKey} brand={brand} /></span>
 }
 export function Toks({ a, b, logoA, logoB }: { a: string; b?: string; logoA?: string; logoB?: string }) {
   return <span className="toks"><Tok sym={a} logo={logoA} />{b && <Tok sym={b} logo={logoB} />}</span>

@@ -155,7 +155,7 @@ function HotCard({ m, s, peak, comments, rating }: {
         {s ? (
           s.kind === 'loop'
             ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} />
-            : <StratMark sym={s.holds} logo={s.logo} venueKey={s.protocolKey} brand={s.brand} size={26} />
+            : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} size={26} />
         ) : m.collateralSymbol && m.symbol ? (
           <Toks a={m.collateralSymbol} b={m.symbol} logoA={m.collateralLogo ?? undefined} logoB={m.assetLogo ?? undefined} />
         ) : (

@@ -77,7 +77,7 @@ export const DEFAULTS: Settings = {
   minBorrowLiquidityUsd: 100_000,
   maxRisk: 4,
   minRate: 0.01,
-  maxRate: 25,
+  maxRate: 50,
   showRateBets: false,
   showNegative: false,
   wideNet: false,
@@ -113,7 +113,9 @@ export function sanitizeSettings(p: Partial<Settings>): Settings {
     minBorrowLiquidityUsd: numOr(p.minBorrowLiquidityUsd, DEFAULTS.minBorrowLiquidityUsd),
     maxRisk: Math.min(5, Math.max(1, numOr(p.maxRisk, DEFAULTS.maxRisk))),
     minRate: numOr(p.minRate, DEFAULTS.minRate),
-    maxRate: numOr(p.maxRate, DEFAULTS.maxRate),
+    // 25 was the cap until 2026-11-07, never a choice of its own (the switch only toggles the
+    // default and NO_CAP), so a stored 25 is the old default and follows the new one
+    maxRate: p.maxRate === 25 ? DEFAULTS.maxRate : numOr(p.maxRate, DEFAULTS.maxRate),
     showRateBets: boolOr(p.showRateBets, DEFAULTS.showRateBets),
     showNegative: boolOr(p.showNegative, DEFAULTS.showNegative),
     wideNet: boolOr(p.wideNet, DEFAULTS.wideNet),
@@ -145,7 +147,7 @@ export const FILTER_CONTROLS: FilterControl[] = [
   { kind: 'seg', key: 'maxRisk', label: 'Risk cap', note: "the API's 1-5 score", opts: RISK_OPTS },
   flag('showRateBets', 'Rate bets', 'loops whose collateral earns nothing by itself'),
   flag('showNegative', 'Negative carry', 'loops that cost more than they pay'),
-  { kind: 'check', id: 'extremeRates', label: 'Extreme rates', sub: 'under 0.01 % and over 25 % — idle markets and spikes',
+  { kind: 'check', id: 'extremeRates', label: 'Extreme rates', sub: 'under 0.01 % and over 50 % — idle markets and spikes',
     on: (st) => st.minRate === 0 && st.maxRate === NO_CAP, to: (on) => (on ? { minRate: 0, maxRate: NO_CAP } : { minRate: DEFAULTS.minRate, maxRate: DEFAULTS.maxRate }) },
   flag('showCollateral', 'Collateral-only deposits', 'markets that pay nothing of their own — the token as collateral, earning only its own yield; one more request'),
   flag('wideNet', 'Wider pair search', 'ask the optimizer without collateral tags — finds untagged collateral (sUSDp, syzUSD), costs a few requests'),

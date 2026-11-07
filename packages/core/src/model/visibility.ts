@@ -130,8 +130,8 @@ export function restoreFor(code: HideCode): Partial<Settings> {
     case 'unrated': return { maxRisk: 4 }
     case 'negative': return { showNegative: false }
     case 'rate-bet': return { showRateBets: false }
-    case 'dust': return { minRate: 0.01 }
-    case 'outlier': return { maxRate: 25 }
+    case 'dust': return { minRate: DEFAULTS.minRate }
+    case 'outlier': return { maxRate: DEFAULTS.maxRate }
     default: return {}
   }
 }

@@ -20,12 +20,23 @@ import { join } from 'node:path'
 const NAMESPACE = '23ce3e9b23224ce09a4cd4f486480870'
 const ACCOUNT = process.env.CLOUDFLARE_ACCOUNT_ID ?? 'd8773eeff51cfcf5d53f08344acae545'
 
-const wrangler = (...args) =>
+const run = (args) =>
   execFileSync('npx', ['--yes', 'wrangler@4', 'kv', ...args, '--namespace-id', NAMESPACE, '--remote'], {
     encoding: 'utf8',
     env: { ...process.env, CLOUDFLARE_ACCOUNT_ID: ACCOUNT },
     stdio: ['ignore', 'pipe', 'inherit'],
   })
+
+// A stale OAuth token fails the first call with code 10000; wrangler refreshes it while
+// reporting the error, so one retry goes through.
+const wrangler = (...args) => {
+  try {
+    return run(args)
+  } catch (e) {
+    if (!/code: 10000/.test(e.stdout ?? '')) { process.stdout.write(e.stdout ?? ''); process.exit(1) }
+    return run(args)
+  }
+}
 
 const [cmd, ...rest] = process.argv.slice(2)
 const flag = (name) => { const i = rest.indexOf(`--${name}`); return i < 0 ? undefined : rest.splice(i, 2)[1] }

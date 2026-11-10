@@ -41,6 +41,11 @@ export function Ago({ ts }: { ts: string | number | undefined }) {
  * silent guess is worse than a marked one: `~` a provisional price (newest
  * cached, not the block's), `≈` an amount derived as units × index.
  */
+const NO_VALUE_WHY = {
+  'no-amount': 'The transaction moved this position without stating an amount of the token (a Fluid smart vault moves DEX shares). The position’s balance is read from the chain.',
+  implausible: 'The amount on record is more than the token’s whole supply, so it is a mis-scaled number, not money. It is left out of every total.',
+} as const
+
 export function Money({ usd: v, status, fromIndex, short, amount, symbol }: {
   usd: number | null | undefined
   status?: UsdStatus
@@ -51,6 +56,8 @@ export function Money({ usd: v, status, fromIndex, short, amount, symbol }: {
   symbol?: string | null
 }) {
   if (v == null) {
+    // no amount to show either: a "0 PAXG" here would read as a deposit of nothing
+    if (status === 'no-amount' || status === 'implausible') return <span className="t40" title={NO_VALUE_WHY[status]}>—</span>
     if (amount && symbol) return <span className="t70" title={`no dollar value yet (${status ?? 'unvalued'})`}>{tokens(amount)} {symbol}</span>
     return <span className="t40" title={status ?? 'not valued'}>—</span>
   }

@@ -6,6 +6,7 @@ import { isEvmAddr, normAddr } from '@yieldcircle/core/model/address'
 import { labelFor, shortAddr } from '@yieldcircle/core/identity/name'
 import { useFeedPage, useRateLeaders, useTopEarners } from '@yieldcircle/app/index/queries'
 import { useLiteMenu } from '@yieldcircle/app/lite'
+import { useHeldPositions } from '@yieldcircle/app/board'
 import { useAccountMessages, useFollowers, useMyFollows, useProfile, useProfiles } from '../../social/queries'
 import { Character } from '../../identity/character'
 import { Ago, Face, FollowButton } from '../social-bits'
@@ -55,6 +56,8 @@ export function LiteProfile({ addr }: { addr: string }) {
   // the explorers: the chains it holds positions on, the biggest first (the book, the same read as
   // "What it runs"), then the board's chains, then the chains of what it did lately
   const book = useAccountPnlBook(addr)
+  // what it holds now: the index's positions, as Pro lists them (the book draws few of them)
+  const held = useHeldPositions(addr, liteByKey)
   const chains = [
     ...[...(book.data?.positions ?? [])].sort((a, b) => (b.equityUsd ?? 0) - (a.equityUsd ?? 0)).map((x) => x.chainId),
     ...(row?.chains ?? []),
@@ -66,7 +69,7 @@ export function LiteProfile({ addr }: { addr: string }) {
   const nFollowers = followers.data?.followers.length
   // a wallet the index has drawn nothing for (docs/lite-design-review.md §3.7): one plain line, not
   // two empty boxes (the feed's slow read is not waited for: its moves, when they come, lead the page)
-  const runsNothing = !book.isLoading && !(book.data?.positions ?? []).length
+  const runsNothing = !held.isLoading && !held.open.length
   const nothingYet = runsNothing && !row && !byRate.isLoading && !byDay.isLoading && !moves.length && !msgs.length
   const lately = moves.length > 0 && (
     <section className="sec lite-sec">

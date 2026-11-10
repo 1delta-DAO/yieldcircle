@@ -1,9 +1,8 @@
 import { C } from '../theme'
-import { TabBar, type TabBarProps } from './TabBar'
 import { TopBar } from './TopBar'
 
-/** Both tab bars: the web's top bar and bottom bar, the page black under them. */
+/** Both tab navigators: the web's top bar, the page black under it. The bottom bar is the app's, not theirs (`AppTabBar`). */
 export const tabsProps = (pro: boolean) => ({
-  tabBar: (p: TabBarProps) => <TabBar {...p} search={!pro} />,
+  tabBar: () => null,
   screenOptions: { header: () => <TopBar pro={pro} />, sceneStyle: { backgroundColor: C.bg } },
 })

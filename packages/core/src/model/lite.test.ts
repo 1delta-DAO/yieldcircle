@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, madeRows, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, riskTag, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
+import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, heldPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, madeRows, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, riskTag, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
 import { borrowCapLtv, healthAt, healthAtLtv, liqBuffer, liqBufferAtLtv } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
@@ -284,6 +284,32 @@ describe('the leaderboard', () => {
     const ps = boardPositions(book, (k) => (k === 'loop:x|y' ? 'Ether via Lido' : null))
     expect(ps.map((p) => [p.title, p.sub, p.pnlUsd])).toEqual([['Ether via Lido', 'Levered · borrows WETH', 900], ['Steakhouse USDC', 'Deposit', 120]])
     expect(ps.map((p) => [p.kind, p.held, p.debt, p.share])).toEqual([['loop', ['wstETH'], ['WETH'], 9000 / 14000], ['deposit', ['USDC'], [], 5000 / 14000]])
+  })
+  it('lists every position the index holds, the drawn figure joined on by key, and keeps a drawn record the index lost', () => {
+    const A = `0x${'Aa'.repeat(20)}`, a = A.toLowerCase()
+    const leg = (marketUid: string, side: string, symbol: string, amountUsd: number | null, posId = '') => ({ chainId: '1', account: A, posId, marketUid, side, symbol, amountUsd, aprNow: 3 })
+    const pos = {
+      positions: [leg('AAVE_V3:1:0xa', 'supply', 'wstETH', 10_000), leg('AAVE_V3:1:0xb', 'borrow', 'WETH', 6_000), leg('MORPHO:1:0xc', 'supply', 'USDC', 2_000), leg('MORPHO:1:0xd', 'supply', 'DUST', 0.2)],
+      groups: [
+        { key: `1|${A}||A`, chainId: '1', account: A, posId: '', equityUsd: 4_000, netAprPct: 7, unpriced: 0, legs: [{ marketUid: 'AAVE_V3:1:0xa', side: 'supply', posId: '' }, { marketUid: 'AAVE_V3:1:0xb', side: 'borrow', posId: '' }] },
+        { key: `1|${A}||C`, chainId: '1', account: A, posId: '', equityUsd: 2_000, netAprPct: 5, unpriced: 0, legs: [{ marketUid: 'MORPHO:1:0xc', side: 'supply', posId: '' }] },
+        { key: `1|${A}||D`, chainId: '1', account: A, posId: '', equityUsd: 0.2, netAprPct: 1, unpriced: 0, legs: [{ marketUid: 'MORPHO:1:0xd', side: 'supply', posId: '' }] },
+      ],
+    }
+    const book = {
+      strategies: [{ key: 'dep:x', kind: 'deposit', held: ['USDC'], debt: [], protocol: 'MORPHO' }, { key: 'dep:y', kind: 'deposit', held: ['DAI'], debt: [], protocol: 'SPARK' }],
+      positions: [
+        { key: `1|${a}||c`, strategyKey: 'dep:x', pnlUsd: 40, pnlAprPct: 4, equityUsd: 1_900, since: null, status: 'ok' },
+        { key: `1|${a}||a`, strategyKey: 'loop:a|b', pnlUsd: null, pnlAprPct: null, equityUsd: 4_000, since: null, status: 'too-big' },
+        { key: `1|${a}||e`, strategyKey: 'dep:y', pnlUsd: 3, pnlAprPct: 2, equityUsd: 500, since: null, status: 'ok' },
+      ],
+    }
+    const ps = heldPositions(pos, book, () => null)
+    expect(ps.map((p) => [p.title, p.kind, p.pnlUsd, p.rateNowPct ?? null, p.equityUsd])).toEqual([
+      ['wstETH', 'loop', null, 7, 4_000], ['USDC', 'deposit', 40, 5, 2_000], ['DAI', 'deposit', 3, null, 500],
+    ])
+    expect(ps[0].sub).toBe('Levered · borrows WETH')
+    expect(heldPositions(undefined, book, () => null).map((p) => p.pnlUsd)).toEqual([40, 3])
   })
   it('names a closed position by its legs, in Lite’s words where they are a Lite row’s markets', () => {
     const legs = [{ marketUid: 'AAVE_V3:1:0xAbC', side: 'supply', symbol: 'wstETH' }, { marketUid: 'AAVE_V3:1:0xDeF', side: 'borrow', symbol: 'WETH' }]

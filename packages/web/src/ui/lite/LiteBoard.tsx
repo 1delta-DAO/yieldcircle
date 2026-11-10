@@ -3,7 +3,7 @@ import * as idx from '@yieldcircle/core/index/api'
 import { useMyFollows, useProfiles } from '../../social/queries'
 import { go, liteWalletHref, proHref, useApp, walletHref } from '../../state/AppState'
 import { normAddr } from '@yieldcircle/core/model/address'
-import { BOARD_HELD, boardHeld, boardStrategies, boardWallets, leverTag, type BoardSort, type BoardStrategy, type BoardWallet, type LiteRow } from '@yieldcircle/core/model/lite'
+import { BOARD_HELD, boardHeld, boardStrategies, boardWallets, leverTag, type BoardSort, type BoardStrategy, type BoardWallet, type HeldPosition, type LiteRow } from '@yieldcircle/core/model/lite'
 import { GROUPS, groupOf } from '@yieldcircle/core/model/assets'
 import { Face } from '../social-bits'
 import { FollowButton, Who } from '../social-bits'
@@ -104,8 +104,8 @@ function WalletRow({ r, sort, profile, me, open, onToggle, liteByKey }: { r: Boa
  * A tap on the row opens the position's own record (Pro's drawer, in place: `?pos=` is Pro's page).
  */
 export function WalletPositions({ account, liteByKey, me, foot = true }: { account: string; liteByKey: Map<string, LiteRow>; me: boolean; /** Follow and the way to the profile: the board's row has them, the profile itself not */ foot?: boolean }) {
-  const { isLoading, open, had, moreClosed } = useWalletRecord(account, liteByKey, CLOSED_SHOWN)
-  const ps = [...open, ...had]
+  const { isLoading, open, had, moreClosed } = useWalletRecord(account, liteByKey, CLOSED_SHOWN, { me })
+  const ps: HeldPosition[] = [...open, ...had]
   const [pnl, setPnl] = React.useState<string>()
   const colorOf = (g: string) => GROUPS.find((x) => x.id === g)?.color ?? null
   const since = (t: string) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
@@ -119,7 +119,7 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
           const held = s ? (s.kind === 'loop' ? { symbol: s.holds, logo: s.logoLong } : { symbol: s.assetSymbol, logo: s.tokenLogo ?? s.logo }) : { symbol: p.held[0] ?? '?', logo: undefined }
           const debt = s?.kind === 'loop' ? { symbol: s.debt, logo: s.logoShort } : p.debt[0] ? { symbol: p.debt[0], logo: undefined } : null
           const color = s ? colorOf(s.group) : colorOf(groupOf(held.symbol))
-          const up = p.pnlUsd >= 0
+          const up = (p.pnlUsd ?? p.rateNowPct ?? 0) >= 0
           const open = () => setPnl(p.key)
           return (
             <div key={p.key} className={`lb-p${p.closed ? ' was' : ''}`} role="button" tabIndex={0} title="See what this position made, day by day" onClick={open} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open() } }} style={{ '--gc': color ?? undefined } as React.CSSProperties}>
@@ -135,7 +135,10 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
                   </span>
                 )}
               </span>
-              <span className="lb-pv"><b className={up ? 'ok' : 'bad'}>{up ? '+' : '−'}{usd(Math.abs(p.pnlUsd))}</b><small className="t50">{p.aprPct != null ? <>{pct(p.aprPct, 1)} a year</> : 'made so far'}</small></span>
+              <span className="lb-pv">{p.pnlUsd != null
+                ? <><b className={up ? 'ok' : 'bad'}>{up ? '+' : '−'}{usd(Math.abs(p.pnlUsd))}</b><small className="t50">{p.aprPct != null ? <>{pct(p.aprPct, 1)} a year</> : 'made so far'}</small></>
+                // no drawn figure yet: what it earns now
+                : <><b className={p.rateNowPct == null ? 't50' : up ? 'ok' : 'bad'}>{p.rateNowPct != null ? pct(p.rateNowPct, 1) : '–'}</b><small className="t50">a year now</small></>}</span>
               <span className="lb-pa">
                 {row && !me ? <button type="button" className="btn sm pri" onClick={(e) => { e.stopPropagation(); openRow(row.s, { copy: account }) }}>Copy</button> : <span className="lb-nocopy" />}
                 <span className="t40 lb-chev" aria-hidden>›</span>

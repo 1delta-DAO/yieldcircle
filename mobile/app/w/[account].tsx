@@ -9,7 +9,7 @@ import { labelFor, shortAddr } from '@yieldcircle/core/identity/name'
 import { rowOfTx } from '@yieldcircle/core/model/moves'
 import { ago, pct, usdShort } from '@yieldcircle/core/model/format'
 import { useFeedPage, useRateLeaders, useTopEarners } from '@yieldcircle/app/index/queries'
-import { useAccountPnlBook } from '@yieldcircle/app/index/pnl'
+import { useHeldPositions } from '@yieldcircle/app/board'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { useNav } from '@yieldcircle/app/nav'
 import { useSession } from '@yieldcircle/app/session'
@@ -56,13 +56,14 @@ export default function WalletPage() {
   const L = useLiteMenu()
   const feed = useFeedPage({ accounts: me }, 12)
   const moves = (feed.data?.txs ?? []).map((t) => ({ t, r: rowOfTx(t, L.rows) })).slice(0, 6)
-  const book = useAccountPnlBook(addr)
+  // what it holds now: the index's positions, as Pro lists them (the book draws few of them)
+  const held = useHeldPositions(addr, liteByKey)
   const said = useAccountMessages(addr)
   const msgs = (said.data?.messages ?? []).filter((m) => !m.deleted).slice(0, 4)
   if (own) return null
   const nFollowers = followers.data?.followers.length
   // a wallet the index has drawn nothing for (docs/lite-design-review.md §3.7): one plain line, not two empty boxes
-  const runsNothing = !book.isLoading && !(book.data?.positions ?? []).length
+  const runsNothing = !held.isLoading && !held.open.length
   const nothingYet = runsNothing && !row && !byRate.isLoading && !byDay.isLoading && !moves.length && !msgs.length
   const lately = moves.length > 0 && <Sec title="Lately"><View style={st.card}><Moves txs={moves} hideWho /></View></Sec>
   const mutualWords = mutual.length === 1 ? labelFor(mutual[0], profile(mutual[0])).label : `${labelFor(mutual[0] ?? '', profile(mutual[0] ?? '')).label} and ${mutual.length - 1} more`

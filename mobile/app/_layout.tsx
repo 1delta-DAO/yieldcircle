@@ -19,6 +19,7 @@ import { PhoneSession } from '../src/session'
 import { PhonePaper } from '../src/paper'
 import { PhonePlatform } from '../src/platform'
 import { PhoneNav } from '../src/nav'
+import { AppTabBar } from '../src/ui/TabBar'
 import { configureTrace, initTxTrace } from '@yieldcircle/app/sdk/txTrace'
 import { C } from '../src/theme'
 
@@ -43,6 +44,8 @@ export default function RootLayout() {
             <PhonePaper>
             <PhoneSession>
               <StatusBar style="light" />
+              {/* one tab bar under every page, pushed ones too: the anchor home (src/ui/TabBar.tsx) */}
+              <AppTabBar>
               <Stack screenOptions={{ ...header, headerShown: false }}>
                 <Stack.Screen name="strategy/[id]" options={{ presentation: 'modal', headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
                 <Stack.Screen name="you" options={{ headerShown: false }} />
@@ -53,6 +56,7 @@ export default function RootLayout() {
                 <Stack.Screen name="details" options={{ ...header, headerShown: true, title: 'Details' }} />
                 <Stack.Screen name="probe" options={{ ...header, headerShown: true, title: 'Wallet probe' }} />
               </Stack>
+              </AppTabBar>
               {/* absolute: with Expo Router the modal does not open on Android otherwise (Reown's documented workaround) */}
               <View pointerEvents="box-none" style={{ position: 'absolute', height: '100%', width: '100%' }}>
                 <AppKit />

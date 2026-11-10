@@ -589,6 +589,68 @@ export function boardPositions(
     .sort((a, b) => b.pnlUsd - a.pnlUsd)
 }
 
+/** A position a wallet holds now: a board row whose lifetime figure may not be drawn yet (`pnlUsd` null). */
+export interface HeldPosition extends Omit<BoardPosition, 'pnlUsd'> {
+  pnlUsd: number | null
+  /** what it earns a year now, net of what it pays (the index's figure for the position) */
+  rateNowPct?: number | null
+}
+/**
+ * What a wallet holds now, as the board's rows: every position the index lists for it
+ * (`/positions` → `groups`, the legs folded per liquidation; one row per leg on an index without
+ * groups), with what it MADE joined on by key where the PnL book has drawn it. Most of another
+ * wallet's positions have no drawn figure (pending, unpriced, too big): they still show, at the
+ * rate they earn now, never as "no position". A drawn record the index no longer lists is kept
+ * (`boardPositions`). Biggest first.
+ */
+export function heldPositions(
+  pos: {
+    positions: { chainId: string; account: string; posId: string; marketUid: string; side: string; symbol?: string | null; amountUsd: number | null; aprEffective?: number | null; aprNow: number | null }[]
+    groups?: { key: string; chainId: string; account: string; posId: string; equityUsd: number; netAprPct: number | null; unpriced: number; legs: { marketUid: string; side: string; posId: string }[] }[]
+  } | undefined,
+  book: Parameters<typeof boardPositions>[0] | undefined,
+  liteTitle: (strategyKey: string) => string | null,
+): HeldPosition[] {
+  const fold = (key: string) => (/^0x[0-9a-f]{40}$/i.test(key.split('|')[1] ?? '') ? key.toLowerCase() : key)
+  const drawn = new Map((book ? boardPositions(book, liteTitle) : []).map((p) => [fold(p.key), p]))
+  const legs = pos?.positions ?? []
+  const groups = pos?.groups?.length
+    ? pos.groups
+    : legs.map((r) => ({
+        key: `${r.chainId}|${r.account}|${r.posId}|${r.marketUid}|${r.side}`, chainId: r.chainId, account: r.account, posId: r.posId,
+        equityUsd: (r.side === 'borrow' ? -1 : 1) * (r.amountUsd ?? 0), netAprPct: r.aprEffective ?? r.aprNow, unpriced: r.amountUsd == null ? 1 : 0,
+        legs: [{ marketUid: r.marketUid, side: r.side, posId: r.posId }],
+      }))
+  const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))].slice(0, 2)
+  const held: HeldPosition[] = groups
+    // dust and a debt worth more than what holds it are no position to show; an unpriced one is
+    .filter((g) => g.equityUsd >= 1 || (g.unpriced > 0 && g.equityUsd >= 0) || drawn.has(fold(g.key)))
+    .map((g) => {
+      const rows = g.legs.map((l) => legs.find((r) => r.chainId === g.chainId && r.marketUid === l.marketUid && r.side === l.side && r.posId === l.posId))
+      const long = g.legs.filter((l) => l.side !== 'borrow'), short = g.legs.filter((l) => l.side === 'borrow')
+      const sym = (side: (s: string) => boolean) => uniq(rows.filter((r) => r && side(r.side)).map((r) => r!.symbol))
+      const a = long[0] && canonUid(long[0].marketUid), b = short[0] && canonUid(short[0].marketUid)
+      const strategyKey = short.length ? (a && b ? `loop:${a}|${b}` : '') : a ? `dep:${a}` : ''
+      const d = drawn.get(fold(g.key))
+      drawn.delete(fold(g.key))
+      const heldSyms = sym((s) => s !== 'borrow'), debt = sym((s) => s === 'borrow')
+      const loop = short.length > 0
+      return d
+        ? { ...d, equityUsd: g.equityUsd, rateNowPct: g.netAprPct }
+        : {
+            key: g.key, strategyKey, kind: loop ? 'loop' : 'deposit',
+            title: (strategyKey && liteTitle(strategyKey)) || heldSyms.join(' + ') || 'A position',
+            sub: loop ? `Levered · borrows ${debt.join(' + ') || 'against it'}` : 'Deposit',
+            held: heldSyms, debt, pnlUsd: null, aprPct: null, equityUsd: g.equityUsd, since: null, share: null, rateNowPct: g.netAprPct,
+          }
+    })
+  const all = [...held, ...drawn.values()]
+  const total = all.reduce((n, p) => n + Math.max(0, p.equityUsd ?? 0), 0)
+  return all
+    .map((p) => ({ ...p, share: total > 0 && p.equityUsd != null ? Math.max(0, p.equityUsd) / total : null }))
+    .sort((x, y) => (y.equityUsd ?? 0) - (x.equityUsd ?? 0))
+}
+
 /** One position inside a row of `madeRows`. */
 export interface MadeRecord { key: string; chainId: string; valueUsd: number | null; pnlUsd: number; aprPct: number | null }
 /** One thing the wallet runs on "Every number": a strategy and the positions it is made of, once. */

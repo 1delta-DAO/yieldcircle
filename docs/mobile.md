@@ -104,7 +104,7 @@ wallet forward through `Platform.openWallet`, as the ladder does. The social cod
 mobile/
   app/_layout.tsx        polyfills → env → AppKit, wagmi, React Query, Settings, session; the AppKit modal
   app/index.tsx          → /lite or /pro, by the saved mode
-  app/lite/  app/pro/    the two tab bars and their screens
+  app/lite/  app/pro/    the two tab navigators and their screens (the bar itself is src/ui/TabBar.tsx)
   app/strategy/[id].tsx  one strategy, read-only
   app/you.tsx            your money: stats, what you made, positions, follows' moves
   app/profile.tsx        profile and settings: wallet, linked wallets, pending, chains, filters, Lite / Pro
@@ -358,6 +358,12 @@ Share text and its link are core's (`shareOf`, `canShare` in `model/lite.ts`); b
 
 ## Decisions on the look
 
+- **The tab bar is on every page** (2026-11-10). Pages pushed over the tabs — a wallet's page, You,
+  a position, search, profile — used to cover the navigator's bar, leaving the back arrow as the one
+  way out. Now one bar sits under the root stack (`AppTabBar`, `src/ui/TabBar.tsx`): the tab a page
+  was opened from stays lit, a tap on any tab closes what was pushed and lands on that tab. It steps
+  aside only for a task with its own close: the paper sign-in, and the ticket (on iOS the native
+  sheet covers it anyway). This is the iOS HIG and Material rule, and what Revolut, X and Instagram do.
 - **Dark only**, on both apps (2026-10-28). The tokens have no light set and none is planned: it is
   not a gap to file.
 - **The type scale and touch sizes are tokens** (`packages/design/tokens.css`: `--fs-cap` 11 …

@@ -2,10 +2,10 @@ import React from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import * as idx from '@yieldcircle/core/index/api'
 import { bookKeyOf } from '@yieldcircle/core/model/uid'
-import { boardPositions, closedPosition, liteName, plainName, type BoardSort, type LiteRow } from '@yieldcircle/core/model/lite'
+import { boardPositions, closedPosition, heldPositions, liteName, plainName, type BoardSort, type HeldPosition, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { useAccountPnlBook } from './index/pnl'
-import { RATE_BOARD_LIMIT, useClosedPositions } from './index/queries'
+import { RATE_BOARD_LIMIT, useClosedPositions, useIndexPositions } from './index/queries'
 import { useLiteMenu } from './lite'
 
 /**
@@ -92,13 +92,28 @@ export function useClosedRecord(account: string | undefined, liteByKey: Map<stri
 }
 
 /**
- * A wallet's record on the board: what it runs (`open`, from its PnL book) and what it HAD
+ * What a wallet holds now (`heldPositions`): the index's positions — what Pro's profile lists —
+ * with its PnL book's figures joined on where drawn. The book alone left most wallets empty: it
+ * draws a figure for few of another wallet's positions. `me` (the connected wallet, on its own
+ * board row) reads the book only: the index never serves the user's own positions (docs/apis.md).
+ */
+export function useHeldPositions(account: string | undefined, liteByKey: Map<string, LiteRow>, { me = false }: { me?: boolean } = {}) {
+  const q = useAccountPnlBook(account)
+  const pos = useIndexPositions(me ? undefined : account)
+  const liteTitle = (k: string) => liteByKey.get(k.toLowerCase())?.title ?? null
+  const open: HeldPosition[] = me ? (q.data ? boardPositions(q.data, liteTitle) : []) : heldPositions(pos.data, q.data ?? undefined, liteTitle)
+  // the index's answer is enough to show; the figures fill in when the book lands. An index that
+  // failed leaves the book alone, as before
+  const isLoading = me ? q.isLoading : pos.isLoading || (!pos.data && q.isLoading)
+  return { isLoading, open }
+}
+
+/**
+ * A wallet's record on the board: what it runs (`open`, `useHeldPositions`) and what it HAD
  * (`useClosedRecord`), the newest `closedShown`; `moreClosed` are Pro's.
  */
-export function useWalletRecord(account: string, liteByKey: Map<string, LiteRow>, closedShown: number) {
-  const q = useAccountPnlBook(account)
-  const liteTitle = (k: string) => liteByKey.get(k.toLowerCase())?.title ?? null
-  const open = q.data ? boardPositions(q.data, liteTitle) : []
+export function useWalletRecord(account: string, liteByKey: Map<string, LiteRow>, closedShown: number, { me = false }: { me?: boolean } = {}) {
+  const { isLoading, open } = useHeldPositions(account, liteByKey, { me })
   const { had, more } = useClosedRecord(account, liteByKey, closedShown)
-  return { isLoading: q.isLoading, open, had, moreClosed: more }
+  return { isLoading, open, had, moreClosed: more }
 }

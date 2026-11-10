@@ -9,6 +9,10 @@
 import type { AssetClass } from '../model/assetClass'
 
 export type UsdStatus = 'exact' | 'provisional' | 'pending' | 'no-asset' | 'no-index' | 'no-price'
+  /** the log states no amount of the asset (a Fluid smart side's DEX shares); the position's balance comes from the read */
+  | 'no-amount'
+  /** more than twice the token's whole supply: a mis-scaled amount the index refused to value (pos-indexer tickets/0104) */
+  | 'implausible'
 /**
  * `vault` = the address IS a share token; `protocol` = a roster emitter moving its own shares;
  * `dex` = a liquidity venue (Balancer's Vault) wrapping / unwrapping lending receipts inside a swap;

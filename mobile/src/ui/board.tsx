@@ -9,7 +9,7 @@ import { useMyFollows, useProfiles } from '@yieldcircle/app/social/queries'
 import type { Profile } from '@yieldcircle/core/social/types'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { GROUPS, groupOf } from '@yieldcircle/core/model/assets'
-import { BOARD_HELD, boardHeld, boardStrategies, boardWallets, leverTag, type BoardSort, type BoardStrategy, type BoardWallet, type LiteRow } from '@yieldcircle/core/model/lite'
+import { BOARD_HELD, boardHeld, boardStrategies, boardWallets, leverTag, type BoardSort, type BoardStrategy, type BoardWallet, type HeldPosition, type LiteRow } from '@yieldcircle/core/model/lite'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { C, alpha, mix } from '../theme'
 import { ChainChip } from './ChainChip'
@@ -256,8 +256,8 @@ function WalletRow({ r, sort, profile, me, open, onToggle, liteByKey }: { r: Boa
  */
 export function WalletPositions({ account, liteByKey, me, foot = true }: { account: string; liteByKey: Map<string, LiteRow>; me: boolean; foot?: boolean }) {
   const nav = useNav()
-  const { isLoading, open, had, moreClosed } = useWalletRecord(account, liteByKey, CLOSED_SHOWN)
-  const ps = [...open, ...had]
+  const { isLoading, open, had, moreClosed } = useWalletRecord(account, liteByKey, CLOSED_SHOWN, { me })
+  const ps: HeldPosition[] = [...open, ...had]
   const colorOf = (g: string) => GROUPS.find((x) => x.id === g)?.color ?? null
   const since = (t: string) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
   return (
@@ -270,7 +270,7 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
           const held = s ? (s.kind === 'loop' ? { symbol: s.holds, logo: s.logoLong } : { symbol: s.assetSymbol, logo: s.tokenLogo ?? s.logo }) : { symbol: p.held[0] ?? '?', logo: undefined }
           const debt = s?.kind === 'loop' ? { symbol: s.debt, logo: s.logoShort } : p.debt[0] ? { symbol: p.debt[0], logo: undefined } : null
           const color = (s ? colorOf(s.group) : colorOf(groupOf(held.symbol))) ?? C.primary
-          const up = p.pnlUsd >= 0
+          const up = (p.pnlUsd ?? p.rateNowPct ?? 0) >= 0
           const share = p.share != null && ps.length > 1 ? p.share : null
           return (
             <Pressable key={p.key} onPress={() => router.push(`/position?${new URLSearchParams({ a: account, k: p.key })}` as Href)} style={({ pressed }) => [st.lbP, p.closed && { opacity: 0.75 }, pressed && { backgroundColor: C.b300 }]} accessibilityHint="What this position made, day by day">
@@ -293,8 +293,14 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
                 )}
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Txt w={700} c={up ? C.ok : C.bad}>{up ? '+' : '−'}{usd(Math.abs(p.pnlUsd))}</Txt>
-                <Txt s={11.5} c={C.tx50}>{p.aprPct != null ? `${pct(p.aprPct, 1)} a year` : 'made so far'}</Txt>
+                {p.pnlUsd != null ? <>
+                  <Txt w={700} c={up ? C.ok : C.bad}>{up ? '+' : '−'}{usd(Math.abs(p.pnlUsd))}</Txt>
+                  <Txt s={11.5} c={C.tx50}>{p.aprPct != null ? `${pct(p.aprPct, 1)} a year` : 'made so far'}</Txt>
+                </> : <>
+                  {/* no drawn figure yet: what it earns now */}
+                  <Txt w={700} c={p.rateNowPct == null ? C.tx50 : up ? C.ok : C.bad}>{p.rateNowPct != null ? pct(p.rateNowPct, 1) : '–'}</Txt>
+                  <Txt s={11.5} c={C.tx50}>a year now</Txt>
+                </>}
               </View>
               {row && !me ? <Btn sm title="Copy" onPress={() => openStrategy(row.s, { copy: account })} /> : null}
               <Txt c={C.tx40}>›</Txt>

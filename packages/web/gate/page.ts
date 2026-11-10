@@ -16,6 +16,9 @@
  * code (`/?waitlist`, linked from the app's nudge): different words, a way
  * back to the app, and nothing here is blocking them.
  *
+ * `app` (the landing) tells the same flow as the way to the iPhone app: the
+ * waitlist's email is where its TestFlight invite goes (docs/testflight.md).
+ *
  * `hidden: true` ships it closed behind the app's join page (`src/ui/Join.tsx`
  * opens it; "Not now" closes it again) — nothing is frosted over any more.
  *
@@ -93,11 +96,11 @@ export const overlay = ({ waitlist = false, hidden = false, app = '' } = {}) => 
 </style>
 <div class="yc-card">
   <svg class="yc-mark" viewBox="${MARK_VIEWBOX}" aria-hidden="true"><defs><linearGradient id="yc-g" gradientUnits="userSpaceOnUse" x1="16" y1="88" x2="86" y2="14"><stop offset="0" stop-color="#0b8fb5"/><stop offset="1" stop-color="#7ce9f5"/></linearGradient></defs><path d="${MARK_D}" fill-rule="evenodd" fill="url(#yc-g)"/></svg>
-  <div class="yc-tag">${waitlist ? 'Access code' : 'Closed beta'}</div>
-  <h1 id="yc-title">Join the waitlist</h1>
+  <div class="yc-tag">${waitlist ? 'Access code' : app ? 'iPhone beta' : 'Closed beta'}</div>
+  <h1 id="yc-title">${app ? 'Get the iPhone app' : 'Join the waitlist'}</h1>
   <p id="yc-sub">${waitlist
     ? 'You&rsquo;re in on an access code, which isn&rsquo;t yours to keep. Connect your wallet and leave an email to hold a place of your own &mdash; access opens in waves.'
-    : app ? 'Access opens in waves down the waitlist &mdash; connect your wallet to join it, or to see if it&rsquo;s your turn.'
+    : app ? 'The YieldCircle iPhone app is in beta, and invites go out in waves through Apple&rsquo;s TestFlight. Connect your wallet and leave an email to get one.'
     : 'Everything you see is live. Access opens in waves down the waitlist &mdash; connect your wallet to join it, or to walk in if it&rsquo;s your turn.'}</p>
   <div class="yc-row" id="yc-row">
     <input id="yc-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" hidden />
@@ -209,7 +212,7 @@ export const overlay = ({ waitlist = false, hidden = false, app = '' } = {}) => 
   /** The landing: a whitelisted wallet signs in on the app, whose origin holds the cookie. */
   function onList() {
     $('yc-title').textContent = 'It\u2019s your turn';
-    $('yc-sub').textContent = address.slice(0, 6) + '\u2026' + address.slice(-4) + ' is on the list. Open the app and sign in \u2014 one signature, free.';
+    $('yc-sub').textContent = address.slice(0, 6) + '\u2026' + address.slice(-4) + ' is on the list. Open the web app and sign in \u2014 one signature, free.';
     $('yc-row').innerHTML = '<a class="yc-btn" href="' + APP + '">Open the app</a>';
     status('');
   }
@@ -228,18 +231,22 @@ export const overlay = ({ waitlist = false, hidden = false, app = '' } = {}) => 
   }
 
   function lineup() {
-    $('yc-sub').textContent = address.slice(0, 6) + '\\u2026' + address.slice(-4) + ' isn\\u2019t on the waitlist yet. Leave an email and you\\u2019re in line.';
+    $('yc-sub').textContent = address.slice(0, 6) + '\\u2026' + address.slice(-4) + (APP
+      ? ' isn\\u2019t on the list yet. Leave the email your TestFlight invite should go to.'
+      : ' isn\\u2019t on the waitlist yet. Leave an email and you\\u2019re in line.');
     $('yc-email').hidden = false;
-    btn.textContent = 'Join the waitlist';
+    btn.textContent = APP ? 'Request an invite' : 'Join the waitlist';
     btn.disabled = false;
     status('');
     next = request;
   }
 
   function waiting(email) {
-    $('yc-title').textContent = 'You\\u2019re on the waitlist';
-    $('yc-sub').textContent = (email ? 'We\\u2019ll email ' + email : 'This wallet is in line. We\\u2019ll email you') + ' the moment access reaches it \\u2014 it opens in waves. Until then, come say hi on Telegram.';
-    var text = encodeURIComponent('On the YieldCircle waitlist \\u{1F440} ' + location.origin);
+    $('yc-title').textContent = APP ? 'You\\u2019re on the list' : 'You\\u2019re on the waitlist';
+    $('yc-sub').textContent = APP
+      ? (email ? 'We\\u2019ll send a TestFlight invite to ' + email : 'This wallet is on the list. We\\u2019ll email you a TestFlight invite') + ' when your wave opens. Until then, come say hi on Telegram.'
+      : (email ? 'We\\u2019ll email ' + email : 'This wallet is in line. We\\u2019ll email you') + ' the moment access reaches it \\u2014 it opens in waves. Until then, come say hi on Telegram.';
+    var text = encodeURIComponent((APP ? 'On the list for the YieldCircle iPhone app' : 'On the YieldCircle waitlist') + ' \\u{1F440} ' + location.origin);
     // in line, the community is the next step: Telegram leads, sharing follows, and the quiet row goes
     $('yc-row').innerHTML = TG + '<a class="yc-btn yc-ghost" target="_blank" rel="noopener" href="https://x.com/intent/post?text=' + text + '">Share on X</a>';
     $('yc-social').style.display = 'none';

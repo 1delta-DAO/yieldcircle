@@ -11,8 +11,8 @@ process.env.VITE_APP_URL ||= 'https://app.yieldcircle.io'
 
 /**
  * The gate's card, built into the page: an inline script in the HTML, as the app's middleware
- * injects it, so the landing needs no HTML rewriting at the edge. Shipped hidden; every "Join the
- * waitlist" opens it (`openGate`), and a whitelisted wallet is sent on to the app to sign in.
+ * injects it, so the landing needs no HTML rewriting at the edge. Shipped hidden; every "Get the
+ * iPhone app" opens it (`openGate`), and a whitelisted wallet is sent on to the app to sign in.
  */
 const gateCard = () => ({
   name: 'yc:gate-card',

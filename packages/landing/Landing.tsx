@@ -11,9 +11,9 @@
  * hero, the protocols run as a marquee. Everything that moves holds still
  * under `prefers-reduced-motion`.
  *
- * Every "Join the waitlist" opens the gate's own card (`openGate`, built into
+ * Every "Get the iPhone app" opens the gate's own card (`openGate`, built into
  * `index.html` by `vite.config.ts`), which puts a wallet in line through this
- * deployment's Worker; "Sign in" and every link into the product go to the
+ * deployment's Worker (its email is where the TestFlight invite goes); "Sign in" and every link into the product go to the
  * app (`APP_URL`), where the beta cookie lives.
  */
 import React from 'react'
@@ -121,7 +121,7 @@ export function Landing() {
   // the gate's card is the modal; should it be missing, the link goes through to the app, which has its own
   const join = (e: React.MouseEvent) => { if (openGate()) e.preventDefault() }
   /** the top-right button and every CTA on the page */
-  const cta = (label = 'Join the waitlist', className = 'join-cta') => <a className={className} href={APP_URL} onClick={join}>{label}</a>
+  const cta = (label = 'Get the iPhone app', className = 'join-cta') => <a className={className} href={APP_URL} onClick={join}>{label}</a>
 
   return (
     <div className={deep ? 'lp lp-deep' : 'lp'}>
@@ -134,18 +134,18 @@ export function Landing() {
         </nav>
         <span className="sp" />
         <Socials className="lp-social" label="Telegram" />
-        {cta('Join the waitlist', 'join-cta lp-btn')}
+        {cta('Get the iPhone app', 'join-cta lp-btn')}
       </header>
 
       <Showcase className="lp-hero" quiet={deep}>
         <main className="join-hero lp-hero-copy">
-          <span className="lp-sticker lp-sticker-hero">Closed beta · free to join</span>
+          <span className="lp-sticker lp-sticker-hero">iPhone beta · free to join</span>
           <h1>Everything you hold, <span className="lp-mark">earning.</span></h1>
           <p>See what real yield farmers <b>actually</b> make, proven on-chain — and copy them in one tap.</p>
           {cta()}
           {/* paper trading needs no beta (yieldcircle tickets/0006): `?paper` opens the app's paper sign-in on arrival */}
-          <a className="join-paper" href={`${APP_URL.replace(/\/$/, '')}/?paper`}>Try it with paper money <small>no wallet, no waitlist</small></a>
-          <a className="join-in" href={APP_URL}>Already on the list? Sign in</a>
+          <a className="join-paper" href={`${APP_URL.replace(/\/$/, '')}/?paper`}>Try it with paper money <small>on the web, no wallet, no invite</small></a>
+          <a className="join-in" href={APP_URL}>Have web access? Sign in</a>
         </main>
         <a className="land-hint lp-hint" href="#live" aria-label="Scroll down">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8l6 6 6-6" /></svg>
@@ -243,9 +243,9 @@ export function Landing() {
 
       <section className="lp-sec lp-end">
         <div className="land-glow" aria-hidden="true" />
-        <span className="lp-sticker rv">Closed beta</span>
+        <span className="lp-sticker rv">iPhone beta</span>
         <h2 className="lp-h2 center rv">Early members <span className="lp-mark">earn rewards.</span></h2>
-        <p className="lp-lead center rv">Access opens in waves. Early rewards go to what you actually do here — positions held, days held — not how many wallets you sign up.</p>
+        <p className="lp-lead center rv">Invites to the iPhone app go out in waves through TestFlight. Early rewards go to what you actually do here — positions held, days held — not how many wallets you sign up.</p>
         <div className="lp-end-row rv">
           {cta()}
           <a className="tg-link lp-tg" href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer">
@@ -350,7 +350,7 @@ function Live({ join }: { join: (e: React.MouseEvent) => void }) {
           ))}
         </div>
         <div className="lp-board-f">
-          <a className="btn" href={`${APP_URL}/#/board`} onClick={join}>See the full board — join the waitlist</a>
+          <a className="btn" href={`${APP_URL}/#/board`} onClick={join}>See the full board — get the iPhone app</a>
         </div>
       </div>
     </section>

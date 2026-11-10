@@ -25,7 +25,7 @@ export function LiteCard({ r, get, proof, profile, followed }: { r: LiteRow; get
         {s.kind === 'loop' && <LeverPill text={leverTag(s.tiers.balanced)} />}
       </View>
       <View style={{ gap: 2 }}>
-        <LiteTitle r={r} size={16} icon={15} full />
+        <LiteTitle r={r} size={16} icon={15} />
         <Txt s={12} c={C.tx70} numberOfLines={2}>{r.sub}</Txt>
       </View>
       <View style={st.rate}>

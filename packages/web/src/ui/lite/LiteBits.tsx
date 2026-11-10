@@ -1,7 +1,7 @@
 import React from 'react'
 import { liteHash } from '@yieldcircle/core/model/liteLinks'
 import { isSpike, seriesFor, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
-import { heldBy, leverTag, riskWord, rowName, type LiteRow } from '@yieldcircle/core/model/lite'
+import { heldBy, leverTag, riskScoreText, riskTag, riskWord, rowName, type LiteRow } from '@yieldcircle/core/model/lite'
 export { heldBy }
 import { GROUPS } from '@yieldcircle/core/model/assets'
 import type { Proof } from '@yieldcircle/core/model/activity'
@@ -18,18 +18,15 @@ export function LiteFace({ s, size = 28 }: { s: Strategy; size?: number }) {
 }
 
 /**
- * A row's name: the money's own mark, then the money in words. On a category's own list the family
- * is the page's ("Dollars"), so the row says whose it is (`3Jane`); wherever categories mix — the
- * best rates across all, the home's cards, search — it says the whole phrase (`Dollars via 3Jane`):
- * a touch screen has no hover to say it (docs/lite-design-review.md §3.2). A PT or a loop adds how
- * it earns (`3Jane via Pendle`, `3Jane loop via Morpho`: `rowName`).
+ * A row's name: the money's own mark, then whose it is and where it sits (`Hastra via Lagoon`,
+ * `3Jane loop via Morpho`: `liteName`) — the same words on every list, the mark says the family.
  */
-export function LiteTitle({ r, size = 14, full }: { r: LiteRow; size?: number; full?: boolean }) {
+export function LiteTitle({ r, size = 14 }: { r: LiteRow; size?: number }) {
   const g = GROUPS.find((x) => x.id === r.s.group)
   return (
     <b className="lite-title">
       {g && <GroupIcon id={g.id} color={g.color} size={size} />}
-      <span>{rowName(r, full)}</span>
+      <span>{rowName(r)}</span>
     </b>
   )
 }
@@ -50,11 +47,16 @@ export const openRow = (s: Strategy, more: { copy?: string; lev?: string; h?: st
 export function LiteRate({ s }: { s: Strategy }) {
   return <b className={`lite-rate r${s.risk}`} aria-label={`${pct(s.rate)} a year, ${riskWord(s.risk).toLowerCase()}`}>{pct(s.rate)}</b>
 }
+/** The risk under a row's rate: `Medium · 3/5`, or on a phone `risk 3/5` (the colour says the word) — the long names need the room. */
+function RiskTag({ s }: { s: Strategy }) {
+  const score = riskScoreText(s)
+  return <small className={`lite-risk r${s.risk}`} title={riskTag(s)}>{score ? <><span className="wide">{riskTag(s)}</span><span className="narrow">risk {score}</span></> : riskTag(s)}</small>
+}
 /** Tonight's rate well above its own month: the list ranks by the steady one, and says so. */
 export const spikeOf = (s: Strategy, get: HistoryGet) => isSpike(s.rate, seriesFor(s, get, true))
 
-/** One list row: face · what it is · held by · yours · lever · rate. The whole row is the button. */
-export function LiteRowView({ r, get, proof, on, yoursUsd, followed, full }: { r: LiteRow; get: HistoryGet; proof: Proof | null; on?: boolean; yoursUsd?: number; /** the proof's face is someone the reader follows: said first (docs/lite-social-search.md §4.6) */ followed?: boolean; /** categories mix on this list: the whole phrase, not only whose */ full?: boolean }) {
+/** One list row: face · what it is · held by · yours · lever · rate over its risk. The whole row is the button. */
+export function LiteRowView({ r, get, proof, on, yoursUsd, followed }: { r: LiteRow; get: HistoryGet; proof: Proof | null; on?: boolean; yoursUsd?: number; /** the proof's face is someone the reader follows: said first (docs/lite-social-search.md §4.6) */ followed?: boolean }) {
   const s = r.s
   const who = heldBy(proof)
   const friend = followed && proof?.best ? proof.best.account : null
@@ -63,12 +65,12 @@ export function LiteRowView({ r, get, proof, on, yoursUsd, followed, full }: { r
     <button type="button" className={`lrow${on ? ' on' : ''}`} aria-pressed={on} onClick={() => openRow(s)}>
       <LiteFace s={s} />
       <span className="lrow-n">
-        <LiteTitle r={r} full={full} />
+        <LiteTitle r={r} />
         <small>{r.sub}{spike && <> · <span className="warn">higher than usual</span></>}{friend ? <> · <span className="lite-friend"><Face account={friend} size={14} /> you follow{proof!.wallets > 1 ? ` + ${proof!.wallets - 1}` : ''}</span></> : who ? <> · <span className="t70">{who}</span></> : null}</small>
       </span>
       {yoursUsd != null && yoursUsd > 0 && <span className="pill run">yours {usdShort(yoursUsd)}</span>}
       {s.kind === 'loop' && <span className="pill lever">{leverTag(s.tiers.balanced)}</span>}
-      <LiteRate s={s} />
+      <span className="lrow-r"><LiteRate s={s} /><RiskTag s={s} /></span>
     </button>
   )
 }
@@ -84,7 +86,7 @@ export function LiteCard({ r, get, proof, profile, followed }: { r: LiteRow; get
   return (
     <div className="lcard" role="button" tabIndex={0} onClick={() => openRow(s)} onKeyDown={(e) => { if (e.key === 'Enter') openRow(s) }}>
       <div className="lcard-h"><LiteFace s={s} size={30} /><span className={`lite-risk r${s.risk}`}>{riskWord(s.risk)}</span>{s.kind === 'loop' && <span className="pill lever">{leverTag(s.tiers.balanced)}</span>}</div>
-      <div className="lcard-n"><LiteTitle r={r} size={15} full /><small className="t70">{r.sub}</small></div>
+      <div className="lcard-n"><LiteTitle r={r} size={15} /><small className="t70">{r.sub}</small></div>
       <div className="lcard-rate"><LiteRate s={s} /><span className="t70">a year{spike ? ' · higher than usual' : ''}</span></div>
       {best ? (
         <div className="lcard-proof">

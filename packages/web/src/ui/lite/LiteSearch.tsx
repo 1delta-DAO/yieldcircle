@@ -101,7 +101,7 @@ export function LiteSearch({ q0 }: { q0?: string }) {
           <section className="lite-ss">
             <div className="sec-h"><h2>Earn</h2></div>
             {rows.length ? <div className="lrows">{rows.map((r) => (
-              <div key={r.s.id} onClickCapture={() => pickRow(r)}><LiteRowView r={r} get={L.get} proof={L.proof(r.s)} full /></div>
+              <div key={r.s.id} onClickCapture={() => pickRow(r)}><LiteRowView r={r} get={L.get} proof={L.proof(r.s)} /></div>
             ))}</div> : <p className="t50 lite-none">{L.rows.length ? `Nothing to earn on called “${needle}”.` : 'Reading the rates…'}</p>}
           </section>
           <section className="lite-ss">

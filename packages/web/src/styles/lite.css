@@ -98,6 +98,12 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .lrow-n small{font-size:var(--fs-sm);color:var(--tx70);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow-v{display:flex;flex-direction:column;align-items:flex-end;gap:1px;font-variant-numeric:tabular-nums}
 .lrow-v small{font-size:var(--fs-sm)}
+/* the rate over its risk (`Medium · 3/5`): small and muted, the colour is the rate's */
+.lrow-r{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.lrow-r .lite-risk{font-size:var(--fs-cap);font-weight:500;opacity:.85}
+.lrow-r .lite-risk::before{width:5px;height:5px}
+.lrow-r .narrow{display:none}
+@media (max-width:640px){.lrow-r .wide{display:none}.lrow-r .narrow{display:inline}}
 /* You, one row per position (docs/you-unified.md): what it made wears the weight, the closed ones fold under */
 .lrow-n small.t50{color:var(--tx50)}
 .lrow-v small.made,.lfold .made{font-weight:600}
@@ -412,7 +418,9 @@ a.lstat{color:var(--tx)}a.lstat:hover{background:var(--b300)}
 
 /* names: a title may take two lines rather than lose its words */
 .lite-title > span{min-width:0;overflow-wrap:anywhere}
-.lite-title{align-items:flex-start}
+/* the words shrink and wrap (`3Jane loop via / Flying Tulip`), never run under the lever or the rate */
+.lite-title > span:last-child{flex:0 1 auto}
+.lite-title{align-items:flex-start;max-width:100%}
 .lite-title > svg,.lite-title > span:first-child:not(:last-child){margin-top:2px}
 
 /* the drawn flame */

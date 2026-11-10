@@ -68,7 +68,8 @@ export function LoopBody({ s, idle, allIdle, holding, copyLev }: { s: LoopStrate
   const unit = t.chosen?.symbol ?? t.unit
   const dollar = t.unit === '$' || (t.price > 0.9 && t.price < 1.1), dp = shownDp(dollar)
   // what the loop holds, in Lite's words: never a PT's or a share's ticker
-  const holdsWord = plainName(s).title
+  // the token itself (sUSDe), not `Dollars via Ethena`: the sentences below are about what is sold and bought
+  const holdsWord = s.holds
   // Edit on the Earn line (web's `levEdit`): − and + in tenths, inside Lite's range; a venue refusing the size (max LTV) opens it
   const ltvRefused = t.overCap || overLtv(t.ladder.err) || overLtv((t.q.error as Error | null)?.message)
   const [editLev, setEditLev] = React.useState(false)
@@ -114,7 +115,7 @@ export function LoopBody({ s, idle, allIdle, holding, copyLev }: { s: LoopStrate
               ...(t.copyL != null ? [{ id: 'copy' as const, word: 'Theirs', line: `${leverTag(t.copyL)} · ${pct(liqBuffer(t.liqLtv, t.copyL) * 100, 1)} from liquidation`, side: `earns ${pct(netAprAtLeverage(t.dep, t.borAt(t.E * (t.copyL - 1)), t.copyL))}` }] : []),
               ...liteTiers(s.tiers, t.liqLtv, (l) => netAprAtLeverage(t.dep, t.borAt(t.E * (l - 1)), l)).map((x) => ({ id: x.id as TierId, word: x.word, line: `${leverTag(x.lev)} · ${pct(x.buffer * 100, 1)} from liquidation`, side: `earns ${pct(x.net)}`, tone: x.net >= 3 ? 'ok' : x.net < 0 ? 'bad' : '' })),
             ]} />}
-        {t.opts.length > 1 && <Choices label="Pay with" items={t.opts.map((o) => ({ id: o.address, word: o.role === 'collateral' ? holdsWord : o.symbol, line: o.role === 'debt' ? `swapped into ${holdsWord.toLowerCase().startsWith('dollars') ? 'it' : holdsWord} in the same step` : o.role === 'native' ? 'wrapped for you' : 'what the loop holds, if you have it', side: t.account ? `you have ${num(t.balOf(o.address, o.symbol)?.amount ?? 0, dp)}` : undefined }))} on={t.chosen?.address ?? null} onPick={(a) => t.setPayAddr(a)} />}
+        {t.opts.length > 1 && <Choices label="Pay with" items={t.opts.map((o) => ({ id: o.address, word: o.role === 'collateral' ? holdsWord : o.symbol, line: o.role === 'debt' ? `swapped into ${holdsWord} in the same step` : o.role === 'native' ? 'wrapped for you' : 'what the loop holds, if you have it', side: t.account ? `you have ${num(t.balOf(o.address, o.symbol)?.amount ?? 0, dp)}` : undefined }))} on={t.chosen?.address ?? null} onPick={(a) => t.setPayAddr(a)} />}
         <Numbers rows={[
           ['Earns', `${pct(t.net)} a year at ${leverTag(t.L)}`],
           [`${holdsWord} pays`, `${pct(t.dep)} a year`],
@@ -167,7 +168,7 @@ export function WithdrawBody({ s, h }: { s: SimpleStrategy | null; h: Holding })
 export function ManageLoopBody({ s, h, close }: { s: LoopStrategy | null; h: Holding; close: boolean }) {
   const t = useManageLoop(s, h, close, { lite: true })
   // what the loop holds, in Lite's words (never a PT's ticker)
-  const holdsWord = s ? plainName(s).title : moneyWord(h.asset, h.group)
+  const holdsWord = s ? s.holds : moneyWord(h.asset, h.group)
   if (!t.closing) {
     const bufNow = t.liqLtv != null ? liqBuffer(t.liqLtv, t.Lnow) : bufferOfHealth(h.health)
     const netAt = (l: number) => (s ? netAprAtLeverage(s.depSpot, t.borAt(t.E * (l - 1) - t.D), l) : null)

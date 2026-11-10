@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLiteMenu } from '@yieldcircle/app/lite'
-import { brandOf, heldBy, holdingLine, leverTag, liteEligible, liteModes, moneyWord, plainName, riskWord, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
+import { brandOf, heldBy, holdingLine, leverTag, liteEligible, liteModes, liteName, moneyWord, plainName, riskWord, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
 import { usd, usdShort } from '@yieldcircle/core/model/format'
 import { owedOf } from '@yieldcircle/core/model/borrow'
 import { pnlLine } from '@yieldcircle/core/model/holdingPnl'
@@ -84,7 +84,7 @@ export default function TicketScreen() {
     )
   }
   const n = s ? plainName(s) : null
-  const title = n?.title ?? (h ? moneyWord(h.asset, h.group) : '')
+  const title = s ? liteName(s, n!.title) : h ? moneyWord(h.asset, h.group) : ''
   const line = h ? holdingLine(h) : null
   const chainIdle = s ? b.idlePerChain.filter((i) => i.chainId === s.chainId) : []
   const lev = s?.kind === 'loop' ? (h?.leverage && h.leverage > 1.05 ? h.leverage : copyLev && copyLev > 1.05 ? copyLev : s.tiers.balanced) : h?.kind === 'loop' ? h.leverage ?? 1 : 0

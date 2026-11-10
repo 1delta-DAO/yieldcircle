@@ -41,7 +41,7 @@ import { NATURES, isSavings } from '@yieldcircle/core/model/nature'
 import { SayWhy } from './SayWhy'
 import { TicketSocial } from './TicketSocial'
 import { AssetLink } from './TokenPage'
-import { heldBy, bufferOfHealth, brandOf, closeLines, debtWord, depositLines, holdingLine, leverTag, liteEligible, liteModes, liteTiers, loopLines, moneyWord, overLtv, plainName, riskWord, saferLines, saferTargets, shownDp, trustKind, withdrawLines, type LiteMode } from '@yieldcircle/core/model/lite'
+import { heldBy, bufferOfHealth, brandOf, closeLines, debtWord, depositLines, holdingLine, leverTag, liteEligible, liteModes, liteName, liteTiers, loopLines, moneyWord, overLtv, plainName, riskWord, saferLines, saferTargets, shownDp, trustKind, withdrawLines, type LiteMode } from '@yieldcircle/core/model/lite'
 import { proHref } from '../state/AppState'
 import { LoopLoanPanes } from './BorrowTicket'
 import { LiteAmtSub, LiteChoices, LiteDetails, LiteLines, LiteMoreCtx, LiteMoreSheet, LiteNumbers, LitePresets } from './lite/LiteTicketBits'
@@ -163,7 +163,7 @@ function LiteTicket({ s, idle, holdings, holding, into: into0, mode0, copy, copy
   // "More choices": what Lite decides, offered back in its own words — each body draws its own
   const [details, setDetails] = React.useState(false)
   const n = s ? plainName(s) : null
-  const title = n?.title ?? (h ? moneyWord(h.asset, h.group) : '')
+  const title = s ? liteName(s, n!.title) : h ? moneyWord(h.asset, h.group) : ''
   const line = h ? holdingLine(h) : null
   // what the position made since it was opened: the index's own figure for it
   const pnl = useHoldingPnl(h)
@@ -644,7 +644,8 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
   const { pickers, ltvQ, overCap, capLtv, liteTier, pickLiteTier, liteLev, setLiteLev, liteLo, liteHi, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote } = useLoopTicket(s0, idle, allIdle, holding, { lite, copyLev })
   const dollar = unit === '$' || (price > 0.9 && price < 1.1), dp = shownDp(dollar)
   // what the loop holds, in Lite's words: never a PT's or a share's ticker (docs/lite-design-review.md §4.2)
-  const holdsWord = plainName(s).title
+  // the token itself (sUSDe), not `Dollars via Ethena`: the sentences below are about what is sold and bought
+  const holdsWord = s.holds
   // Lite's Edit on the Earn line: the leverage moves what it earns and what it can lose, so it is set
   // there. A venue refusing the size against its collateral (max LTV) opens it, since less leverage is the fix
   const ltvRefused = overCap || overLtv(ladder.err) || overLtv((q.error as Error | null)?.message)
@@ -682,7 +683,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
               ...(copyL != null ? [{ id: 'copy' as const, word: 'Theirs', line: `${leverTag(copyL)} · ${pct(liqBuffer(liqLtv, copyL) * 100, 1)} from liquidation`, side: `earns ${pct(netAprAtLeverage(dep, borAt(E * (copyL - 1)), copyL))}` }] : []),
               ...liteTiers(s.tiers, liqLtv, (l) => netAprAtLeverage(dep, borAt(E * (l - 1)), l)).map((t) => ({ id: t.id as TierId, word: t.word, line: `${leverTag(t.lev)} · ${pct(t.buffer * 100, 1)} from liquidation`, side: `earns ${pct(t.net)}`, tone: t.net >= 3 ? 'ok' : t.net < 0 ? 'bad' : '' })),
             ]} />}
-        {opts.length > 1 && <LiteChoices label="Pay with" items={opts.map((o) => ({ id: o.address, word: o.role === 'collateral' ? holdsWord : o.symbol, line: o.role === 'debt' ? `swapped into ${holdsWord.toLowerCase().startsWith('dollars') ? 'it' : holdsWord} in the same step` : o.role === 'native' ? 'wrapped for you' : 'what the loop holds, if you have it', side: account ? `you have ${num(balOf(o.address, o.symbol)?.amount ?? 0, dp)}` : undefined }))} on={chosen?.address ?? null} onPick={(a) => setPayAddr(a)} />}
+        {opts.length > 1 && <LiteChoices label="Pay with" items={opts.map((o) => ({ id: o.address, word: o.role === 'collateral' ? holdsWord : o.symbol, line: o.role === 'debt' ? `swapped into ${holdsWord} in the same step` : o.role === 'native' ? 'wrapped for you' : 'what the loop holds, if you have it', side: account ? `you have ${num(balOf(o.address, o.symbol)?.amount ?? 0, dp)}` : undefined }))} on={chosen?.address ?? null} onPick={(a) => setPayAddr(a)} />}
         <LiteNumbers rows={[
           ['Earns', `${pct(net)} a year at ${leverTag(L)}`],
           [`${holdsWord} pays`, `${pct(dep)} a year`],
@@ -921,7 +922,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/manageLoop`)
   const { account, isConnected, slip, actor, holds, debt, E, putUp, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, targets, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, signTypedDataAsync, paperSign, paperPlan, ladder } = useManageLoop(s, h, closeFirst, { lite })
   // what the loop holds, in Lite's words (never a PT's ticker), and the numbers both Lite sheets end on
-  const holdsWord = s ? plainName(s).title : moneyWord(h.asset, h.group)
+  const holdsWord = s ? s.holds : moneyWord(h.asset, h.group)
   const where: [string, string] = ['Where', `${h.venue.split(' · ')[0]} · ${chainLabel(h.chainId)}`]
   // a dollar debt in cents, anything else to four places
   const debtDp = pDebt > 0.9 && pDebt < 1.1 ? 2 : 4

@@ -109,7 +109,7 @@ export default function Search() {
         ) : (
           <>
             <Sec title="Earn">
-              {rows.length ? <View style={rowStyles.rows}>{rows.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} full onOpen={() => pickRow(r)} />)}</View>
+              {rows.length ? <View style={rowStyles.rows}>{rows.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} onOpen={() => pickRow(r)} />)}</View>
                 : <Txt s={13} c={C.tx50}>{L.rows.length ? `Nothing to earn on called “${needle}”.` : 'Reading the rates…'}</Txt>}
             </Sec>
             <Sec title="People" right={people.loading ? <Txt s={12} c={C.tx50}>looking…</Txt> : undefined}>

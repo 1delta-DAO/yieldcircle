@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, madeRows, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
+import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, madeRows, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, riskTag, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
 import { borrowCapLtv, healthAt, healthAtLtv, liqBuffer, liqBufferAtLtv } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
@@ -69,19 +69,33 @@ describe('names in words', () => {
     expect(splitTitle('Dollars via 3Jane')).toEqual({ short: '3Jane', via: true })
     expect(splitTitle('USDC')).toEqual({ short: 'USDC', via: false })
   })
-  it('a PT and a loop say how they earn; a plain deposit is just whose it is', () => {
+  it('a name says whose it is and where it sits — never "Dollars via"', () => {
     const pt = dep('pt', { asset: 'USDe', source: 'fixed', via: 'Fixed on Pendle · 17 Dec', maturity: 1_800_000_000 })
     expect(rowName({ s: pt, title: 'Dollars via 3Jane' })).toBe('3Jane via Pendle')
     expect(rowName({ s: loop('l', { venue: 'Morpho · Steakhouse' }), title: 'Dollars via 3Jane' })).toBe('3Jane loop via Morpho')
     expect(howOf(loop('a'))).toBe('loop via Aave')
-    expect(rowName({ s: dep('d'), title: 'Dollars via 3Jane' })).toBe('3Jane')
-    expect(rowName({ s: dep('d'), title: 'Dollars via 3Jane' }, true)).toBe('Dollars via 3Jane')
+    expect(rowName({ s: dep('d'), title: 'Dollars via 3Jane' })).toBe('3Jane via Aave')
+    expect(rowName({ s: dep('m', { brand: 'Morpho Blue' }), title: 'USDC' })).toBe('USDC via Morpho')
+    // a vault: the platform it runs on; the curator is the sub's
+    const v = dep('v', { source: 'vault', brand: 'Gami', venue: 'Gami · Lagoon' })
+    expect(rowName({ s: v, title: 'Dollars via Hastra' })).toBe('Hastra via Lagoon')
+    expect(plainName(v).sub).toBe('Vault curated by Gami')
+    // an issuer's own savings or staking is just its name; someone else's says whose
+    expect(rowName({ s: dep('h', { source: 'savings', brand: 'Hastra' }), title: 'Dollars via Hastra' })).toBe('Hastra')
+    expect(rowName({ s: dep('e', { source: 'staking', brand: 'EtherFi' }), title: 'Ether via ether.fi' })).toBe('ether.fi')
+    expect(rowName({ s: dep('s', { source: 'savings', brand: 'Spark' }), title: 'USDC' })).toBe('USDC via Spark')
   })
-  it('a row never names a venue or a chain', () => {
+  it('a row never names a chain', () => {
     const n = plainName(loop('x'))
     expect(n.title).toBe('Dollars via Ethena')
     expect(n.sub).toBe('Borrows dollars')
-    expect(JSON.stringify(plainName(dep('y')))).not.toMatch(/Aave|Ethereum/)
+    expect(JSON.stringify(plainName(dep('y')))).not.toMatch(/Ethereum/)
+    expect(plainName(dep('y')).sub).toBe('Lent to borrowers')
+  })
+  it('the risk under a rate: word and score, never a score the API did not give', () => {
+    expect(riskTag({ risk: 2, riskScore: 3, rated: true })).toBe('Medium · 3/5')
+    expect(riskTag({ risk: 1, riskScore: 1.25, rated: true })).toBe('Low · 1.3/5')
+    expect(riskTag({ risk: 2, riskScore: 5, rated: false })).toBe('Unrated')
   })
 })
 

@@ -2,13 +2,13 @@ import React from 'react'
 import { Pressable, Share, StyleSheet, View } from 'react-native'
 import { router, type Href } from 'expo-router'
 import { GROUPS } from '@yieldcircle/core/model/assets'
-import { canShare, heldBy, leverTag, shareOf, rowName, type LiteRow } from '@yieldcircle/core/model/lite'
+import { canShare, heldBy, leverTag, riskScoreText, riskTag, shareOf, rowName, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import { usdShort } from '@yieldcircle/core/model/format'
 import type { Proof } from '@yieldcircle/core/model/activity'
 import type { HistoryGet } from '@yieldcircle/core/model/rateHistory'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
-import { C, alpha } from '../theme'
+import { C, RISK, alpha } from '../theme'
 import { Face, GroupIcon, LeverPill, Rate, Sk, spikeOf } from './bits'
 import { Txt } from './Txt'
 import { pathOf } from '../nav'
@@ -18,13 +18,13 @@ export const openStrategy = (s: { id: string; kind: string; group: string }, mor
 /** A wallet's page, from any face. */
 export const openWallet = (account: string) => router.push(pathOf({ to: 'wallet', account }) as Href)
 
-/** A row's name (the web's `LiteTitle`, `.lite-title`): the money's mark, then whose it is — or, where categories mix (`full`), the whole phrase. */
-export function LiteTitle({ r, size = 14, icon = 14, full }: { r: LiteRow; size?: number; icon?: number; full?: boolean }) {
+/** A row's name (the web's `LiteTitle`, `.lite-title`): the money's mark, then whose it is and where it sits (`liteName`). */
+export function LiteTitle({ r, size = 14, icon = 14 }: { r: LiteRow; size?: number; icon?: number }) {
   const g = GROUPS.find((x) => x.id === r.s.group)
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
       {g && <GroupIcon id={g.id} color={g.color} size={icon} />}
-      <Txt s={size} w={600} numberOfLines={2} style={{ flexShrink: 1 }}>{rowName(r, full)}</Txt>
+      <Txt s={size} w={600} numberOfLines={2} style={{ flexShrink: 1 }}>{rowName(r)}</Txt>
     </View>
   )
 }
@@ -34,7 +34,7 @@ export function LiteTitle({ r, size = 14, icon = 14, full }: { r: LiteRow; size?
  * · yours · lever · rate in its risk's colour. `followed`: the proof's face is someone the reader
  * follows, said first (docs/lite-social-search.md §4.6).
  */
-export function LiteRowView({ r, get, proof, yoursUsd, full, followed, onOpen }: { r: LiteRow; get: HistoryGet; proof: Proof | null; yoursUsd?: number; full?: boolean; followed?: boolean; /** before it opens: search remembers the pick */ onOpen?: () => void }) {
+export function LiteRowView({ r, get, proof, yoursUsd, followed, onOpen }: { r: LiteRow; get: HistoryGet; proof: Proof | null; yoursUsd?: number; followed?: boolean; /** before it opens: search remembers the pick */ onOpen?: () => void }) {
   const s = r.s
   const friend = followed && proof?.best ? proof.wallets : 0
   const who = friend ? `you follow${friend > 1 ? ` + ${friend - 1}` : ''}` : heldBy(proof)
@@ -43,12 +43,12 @@ export function LiteRowView({ r, get, proof, yoursUsd, full, followed, onOpen }:
     <Pressable onPress={() => { onOpen?.(); openStrategy(s) }} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]}>
       <Face s={s} />
       <View style={{ flex: 1, gap: 2 }}>
-        <LiteTitle r={r} full={full} />
+        <LiteTitle r={r} />
         <Txt s={12} c={C.tx70} numberOfLines={2}>{r.sub}{spike ? <Txt s={12} c={C.warn}> · higher than usual</Txt> : ''}{who ? <Txt s={12} c={friend ? C.ok : C.tx70}> · {who}</Txt> : ''}</Txt>
       </View>
       {yoursUsd != null && yoursUsd > 0 && <View style={st.run}><Txt s={11} w={600} c={C.ok} lh={16.5}>yours {usdShort(yoursUsd)}</Txt></View>}
       {s.kind === 'loop' && <LeverPill text={leverTag(s.tiers.balanced)} />}
-      <Rate s={s} />
+      <View style={{ alignItems: 'flex-end', gap: 2 }}><Rate s={s} /><Txt s={11} w={500} c={RISK[s.risk]} style={{ opacity: 0.85 }}>{riskScoreText(s) ? `risk ${riskScoreText(s)}` : riskTag(s)}</Txt></View>
     </Pressable>
   )
 }

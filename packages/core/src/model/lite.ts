@@ -113,7 +113,11 @@ export const leverTag = (lev: number) => `×${(Math.round(lev * 10) / 10).toFixe
 const DAY = 86_400
 const dayMonth = (t: number) => new Date(t * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
-/** A row's two lines: what it is, and how it earns — never a venue, never a chain. */
+/**
+ * A row's two lines: what it is, and how it earns — never a chain. Where it sits is the shown
+ * name's (`liteName`); a vault's sub says who curates it: "a vault lends it for you" told the
+ * reader nothing to trust or doubt.
+ */
 export function plainName(s: Strategy): { title: string; sub: string } {
   let title = moneyWord(s.asset, s.group)
   if (s.kind === 'loop') {
@@ -128,29 +132,43 @@ export function plainName(s: Strategy): { title: string; sub: string } {
   }
   return { title, sub: SIMPLE_SUB[s.source]?.(s) ?? 'Earns interest' }
 }
+/** `Aave V3` → Aave, `Morpho Blue` → Morpho: the family is enough on a row */
+const family = (b: string) => b.replace(/\s+(V\d+|Blue)$/i, '')
+/** `ether.fi` and `EtherFi`, `Inverse` and `Inverse Finance`: one name said two ways */
+const sameName = (a: string, b: string) => {
+  const x = a.toLowerCase().replace(/[^a-z0-9]/g, ''), y = b.toLowerCase().replace(/[^a-z0-9]/g, '')
+  return !!x && !!y && (x.startsWith(y) || y.startsWith(x))
+}
+/** Where a deposit sits: the platform a vault runs on (Morpho, Lagoon), else the market's or issuer's own name. */
+const placeOf = (s: SimpleStrategy) => family(s.source === 'vault' ? (s.venue.split(' · ')[1] ?? s.venue) : s.brand)
 /**
  * How a row earns, as a short tail to its name, so two rows of one money tell apart at a glance:
- * a PT is `via Pendle`, a loop `loop via Morpho`; a plain deposit has none (`3Jane`).
+ * a PT is `via Pendle`, a loop `loop via Morpho`, a deposit where it sits (`via Aave`, `via Lagoon`).
  */
 export function howOf(s: Strategy): string {
   // `Morpho · Steakhouse` → Morpho, `Aave V3` → Aave: the family is enough on a row
-  if (s.kind === 'loop') { const v = s.venue.split(' · ')[0].replace(/\s+V\d+$/i, ''); return v ? `loop via ${v}` : 'loop' }
+  if (s.kind === 'loop') { const v = family(s.venue.split(' · ')[0]); return v ? `loop via ${v}` : 'loop' }
   if (s.source === 'fixed') { const v = /^Fixed on ([^·]+)/.exec(s.via)?.[1]?.trim(); return v ? `via ${v}` : 'fixed' }
-  return ''
+  const v = placeOf(s)
+  return v ? `via ${v}` : ''
 }
 /**
- * The name a row shows: whose money it is (`3Jane`) — or, where categories mix (`full`), the whole
- * phrase (`Dollars via 3Jane`) — then how it earns (`3Jane loop via Morpho`). With a tail, the
- * short form is kept: the money's mark beside it already says which family.
+ * The name a row shows, everywhere — list, card, ticket head: whose money it is, then where it
+ * sits (`Hastra via Lagoon`, `USDC via Aave`, `3Jane loop via Morpho`). Never `Dollars via …`: the
+ * money's mark beside it says the family. An issuer's own savings or staking is just its name
+ * (`Hastra`, `Lido`): `Lido via Lido` says nothing twice.
  */
-export function rowName(r: Pick<LiteRow, 's' | 'title'>, full = false): string {
-  const how = howOf(r.s)
-  const { short } = splitTitle(r.title)
-  return how ? `${short} ${how}` : full ? r.title : short
+export function liteName(s: Strategy, title = plainName(s).title): string {
+  const { short } = splitTitle(title)
+  const how = howOf(s)
+  return how && !(s.kind === 'simple' && s.source !== 'fixed' && sameName(short, placeOf(s))) ? `${short} ${how}` : short
 }
+export const rowName = (r: Pick<LiteRow, 's' | 'title'>): string => liteName(r.s, r.title)
 const SIMPLE_SUB: Record<string, (s: SimpleStrategy) => string> = {
+  // where it sits is the name's (`USDC via Aave`); the sub says what happens there
   lending: () => 'Lent to borrowers',
-  vault: () => 'A vault lends it for you',
+  // venue is `Curator · Protocol`, or the one name when the platform runs it itself (a Kamino kvault)
+  vault: (s) => { const [who, on] = s.venue.split(' · '); return on ? `Vault curated by ${who}` : 'A vault' },
   savings: () => 'Savings rate',
   staking: () => 'Staking rewards',
   fixed: (s) => (s.maturity ? `Fixed rate until ${dayMonth(s.maturity)}` : 'Fixed rate'),
@@ -163,6 +181,15 @@ export function trustKind(s: Strategy): string {
 }
 /** The risk in a word, for a card and the ticket head: the API's score as Pro's three steps. */
 export const riskWord = (risk: number) => `${['', 'Low', 'Medium', 'High'][risk] ?? 'Medium'} risk`
+/** The API's own score as a row says it (`3/5`), or null where it gave none — never a made-up score. */
+export const riskScoreText = (s: Pick<Strategy, 'riskScore' | 'rated'>): string | null =>
+  s.rated && s.riskScore < 6 ? `${Math.round(s.riskScore * 10) / 10}/5` : null
+/** The risk under a row's rate: the word and the score (`Medium · 3/5`) — `Unrated`, `Compromised` without one. */
+export function riskTag(s: Pick<Strategy, 'risk' | 'riskScore' | 'rated'>): string {
+  if (!s.rated) return 'Unrated'
+  if (s.riskScore >= 6) return 'Compromised'
+  return `${['', 'Low', 'Medium', 'High'][s.risk] ?? 'Medium'} · ${riskScoreText(s)}`
+}
 
 /**
  * The leverages Lite offers on its "More choices" sheet: the venue's tiers in Lite's words, each
@@ -231,7 +258,10 @@ export function liteMenu(all: Strategy[], rank: (s: Strategy) => number, held: S
     if (!liteEligible(s, f)) continue
     const { title, sub } = plainName(s)
     if (held.has(s.id)) { mine.push({ s, title, sub, yours: true, also: 0 }); continue }
-    const k = `${s.group}|${title}|${s.kind}|${s.kind === 'simple' && s.maturity ? 'dated' : s.kind === 'loop' && s.expiry ? 'dated' : ''}`
+    // a savings or staking row is its issuer's product: Mezzanine's tranches over Hastra's wYLDS are
+    // "Dollars via Hastra" too, and folded under Hastra's own PRIME they vanished from Lite
+    const who = s.kind === 'simple' && (s.source === 'savings' || s.source === 'staking') ? sub : ''
+    const k = `${s.group}|${title}|${s.kind}|${who}|${s.kind === 'simple' && s.maturity ? 'dated' : s.kind === 'loop' && s.expiry ? 'dated' : ''}`
     const cur = best.get(k)
     if (!cur) best.set(k, { s, title, sub, yours: false, also: 0 })
     else if (rank(s) > rank(cur.s)) best.set(k, { s, title, sub, yours: false, also: cur.also + 1 })

@@ -25,20 +25,21 @@ import { openRow } from './LiteBits'
 /**
  * The moves on Home (fomo's feed, with its Following toggle). Following is what the people you
  * follow did; Everyone is what the wallets with the best rates did (the rate board, not the biggest
- * wallets — docs/rate-boards.md), only moves Lite can Copy and no dust,
+ * wallets — docs/rate-boards.md), only moves Lite can Copy and no dust — or, when none of theirs
+ * is Lite's, anyone's moves in Lite's markets ("Moves you can copy"),
  * so a first visit — no wallet, no follows — still opens on people. With `followingOnly` (You)
  * there is no toggle and nothing without follows.
  */
 export function LiteMoves({ rows, account, limit = 8, title, followingOnly }: { rows: LiteRow[]; account: string | undefined; limit?: number; title?: string; followingOnly?: boolean }) {
   const { chainIds, allChains } = useApp()
-  const { tab, setTab: setPicked, has, txs, loading } = useLiteMoves({ rows, account, limit, chains: allChains ? undefined : chainIds.join(','), followingOnly })
+  const { tab, setTab: setPicked, has, txs, loading, from } = useLiteMoves({ rows, account, limit, chains: allChains ? undefined : chainIds.join(','), followingOnly })
   // the moves of the people you follow are seen once they are on screen: the Home tab's dot goes
   React.useEffect(() => { if (tab === 'following' && txs.length) writeSeen(Date.now()) }, [tab, txs.length])
   if (followingOnly && !has) return null
   return (
     <section className="sec lite-sec">
       <div className="sec-h">
-        <h2>{title ?? (tab === 'following' ? 'People you follow' : 'Moves by the best rates')}</h2>
+        <h2>{title ?? (tab === 'following' ? 'People you follow' : from === 'menu' ? 'Moves you can copy' : 'Moves by the best rates')}</h2>
         {!followingOnly && (
           <div className="seg lite-moves-tab" role="tablist" aria-label="Whose moves">
             <button role="tab" aria-selected={tab === 'following'} aria-pressed={tab === 'following'} onClick={() => setPicked('following')}>Following</button>

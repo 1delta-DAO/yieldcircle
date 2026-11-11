@@ -114,7 +114,7 @@ export function Moves({ txs, hideWho, showFollow }: { txs: { t: TxBundle; r: Lit
  */
 export function LiteMoves({ rows, account, limit = 8, title, followingOnly }: { rows: LiteRow[]; account: string | undefined; limit?: number; title?: string; followingOnly?: boolean }) {
   const { allChains, chainIds } = useChains()
-  const { tab, setTab, has, txs, loading } = useLiteMoves({ rows, account, limit, chains: allChains ? undefined : chainIds.join(','), followingOnly })
+  const { tab, setTab, has, txs, loading, from } = useLiteMoves({ rows, account, limit, chains: allChains ? undefined : chainIds.join(','), followingOnly })
   React.useEffect(() => { if (tab === 'following' && txs.length) writeSeen(Date.now()) }, [tab, txs.length])
   if (followingOnly && !has) return null
   const empty = tab === 'following' && !has
@@ -123,7 +123,7 @@ export function LiteMoves({ rows, account, limit = 8, title, followingOnly }: { 
   return (
     <View style={{ marginTop: 26 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-        <Txt s={16} w={600} style={{ letterSpacing: -0.16, flex: 1 }}>{title ?? (tab === 'following' ? 'People you follow' : 'Moves by the best rates')}</Txt>
+        <Txt s={16} w={600} style={{ letterSpacing: -0.16, flex: 1 }}>{title ?? (tab === 'following' ? 'People you follow' : from === 'menu' ? 'Moves you can copy' : 'Moves by the best rates')}</Txt>
         {!followingOnly && <Seg items={[{ id: 'following', word: 'Following' }, { id: 'everyone', word: 'Everyone' }]} value={tab} onChange={setTab} />}
       </View>
       <View style={st.card}>

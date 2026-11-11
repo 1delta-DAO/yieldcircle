@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isDust, liteMoves } from './moves'
+import { isDust, liteMoves, rowOfTx } from './moves'
 import type { TxBundle, TxLeg } from '../index/types'
 import type { LiteRow } from './lite'
 import type { Strategy } from './strategies'
@@ -28,5 +28,25 @@ describe('liteMoves', () => {
   })
   it('Following keeps everything the people you chose did', () => {
     expect(liteMoves([copyable, dust, other], [row], 'following', 10).map((x) => x.t.txHash)).toEqual(['1', '3', '4'])
+  })
+})
+
+describe('rowOfTx', () => {
+  const loop = (id: string, long: string, short: string) => ({ s: { id, kind: 'loop', lender: long.split(':')[0], marketLongUid: long, marketShortUid: short, chainId: '1', risk: 2 } as unknown as Strategy, title: id, sub: '' } as LiteRow)
+  const pt = loop('pt', 'MORPHO_BLUE_A81671BB2B0B:1:0xpt', 'MORPHO_BLUE_A81671BB2B0B:1:0xusdc')
+  const eth = loop('eth', 'AAVE_V3:1:0xwsteth', 'AAVE_V3:1:0xusdc')
+  const lst = loop('lst', 'AAVE_V3:1:0xweeth', 'AAVE_V3:1:0xusdc')
+  const rows = [pt, eth, lst]
+  it('a whole loop by its two markets', () => {
+    expect(rowOfTx(tx('a', '0x1', [leg('MORPHO_BLUE_A81671BB2B0B:1:0xpt', 100, 'collateral'), leg('MORPHO_BLUE_A81671BB2B0B:1:0xusdc', 80, 'borrow')]), rows)).toBe(pt)
+  })
+  it('a top-up — collateral alone, or a borrow alone — where one loop is the answer', () => {
+    expect(rowOfTx(tx('b', '0x1', [leg('MORPHO_BLUE_A81671BB2B0B:1:0xpt', 100, 'collateral')]), rows)).toBe(pt)
+    expect(rowOfTx(tx('c', '0x1', [leg('MORPHO_BLUE_A81671BB2B0B:1:0xusdc', 80, 'borrow')]), rows)).toBe(pt)
+    // a pool's USDC debt is every Aave loop's: no guess
+    expect(rowOfTx(tx('d', '0x1', [leg('AAVE_V3:1:0xusdc', 80, 'borrow')]), [eth, lst])).toBe(null)
+    expect(rowOfTx(tx('d', '0x1', [leg('AAVE_V3:1:0xusdc', 80, 'borrow')]), [eth])).toBe(null)
+    // a plain deposit is not a loop's top-up
+    expect(rowOfTx(tx('e', '0x1', [leg('AAVE_V3:1:0xwsteth', 100, 'supply')]), rows)).toBe(null)
   })
 })

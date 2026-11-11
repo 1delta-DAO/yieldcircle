@@ -5,6 +5,7 @@
  */
 import { subjectOf, type TxBundle, type TxLeg } from '../index/types'
 import type { LiteRow } from './lite'
+import type { LoopStrategy } from './strategies'
 import { canonUid, protocolKeyOf, uidOf } from './uid'
 
 /**
@@ -107,9 +108,15 @@ export function headlineUsd(t: TxBundle): { usd: number | null; debtUsd: number 
   return { usd: heldUsd, debtUsd: sum(debt), debtWord }
 }
 
+/** Venues whose every market is one collateral against one debt: a leg there names its loop. */
+const PAIR_MARKETS = new Set(['MORPHO_BLUE', 'LISTA_DAO', 'FLUID'])
 /**
  * The Lite row a feed move is about, when Lite carries it: a loop by its two markets, a deposit by
- * its market — what a Copy on the move opens.
+ * its market — what a Copy on the move opens. A loop is also what a top-up of it is about:
+ * collateral posted alone, or more borrowed alone, which is how a looper levers up — most of what
+ * the best rates do in a day (measured 2026-11-11: 15 of 80 moves on the rate board were a borrow
+ * alone). Only in a market that IS one pair (`PAIR_MARKETS`): a pool's USDC debt is every loop's
+ * there, whatever Lite lists.
  */
 export function rowOfTx(t: TxBundle, rows: LiteRow[]): LiteRow | null {
   const uid = (u?: string | null) => (u ? canonUid(u)?.toLowerCase() ?? u.toLowerCase() : '')
@@ -119,6 +126,13 @@ export function rowOfTx(t: TxBundle, rows: LiteRow[]): LiteRow | null {
     const s = r.s
     if (s.kind === 'loop' ? supply.includes(uid(s.marketLongUid)) && debt.includes(uid(s.marketShortUid)) : !debt.length && supply.includes(uid(uidOf(s)))) return r
   }
+  const posted = t.legs.filter((l) => l.side === 'collateral').map((l) => uid(l.marketUid))
+  const only = (hit: (s: LoopStrategy) => boolean) => {
+    const m = rows.filter((r) => r.s.kind === 'loop' && PAIR_MARKETS.has(protocolKeyOf(r.s.lender)) && hit(r.s))
+    return m.length === 1 ? m[0] : null
+  }
+  if (!debt.length && posted.length && posted.length === supply.length) return only((s) => posted.includes(uid(s.marketLongUid)))
+  if (debt.length && !supply.length) return only((s) => debt.includes(uid(s.marketShortUid)))
   return null
 }
 

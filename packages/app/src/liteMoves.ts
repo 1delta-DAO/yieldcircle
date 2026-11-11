@@ -1,6 +1,7 @@
 import React from 'react'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { liteMoves } from '@yieldcircle/core/model/moves'
+import { uidOf } from '@yieldcircle/core/model/uid'
 import type { LiteRow } from '@yieldcircle/core/model/lite'
 import { useFeedPage, useRateLeaders } from './index/queries'
 import { useLatest, useMyFollows, useThreadOf } from './social/queries'
@@ -30,9 +31,28 @@ export function useLiteMoves({ rows, account, limit = 8, chains, followingOnly }
   const accounts = (top.data?.rows ?? []).map((r) => normAddr(r.account)).filter((a) => a !== me).slice(0, TOP_N)
   const everyone = useFeedPage({ accounts: accounts.join(','), chainIds: chains }, 80, tab === 'everyone' && accounts.length > 0)
   const feed = tab === 'following' ? followed : everyone
-  const txs = React.useMemo(() => liteMoves(feed.data?.txs ?? [], rows, tab, limit), [feed.data, rows, tab, limit])
-  const loading = feed.isLoading || (tab === 'everyone' && top.isLoading)
-  return { tab, setTab, has, txs, loading }
+  const lead = React.useMemo(() => liteMoves(feed.data?.txs ?? [], rows, tab, limit), [feed.data, rows, tab, limit])
+  // the best rates mostly run what Lite does not list (another maturity, another debt, a venue
+  // below a floor: 10 of their 80 moves were Lite's on 2026-11-11, and some hours none), so when
+  // none of theirs can be copied, Everyone is what anyone did in Lite's own markets
+  const thin = tab === 'everyone' && !!everyone.data && !top.isLoading && !lead.length && !!rows.length
+  const set = React.useMemo(() => marketsOf(rows), [rows])
+  const menu = useFeedPage({ chainIds: chains }, 80, thin, set)
+  const fill = React.useMemo(() => (thin ? liteMoves((menu.data?.txs ?? []).filter((t) => !me || normAddr(subjectOf(t).account) !== me), rows, 'everyone', limit) : []), [thin, menu.data, rows, limit, me])
+  const txs = lead.length ? lead : fill
+  const loading = feed.isLoading || (tab === 'everyone' && top.isLoading) || (thin && menu.isLoading)
+  /** whose moves Everyone shows: the best rates', or — none of theirs being Lite's — anyone's in Lite's markets */
+  const from: 'leaders' | 'menu' = fill.length ? 'menu' : 'leaders'
+  return { tab, setTab, has, txs, loading, from }
+}
+
+/** The markets Lite's rows are in, as the index's `inMarkets` takes them: a deposit's, a loop's two. */
+function marketsOf(rows: LiteRow[]): { uids: string[]; sig: string } {
+  const uids = [...new Set(rows.flatMap((r) => (r.s.kind === 'loop' ? [r.s.marketLongUid, r.s.marketShortUid] : [uidOf(r.s)])).filter((u): u is string => !!u))].sort()
+  // FNV-1a, as the menu feed keys its set (web's useMenu): the key carries a signature, never the uids
+  let h = 0x811c9dc5
+  for (const u of uids) for (let i = 0; i < u.length + 1; i++) h = Math.imul(h ^ (i < u.length ? u.charCodeAt(i) : 44), 0x01000193)
+  return { uids, sig: `${uids.length}:${(h >>> 0).toString(36)}` }
 }
 
 /** What each mover said on the strategy they moved in (Say why) — the mover's own, never a stranger's. */

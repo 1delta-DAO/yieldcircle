@@ -93,7 +93,12 @@ export type ApiParams = Record<string, ParamValue>
  * request.
  */
 export function apiUrl(path: string, params?: ApiParams): string {
-  const url = new URL(path.startsWith('/') ? path : `/${path}`, BACKEND_BASE_URL)
+  // a path the API hands back (a sign step's `submit.endpoint`) must stay on the API: `//evil.host/x`
+  // or `https://evil.host/x` would resolve off it (docs/security-review-2026-11.md #13)
+  if (/^([/\\]{2}|[a-z][a-z0-9+.-]*:)/i.test(path)) throw new ApiError(`refused a path off the API: ${path.slice(0, 80)}`, { path })
+  const base = new URL(BACKEND_BASE_URL)
+  const url = new URL(path.startsWith('/') ? path : `/${path}`, base)
+  if (url.origin !== base.origin) throw new ApiError(`refused a path off the API: ${path.slice(0, 80)}`, { path })
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value === undefined || value === null || value === '') continue

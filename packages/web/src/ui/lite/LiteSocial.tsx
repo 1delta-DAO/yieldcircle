@@ -21,6 +21,7 @@ import { TxMoney, primaryLeg } from '../Feed'
 import { Thread } from '../Thread'
 import { writeSeen } from '../Alerts'
 import { openRow } from './LiteBits'
+import { Boundary } from '../Boundary'
 
 /**
  * The moves on Home (fomo's feed, with its Following toggle). Following is what the people you
@@ -64,26 +65,33 @@ export function Moves({ txs, showFollow, hideWho }: { txs: { t: TxBundle; r: Lit
   const { profile } = useProfiles(txs.map((x) => subjectOf(x.t).account).filter(Boolean))
   const said = useMoveReasons(txs)
   return (
-    <div className="tape">{txs.map(({ t, r }) => {
-      const l = primaryLeg(t), d = describeBundle(t), who = subjectOf(t).account
-      const why = r ? said(r.s, who) : null
-      const what = r ? r.title : l?.symbol ?? ''
-      const follow = showFollow && who && !f.isFollowing('wallet', who)
-      return (
-        <div key={`${t.chainId}:${t.txHash}`} className="lite-move-w">
-          <div className="lite-move">
-            {/* what they did is the line under the name: it is the one thing a phone row must keep */}
-            {hideWho
-              ? <span className="lite-move-w-t"><b className={`verb ${d.cls}`}>{d.verb}</b> {what}</span>
-              : <a className="lite-who" href={liteWalletHref(who)}><Who account={who} profile={profile(who)} idx={subjectOf(t)} size={24} plain sub={<><span className={`verb ${d.cls}`}>{d.verb}</span> {what}</>} /></a>}
-            <span className="tr-v"><TxMoney t={t} l={l} short /><small className="t40"><Ago ts={t.blockTs} /></small></span>
-            {follow && <FollowButton kind="wallet" target={who} small quiet label="+" />}
-            {r && normAddr(who) !== normAddr(account ?? '') ? <button type="button" className="btn sm pri" onClick={() => openRow(r.s, { copy: who })}>Copy</button> : <span className="lite-nocopy" />}
-          </div>
-          {why && <div className="lite-why"><q>{why.body}</q></div>}
-        </div>
-      )
-    })}</div>
+    <div className="tape">{txs.map(({ t, r }) => (
+      // a move that throws in render is skipped, not the tape (tickets/0022 A3)
+      <Boundary key={`${t.chainId}:${t.txHash}`} name="move row">
+        <MoveRow t={t} r={r} account={account} said={said} profile={profile} follows={(w) => f.isFollowing('wallet', w)} showFollow={showFollow} hideWho={hideWho} />
+      </Boundary>
+    ))}</div>
+  )
+}
+
+function MoveRow({ t, r, account, said, profile, follows, showFollow, hideWho }: { t: TxBundle; r: LiteRow | null; account: string | undefined; said: ReturnType<typeof useMoveReasons>; profile: ReturnType<typeof useProfiles>['profile']; follows: (who: string) => boolean; showFollow?: boolean; hideWho?: boolean }) {
+  const l = primaryLeg(t), d = describeBundle(t), who = subjectOf(t).account
+  const why = r ? said(r.s, who) : null
+  const what = r ? r.title : l?.symbol ?? ''
+  const follow = showFollow && who && !follows(who)
+  return (
+    <div className="lite-move-w">
+      <div className="lite-move">
+        {/* what they did is the line under the name: it is the one thing a phone row must keep */}
+        {hideWho
+          ? <span className="lite-move-w-t"><b className={`verb ${d.cls}`}>{d.verb}</b> {what}</span>
+          : <a className="lite-who" href={liteWalletHref(who)}><Who account={who} profile={profile(who)} idx={subjectOf(t)} size={24} plain sub={<><span className={`verb ${d.cls}`}>{d.verb}</span> {what}</>} /></a>}
+        <span className="tr-v"><TxMoney t={t} l={l} short /><small className="t40"><Ago ts={t.blockTs} /></small></span>
+        {follow && <FollowButton kind="wallet" target={who} small quiet label="+" />}
+        {r && normAddr(who) !== normAddr(account ?? '') ? <button type="button" className="btn sm pri" onClick={() => openRow(r.s, { copy: who })}>Copy</button> : <span className="lite-nocopy" />}
+      </div>
+      {why && <div className="lite-why"><q>{why.body}</q></div>}
+    </div>
   )
 }
 

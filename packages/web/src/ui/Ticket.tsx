@@ -17,7 +17,7 @@ import { SlippagePicker } from './SettingsPanel'
 import { AmountInput, Info, KindPill, RouteChooser, LegsPill, SubAccountPill, RiskDot, Sk, StratMark, Tok, Toks, TxLink, num, pct, usd, usdShort } from './bits'
 import { Who } from './social-bits'
 import { LossAck, ValueRow, cents, useValueCheck } from './ValueCheck'
-import { isSvmChain, normAddr } from '@yieldcircle/core/model/address'
+import { isAddr, isSvmChain, normAddr } from '@yieldcircle/core/model/address'
 import { useProfiles } from '../social/queries'
 import { stepsFrom, useTicketLadder, type Ladder, type Step } from '@yieldcircle/app/ladder'
 import { usePaper } from '../state/Paper'
@@ -1096,9 +1096,11 @@ export function AmountBox({ unit, value, onChange, onMax }: { unit: string; valu
 
 /** The sticky bottom of the ticket: one button, then the ladder once built. */
 export function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId, fee }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string; /** what the action pays in network fees on paper (tickets/0007 B) */ fee: FeeKind }) {
-  const { setViewAs } = useApp()
+  const { setViewAs, viewAs, signer, solSigner } = useApp()
   const { thread, lite } = React.useContext(TicketCtx)
-  const viewing = !!account && !isConnected
+  // `?as=` someone else: their page is shown, but no ticket signs while it is (security review #1)
+  const other = isAddr(viewAs) && ![signer, solSigner].includes(normAddr(viewAs))
+  const viewing = other || (!!account && !isConnected)
   // Solana actions open together with the positions read (docs/solana.md
   // "Sequencing" step 4): the deposit route already builds, but a deposit the
   // app cannot read back is money that vanishes from the user's book — so the
@@ -1116,6 +1118,7 @@ export function Action({ ladder: l, label, account, isConnected, disabled, risky
           <button className="btn wide" style={{ marginTop: 8 }} onClick={() => openGate()}>Join the waitlist</button>
         </>
         : solWait ? <button className="btn wide" disabled>Transactions on Solana open shortly — browsing and tracking work today</button>
+        : other ? <><button className="btn wide" disabled>Viewing {viewAs!.slice(0, 6)}… · tickets are off</button><button className="btn wide" style={{ marginTop: 8 }} onClick={() => setViewAs(undefined)}>Stop viewing to sign as yourself</button></>
         : !account ? <><button className="btn wide pri" onClick={() => setViewAs(undefined)} disabled>Connect a wallet to continue</button><button className="btn wide paper" style={{ marginTop: 8 }} onClick={openPaperSignIn}>Or try it with paper money</button></>
         : viewing ? <button className="btn wide" disabled>Viewing {account.slice(0, 6)}… · connect to sign</button>
         : !l.isConnected ? <button className="btn wide" disabled>{isSvmChain(chainId) ? 'Connect a Solana wallet (Phantom, Solflare, Backpack) to sign' : 'Connect a wallet to sign'}</button>

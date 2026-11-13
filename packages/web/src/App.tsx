@@ -13,6 +13,7 @@ import { Join } from './ui/Join'
 import { Start } from './ui/Start'
 import { BorrowPage } from './ui/BorrowPage'
 import { useRoute } from './state/AppState'
+import { Boundary, PageError } from './ui/Boundary'
 import { GROUPS } from '@yieldcircle/core/model/assets'
 import { LiteHome } from './ui/lite/LiteHome'
 import { LiteEarn } from './ui/lite/LiteEarn'
@@ -28,8 +29,10 @@ export default function App() {
   if (r.view === 'join') return <Join />
   const group = GROUPS.find((g) => g.id === r.group)
   // Lite (docs/lite.md): four pages over the same catalogue, book and tickets
+  // a page that throws in render is replaced by a note inside the shell, and tried again on the next route
+  const page = location.hash
   if (r.lite) return (
-    <Shell>
+    <Shell><Boundary name="lite" reset={page} fallback={<PageError />}>
       {r.view === 'you' ? <LiteYou />
         : r.view === 'search' ? <LiteSearch q0={r.q} />
         : r.view === 'wallet' && r.addr ? <LiteProfile key={r.addr} addr={r.addr} />
@@ -37,10 +40,10 @@ export default function App() {
         : group ? <LiteEarn key="earn" group={group} route={r} />
         : r.view === 'earn' ? <LiteEarn key="earn" route={r} />
         : <LiteHome />}
-    </Shell>
+    </Boundary></Shell>
   )
   return (
-    <Shell>
+    <Shell><Boundary name="pro" reset={page} fallback={<PageError />}>
       {r.view === 'wallet' && r.addr ? <Wallet key={r.addr} addr={r.addr} />
         : r.view === 'market' && r.uid ? <Market key={r.uid} uid={r.uid} />
         : r.view === 'curator' && r.curatorId ? <Curator key={r.curatorId} id={r.curatorId} />
@@ -53,6 +56,6 @@ export default function App() {
         : r.view === 'borrow' ? <BorrowPage route={r} />
         : r.view === 'feed' ? <Home tab={r.t} />
         : <Start />}
-    </Shell>
+    </Boundary></Shell>
   )
 }

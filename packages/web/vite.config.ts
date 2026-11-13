@@ -1,3 +1,5 @@
+import { readdirSync, statSync, writeFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -22,8 +24,25 @@ const guardWalletConnect = (mode: string, env: NodeJS.ProcessEnv) => ({
   },
 })
 
+/**
+ * `dist/_routes.json`: the gate (`functions/_middleware.ts`) runs for the HTML document, `/gate/*` and
+ * `?access=`, never for the bundle or `public/`'s files — every asset request was a Functions
+ * invocation, so a flood of them spent the quota (tickets/0022 A1). Built from `public/` so a new
+ * file there is excluded without anyone remembering to.
+ */
+const pagesRoutes = () => ({
+  name: 'yc:pages-routes',
+  apply: 'build' as const,
+  writeBundle(opts: { dir?: string }) {
+    const pub = fileURLToPath(new URL('public/', import.meta.url))
+    const files = readdirSync(pub).filter((f) => !f.startsWith('_')).map((f) => (statSync(pub + f).isDirectory() ? `/${f}/*` : `/${f}`))
+    const routes = { version: 1, include: ['/*'], exclude: ['/assets/*', ...files] }
+    writeFileSync(`${opts.dir ?? 'dist'}/_routes.json`, JSON.stringify(routes, null, 2) + '\n')
+  },
+})
+
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), guardWalletConnect(mode, process.env)],
+  plugins: [react(), guardWalletConnect(mode, process.env), pagesRoutes()],
   // `.env` stays at the repo root, shared with the landing
   envDir: '../..',
   server: { port: 3200, open: false },

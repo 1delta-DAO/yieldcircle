@@ -1,4 +1,4 @@
-import { normAddr } from './address'
+import { isAddr, normAddr } from './address'
 import type { GroupId } from './assets'
 
 /**
@@ -65,7 +65,7 @@ export function parseLiteHash(link: string): LiteDest | null {
   if (head === 'you') return { to: 'you', h: g('h'), m: g('m') }
   if (head === 'board') { const by = g('by'); return { to: 'board', by: by === 'strategy' || by === 'wallet' ? by : undefined, t: g('t'), x: g('x') } }
   if (head === 'search') return { to: 'search', q: g('q') }
-  if (head === 'w') return seg[1] ? { to: 'wallet', account: normAddr(seg[1]) } : null
+  if (head === 'w') return isAddr(seg[1]) ? { to: 'wallet', account: normAddr(seg[1]) } : null
   // a category Lite lists: its list, or one strategy on it
   if ((LITE_GROUPS as string[]).includes(head) && seg.length === 1) {
     const id = g('s')

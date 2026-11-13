@@ -34,6 +34,7 @@ import { recoverMessageAddress, isHex } from 'viem'
 import { overlay, message, norm } from '../gate/page'
 import { check, join, json, okAddress, type KV, type WaitUntil, type WaitlistEnv } from '../gate/waitlist'
 import { isSolAddr, base58Decode } from '@yieldcircle/core/model/address'
+import { contentSecurityPolicy } from '../gate/csp'
 
 interface Env extends Partial<WaitlistEnv> {
   GATE_SECRET?: string
@@ -46,6 +47,14 @@ type Ctx = { request: Request; env: Env; next: () => Promise<Response>; waitUnti
 const COOKIE = 'yc_beta'
 const COOKIE_DAYS = 30
 const SIGNATURE_MAX_AGE_MS = 10 * 60_000
+let policy: Promise<string> | null = null
+
+/** The HTML document, with the CSP (`gate/csp.ts`) — every other response passes untouched. */
+async function withPolicy(res: Response, env: Env): Promise<Response> {
+  const headers = new Headers(res.headers)
+  headers.set('content-security-policy-report-only', await (policy ??= contentSecurityPolicy(env as Record<string, unknown>)))
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers })
+}
 
 export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise<Response> => {
   const configured = !!(env.WHITELIST && env.GATE_SECRET) && env.GATE_OFF !== '1'
@@ -59,11 +68,11 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
   }
 
   const res = await next()
-  if (!configured) return res
   // Only the HTML document gets the overlay; every asset passes through untouched.
   if (request.method !== 'GET' || !(res.headers.get('content-type') ?? '').includes('text/html')) return res
+  if (!configured) return withPolicy(res, env)
   const holder = await readCookie(request.headers.get('cookie'), env.GATE_SECRET!).catch(() => null)
-  if (holder && holder !== 'pass') return res
+  if (holder && holder !== 'pass') return withPolicy(res, env)
 
   // no access: the app opens anyway, real trading gated (window.ycGated, src/wallet/gate.ts), and the
   // overlay ships hidden — the waitlist buttons in the app open it. (The full landing is its own
@@ -76,6 +85,7 @@ export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise
   const body = (await res.text()).replace('</body>', `${inject}</body>`)
   const headers = new Headers(res.headers)
   headers.set('cache-control', 'no-store')
+  headers.set('content-security-policy-report-only', await (policy ??= contentSecurityPolicy(env as Record<string, unknown>)))
   headers.delete('content-length')
   return new Response(body, { status: res.status, headers })
 }
@@ -120,7 +130,8 @@ async function admit(account: string, env: Gated): Promise<Response> {
 async function pass(url: URL, env: Gated): Promise<Response> {
   const code = url.searchParams.get('access') ?? ''
   url.searchParams.delete('access')
-  const headers: Record<string, string> = { location: url.pathname + url.search, 'cache-control': 'no-store' }
+  // one leading slash: `//evil.com/?access=x` must not redirect to `//evil.com/` (security review #14)
+  const headers: Record<string, string> = { location: url.pathname.replace(/^[/\\]+/, '/') + url.search, 'cache-control': 'no-store' }
   // compare MACs, not the strings, so the check takes the same time however much of the code is right
   if (env.GATE_PASS && (await hmac(env.GATE_SECRET, code)) === (await hmac(env.GATE_SECRET, env.GATE_PASS))) {
     headers['set-cookie'] = await cookie('pass', env)

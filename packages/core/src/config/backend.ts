@@ -57,11 +57,24 @@ export let SOCIAL_BASE_URL = 'https://social.1delta.io'
 /** A keyed Solana RPC asked before the public rotation (`sdk/solRpc.ts`); none by default. */
 export let SOL_RPC_URL: string | undefined
 
+/**
+ * An override must be https — the API builds what the wallet signs, so a plain-http base is a MITM
+ * away from draining it (docs/security-review-2026-11.md #2). Loopback and a private LAN address may
+ * be http, for a local worker-api, wrangler dev or a phone on the dev box's network; anything else is
+ * refused loudly rather than used.
+ */
+export function safeBase(u: string): string {
+  const url = new URL(u)
+  const local = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/.test(url.hostname) || url.hostname.endsWith('.localhost')
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) throw new Error(`service URL must be https: ${u}`)
+  return u
+}
+
 /** Point the clients at other services. Unset or empty keeps the default. */
 export function configureBackend(o: { backend?: string; index?: string; solIndex?: string; social?: string; solRpc?: string }) {
-  if (o.backend) BACKEND_BASE_URL = o.backend
-  if (o.index) INDEX_BASE_URL = o.index
-  if (o.solIndex) SOL_INDEX_BASE_URL = o.solIndex
-  if (o.social) SOCIAL_BASE_URL = o.social
-  if (o.solRpc) SOL_RPC_URL = o.solRpc
+  if (o.backend) BACKEND_BASE_URL = safeBase(o.backend)
+  if (o.index) INDEX_BASE_URL = safeBase(o.index)
+  if (o.solIndex) SOL_INDEX_BASE_URL = safeBase(o.solIndex)
+  if (o.social) SOCIAL_BASE_URL = safeBase(o.social)
+  if (o.solRpc) SOL_RPC_URL = safeBase(o.solRpc)
 }

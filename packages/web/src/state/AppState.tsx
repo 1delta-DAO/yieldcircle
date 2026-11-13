@@ -350,8 +350,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         : `${chains.length} chains`
   // the EVM wallet leads; a Solana-only user is still "somebody" everywhere a page shows you to yourself
   const account = viewAs && isAddr(viewAs) ? normAddr(viewAs) : address ?? sol.account?.address
-  // `account` falls back to the Solana address for a Solana-only user: fine for showing you to yourself, wrong as an EVM sender or receiver
-  const actorOn = (chainId: string | undefined) => (isSvmChain(chainId) ? sol.account?.address : isEvmAddr(account) ? account : undefined)
+  // who a ticket builds for is the wallet that signs, never `?as=` (docs/security-review-2026-11.md #1):
+  // a link with someone else's address would make them the operator or bridge receiver of the reader's money
+  const actorOn = (chainId: string | undefined) => (isSvmChain(chainId) ? sol.account?.address : isEvmAddr(address) ? address.toLowerCase() : undefined)
   return <Ctx.Provider value={{ chains, setChains, toggleChain, chainIds, allChains, chainLabelFor, chainsFromLink, dismissLinkChains, account, signer: address?.toLowerCase(), solSigner: sol.account?.address, actorOn, viewAs, setViewAs, isConnected: isConnected || !!sol.account }}>{children}</Ctx.Provider>
 }
 export const useApp = () => { const c = React.useContext(Ctx); if (!c) throw new Error('AppProvider missing'); return c }

@@ -294,17 +294,17 @@ export async function recentEvents(q: RecentQuery, signal?: AbortSignal): Promis
 }
 
 export const accountTxs = async (account: string, p: { chainId?: string; limit?: number } = {}) => {
-  const j = await get<{ account: string; identity?: AccountIdentity | null; txs: TxBundle[] }>(`/accounts/${account}/events`, { ...p, group: 'tx' }, undefined, indexForAddr(account))
+  const j = await get<{ account: string; identity?: AccountIdentity | null; txs: TxBundle[] }>(`/accounts/${encodeURIComponent(account)}/events`, { ...p, group: 'tx' }, undefined, indexForAddr(account))
   return Array.isArray(j.txs) ? j : { account, identity: null, txs: [] }
 }
 export const accountFlows = async (account: string, p: { chainId?: string; days?: number } = {}) => {
-  const j = await get<FlowsResponse>(`/accounts/${account}/flows`, p, undefined, indexForAddr(account))
+  const j = await get<FlowsResponse>(`/accounts/${encodeURIComponent(account)}/flows`, p, undefined, indexForAddr(account))
   return Array.isArray(j.flows) ? j : { account, days: p.days ?? 30, flows: [], totals: { depositedUsd: 0, withdrawnUsd: 0, borrowedUsd: 0, repaidUsd: 0, netSupplyUsd: 0, netBorrowUsd: 0, nEvents: 0, unpriced: 0 } }
 }
 /** Another wallet's positions. NEVER called for the connected user — that is the live allocator path. */
 /** `fresh` = past the browser cache: the index answers `max-age=60` once in sync, so a re-ask after a sync would be handed the answer from before it */
 export const accountPositions = async (account: string, p: { chainId?: string } & AssetClassQuery = {}, fresh = false) => {
-  const j = await get<PositionsResponse>(`/positions/${account}`, p, undefined, indexForAddr(account), fresh ? 'no-store' : undefined)
+  const j = await get<PositionsResponse>(`/positions/${encodeURIComponent(account)}`, p, undefined, indexForAddr(account), fresh ? 'no-store' : undefined)
   return Array.isArray(j.positions) ? j : { account, identity: null, positions: [], totals: { depositsUsd: 0, debtUsd: 0, navUsd: 0 }, asOf: null }
 }
 
@@ -469,14 +469,14 @@ export interface ClosedPositionKey {
   lineFrom?: string
 }
 export async function closedPositions(account: string, signal?: AbortSignal): Promise<ClosedPositionKey[] | null> {
-  const r = await fetch(`${INDEX_BASE_URL}/accounts/${account}/closed`, { signal })
+  const r = await fetch(`${INDEX_BASE_URL}/accounts/${encodeURIComponent(account)}/closed`, { signal })
   if (r.status === 404) return null
   const j = (await r.json().catch(() => ({}))) as { positions?: ClosedPositionKey[]; error?: string }
   if (!r.ok) throw new Error(j.error || `/accounts/${account}/closed → ${r.status}`)
   return j.positions ?? []
 }
 export const positionSeries = (account: string, key: string, unit?: string) =>
-  get<PositionSeries>(`/accounts/${account}/series`, { key, ...(unit && unit !== 'USD' ? { unit } : {}) }, undefined, indexForAddr(account))
+  get<PositionSeries>(`/accounts/${encodeURIComponent(account)}/series`, { key, ...(unit && unit !== 'USD' ? { unit } : {}) }, undefined, indexForAddr(account))
 
 export const market = (uid: string) => get<MarketRow>(`/markets/${encodeURIComponent(uid)}`, {}, undefined, indexForUid(uid))
 /**
@@ -1487,7 +1487,7 @@ export const health = () => get<{ ok: boolean; chains?: string[] }>('/health')
  * `unknown` / `seeding` and the caller reads them live.
  */
 export async function indexBalances(account: string, assets: Record<string, string[]>, signal?: AbortSignal): Promise<IndexBalances> {
-  const r = await fetch(`${INDEX_BASE_URL}/balances/${account}/query`, {
+  const r = await fetch(`${INDEX_BASE_URL}/balances/${encodeURIComponent(account)}/query`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ assets }), signal,
   })
   const j = (await r.json().catch(() => ({}))) as IndexBalances & { error?: string }
@@ -1607,7 +1607,7 @@ export interface AccountSyncReport {
 }
 export async function syncAccount(account: string, legs: SyncHintLeg[], waitMs = 0, signal?: AbortSignal): Promise<AccountSyncReport> {
   // a Solana wallet syncs on the Solana index (pos-indexer tickets/0099), the same route and report
-  const r = await fetch(`${indexForAddr(account)}/accounts/${account}/sync${waitMs > 0 ? `?wait=${waitMs}` : ''}`, {
+  const r = await fetch(`${indexForAddr(account)}/accounts/${encodeURIComponent(account)}/sync${waitMs > 0 ? `?wait=${waitMs}` : ''}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ legs: legs.slice(0, 200) }), signal, keepalive: waitMs === 0,
   })
   const j = (await r.json().catch(() => ({}))) as AccountSyncReport & { error?: string }
@@ -1647,4 +1647,4 @@ export interface AccountEntity {
   addresses: { address: string; chainId: string | null; evidence: string | null }[]
 }
 export const accountEntity = (account: string) =>
-  get<{ account: string; entity: AccountEntity | null }>(`/accounts/${account.toLowerCase()}/entity`)
+  get<{ account: string; entity: AccountEntity | null }>(`/accounts/${encodeURIComponent(account.toLowerCase())}/entity`)

@@ -1,7 +1,7 @@
 import React from 'react'
 import { useAccount, useCapabilities, useSendTransaction, useWalletClient } from 'wagmi'
 import { isSvmTx, type AnyTx, type ApiTx, type LoopActions } from '@yieldcircle/core/sdk/types'
-import { base58Encode, isSvmChain } from '@yieldcircle/core/model/address'
+import { base58Encode, isSvmChain, normAddr } from '@yieldcircle/core/model/address'
 import { nativeSymbol, WRAPPED_NATIVE } from '@yieldcircle/core/model/positions'
 import { venueLabel } from '@yieldcircle/core/model/strategies'
 import { useLiveBalances } from './sdk/liveBalances'
@@ -159,7 +159,8 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   const [busy, setBusy] = React.useState(false)
   const send = useSendTransaction()
   const { data: walletClient } = useWalletClient()
-  const onPaper = !!useSession().paper?.active
+  const session = useSession()
+  const onPaper = !!session.paper?.active
   const caps = useCapabilities({ account: address, query: { enabled: !!address && !svm && !onPaper, retry: false, staleTime: 60_000 } })
   const canBatch = !svm && !noBatch && canBatchOn(caps.data, chainId)
   const tr = useTrace(pending)
@@ -174,7 +175,12 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   React.useEffect(() => { save(scratch, bundle ? { key, bundle, pending, batch } : null) }, [key, bundle, pending, batch])
   const start = async (title?: string) => {
     setBusy(true); setErr(null)
-    try { const steps = await build(); if (!steps.length) throw new Error('the API returned nothing to sign'); setPending(undefined); setBundle({ steps, title, touches: touches.filter((u): u is string => !!u), watch: watch.filter((w): w is { address: string; symbol?: string } => !!w.address) }) }
+    try {
+      // the ticket builds for `actorOn`; it must be the wallet that signs, and never a `?as=` view (security review #1)
+      const who = svm ? sol.account?.address : address?.toLowerCase()
+      if (!who || session.actorOn?.(chainId) !== who) throw new Error('This ticket is not built for the connected wallet.')
+      if (session.viewAs && normAddr(session.viewAs) !== who) throw new Error('You are viewing another wallet: stop viewing it to sign.')
+      const steps = await build(); if (!steps.length) throw new Error('the API returned nothing to sign'); setPending(undefined); setBundle({ steps, title, touches: touches.filter((u): u is string => !!u), watch: watch.filter((w): w is { address: string; symbol?: string } => !!w.address) }) }
     catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
   const next = bundle?.steps.find((s) => !s.done)

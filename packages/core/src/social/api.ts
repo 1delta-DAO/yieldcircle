@@ -79,7 +79,7 @@ export const counts = (subjects: { kind: SubjectKind; key: string }[]) =>
   call<{ counts: Record<string, Record<string, number>> }>('/counts', post('/counts', { subjects }))
 
 export const profile = async (account: string): Promise<ProfileResponse> => {
-  const r = await call<ProfileResponse>(`/profiles/${account}`)
+  const r = await call<ProfileResponse>(`/profiles/${encodeURIComponent(account)}`)
   return { ...r, profile: normaliseProfile(r.profile) }
 }
 /**
@@ -104,8 +104,8 @@ export async function profiles(accounts: string[]): Promise<Record<string, Profi
   }
 }
 
-export const follows = (account: string) => call<{ account: string; follows: Follow[] }>(`/follows/${account}`)
-export const followers = (account: string) => call<{ account: string; followers: Follower[] }>(`/followers/${account}`)
+export const follows = (account: string) => call<{ account: string; follows: Follow[] }>(`/follows/${encodeURIComponent(account)}`)
+export const followers = (account: string) => call<{ account: string; followers: Follower[] }>(`/followers/${encodeURIComponent(account)}`)
 
 /**
  * Link an X account the free way: the wallet's signed `XLink` envelope plus a
@@ -115,9 +115,16 @@ export const followers = (account: string) => call<{ account: string; followers:
  */
 export const xLinkByPost = (signed: unknown, postUrl: string) =>
   call<{ ok?: boolean; xHandle?: string; method?: string }>('/x-link', post('/x-link', { signed, postUrl }))
-/** The wording both halves must agree on, served rather than hardcoded. */
+/**
+ * A nonce the service issued for this address (an HMAC with its expiry), and the exact text to
+ * post: a client-chosen nonce let a one-letter "nonce" match any post that named the address
+ * (docs/security-review-2026-11.md #3). Stateless on the service, so asking again is free.
+ */
+export const xChallenge = (account: string) =>
+  call<{ nonce: string; proofText: string; expiresAt: string }>(`/x/challenge?account=${encodeURIComponent(normAddr(account))}`)
+/** The old wording endpoint, for a client-chosen nonce: only while the service still accepts one (`XLINK_LEGACY_NONCE`). */
 export const xProofText = (account: string, nonce: string) =>
-  call<{ nonce: string; text: string }>(`/x-proof-text?account=${account}&nonce=${encodeURIComponent(nonce)}`)
+  call<{ nonce: string; text: string }>(`/x-proof-text?account=${encodeURIComponent(account)}&nonce=${encodeURIComponent(nonce)}`)
 export const xUnlink = (signed: unknown) =>
   call<{ ok?: boolean }>('/x-link', post('/x-link', { signed }))
 
@@ -216,7 +223,7 @@ export interface RatingCount {
 export const ratingLabels = () =>
   call<{ version: number; subjectKinds: RatingSubjectKind[]; labels: RatingLabel[] }>('/rating-labels')
 export const ratings = (kind: RatingSubjectKind, key: string, follower?: string) =>
-  call<RatingAggregate>(`/ratings/${kind}/${encodeURIComponent(key)}${follower ? `?follower=${follower}` : ''}`)
+  call<RatingAggregate>(`/ratings/${kind}/${encodeURIComponent(key)}${follower ? `?follower=${encodeURIComponent(follower)}` : ''}`)
 /** Batch, for a list view: COUNTS, not weights — the weighted verdict lives on the subject's own page. */
 export const ratingCounts = (subjects: { kind: RatingSubjectKind; key: string }[]) =>
   call<{ counts: Record<string, Record<string, RatingCount>> }>('/ratings/counts', post('/ratings/counts', { subjects }))
@@ -226,7 +233,7 @@ export const ratingsTop = (kind: RatingSubjectKind, label: string, limit = 25) =
   )
 export const ratingsBy = (account: string, limit = 50) =>
   call<{ account: string; ratings: { subjectKind: string; subjectKey: string; label: string; emoji?: string; polarity: number; evidenceUrl: string | null; note: string | null; signedAt: string; active: boolean }[] }>(
-    `/ratings/by/${account}?limit=${limit}`,
+    `/ratings/by/${encodeURIComponent(account)}?limit=${limit}`,
   )
 
 export interface WriteResult { ok?: boolean; id?: number | null; duplicate?: boolean; authorStake?: Message['authorStake']; profile?: Profile | null; follows?: Follow[] }
@@ -237,7 +244,7 @@ export interface WriteResult { ok?: boolean; id?: number | null; duplicate?: boo
  */
 export const handleCheck = (handle: string, account?: string) =>
   call<{ handle: string; available: boolean; reason?: string }>(
-    `/handle/${encodeURIComponent(handle)}${account ? `?account=${account}` : ''}`,
+    `/handle/${encodeURIComponent(handle)}${account ? `?account=${encodeURIComponent(account)}` : ''}`,
   )
 export const write = (primaryType: string, message: Record<string, unknown>, signature: string) =>
   call<WriteResult>('/write', post('/write', { primaryType, message, signature }))

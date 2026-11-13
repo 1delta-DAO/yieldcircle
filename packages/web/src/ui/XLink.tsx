@@ -45,9 +45,12 @@ export function XLink({ account, linked }: { account: string; linked: string | n
   const begin = async () => {
     setBusy(true); setErr(null)
     try {
-      const nonce = xLinkNonce()
+      // the service issues the nonce and the exact text; a service from before /x/challenge
+      // (404) still takes our own nonce for the transition window (tickets/0022 phase 2)
+      const ch = await api.xChallenge(account).catch((e: { status?: number }) => { if (e?.status === 404) return null; throw e })
+      const nonce = ch?.nonce ?? xLinkNonce()
       const env = await xLink(nonce, 'link')
-      const { text: t } = await api.xProofText(account, nonce)
+      const t = ch?.proofText ?? (await api.xProofText(account, nonce)).text
       setSigned(env); setText(t); setStep('post')
     } catch (e) { fail(e) } finally { setBusy(false) }
   }

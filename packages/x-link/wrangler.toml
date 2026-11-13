@@ -9,8 +9,10 @@ compatibility_date = "2026-09-01"
 X_CLIENT_ID = ""
 SOCIAL_URL = "https://social.1delta.io"
 REDIRECT_URI = "https://xlink.yieldcircle.io/callback"
-# The app's origin, so only it may call /challenge and /begin. "*" in dev.
-ALLOWED_ORIGIN = "https://yieldcircle.io"
+# The app's origins, comma-separated, so only they may call /challenge and /begin; the matching
+# one is echoed with credentials (the /begin cookie needs it). The app is app.yieldcircle.io
+# (.env.example, packages/web/vite.config.ts); yieldcircle.io is the landing. "*" in dev only.
+ALLOWED_ORIGIN = "https://app.yieldcircle.io"
 
 [[kv_namespaces]]
 binding = "XLINK"

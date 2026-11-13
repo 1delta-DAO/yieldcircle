@@ -89,6 +89,16 @@ gate **off**, app open (a misconfiguration never takes the site down). Manage th
 (`add`, `remove`, `list`, `waitlist`, `wait`, `promote N` — see
 `scripts/whitelist.mjs`).
 
+**What the middleware runs on** (tickets/0022): the build writes `dist/_routes.json`
+(`packages/web/vite.config.ts`), which excludes `/assets/*` and every file in `public/`, so
+the HTML document, `/gate/*` and `?access=` are the only Functions invocations. The
+middleware also sends the CSP on the HTML document (`packages/web/gate/csp.ts`, as
+`Content-Security-Policy-Report-Only` for now); a keyed `VITE_RPC_<id>` is in its
+`connect-src` only when the variable is also visible to Functions, so set those as plain
+variables, not build-only. HSTS and Permissions-Policy are in `public/_headers`. Before
+switching the CSP to enforcing, browse with the console open (connect, sign, a WalletConnect
+phone, a Solana wallet) and add whatever it reports.
+
 Locally: `pnpm deploy` / `pnpm deploy:preview` (direct upload of `packages/web/dist`; wrangler runs in
 `packages/web`, so it picks up `functions/`).
 
@@ -160,6 +170,11 @@ free X-post link path.
 |---|---|
 | `X_CLIENT_SECRET` | the X app's client secret |
 | `XLINK_SECRET` | the same value the social service holds |
+
+`ALLOWED_ORIGIN` is the app's exact origin (`https://app.yieldcircle.io`; comma-separate
+more). `/begin` sets an HttpOnly cookie that `/callback` checks, so a client must call
+`/begin` with `credentials: 'include'`; the worker echoes the one matching origin with
+`access-control-allow-credentials`, never `*`.
 
 Secrets survive deploys — wrangler never touches them. In the toml, fill
 `X_CLIENT_ID` and set `REDIRECT_URI` to the worker URL + `/callback` (register

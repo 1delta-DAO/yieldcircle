@@ -14,6 +14,7 @@ import { PaperSignInHost } from './ui/PaperSignIn'
 import { configureTrace, initTxTrace } from '@yieldcircle/app/sdk/txTrace'
 import App from './App'
 import { GateBridge } from './wallet/GateBridge'
+import { Boundary, PageError } from './ui/Boundary'
 import '@yieldcircle/design/index.css'
 import './styles/app.css'
 import './styles/lite.css'
@@ -27,7 +28,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={qc}>
-        <WebPlatform><SettingsProvider><AppProvider><PaperProvider><SessionBridge><App /><GateBridge /><PaperSignInHost /></SessionBridge></PaperProvider></AppProvider></SettingsProvider></WebPlatform>
+        <WebPlatform><SettingsProvider><AppProvider><PaperProvider><SessionBridge><Boundary name="app" fallback={<PageError />}><App /></Boundary><GateBridge /><PaperSignInHost /></SessionBridge></PaperProvider></AppProvider></SettingsProvider></WebPlatform>
       </QueryClientProvider>
     </WagmiProvider>
   </React.StrictMode>,

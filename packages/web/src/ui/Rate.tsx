@@ -69,8 +69,8 @@ function Vote({ v }: { v: RatingVote }) {
       <span className="rv-w" title={parts ? `weight = ${parts}` : 'this wallet is unknown to the index and counts zero'}>
         {v.weight.toFixed(2)}
       </span>
-      {v.evidenceUrl && (
-        <a className="rv-e" href={v.evidenceUrl} target="_blank" rel="noreferrer noopener" title={v.note ?? v.evidenceUrl}>link</a>
+      {/^https?:\/\//i.test(v.evidenceUrl ?? '') && (
+        <a className="rv-e" href={v.evidenceUrl!} target="_blank" rel="noreferrer noopener" title={v.note ?? v.evidenceUrl!}>link</a>
       )}
       <span className="rv-t"><Ago ts={v.signedAt} /></span>
     </div>

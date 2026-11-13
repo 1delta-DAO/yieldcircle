@@ -18,15 +18,15 @@ export interface PaperOpResult { ok: true; seq: number; ledger: PaperLedger; boo
 export const postPaperOp = (e: PaperOpEnvelope) =>
   call<PaperOpResult>('/paper/ops', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(e) })
 export const paperBook = (account: string) =>
-  call<{ ledger: PaperLedger; book: PaperBook; computedAt: string }>(`/paper/book/${account.toLowerCase()}`)
+  call<{ ledger: PaperLedger; book: PaperBook; computedAt: string }>(`/paper/book/${encodeURIComponent(account.toLowerCase())}`)
 /** `priceUsd`: the part of `pnlUsd` that is price; absent or null on a day from before the server kept it */
 export interface PaperDay { day: string; navUsd: number; pnlUsd: number; putInUsd: number; returnPct: number; priceUsd?: number | null }
 /** One hour's valuation (`paper.book_hourly`) */
 export interface PaperHour { t: string; navUsd: number; pnlUsd: number; priceUsd: number; putInUsd: number }
 export const paperDaily = (account: string, days = 90) =>
-  call<{ days: PaperDay[] }>(`/paper/book/${account.toLowerCase()}/daily?days=${days}`)
+  call<{ days: PaperDay[] }>(`/paper/book/${encodeURIComponent(account.toLowerCase())}/daily?days=${days}`)
 export const paperHourly = (account: string, days = 14) =>
-  call<{ points: PaperHour[] }>(`/paper/book/${account.toLowerCase()}/hourly?days=${days}`)
+  call<{ points: PaperHour[] }>(`/paper/book/${encodeURIComponent(account.toLowerCase())}/hourly?days=${days}`)
 export interface PaperBoardRow {
   account: string; sol: string | null; handle: string | null; displayName: string | null; tags: string[]
   navUsd: number; pnlUsd: number; returnPct: number; netAprPct: number | null; annualUsd: number; deployedUsd: number
@@ -50,4 +50,4 @@ export async function paperPrices(keys: string[]): Promise<Record<string, number
 /** `frictionUsd`: what the op cost — fees, slippage, the bridge's cut (tickets/0007 D); null for ops from before it was booked. */
 export interface PaperOpRow { id: number; kind: string; op: import('../model/paper').PaperOp; prices: Record<string, number | null>; at: string; frictionUsd?: number | null }
 export const paperOps = (account: string, limit = 200) =>
-  call<{ ops: PaperOpRow[] }>(`/paper/book/${account.toLowerCase()}/ops?limit=${limit}`)
+  call<{ ops: PaperOpRow[] }>(`/paper/book/${encodeURIComponent(account.toLowerCase())}/ops?limit=${limit}`)

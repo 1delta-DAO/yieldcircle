@@ -12,6 +12,7 @@ import { Ago, Stake, Who } from './social-bits'
 import { Sk } from './bits'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { REACTIONS } from '@yieldcircle/core/social/words'
+import { Boundary } from './Boundary'
 
 
 export function Thread({ kind, subjectKey, title, placeholder, compact, max, fold }: {
@@ -82,10 +83,10 @@ export function Thread({ kind, subjectKey, title, placeholder, compact, max, fol
         {!t.isLoading && !tops.length && <p className="thread-empty">{fold ? 'Nothing said yet — be the first.' : 'Nobody has said anything here yet.'}</p>}
         {tops.map((m) => (
           <div key={m.id} className="msg">
-            <Row m={m} profile={profile(m.author)} mine={account === normAddr(m.author)} onReply={() => setReplyTo(m)} onDelete={() => drop(m)} />
+            <Boundary name="thread row"><Row m={m} profile={profile(m.author)} mine={account === normAddr(m.author)} onReply={() => setReplyTo(m)} onDelete={() => drop(m)} /></Boundary>
             {kids(m.id).map((k) => (
               <div key={k.id} className="msg reply">
-                <Row m={k} profile={profile(k.author)} mine={account === normAddr(k.author)} onDelete={() => drop(k)} />
+                <Boundary name="thread row"><Row m={k} profile={profile(k.author)} mine={account === normAddr(k.author)} onDelete={() => drop(k)} /></Boundary>
               </div>
             ))}
           </div>

@@ -30,7 +30,8 @@ export function PhoneSession({ children }: { children: React.ReactNode }) {
     }
     // a Solana-only user is still "somebody" everywhere a screen shows you to yourself — but never an EVM sender or receiver
     const account = VIEW_AS ?? address?.toLowerCase() ?? sol
-    const actorOn = (chainId: string | undefined) => (isSvmChain(chainId) ? sol : isEvmAddr(account) ? account : undefined)
+    // the signer acts, never VIEW_AS (docs/security-review-2026-11.md #1)
+    const actorOn = (chainId: string | undefined) => (isSvmChain(chainId) ? sol : isEvmAddr(address) ? address.toLowerCase() : undefined)
     return { chainIds, account, solSigner: sol, viewAs: VIEW_AS, paper: null, isConnected: isConnected || !!sol, actorOn }
   }, [address, isConnected, sol, chainIds.join(','), k, paper.ledger, paper.holdings, paper.idle, paper.price, paper.act])
   return <SessionProvider value={value}>{children}</SessionProvider>

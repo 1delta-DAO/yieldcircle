@@ -94,6 +94,7 @@ function useStableRows(rows: TxBundle[], scope: string, on: boolean, cap = 240) 
 
 export { DUST_USD, isDust } from "@yieldcircle/core/model/moves";
 import { DUST_USD, isDust } from "@yieldcircle/core/model/moves";
+import { Boundary } from "./Boundary";
 const DUST_KEY = "yieldcircle.feed.dust";
 /** a reader's preference, so it outlives the tab — unlike the filters, which ride in the link */
 function useShowDust(): [boolean, (v: boolean) => void] {
@@ -527,8 +528,8 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
           </div>
         )}
         {txs.map((t) => (
+          <Boundary key={`${t.chainId}:${t.txHash}`} name="feed card">
           <Card
-            key={`${t.chainId}:${t.txHash}`}
             tx={t}
             profile={profile(subjectOf(t).account)}
             strategy={stratOf(t)}
@@ -543,6 +544,7 @@ export function Feed({ tab: tabIn }: { tab?: string }) {
             open={open === t.txHash}
             onToggle={() => setOpen(open === t.txHash ? null : t.txHash)}
           />
+          </Boundary>
         ))}
       </div>
 

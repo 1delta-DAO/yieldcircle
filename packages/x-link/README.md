@@ -25,6 +25,14 @@ signature cannot be replayed against a different X account and a captured
 code cannot be redirected onto a different wallet. PKCE (S256) covers the
 authorization code on its own account.
 
+The nonce is an HMAC of the address and its expiry, so `/challenge` writes
+nothing. `/begin` sets an HttpOnly `SameSite=Lax` cookie that `/callback`
+must see, so the OAuth round trip only finishes in the browser that started
+it: an authorize URL sent to someone else cannot bind their X account to the
+sender's wallet. The app calls `/begin` with `credentials: 'include'`, and
+`ALLOWED_ORIGIN` names its exact origin(s) — never `*` in production. `/begin`
+refuses bodies over 8 KB.
+
 The worker never verifies the signature — the social service recovers the
 signer, which is the only place that should — but it refuses to carry a
 message whose `author`, `nonce` or `action` disagrees with the challenge it

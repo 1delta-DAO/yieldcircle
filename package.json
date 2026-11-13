@@ -19,6 +19,7 @@
     "deploy": "node scripts/menu-seed.mjs && pnpm --filter @yieldcircle/web run deploy",
     "deploy:preview": "node scripts/menu-seed.mjs && pnpm --filter @yieldcircle/web run deploy:preview",
     "deploy:landing": "pnpm --filter @yieldcircle/landing run deploy",
+    "ship": "scripts/ship-all.sh",
     "whitelist": "node scripts/whitelist.mjs",
     "logos": "node scripts/logos.mjs",
     "brand-icons": "node scripts/brand-icons.mjs",

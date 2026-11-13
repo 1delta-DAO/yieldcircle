@@ -24,6 +24,7 @@ import type { Message } from '../social/types'
 import { Ago, Stake, Who } from './social-bits'
 import { Sk, StratMark, Toks } from './bits'
 import { ChainCorner } from './ChainMark'
+import { Boundary } from './Boundary'
 
 /**
  * A thread → the catalogue row it is about. A loop answers on its own key,
@@ -69,7 +70,7 @@ export function Talk({ chainIds, protocols, menu }: { chainIds?: string; protoco
         </div>
       )}
       {msgs.map((m) => (
-        <TalkCard key={m.id} m={m} profile={profile(m.author)} strategy={bySubject.get(`${m.subjectKind}|${m.subjectKey}`) ?? null} />
+        <Boundary key={m.id} name="talk card"><TalkCard m={m} profile={profile(m.author)} strategy={bySubject.get(`${m.subjectKind}|${m.subjectKey}`) ?? null} /></Boundary>
       ))}
       {q.hasNextPage && (
         <div className="feed-more">

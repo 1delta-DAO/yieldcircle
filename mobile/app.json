@@ -22,6 +22,7 @@
     "ios": {
       "bundleIdentifier": "io.yieldcircle.app",
       "supportsTablet": false,
+      "associatedDomains": ["applinks:app.yieldcircle.io"],
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
           "metamask",

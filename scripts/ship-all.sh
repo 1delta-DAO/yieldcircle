@@ -18,6 +18,7 @@
 #   scripts/ship-all.sh          plan + preflight only, deploys nothing
 #   scripts/ship-all.sh --go     the whole thing
 #   --skip-tests                 preflight without build/tests (a re-run after a smoke fix)
+#   --skip-pos                   pos-indexer already out: start at the smoke checks
 #
 # Env: POS_INDEXER_DIR (default ~/pos-indexer), VPS_INVENTORY (deploy.sh's, default
 # ~/vps-indexing), POSITIONS_URL / SOL_POSITIONS_URL / SOCIAL_URL for the smoke checks.
@@ -35,12 +36,13 @@ POSITIONS_URL="${POSITIONS_URL:-https://positions.1delta.io}"
 SOL_POSITIONS_URL="${SOL_POSITIONS_URL:-https://sol-positions.1delta.io}"
 SOCIAL_URL="${SOCIAL_URL:-https://social.1delta.io}"
 
-GO=0; TESTS=1
+GO=0; TESTS=1; POS=1
 for a in "$@"; do
   case "$a" in
     --go) GO=1 ;;
     --skip-tests) TESTS=0 ;;
-    *) echo "usage: scripts/ship-all.sh [--go] [--skip-tests]"; exit 2 ;;
+    --skip-pos) POS=0 ;;
+    *) echo "usage: scripts/ship-all.sh [--go] [--skip-tests] [--skip-pos]"; exit 2 ;;
   esac
 done
 
@@ -68,7 +70,8 @@ expect() {
 }
 
 step "plan"
-echo "  pos-indexer: deploy all$(inv SOLANA_ENABLED && echo ' + solana')  (inventory $INVENTORY)"
+[[ $POS == 1 ]] || echo "  pos-indexer: skipped (--skip-pos)"
+[[ $POS == 0 ]] || echo "  pos-indexer: deploy all$(inv SOLANA_ENABLED && echo ' + solana')  (inventory $INVENTORY)"
 echo "  x-link:      wrangler deploy (packages/x-link)"
 echo "  web:         git push → Pages builds app + landing"
 [[ $GO == 1 ]] || echo "  (dry run — add --go to deploy)"
@@ -85,10 +88,12 @@ if [[ $TESTS == 1 ]]; then
 fi
 [[ $GO == 1 ]] || { echo; echo "preflight passed; nothing deployed"; exit 0; }
 
-step "pos-indexer"
-git -C "$PI" push -q origin main
-(cd "$PI" && pnpm -s run deploy all)
-if inv SOLANA_ENABLED; then (cd "$PI" && pnpm -s run deploy solana); fi
+if [[ $POS == 1 ]]; then
+  step "pos-indexer"
+  git -C "$PI" push -q origin main
+  (cd "$PI" && pnpm -s run deploy all)
+  if inv SOLANA_ENABLED; then (cd "$PI" && pnpm -s run deploy solana); fi
+fi
 
 step "smoke"
 expect 200 "$POSITIONS_URL/health"

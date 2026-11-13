@@ -1,0 +1,10 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["8B3ZM8UYXB.io.yieldcircle.app"],
+        "components": [{ "/": "/wallet-return", "comment": "a wallet's answer (mobile/src/appkit.ts WALLET_RETURN)" }]
+      }
+    ]
+  }
+}

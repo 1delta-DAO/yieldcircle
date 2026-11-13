@@ -390,10 +390,18 @@ Share text and its link are core's (`shareOf`, `canShare` in `model/lite.ts`); b
 - **Universal links for shared Copy links** (`https://app.yieldcircle.io/#/lite/…`): the map and
   the handler are in (above); the same `apple-app-site-association` / `assetlinks.json` as below
   make the system hand them to the app.
-- **Return trip without the relay — universal links + Link Mode:** needs
-  `apple-app-site-association` / `assetlinks.json` on `app.yieldcircle.io`,
-  `redirect.universal` + `linkMode: true` in `src/appkit.ts`, and One-Click Auth
-  (SIWE). EVM only.
+- **The wallet's return over a universal link** (2026-11-13, iOS): `redirect.universal` is
+  `https://app.yieldcircle.io/wallet-return` (`WALLET_RETURN` in `src/appkit.ts`), claimed by
+  `packages/web/public/.well-known/apple-app-site-association` (team `8B3ZM8UYXB`, that one path
+  only) and `associatedDomains` in `app.json`. Phantom's and Solflare's deep links send it as
+  `redirect_link` instead of `yieldcircle://`, which any app can register: Solflare blocked the
+  phone's Solana tickets as a scam, and a return bound to the same domain as `app_url` is the one
+  thing the phone's request lacked next to the web's. Needs a new native build; untested on a
+  phone. **Android** still returns on the scheme: `assetlinks.json` needs the signing key's
+  SHA-256 (EAS credentials, plus Play's app-signing key once on Play), then an `autoVerify`
+  intent filter and `universal` on both platforms.
+- **Return trip without the relay — universal links + Link Mode:** the association above, plus
+  `linkMode: true` in `src/appkit.ts` and One-Click Auth (SIWE). EVM only.
 - **The chain list is duplicated** from `packages/web/src/wallet/wagmi.ts` —
   move it to a shared package with viem as its dependency (core has none).
 - **Bundle size:** 9.3 MB of bytecode, much of it core's data tables

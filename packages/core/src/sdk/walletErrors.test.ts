@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isRejection, walletWhy } from './walletErrors'
+import { isChainMismatch, isRejection, walletWhy } from './walletErrors'
 
 /** viem's `UserRejectedRequestError` around what the wallet answered: its own code is 4001 whatever the cause's. */
 const viemRejected = (cause: { code: number; message: string }) => ({ code: 4001, shortMessage: 'User rejected the request.', message: `User rejected the request.\n\nDetails: ${cause.message}\nVersion: viem@2`, details: cause.message, cause })
@@ -25,5 +25,16 @@ describe('walletWhy', () => {
     expect(walletWhy(viemRejected({ code: 5000, message: '{"code":-32602,"message":"Chain ID must match the dApp selected network"}' }))).toBe('Chain ID must match the dApp selected network')
     expect(walletWhy(viemRejected({ code: 5000, message: 'Request too large' }))).toBe('Request too large')
     expect(walletWhy(new Error('fetch failed'))).toBe('fetch failed')
+  })
+})
+
+describe('isChainMismatch', () => {
+  it('the wallet is on another chain, in each wallet\'s words', () => {
+    expect(isChainMismatch(viemRejected({ code: 5000, message: 'Invalid parameters: active chainId is different than the one provided.' }))).toBe(true)
+    expect(isChainMismatch({ code: -32602, message: 'Provided chainId "1" must match the active chainId "8453"' })).toBe(true)
+    expect(isChainMismatch(viemRejected({ code: 5000, message: '{"code":-32602,"message":"Chain ID must match the dApp selected network"}' }))).toBe(true)
+    expect(isChainMismatch(new Error('The current chain of the wallet (id: 8453) does not match the target chain for the transaction (id: 1 – Ethereum).'))).toBe(true)
+    expect(isChainMismatch(new Error('execution reverted'))).toBe(false)
+    expect(isChainMismatch(viemRejected({ code: 4001, message: 'User denied transaction signature.' }))).toBe(false)
   })
 })

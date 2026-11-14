@@ -1,5 +1,4 @@
 import React from 'react'
-import { useSignTypedData } from 'wagmi'
 import { DEFAULT_TIER, capRaw, healthAt, liqBuffer, netAprAtLeverage, toRaw } from '@yieldcircle/core/model/leverage'
 import { heldRaw } from '@yieldcircle/core/model/amount'
 import { isLoopscale, type LoopStrategy } from '@yieldcircle/core/model/strategies'
@@ -13,7 +12,7 @@ import { CLOSE_INTEREST_PAD, NO_ROUTE, closeKeepPad, hasRoute } from '@yieldcirc
 import { quoteClose, useCloseQuote } from '../sdk/queries'
 import { slippageFor, debtAtPeg, useSettings } from '../state/Settings'
 import { useSticky } from '../sticky'
-import { stepsFrom, useTicketLadder } from '../ladder'
+import { stepsFrom, useStepSigner, useTicketLadder } from '../ladder'
 import { useSession } from '../session'
 import { collateralOnFirst } from './collateral'
 import { leverPlan, reducePlan } from './paperPlans'
@@ -119,9 +118,9 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   const valued = closing && !closeBlock && !h.others?.length && h.valueUsd > 0 && backUsd != null && backUsd > 0
   const vc = useValueCheck(valued ? h.valueUsd : 0, valued ? backUsd! : 0, `${key}|${backUsd}`)
   const paper = usePaperView()
-  const { signTypedDataAsync } = useSignTypedData()
+  const signStepOn = useStepSigner()
   // Inverse's loop answers a signature request first; paper asks, never signs
-  const paperSign = paper.active ? null : (td: unknown) => signTypedDataAsync(td as never)
+  const paperSign = paper.active ? null : signStepOn
   // on paper: a deleverage costs what the slippage allows, a close what the sale quote says, a step up what the open quote says
   // on paper every step needs what the real one needs (tickets/0006): a close its sale quote (the
   // button already waits for it), a deleverage a quote for the part it sells, a step up a quote with
@@ -157,5 +156,5 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     return [...pre, ...stepsFrom(env.actions, putUp ? `Lever to ${num(L, 2)}×` : `Increase to ${num(L, 2)}×`, h.chainId)]
   }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid], [{ address: h.collateralAddress ?? s?.collateralAddress, symbol: holds }, { address: h.debtAddress ?? s?.debtAddress, symbol: debt }], paperPlan)
-  return { account, isConnected, slip, actor, holds, debt, E, putUp, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, targets, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, signTypedDataAsync, paperSign, paperPlan, ladder }
+  return { account, isConnected, slip, actor, holds, debt, E, putUp, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, targets, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, paperSign, paperPlan, ladder }
 }

@@ -1,5 +1,4 @@
 import React from 'react'
-import { useSignTypedData } from 'wagmi'
 import { unitOf } from '@yieldcircle/core/model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, borrowCapLtv, curveRateNow, customRange, healthAt, healthAtLtv, liqBuffer, liqBufferAtLtv, netAprAtLeverage, toRaw, type TierId } from '@yieldcircle/core/model/leverage'
 import { fromUnits, payRaw, portion, unitsOf } from '@yieldcircle/core/model/amount'
@@ -18,7 +17,7 @@ import { NO_ROUTE, dayOf, defaultTenor, defaultTerm, hasRoute, paysNative, safet
 import { bookAprAt, useIrm, useLendingBooks, useLoopPayAssets, useLoopQuote, useTenorQuotes } from '../sdk/queries'
 import { slippageFor, debtAtPeg, useSettings } from '../state/Settings'
 import { useSticky, useStickyAmount } from '../sticky'
-import { stepsFrom, useTicketLadder } from '../ladder'
+import { stepsFrom, useStepSigner, useTicketLadder } from '../ladder'
 import { useSession } from '../session'
 import { collateralOnFirst } from './collateral'
 import { loopPlan } from './paperPlans'
@@ -220,7 +219,7 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   const yearly = E * net / 100
   const key = [s.id, holding?.accountId ?? '', marginRaw ?? '', L, term?.id ?? '', tenor?.id ?? '', chosen?.address ?? '', actor ?? '', slip, routeName ?? '', rate ?? ''].join('|')
   const paper = usePaperView()
-  const { signTypedDataAsync } = useSignTypedData()
+  const signStepOn = useStepSigner()
   // on paper, what the chain would refuse is refused too (tickets/0006): a quote with a route, the
   // market's free liquidity, a dated book deep enough for the size
   const paperRefuse = !paper.active ? null
@@ -243,7 +242,7 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
     }
     const pre = await collateralOnFirst(holding, actor!)
     // a venue may answer a sign step first (`actions.signs`: Inverse's ALE borrows on a per-action permit); paper asks, never signs
-    const env = await withSignature(await loopOpen(openParams), paper.active ? null : (td) => signTypedDataAsync(td as never))
+    const env = await withSignature(await loopOpen(openParams), paper.active ? null : signStepOn)
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     // Solana: the quote stands, nothing was built. Worded for the paper ladder's FUNDS_ONLY: the paper
     // address holds nothing on chain, which is no refusal of the action
@@ -267,5 +266,5 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   const hfShown = simHf ?? hf, safe = safetyOf(drop)
   const rewardsNow = loopRewards(s, L)
   const fixedNote = term ? `fixed to ${ends}` : tenor ? `fixed for ${tenorWord(tenor)}` : s.dueAt ? `fixed to ${due}` : ''
-  return { ltvQ, overCap, capLtv, liteTier, pickLiteTier, liteLev, setLiteLev, liteLo, liteHi, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, pickers, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, signTypedDataAsync, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote }
+  return { ltvQ, overCap, capLtv, liteTier, pickLiteTier, liteLev, setLiteLev, liteLo, liteHi, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, pickers, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote }
 }

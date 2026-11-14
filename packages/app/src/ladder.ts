@@ -1,12 +1,14 @@
 import React from 'react'
-import { useAccount, useCapabilities, useSendTransaction, useWalletClient } from 'wagmi'
+import { useAccount, useCapabilities, useSendTransaction, useSignTypedData, useWalletClient } from 'wagmi'
 import { isSvmTx, type AnyTx, type ApiTx, type LoopActions } from '@yieldcircle/core/sdk/types'
 import { base58Encode, isSvmChain, normAddr } from '@yieldcircle/core/model/address'
 import { nativeSymbol, WRAPPED_NATIVE } from '@yieldcircle/core/model/positions'
 import { venueLabel } from '@yieldcircle/core/model/strategies'
 import { useLiveBalances } from './sdk/liveBalances'
 import { baselineOf, batchFailed, batchLanded, batchTraceId, hasLanded, isBatchTrace, isDone, markBatch, tracePaper, traceBatch, traceTx, useTrace, type Baseline, type Moves, type Receipt } from './sdk/txTrace'
-import { isRejection, walletWhy } from '@yieldcircle/core/sdk/walletErrors'
+import { isChainMismatch, isRejection, walletWhy } from '@yieldcircle/core/sdk/walletErrors'
+import type { walletTypedData } from '@yieldcircle/core/sdk/signedAction'
+import { chainLabel } from './sdk/queries'
 import type { PaperOp } from '@yieldcircle/core/model/paper'
 import { usePlatform } from './platform'
 import { useSession } from './session'
@@ -162,6 +164,8 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   const [noBatch, setNoBatch] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  // the wallet refused a send as being on another chain while the session says it is on this one: ask it to switch anyway
+  const [chainOff, setChainOff] = React.useState(false)
   const send = useSendTransaction()
   const { data: walletClient } = useWalletClient()
   const session = useSession()
@@ -213,7 +217,8 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
     }
     else if (isDone(tr)) { setErr(tr.phase === 'reverted' ? pendingStep?.onFail ?? 'the transaction reverted' : tr.err ?? 'the transaction did not go through'); setFailed(pending); setPending(undefined) }
   }, [pending, tr?.phase])
-  const wrongChain = !svm && walletChain !== Number(chainId)
+  React.useEffect(() => { setChainOff(false) }, [key, walletChain])
+  const wrongChain = !svm && (walletChain !== Number(chainId) || chainOff)
   const sendNext = async () => {
     if (!next) return
     setErr(null); setFailed(undefined)
@@ -234,7 +239,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
       }
       return
     }
-    if (wrongChain) { try { await switchTo(Number(chainId)) } catch (e) { setErr(isRejection(e) ? REJECTED : shortErr(walletWhy(e))) } return }
+    if (wrongChain) { try { await switchTo(Number(chainId)); setChainOff(false) } catch (e) { setErr(isRejection(e) ? REJECTED : shortErr(walletWhy(e))) } return }
     // before the first await: iOS only follows the hand-off while the tap is live (wallet/deeplink.ts)
     openWallet(connector?.id)
     if (together && walletClient) {
@@ -256,6 +261,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
         setBatch(id)
       } catch (e) {
         if (isRejection(e)) setErr(REJECTED)
+        else if (isChainMismatch(e)) { setChainOff(true); setErr(chainOffMsg(chainId)) }
         // the wallet would not take it as one: the same steps, one per tap (a second tap, so the hand-off stays live on iOS)
         else { setNoBatch(true); setErr(`Your wallet would not send these as one batch (${shortErr(walletWhy(e))}). Send them one at a time below.`) }
       } finally { setBatchSigning(false) }
@@ -266,7 +272,10 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
       const hash = await send.sendTransactionAsync({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}`, value: BigInt(tx.value || '0') })
       follow(hash, next)
       setPending(hash); setBundle((b) => b && { ...b, steps: b.steps.map((s) => (s === next ? { ...s, hash } : s)) })
-    } catch (e) { setErr(isRejection(e) ? REJECTED : next.onFail && /revert/i.test((e as Error).message) ? next.onFail : shortErr(walletWhy(e))) }
+    } catch (e) {
+      if (!isRejection(e) && isChainMismatch(e)) { setChainOff(true); setErr(chainOffMsg(chainId)); return }
+      setErr(isRejection(e) ? REJECTED : next.onFail && /revert/i.test((e as Error).message) ? next.onFail : shortErr(walletWhy(e)))
+    }
   }
   // a batch the wallet took: its report, when it comes, hands the trace the transaction (the chain may have first).
   // A wallet that never reports — in the background on a phone — is no error: the trace asks the chain
@@ -377,3 +386,35 @@ export function useTicketLadder(key: string, chainId: string, build: () => Promi
 }
 const shortErr = (m: string) => (m.length > 160 ? m.slice(0, 160) + '…' : m)
 const REJECTED = 'Rejected in the wallet — nothing was sent.'
+const chainOffMsg = (chainId: string | number) => `Your wallet is on another network than ${chainLabel(String(chainId))}. Switch it below, then send again.`
+
+/** A switch that never answers (a wallet already there sends no `chainChanged`) must not hold the build: the sign after it says where the wallet is. */
+const settled = (p: Promise<void>, ms = 30_000) => Promise.race([p, new Promise<void>((r) => setTimeout(r, ms))])
+
+/**
+ * The signer for a sign step (`withSignature`), on the chain the message's domain names. A sign step
+ * is signed while the ticket BUILDS — before there is a step list, so before the ladder's "Switch
+ * wallet" button exists: a wallet on another chain refused the message ("active chainId is different
+ * than the one provided", MetaMask) on every try, with nothing on screen to switch it. So the switch
+ * is asked for first, and once more when the wallet says it is elsewhere although the session says
+ * it is not.
+ */
+export function useStepSigner() {
+  const { signTypedDataAsync } = useSignTypedData()
+  const { chainId: walletChain } = useAccount()
+  const { switchTo } = usePlatform().useSwitchTo()
+  return async (td: ReturnType<typeof walletTypedData>): Promise<string> => {
+    const want = Number(td.domain.chainId)
+    const sign = () => signTypedDataAsync(td as never) as Promise<string>
+    if (!want) return sign()
+    if (walletChain !== want) await settled(switchTo(want))
+    try { return await sign() } catch (e) {
+      if (isRejection(e) || !isChainMismatch(e)) throw e
+      await settled(switchTo(want))
+      try { return await sign() } catch (e2) {
+        if (!isRejection(e2) && isChainMismatch(e2)) throw new Error(`Your wallet is on another network. Switch it to ${chainLabel(String(want))} in the wallet, then try again.`)
+        throw e2
+      }
+    }
+  }
+}

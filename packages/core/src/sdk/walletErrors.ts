@@ -32,3 +32,11 @@ export function walletWhy(e: unknown): string {
   if (m.startsWith('{')) try { m = (JSON.parse(m) as { message?: string }).message || m } catch { /* not JSON: as it is */ }
   return m
 }
+/**
+ * The wallet is on another chain than the request names. MetaMask Mobile answers "Invalid parameters:
+ * active chainId is different than the one provided" for a send or a typed-data domain off its own
+ * chain — its chain for this app can differ from the one the session reports, so the app cannot
+ * always see it coming. Also MetaMask's typed-data and batch refusals, and viem's own check.
+ */
+const CHAIN_OFF = /chain ?id is different|must match the active chain|chain id must match|does not match the target chain/i
+export const isChainMismatch = (e: unknown) => CHAIN_OFF.test(walletWhy(e)) || CHAIN_OFF.test((e as WalletErr)?.message ?? '')

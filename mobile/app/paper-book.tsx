@@ -101,7 +101,7 @@ export default function PaperBookScreen() {
             : 'See where your positions would be in a week, a month or three, at today’s rates.'}</Txt>
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 22 }}>
-            <Btn sm kind="paper" title="Find a strategy" onPress={() => { if (router.canDismiss()) router.dismissAll(); router.replace('/lite/earn') }} />
+            <Btn sm kind="paper" title="Find a strategy" onPress={() => { if (router.canDismiss()) router.dismissAll(); router.replace('/lite') }} />
           </View>
         </>}
       </ScrollView>

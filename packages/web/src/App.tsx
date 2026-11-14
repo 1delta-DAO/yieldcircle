@@ -15,7 +15,6 @@ import { BorrowPage } from './ui/BorrowPage'
 import { useRoute } from './state/AppState'
 import { Boundary, PageError } from './ui/Boundary'
 import { GROUPS } from '@yieldcircle/core/model/assets'
-import { LiteHome } from './ui/lite/LiteHome'
 import { LiteEarn } from './ui/lite/LiteEarn'
 import { LiteYou } from './ui/lite/LiteYou'
 import { LiteBoard, liteHeld } from './ui/lite/LiteBoard'
@@ -28,7 +27,7 @@ export default function App() {
   // only real trading stays behind the waitlist (`realTradingGated`). The join page is `#/join` only
   if (r.view === 'join') return <Join />
   const group = GROUPS.find((g) => g.id === r.group)
-  // Lite (docs/lite.md): four pages over the same catalogue, book and tickets
+  // Lite (docs/lite.md): its pages over the same catalogue, book and tickets. It has no Home: `#/lite/` is Earn
   // a page that throws in render is replaced by a note inside the shell, and tried again on the next route
   const page = location.hash
   if (r.lite) return (
@@ -38,8 +37,7 @@ export default function App() {
         : r.view === 'wallet' && r.addr ? <LiteProfile key={r.addr} addr={r.addr} />
         : r.view === 'board' ? <LiteBoard sort={r.t === 'perDay' ? 'perDay' : 'apr'} by={r.by === 'strategy' ? 'strategy' : 'wallet'} held={liteHeld(r.x)} />
         : group ? <LiteEarn key="earn" group={group} route={r} />
-        : r.view === 'earn' ? <LiteEarn key="earn" route={r} />
-        : <LiteHome />}
+        : <LiteEarn key="earn" route={r} />}
     </Boundary></Shell>
   )
   return (

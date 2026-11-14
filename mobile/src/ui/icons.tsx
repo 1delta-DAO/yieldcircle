@@ -7,7 +7,6 @@ import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg'
 type P = { color: string; size?: number }
 const base = (size = 20, color: string, w = 1.6) => ({ width: size, height: size, viewBox: '0 0 20 20', fill: 'none', stroke: color, strokeWidth: w, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const })
 
-export const IconHome = ({ color, size }: P) => <Svg {...base(size, color)}><Path d="M3.5 9 10 3.8 16.5 9v7a1 1 0 0 1-1 1h-3.3v-4.6H7.8V17H4.5a1 1 0 0 1-1-1z" /></Svg>
 export const IconFeed = ({ color, size }: P) => <Svg {...base(size, color)}><Path d="M2.5 10h3.2l2-5 3.4 10 2.1-5h4.3" /></Svg>
 export const IconEarn = ({ color, size }: P) => <Svg {...base(size, color)}><Ellipse cx="10" cy="5.8" rx="5.8" ry="2.4" /><Path d="M4.2 5.8v4.1c0 1.3 2.6 2.4 5.8 2.4s5.8-1.1 5.8-2.4V5.8M4.2 9.9V14c0 1.3 2.6 2.4 5.8 2.4s5.8-1.1 5.8-2.4V9.9" /></Svg>
 export const IconBorrow = ({ color, size }: P) => <Svg {...base(size, color)}><Rect x="2.8" y="4.5" width="10.4" height="11" rx="2" /><Circle cx="8" cy="10" r="2" /><Path d="M10.6 10h7M15 7.4l2.6 2.6-2.6 2.6" /></Svg>

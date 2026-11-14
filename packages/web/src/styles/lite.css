@@ -22,6 +22,8 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .tabs-top a,.tabbar a{position:relative}
 .tab-dot{position:absolute;top:8px;left:calc(50% + 10px);width:8px;height:8px;border-radius:50%;background:var(--primary)}
 .tabs-top .tab-dot{top:4px;left:auto;right:2px}
+.lite-chip{position:relative}
+.lite-chip .tab-dot{top:-1px;left:auto;right:-1px}
 
 .lite-page{max-width:880px;margin:0 auto}
 .lite-sec{margin-top:26px}

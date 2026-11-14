@@ -17,7 +17,7 @@ import { C } from '../theme'
 import { Btn, Seg, Sk } from './bits'
 import { useChains } from '../chains'
 import { useLiteMoves, useMoveReasons } from '@yieldcircle/app/liteMoves'
-import { useUnseen, writeSeen } from '@yieldcircle/app/social/seen'
+import { writeSeen } from '@yieldcircle/app/social/seen'
 import { Who } from './Character'
 import { openStrategy, openWallet } from './lite'
 import { Txt } from './Txt'
@@ -133,11 +133,6 @@ export function LiteMoves({ rows, account, limit = 8, title, followingOnly }: { 
       </View>
     </View>
   )
-}
-
-/** The dot on Lite's Home tab: moves by the people you follow since you last saw them. */
-export function HomeDot() {
-  return useUnseen() > 0 ? <View style={st.dot} accessibilityLabel="New from people you follow" /> : null
 }
 
 /**
@@ -285,7 +280,6 @@ const st = StyleSheet.create({
   move: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
   why: { paddingHorizontal: 14, paddingBottom: 10, marginTop: -4, fontStyle: 'italic' },
   card: { backgroundColor: C.b200, borderRadius: 12, overflow: 'hidden' },
-  dot: { position: 'absolute', top: 2, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: C.primary },
   line: { borderTopWidth: 1, borderTopColor: '#1a1a1f' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   pend: { backgroundColor: C.b200, borderRadius: 12, padding: 14, gap: 10, borderWidth: 1, borderColor: C.primary },

@@ -68,14 +68,13 @@ const TABS: { id: string; label: string; href: string; on: (r: Route) => boolean
 ]
 const ROOTS: View[] = ['home', 'feed', 'earn', 'borrow', 'board']
 /**
- * Lite's three tabs (docs/lite.md): the home (cards to copy), Earn (four categories, one list
- * each) and Board (who earns, one number each, positions on a tap). You — positions, streak,
+ * Lite's two tabs (docs/lite.md): Earn (four categories, one list each), which is also where Lite
+ * opens — it has no Home — and Board (who earns, one number each, positions on a tap). You — positions, streak,
  * points, rank — is behind the balance chip top-right (`LiteYours`), the one button every page
  * has, so it is not a tab too. Borrow and the feed are Pro's.
  */
 const LITE_TABS: typeof TABS = [
-  { ...TABS[0], href: liteHref() },
-  { ...TABS[2], href: liteHref('earn'), on: (r) => r.view === 'earn' || r.view === 'group' },
+  { ...TABS[2], href: liteHref('earn'), on: (r) => r.view === 'home' || r.view === 'earn' || r.view === 'group' },
   { ...TABS[4], href: liteHref('board') },
 ]
 // a picked category is the Earn page with a tile lit, not a page under it: no back arrow
@@ -94,7 +93,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const tabs = (cls: string) => (
     <nav className={cls} aria-label="Main">
       {tabList.map((t) => (
-        <a key={t.id} href={t.href} aria-current={t.on(r) ? 'page' : undefined}>{t.icon}<span>{t.label}</span>{lite && t.id === 'home' && <HomeDot />}</a>
+        <a key={t.id} href={t.href} aria-current={t.on(r) ? 'page' : undefined}>{t.icon}<span>{t.label}</span></a>
       ))}
       {/* fomo's search in the tab bar (docs/lite-social-search.md §4.1): a round button after the tabs, not a fourth tab */}
       {lite && cls === 'tabbar' && <a className={`lite-tab-search${r.view === 'search' ? ' on' : ''}`} href={liteHref('search')} aria-label="Search" title="Search">{SEARCH_IC}</a>}
@@ -121,12 +120,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
 }
 
 const SEARCH_IC = <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><circle cx="8.8" cy="8.8" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="m13 13 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
-
-/** Lite's Home tab: a dot while the people you follow have moved since you last looked (Lite has no bell). */
-function HomeDot() {
-  const n = useUnseen()
-  return n > 0 ? <i className="tab-dot" aria-label={`${n} new from people you follow`} /> : null
-}
 
 /** The face, top-left: the way into everything about you. A dot says alerts are waiting. */
 function Me({ lite }: { lite?: boolean }) {
@@ -208,6 +201,8 @@ function LiteYours() {
   const tot = useTween(t.tot)
   const news = useChipNews()
   const busy = useActivity().live.length > 0
+  // a dot while the people you follow have moved since you last looked (Lite has no bell): You lists them
+  const unseen = useUnseen()
   if (!account) return <ConnectButton compact />
   const loading = b.positionsLoading && !b.books.length
   const on = r.view === 'you'
@@ -220,6 +215,7 @@ function LiteYours() {
       </span>
       {day.streak > 0 && <span className="lc-streak" aria-label={`${day.streak} day${day.streak === 1 ? '' : 's'} in a row with money at work`}><Flame />{day.streak}</span>}
       <svg className="lc-chev" viewBox="0 0 12 12" width="10" height="10" aria-hidden><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      {unseen > 0 && <i className="tab-dot" aria-label={`${unseen} new from people you follow`} />}
     </a>
   )
 }

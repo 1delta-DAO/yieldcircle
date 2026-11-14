@@ -1,5 +1,9 @@
 # YieldCircle Lite — simplification scope
 
+> **2026-11-14: Lite has no Home.** `#/lite/` shows Earn, on the web and on the phone; the tabs are
+> Earn · Board. The balance chip carries the dot for new moves by people you follow, and You lists them.
+> What this document says about Home (the lens cards, the Everyone moves) describes the page that was removed.
+
 **Status:** built 2026-10-23 ([`lite-plan.md`](lite-plan.md), "As built" lists
 where the build differs from this scope). Lite is the default for every visitor
 who has not chosen. Follows

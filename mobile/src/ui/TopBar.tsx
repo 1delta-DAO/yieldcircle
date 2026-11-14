@@ -10,6 +10,7 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg'
 import { IconMe, IconSearch } from './icons'
 import { useProfile } from '@yieldcircle/app/social/queries'
 import { usePending } from '@yieldcircle/app/social/pending'
+import { useUnseen } from '@yieldcircle/app/social/seen'
 import { Character } from './Character'
 import { Txt } from './Txt'
 import { Orbit } from './outcome/Ring'
@@ -19,6 +20,7 @@ import { useActivity, useChipNews, useTween } from '@yieldcircle/app/sdk/activit
  * The web's top bar on a phone (app.css `.top` under 768px): the face left — profile and settings,
  * your face once a wallet is connected, with a dot while changes wait for a signature — Pro's search
  * in the middle, Connect — or your balance, You behind it — right. 60px, every control a full 44px target.
+ * Lite's chip carries the dot for moves by the people you follow (it was on the Home tab, which the phone dropped).
  */
 export function TopBar({ pro, on }: { pro?: boolean; /** You is open: the chip is lit */ on?: boolean }) {
   const insets = useSafeAreaInsets()
@@ -41,7 +43,7 @@ export function TopBar({ pro, on }: { pro?: boolean; /** You is open: the chip i
           <Txt s={16} c={C.tx40} numberOfLines={1} style={{ flex: 1 }}>Search wallets, vaults, protocols</Txt>
         </Pressable>
       ) : <View style={{ flex: 1 }} />}
-      {b.account ? <BalanceChip tot={t.tot} perDay={t.yearly / 365} loading={b.positionsLoading && !b.books.length} on={!!on} busy={busy} />
+      {b.account ? <BalanceChip tot={t.tot} perDay={t.yearly / 365} loading={b.positionsLoading && !b.books.length} on={!!on} busy={busy} news={!pro} />
         : (
         <Pressable onPress={() => open()} style={({ pressed }) => [st.pill, st.connect, pressed && { transform: [{ scale: 0.97 }] }]}>
           <Txt s={12.5} w={600} c={C.primaryInk}>Connect</Txt>
@@ -52,10 +54,11 @@ export function TopBar({ pro, on }: { pro?: boolean; /** You is open: the chip i
 }
 
 /** The web's balance chip (`.lite-chip`): a wallet mark, what you have, what it earns a day — You behind it. */
-export function BalanceChip({ tot, perDay, loading, on, busy }: { tot: number; perDay: number; loading: boolean; on: boolean; /** a transaction is on its way */ busy?: boolean }) {
+export function BalanceChip({ tot, perDay, loading, on, busy, news: dot }: { tot: number; perDay: number; loading: boolean; on: boolean; /** a transaction is on its way */ busy?: boolean; /** Lite: a dot while the people you follow have moves you have not seen — You lists them */ news?: boolean }) {
   // the total moves to its new value; an action that just landed says where the money went (ticket 0016 §4)
   const shown = useTween(tot)
   const news = useChipNews()
+  const unseen = useUnseen() > 0 && !!dot
   return (
     <Pressable onPress={() => router.push('/you')} style={[st.chip, on && { backgroundColor: C.priBg, borderColor: C.primary }]} accessibilityLabel="You">
       <View style={st.chipIc}>
@@ -67,6 +70,7 @@ export function BalanceChip({ tot, perDay, loading, on, busy }: { tot: number; p
         {news ? <Txt s={11} w={600} c={C.primary} lh={12.7}>{news}</Txt> : perDay > 0 && <Txt s={11} w={500} c={C.ok} lh={12.7}>+{usdShort(perDay)} a day</Txt>}
       </View>
       <Svg width={10} height={10} viewBox="0 0 12 12" fill="none" stroke={C.primary} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><Path d="M4.5 2.5 8 6l-3.5 3.5" /></Svg>
+      {unseen && <View style={[st.dot, { top: -1, right: -1 }]} accessibilityLabel="New from people you follow" />}
     </Pressable>
   )
 }

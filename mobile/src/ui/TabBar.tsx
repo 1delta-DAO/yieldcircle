@@ -4,23 +4,20 @@ import { router, usePathname, type Href } from 'expo-router'
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { C } from '../theme'
 import { useMode, type Mode } from '../mode'
-import { IconBoard, IconBorrow, IconEarn, IconFeed, IconHome, IconSearch } from './icons'
+import { IconBoard, IconBorrow, IconEarn, IconFeed, IconSearch } from './icons'
 import { Txt } from './Txt'
-import { HomeDot } from './social'
 import { ActivityPill } from './ActivityPill'
 import { useActivity } from '@yieldcircle/app/sdk/activity'
 
-type Tab = { href: string; label: string; Icon: typeof IconHome }
+type Tab = { href: string; label: string; Icon: typeof IconEarn }
 const TABS: Record<Mode, Tab[]> = {
   lite: [
-    { href: '/lite', label: 'Home', Icon: IconHome },
-    { href: '/lite/earn', label: 'Earn', Icon: IconEarn },
+    { href: '/lite', label: 'Earn', Icon: IconEarn },
     { href: '/lite/board', label: 'Board', Icon: IconBoard },
   ],
   pro: [
-    { href: '/pro', label: 'Home', Icon: IconHome },
+    { href: '/pro', label: 'Earn', Icon: IconEarn },
     { href: '/pro/feed', label: 'Feed', Icon: IconFeed },
-    { href: '/pro/earn', label: 'Earn', Icon: IconEarn },
     { href: '/pro/borrow', label: 'Borrow', Icon: IconBorrow },
     { href: '/pro/board', label: 'Board', Icon: IconBoard },
   ],
@@ -39,8 +36,8 @@ const flow = (path: string) => path === '/paper' || path === '/receipt' || (Plat
 /**
  * The web's bottom tab bar (app.css `.tabbar` + the refit at its end): icon over word, the active
  * one in the primary colour with its icon on a pill. Lite's ends on a round search button after the
- * tabs (docs/lite-social-search.md §4.1): Pro's search is in its top bar. Lite's Home carries a dot
- * while the people you follow have moves you have not seen.
+ * tabs (docs/lite-social-search.md §4.1): Pro's search is in its top bar. There is no Home tab:
+ * each shell opens on its Earn, and the dot for unseen moves is on Lite's balance chip (`TopBar.tsx`).
  *
  * One bar under the whole app, not the tab navigator's: a wallet's page, You, a position, search and
  * settings are pushed over the tabs, and with the navigator's bar they covered it — the one way
@@ -76,12 +73,12 @@ export function AppTabBar({ children }: { children: React.ReactNode }) {
       {show && path !== '/activity' && <ActivityPill bottom={56 + insets.bottom + 10} />}
       {show && (
         <View style={[st.bar, { paddingBottom: insets.bottom }]}>
-          {TABS[mode].map(({ href, label, Icon }, i) => {
+          {TABS[mode].map(({ href, label, Icon }) => {
             const on = path !== '/search' && last.current.tab === href
             const color = on ? C.primary : C.tx50
             return (
               <Pressable key={href} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={label} onPress={() => go(href)} style={st.item}>
-                <View style={[st.icon, on && { backgroundColor: C.priBg }]}><Icon color={color} />{mode === 'lite' && i === 0 && <HomeDot />}</View>
+                <View style={[st.icon, on && { backgroundColor: C.priBg }]}><Icon color={color} /></View>
                 <Txt s={11} w={600} c={color} lh={16}>{label}</Txt>
               </Pressable>
             )

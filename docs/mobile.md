@@ -19,7 +19,7 @@ It runs on the same code as the web below the screens:
 
 | | Lite | Pro |
 |---|---|---|
-| Home | balance and a day's earnings, streak, the idle nudge, three lenses of cards (proven · trending · most held), the moves (Following · Everyone, with Copy, Follow and the mover's reason), a dot on the tab for new moves by people you follow | your money, the best three rows per money |
+| Home | none since 2026-11-14: the app opens on Earn (`app/lite/index.tsx`), on the web's Lite too. Balance, a day's earnings and the dot for new moves by people you follow are on the balance chip; streak, the paper offer and those moves are on You. The lens cards and the Everyone moves went with it | none: opens on Earn (`app/pro/index.tsx`) |
 | Earn | four money tiles (the best deposit, the levered rate beside it), the best rates safest first or a money's rows, search · sort · filters, "show all" | every row of a money, every venue and chain |
 | Board | wallets and strategies (best rate · most a day) in all money or Dollars · ETH · BTC, on the chains in scope (the chip, `src/ui/ChainChip.tsx`), Everyone · People you follow, the top 20 then more; an opened wallet shows each position's share and what it made, its closed ones, Follow and its profile | the same board |
 | Profiles | a wallet's page (`/w/<addr>`), your name and face (`/me`), Follow on faces | the same pages |
@@ -100,7 +100,7 @@ You. **Your name and face** (`app/me.tsx`) is the web's profile editor (Pro's `#
 there) in Lite's look: character or picture, handle (checked as you type), name, bio, tags, unlisted,
 the X link, and your linked wallets. **Save** queues the edit with your follows (docs/social.md §17),
 and the profile screen lists the queue and signs it in one `Batch`; **Save and sign now** signs at once. Follow is
-on profiles and in search. Profile names and faces show on the board, in search, on the Home cards and
+on profiles and in search. Profile names and faces show on the board, in search and
 in the top bar, where a dot means something is waiting to be signed. Each signature brings the
 wallet forward through `Platform.openWallet`, as the ladder does. The social code is shared:
 `@yieldcircle/core/social/*` (client, types, EIP-712 envelope) and `@yieldcircle/app/social/*`

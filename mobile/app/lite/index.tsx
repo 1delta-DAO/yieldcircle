@@ -1,107 +1,153 @@
 import React from 'react'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
-import { router } from 'expo-router'
-import { useAppKit } from '@reown/appkit-react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useQueryClient } from '@tanstack/react-query'
-import { LENSES, liteCards, useDayLog, useLiteMenu, type Lens } from '@yieldcircle/app/lite'
-import { useTrending } from '@yieldcircle/app/index/queries'
-import { useSession } from '@yieldcircle/app/session'
-import { useMyFollows, useProfiles } from '@yieldcircle/app/social/queries'
-import { LiteMoves } from '../../src/ui/social'
-import { totalsOf } from '@yieldcircle/core/model/positions'
-import { leverTag } from '@yieldcircle/core/model/lite'
+import { useIsFocused, useLocalSearchParams } from 'expo-router'
+import { useArrivals } from '@yieldcircle/app/sdk/activity'
+import { useLiteMenu } from '@yieldcircle/app/lite'
+import { GROUPS, type Group, type GroupId } from '@yieldcircle/core/model/assets'
+import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, safestFirst, tileRates } from '@yieldcircle/core/model/lite'
+import { applyEarn } from '@yieldcircle/core/model/earnFilter'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
+import { useEarnFilter } from '@yieldcircle/app/earnFilter'
+import { useMyFollows } from '@yieldcircle/app/social/queries'
+import { EarnTools } from '../../src/ui/EarnTools'
 import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
-import { C } from '../../src/theme'
-import { Btn, Seg, Sk } from '../../src/ui/bits'
-import { LiteCard, LiteCardSk } from '../../src/ui/cards'
-import { openStrategy } from '../../src/ui/lite'
-import { PAPER, PaperOffer } from '../../src/ui/paper'
+import { C, alpha, mix } from '../../src/theme'
 import { ChainChip } from '../../src/ui/ChainChip'
+import { GroupIcon, Sk } from '../../src/ui/bits'
+import { LiteRowSk, LiteRowView, rowStyles } from '../../src/ui/lite'
 import { Txt } from '../../src/ui/Txt'
-import { IconFlame } from '../../src/ui/icons'
+
+/** How many of the best rows Earn shows before a category is picked (the web's TOP_ROWS). */
+const TOP_ROWS = 10
 
 /**
- * Lite's home (the web's LiteHome, docs/lite.md §1): your balance and what it earns a day, then
- * cards through three lenses — proven, trending, most held — each with the wallet that runs it
- * best, then the moves: the people you follow, or the best rates' wallets (`LiteMoves`). No wallet
- * yet: what it is, Connect, and the paper bank to play the whole thing with.
+ * Lite's Earn, and the page the app opens on (the web's LiteEarn, `#/lite/earn` and `#/lite/<GROUP>`;
+ * the phone has no Home, so `#/lite/` lands here too): four money tiles, and below
+ * them the highest steady rates anywhere or, with a tile picked, that money's rows — deposits and
+ * loops mixed, one per thing in words, the safest first (`safestFirst`). Search, sort and filters
+ * over it (`EarnTools`); asked with no tile picked, they search every row, not only the best few.
  */
-export default function LiteHome() {
+export default function LiteEarn() {
   // room for the activity pill while it shows (src/ui/TabBar.tsx)
   const { bottom } = useSafeAreaInsets()
-  const { chainIds } = useSession()
   const L = useLiteMenu()
   const { b } = L
-  const t = totalsOf(b)
-  const day = useDayLog(b)
-  const [lens, setLens] = React.useState<Lens>('proven')
-  const trending = useTrending('7d', chainIds)
-  const cards = React.useMemo(() => liteCards(lens, L.rows, L, trending.markets), [lens, L.rows, trending.markets, L.proofsHeld]) // eslint-disable-line react-hooks/exhaustive-deps
-  // the best holder on each card, by the name and face their profile gives them
-  const { profile } = useProfiles(cards.map((r) => L.proof(r.s)?.best?.account).filter((x): x is string => !!x))
+  // a link's category (`?g=USD`, core's route map), else every category
+  const { g } = useLocalSearchParams<{ g?: string }>()
+  const [group, setGroup] = React.useState<GroupId | null>(g && LITE_GROUPS.includes(g as GroupId) ? (g as GroupId) : null)
+  React.useEffect(() => { if (g && LITE_GROUPS.includes(g as GroupId)) setGroup(g as GroupId) }, [g])
+  const [all, setAll] = React.useState(false)
+  React.useEffect(() => setAll(false), [group])
+  const groups = GROUPS.filter((g) => LITE_GROUPS.includes(g.id))
+  const top = React.useMemo(() => [...L.rows].filter((r) => r.s.risk <= 2).sort(safestFirst(L.rank)).slice(0, TOP_ROWS), [L.rows, L.rank])
+  const everything = React.useMemo(() => [...L.rows].sort(safestFirst(L.rank)), [L.rows, L.rank])
+  const ef = useEarnFilter('lite')
+  const base = group ? L.rows.filter((r) => r.s.group === group) : ef.active ? everything : top
+  const rows = ef.active ? applyEarn(base, ef.f, (r) => r.s, { extra: (r) => [r.title, r.sub, chainLabel(r.s.chainId)], rank: L.rank }) : base
+  const shown = group && !all && !ef.active ? rows.slice(0, LITE_LIST_ROWS) : rows
   const f = useMyFollows(b.account)
-  const loading = (b.isLoading && !L.rows.length) || (lens === 'trending' && trending.isLoading)
-  const idleBook = [...b.books].filter((x) => x.idleUsd >= 1).sort((x, y) => y.idleUsd - x.idleUsd)[0]
-  const idleTo = idleBook ? L.rows.find((r) => r.s.group === idleBook.group && r.s.risk <= 2) : undefined
-  const empty = !!b.account && !b.paper && !b.positionsLoading && t.tot < 5
-  const { open } = useAppKit()
+  const isFollowed = (s: (typeof rows)[number]['s']) => { const a = L.proof(s)?.best?.account; return !!a && f.isFollowing('wallet', a) }
+  const valueOf = (id: string) => b.holdings.filter((h) => L.runs(h)?.id === id).reduce((a, h) => a + h.valueUsd, 0)
+  // what the reader's own positions on a row earn, weighted by what is in each
+  const aprOf = (id: string) => { const hs = b.holdings.filter((h) => L.runs(h)?.id === id && h.apr != null); const v = hs.reduce((a, h) => a + h.valueUsd, 0); return v > 0 ? hs.reduce((a, h) => a + h.valueUsd * h.apr!, 0) / v : undefined }
+  // the row an action just landed in glows once, when this tab is in front again — the ticket over it closed (ticket 0016 §3)
+  const arrived = useArrivals(useIsFocused())
+  // the page scrolls the row it landed in into view (the list's own place on the page, then the row's in it)
+  const scroll = React.useRef<React.ComponentRef<typeof ScrollView>>(null)
+  const [listY, setListY] = React.useState(0)
+  const toArrived = (y: number) => scroll.current?.scrollTo({ y: Math.max(0, listY + y - 160), animated: true })
+  // a category's list puts what you hold first, under its own label; the rest keep their ranking
+  const mine = group && !ef.active ? rows.filter((r) => r.yours) : []
+  const rest = mine.length ? rows.filter((r) => !r.yours) : rows
+  const row = (r: (typeof rows)[number]) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} yoursApr={r.yours ? aprOf(r.s.id) : undefined} arrived={arrived.has(r.s.id)} onArrivedAt={toArrived} followed={isFollowed(r.s)} />
+  const name = group ? LITE_NAME[group] : null
+  const yours = group ? b.books.filter((x) => x.group === group) : []
+  const work = yours.reduce((a, x) => a + x.atWorkUsd, 0), yearly = yours.reduce((a, x) => a + x.yearlyUsd, 0), idle = yours.reduce((a, x) => a + x.idleUsd, 0)
   const qc = useQueryClient()
   const [refreshing, setRefreshing] = React.useState(false)
   const refresh = async () => { setRefreshing(true); await qc.invalidateQueries(); setRefreshing(false) }
 
   return (
-    <ScrollView contentContainerStyle={[st.page, { paddingBottom: 40 + bottom }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={C.tx50} />}>
-      <View style={st.hero}>
-        {b.account ? (
-          <>
-            {b.positionsLoading && !b.books.length ? <Sk w={160} h={40} /> : <Txt s={40} w={700} lh={46} style={{ letterSpacing: -0.8, fontVariant: ['tabular-nums'] }}>{usd(t.tot)}</Txt>}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {b.positionsLoading && !b.books.length ? <Sk w={120} h={16} /> : t.yearly > 0 ? <Txt s={15} c={C.tx70}><Txt s={15} w={600} c={C.ok}>+{usd(t.yearly / 365)}</Txt> a day</Txt> : <Txt s={15} c={C.tx70}>nothing earning yet</Txt>}
-              {day.streak > 0 && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><IconFlame color={C.warn} /><Txt s={14} w={600} c={C.warn}>{day.streak} days</Txt></View>}
-              {b.paper && <View style={st.paper}><Txt s={11} w={600} c={PAPER.fg} lh={16.5}>paper</Txt></View>}
-            </View>
-          </>
-        ) : (
-          <>
-            <Txt s={32} w={700} lh={35.84} style={{ letterSpacing: -0.64 }}>Make your money work.</Txt>
-            <Txt s={15} c={C.tx70} lh={22.5} style={{ marginVertical: 15 }}>The best rates on dollars, ether and bitcoin, in plain words. Copy what real wallets do, in one tap.</Txt>
-            <Btn sm title="Connect wallet" onPress={() => open()} />
-          </>
-        )}
-        {(!b.account || empty) && <View style={{ marginTop: 14 }}><PaperOffer empty={!!b.account} lite /></View>}
-        {idleBook && idleTo && (
-          <Pressable onPress={() => openStrategy(idleTo.s)} style={st.idle}>
-            <Txt s={13} c={C.tx70} style={{ flex: 1 }}>
-              <Txt s={13} w={700}>{usdShort(idleBook.idleUsd)}</Txt> sits idle. {idleTo.title} pays <Txt s={13} w={600} c={C.ok}>{pct(idleTo.s.rate)}</Txt>
-              {idleTo.s.kind === 'loop' ? ` ${leverTag(idleTo.s.tiers.balanced)}` : ''}: about <Txt s={13} w={600} c={C.ok}>{usdShort(idleBook.idleUsd * idleTo.s.rate / 100)}</Txt> a year.
-            </Txt>
-            <Btn sm title="Put it to work" onPress={() => openStrategy(idleTo.s)} />
-          </Pressable>
-        )}
-      </View>
-
-      <View style={{ marginBottom: 4 }}><Seg items={LENSES.map((x) => ({ id: x.id, word: x.word }))} value={lens} onChange={setLens} /></View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 12 }}>
-        <Txt s={12.5} c={C.tx50} style={{ flex: 1 }}>{LENSES.find((x) => x.id === lens)!.why}</Txt>
+    <ScrollView ref={scroll} contentContainerStyle={[st.page, { paddingBottom: 40 + bottom }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={C.tx50} />}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2, marginBottom: 16 }}>
+        <Txt s={18} w={700} lh={26} style={[st.h1, { flex: 1, marginTop: 0, marginBottom: 0 }]}>Earn</Txt>
         <ChainChip />
       </View>
-      <View style={{ gap: 12 }}>
-        {loading ? [0, 1, 2].map((i) => <LiteCardSk key={i} />)
-          : !cards.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing here on these chains right now.</Txt>
-          : cards.map((r) => { const best = L.proof(r.s)?.best?.account; return <LiteCard key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} profile={profile(best ?? '')} followed={!!best && f.isFollowing('wallet', best)} /> })}
+      <View style={st.tiles}>
+        {groups.map((g) => {
+          const gr = L.rows.filter((r) => r.s.group === g.id)
+          return <Tile key={g.id} g={g} on={group === g.id} dim={!!group && group !== g.id} rates={tileRates(gr)} n={gr.length} mine={b.books.filter((x) => x.group === g.id).reduce((a, x) => a + x.totalUsd, 0)} loading={b.isLoading && !gr.length} onPress={() => setGroup(group === g.id ? null : g.id)} />
+        })}
       </View>
 
-      <LiteMoves rows={L.rows} account={b.account} limit={6} />
-
-      <Pressable onPress={() => router.push('/lite/earn')} style={{ marginTop: 22, marginBottom: 8 }}><Txt s={13} c={C.tx50}>Every category ›</Txt></Pressable>
+      <View style={st.secH}>
+        <Txt s={16} w={600} style={{ letterSpacing: -0.16 }}>{name ? name.name : ef.active ? 'Every way to earn' : 'Best rates, safest first'}</Txt>
+        <Txt s={12.5} c={C.tx50}>{name ? name.line : ef.active ? 'across every category' : 'across every category, the riskiest left out'}</Txt>
+        {group && <Pressable onPress={() => setGroup(null)} style={{ alignSelf: 'flex-end' }}><Txt s={12.5} c={C.primary}>every category ›</Txt></Pressable>}
+      </View>
+      {group && (work >= 1 || idle >= 1) && (
+        <View style={st.note}>
+          <Txt s={12.5} c={C.tx50}>
+            {work >= 1 ? <>Your {usd(work)} here earns about <Txt s={12.5} w={600} c={C.ok}>{usd(yearly)}</Txt> a year{work ? ` (${pct(yearly / work * 100, 1)})` : ''}.</> : null}
+            {idle >= 1 ? <> {usd(idle)} sits idle{rows[0] ? <> — the top row would pay <Txt s={12.5} w={600} c={C.ok}>{pct(rows[0].s.rate)}</Txt></> : null}.</> : null}
+          </Txt>
+        </View>
+      )}
+      <EarnTools st={ef} n={rows.length} total={base.length} kinds />
+      <View style={rowStyles.rows} onLayout={(e) => setListY(e.nativeEvent.layout.y)}>
+        {b.isLoading && !rows.length ? [0, 1, 2, 3, 4].map((i) => <LiteRowSk key={i} />)
+          : !rows.length && base.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing here matches{ef.f.q.trim() ? ` “${ef.f.q.trim()}”` : ''} with these filters. <Txt s={13} c={C.primary} onPress={ef.reset}>Reset</Txt></Txt>
+          : !rows.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing {name ? `in ${name.name.toLowerCase()} ` : ''}clears Lite’s bar on these chains right now.</Txt>
+          : mine.length ? <>
+              <Txt s={11} w={600} c={C.tx50} style={st.listH}>YOURS</Txt>
+              {mine.map(row)}
+              <Txt s={11} w={600} c={C.tx50} style={st.listH}>{all ? 'EVERY OTHER WAY' : 'THE BEST OF THE REST'}</Txt>
+              {(all ? rest : rest.slice(0, LITE_LIST_ROWS)).map(row)}
+            </>
+          : shown.map(row)}
+        {(mine.length ? rest.length > LITE_LIST_ROWS && !all : rows.length > shown.length) && (
+          <Pressable onPress={() => setAll(true)} style={st.showAll}><Txt s={13} c={C.tx70}>Show all {rows.length} ways to earn on {name!.name.toLowerCase()}</Txt></Pressable>
+        )}
+      </View>
+      {rows.length > 0 && <Txt s={12} c={C.tx50} lh={17} style={{ marginVertical: 14, marginHorizontal: 2 }}><Txt s={12} c={C.ok}>●</Txt> low risk  <Txt s={12} c={C.warn}>●</Txt> medium · <Txt s={12} w={700} c={C.tx70}>×</Txt> borrows to earn more. Rates are a year, before compounding. Each row is the best of its kind on the chains you use; Pro lists every venue.</Txt>}
     </ScrollView>
   )
 }
 
+/**
+ * A money tile (`.ltile`): its colour bleeding in from the corner, the best deposit rate large and
+ * the levered one beside it (`tileRates`) — a loop's alone only when there is nothing else; the
+ * picked one ringed, the rest dimmed.
+ */
+function Tile({ g, on, dim, rates: { best, bestLoop }, n, mine, loading, onPress }: { g: Group; on: boolean; dim: boolean; rates: { best: number; bestLoop: number }; n: number; mine: number; loading: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[st.tileWrap, dim && { opacity: 0.55 }]}>
+      {on && <View pointerEvents="none" style={[st.ring, { borderColor: alpha(g.color, 0.18) }]} />}
+      <LinearGradient colors={[mix(g.color, on ? 0.28 : 0.16), C.b200]} locations={[0, on ? 0.8 : 0.72]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[st.tile, { borderColor: on ? alpha(g.color, 0.6) : 'transparent' }]}>
+        <GroupIcon id={g.id} color={g.color} size={on ? 40 : 36} />
+        <Txt s={16} w={700} style={{ marginTop: 4 }}>{LITE_NAME[g.id].name}</Txt>
+        {loading ? <Sk w={90} h={22} /> : (
+          <Txt s={13} c={C.tx70} lh={29}>{best > 0 ? <>up to <Txt s={20} w={700} c={C.ok} lh={29}>{pct(best)}</Txt></> : bestLoop > 0 ? <>up to <Txt s={20} w={700} c={C.warn} lh={29}>{pct(bestLoop)}</Txt></> : '—'}</Txt>
+        )}
+        {best > 0 && bestLoop > best && <Txt s={12} c={C.tx70}>or {pct(bestLoop, 0)} levered</Txt>}
+        <Txt s={12} c={C.tx50}>{mine >= 1 ? `you have ${usdShort(mine)}` : `${n} way${n === 1 ? '' : 's'} to earn`}</Txt>
+      </LinearGradient>
+    </Pressable>
+  )
+}
+
 const st = StyleSheet.create({
-  page: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 40 },
-  hero: { marginTop: 14, marginBottom: 22 },
-  paper: { backgroundColor: PAPER.bg, borderWidth: 1, borderColor: PAPER.line, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  idle: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 14 },
+  listH: { letterSpacing: 0.66, paddingTop: 10, paddingHorizontal: 2 },
+  page: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 },
+  h1: { letterSpacing: -0.36, marginTop: 2, marginBottom: 16 },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  tileWrap: { width: '48.3%', flexGrow: 1 },
+  tile: { borderRadius: 18, borderWidth: 1, paddingTop: 18, paddingHorizontal: 18, paddingBottom: 16, gap: 6 },
+  ring: { position: 'absolute', top: -3, left: -3, right: -3, bottom: -3, borderRadius: 21, borderWidth: 3 },
+  secH: { marginTop: 26, marginBottom: 10, gap: 10 },
+  note: { borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 10 },
+  showAll: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
 })

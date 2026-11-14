@@ -30,11 +30,19 @@ export function walletTypedData(td: SignStep['typedData']) {
   }
 }
 
+/**
+ * A replay is sent as the app comes back from the wallet, where a phone has dropped the connection
+ * ("fetch failed: The network connection was lost", every Flying Tulip open on iOS, 2026-11-14) —
+ * and an error here loses the signatures already given. A GET only builds, so it is sent again; a
+ * POST (Midnight's finalize) is not known to be safe twice and is left alone.
+ */
+const REPLAY_RETRIES = 3
+
 /** Replay `submit` verbatim with the signature under `signatureField`. */
 export function submitSigned<T>(step: SignStep, signature: string) {
   const { method, endpoint, params, body, signatureField } = step.submit
   return method === 'GET'
-    ? apiFetchEnvelope<T, LoopActions>(endpoint, { params: { ...params, [signatureField]: signature } })
+    ? apiFetchEnvelope<T, LoopActions>(endpoint, { params: { ...params, [signatureField]: signature }, retries: REPLAY_RETRIES })
     : apiFetchEnvelope<T, LoopActions>(endpoint, { body: { ...body, [signatureField]: signature } })
 }
 

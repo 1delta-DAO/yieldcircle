@@ -32,7 +32,7 @@ describe('actions.signs — the mandatory sign step', () => {
   it('signs, then replays submit verbatim with the signature', async () => {
     fetchEnv.mockResolvedValueOnce({ actions: { transactions: [], permissions: [], alternatives: [tx] } })
     const out: { actions?: import('./types').LoopActions | null } = await withSignature({ actions: { transactions: [], permissions: [], signs: [step] } as import('./types').LoopActions }, async () => '0xsig')
-    expect(fetchEnv).toHaveBeenCalledWith('/v1/actions/loop/leverage', { params: { account: '0x1', permitId: 'inv.abc', signature: '0xsig' } })
+    expect(fetchEnv).toHaveBeenCalledWith('/v1/actions/loop/leverage', { params: { account: '0x1', permitId: 'inv.abc', signature: '0xsig' }, retries: 3 })
     expect(out.actions!.alternatives).toEqual([tx])
   })
   it('POSTs the body for a POST step, and never signs on paper', async () => {

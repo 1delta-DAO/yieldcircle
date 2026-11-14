@@ -179,7 +179,17 @@ export interface ApiOptions {
    * a transaction would be served the answer from before it: `'no-store'` there.
    */
   cache?: RequestCache
+  /**
+   * Send again, this many times, when the request got NO answer (a transport failure — never a
+   * status or an envelope error). For a request whose loss costs the user something: a sign step's
+   * replay goes out as the app comes back from the wallet, on a connection iOS dropped while it was
+   * in the background ("The network connection was lost"), and failing there threw away every
+   * signature collected so far. Only for a request that is safe to repeat. Off when unset.
+   */
+  retries?: number
 }
+/** The wait before each re-send: the first almost at once (a dead keep-alive), then time for the radio to come back. */
+const RETRY_WAIT_MS = [300, 1000, 2500]
 
 // ---------------------------------------------------------------------------
 // Rate limit
@@ -235,7 +245,7 @@ export async function apiFetchEnvelope<T, A = ApiActions>(
   const signal = withDeadline(options.signal, timeoutMs)
 
   let res: Response
-  const send = () => fetch(url, {
+  const once = () => fetch(url, {
     method: method ?? (body === undefined ? 'GET' : 'POST'),
     headers: {
       ...apiHeaders(),
@@ -245,6 +255,15 @@ export async function apiFetchEnvelope<T, A = ApiActions>(
     signal,
     ...(cache ? { cache } : {}),
   })
+  const send = async (): Promise<Response> => {
+    for (let i = 0; ; i++) {
+      try { return await once() } catch (err) {
+        // an abort or a deadline is the caller's own end, not a lost connection
+        if (i >= (options.retries ?? 0) || signal?.aborted) throw err
+        await new Promise((r) => setTimeout(r, RETRY_WAIT_MS[Math.min(i, RETRY_WAIT_MS.length - 1)]))
+      }
+    }
+  }
   try {
     await rateGate(signal)
     res = await send()

@@ -83,7 +83,9 @@ Rules:
   still sign immediately.
 - **Every 1delta request goes through `vendor/allocator/http.ts`.** It owns the
   envelope, `ApiError`, and the shared rate-limit gate (one 429 pauses *all*
-  requests until `retryAfter`). Never add a key there or in `apiHeaders()` —
+  requests until `retryAfter`). `retries` re-sends a request that got no answer
+  at all — only a sign step's GET replay asks for it (`sdk/signedAction.ts`: a
+  phone back from the wallet has lost its connection). Never add a key there or in `apiHeaders()` —
   it ships in the bundle; a keyed setup points `VITE_BACKEND_BASE_URL` at a proxy.
 - **Translate wire names once**, in `api.ts`. Callers speak *collateral / debt*;
   the API's `marketUidIn` / `marketUidOut` flip meaning between open and close

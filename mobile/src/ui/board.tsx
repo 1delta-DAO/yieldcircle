@@ -296,6 +296,8 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
                 {p.pnlUsd != null ? <>
                   <Txt w={700} c={up ? C.ok : C.bad}>{up ? '+' : '−'}{usd(Math.abs(p.pnlUsd))}</Txt>
                   <Txt s={11.5} c={C.tx50}>{p.aprPct != null ? `${pct(p.aprPct, 1)} a year` : 'made so far'}</Txt>
+                  {/* beside what it made, the rate it earns at today */}
+                  {!p.closed && p.rateNowPct != null && <Txt s={11.5} c={C.tx50}>{pct(p.rateNowPct, 1)} now</Txt>}
                 </> : <>
                   {/* no drawn figure yet: what it earns now */}
                   <Txt w={700} c={p.rateNowPct == null ? C.tx50 : up ? C.ok : C.bad}>{p.rateNowPct != null ? pct(p.rateNowPct, 1) : '–'}</Txt>

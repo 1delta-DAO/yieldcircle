@@ -67,7 +67,7 @@ export default function You() {
     <View style={{ flex: 1, gap: 3 }}>
       <Txt s={12} w={600} c={C.tx50}>You have</Txt>
       {b.positionsLoading && !b.books.length ? <Sk w={110} h={26} /> : <Txt s={26} w={700} lh={32} style={{ letterSpacing: -0.52 }}>{usd(t.tot)}</Txt>}
-      <Txt s={12} c={C.tx50} lh={16}>{signedMoney(perDay)} a day{t.idle >= 1 ? ` · ${usdShort(t.idle)} idle` : ''}</Txt>
+      <Txt s={12} c={C.tx50} lh={16}>{signedMoney(perDay)} a day{t.work >= 1 && t.yearly > 0 ? ` · ${pct(t.yearly / t.work * 100, 1)} now` : ''}{t.idle >= 1 ? ` · ${usdShort(t.idle)} idle` : ''}</Txt>
     </View>
   )
   return (
@@ -297,6 +297,8 @@ function Position({ h, s, made, isNew }: { h: Holding; s: Strategy | null; /** a
   const pnl = useHoldingPnl(h)
   const m = made ?? pnl?.pnlUsd ?? null
   const perDay = h.apr != null && h.kind !== 'borrow' && Math.abs(h.valueUsd * h.apr / 100 / 365) >= 0.01 ? h.valueUsd * h.apr / 100 / 365 : null
+  // the rate it earns at now, at its own leverage (the positions route's): a forecast beside the dollars
+  const rateNow = h.apr != null && h.kind !== 'borrow' && h.valueUsd >= 1 ? h.apr : null
   const nav = useNav()
   const open = () => {
     // a price bet (a debt in another money) is Pro's alone (docs/lite.md §6): the web's Pro opens it
@@ -317,8 +319,8 @@ function Position({ h, s, made, isNew }: { h: Holding; s: Strategy | null; /** a
       <View style={{ alignItems: 'flex-end', gap: 1 }}>
         <Txt w={700}>{usd(h.valueUsd)}</Txt>
         {m != null && <Txt s={12} w={600} c={m >= 0 ? C.ok : C.bad}>{signedMoney(m)} made</Txt>}
-        {/* what it earns in dollars a day (hidden under a cent) */}
-        {perDay != null && <Txt s={12} c={C.tx50}>{signedMoney(perDay)} a day</Txt>}
+        {/* what it earns in dollars a day (hidden under a cent), and the rate that is at today */}
+        {(perDay != null || rateNow != null) && <Txt s={12} c={C.tx50}>{[perDay != null ? `${signedMoney(perDay)} a day` : '', rateNow != null ? `${pct(rateNow, 1)} now` : ''].filter(Boolean).join(' · ')}</Txt>}
       </View>
       <Txt c={C.tx40}>›</Txt>
     </Pressable>

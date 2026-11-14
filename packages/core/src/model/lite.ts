@@ -653,6 +653,18 @@ export function heldPositions(
     .sort((x, y) => (y.equityUsd ?? 0) - (x.equityUsd ?? 0))
 }
 
+/**
+ * What a wallet earns a year NOW on the money it has at work: each position's rate now weighted by
+ * the money in it — the board's `netAprPct`, for a wallet that is on no board. Null with nothing rated.
+ */
+export function rateNowOf(ps: Pick<HeldPosition, 'equityUsd' | 'rateNowPct'>[]): { aprPct: number; perDayUsd: number } | null {
+  const rated = ps.filter((p) => p.rateNowPct != null && (p.equityUsd ?? 0) > 0)
+  const equity = rated.reduce((n, p) => n + p.equityUsd!, 0)
+  if (!(equity > 0)) return null
+  const yearly = rated.reduce((n, p) => n + p.equityUsd! * p.rateNowPct! / 100, 0)
+  return { aprPct: yearly / equity * 100, perDayUsd: yearly / 365 }
+}
+
 /** One position inside a row of `madeRows`. */
 export interface MadeRecord { key: string; chainId: string; valueUsd: number | null; pnlUsd: number; aprPct: number | null }
 /** One thing the wallet runs on "Every number": a strategy and the positions it is made of, once. */

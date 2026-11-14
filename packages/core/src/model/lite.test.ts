@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, heldPositions, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, madeRows, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, riskTag, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
+import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, heldPositions, rateNowOf, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, madeRows, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, riskTag, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
 import { borrowCapLtv, healthAt, healthAtLtv, liqBuffer, liqBufferAtLtv } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
@@ -309,6 +309,9 @@ describe('the leaderboard', () => {
       ['wstETH', 'loop', null, 7, 4_000], ['USDC', 'deposit', 40, 5, 2_000], ['DAI', 'deposit', 3, null, 500],
     ])
     expect(ps[0].sub).toBe('Levered · borrows WETH')
+    // the wallet's rate now: the rated positions' own, weighted by the money in each (the unrated DAI left out)
+    expect(rateNowOf(ps)).toEqual({ aprPct: 380 / 6_000 * 100, perDayUsd: 380 / 365 })
+    expect(rateNowOf([{ equityUsd: 500, rateNowPct: null }])).toBeNull()
     expect(heldPositions(undefined, book, () => null).map((p) => p.pnlUsd)).toEqual([40, 3])
   })
   it('names a closed position by its legs, in Lite’s words where they are a Lite row’s markets', () => {

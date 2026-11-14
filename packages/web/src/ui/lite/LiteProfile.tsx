@@ -1,6 +1,6 @@
 import React from 'react'
 import type * as idx from '@yieldcircle/core/index/api'
-import { boardWallets } from '@yieldcircle/core/model/lite'
+import { boardWallets, rateNowOf } from '@yieldcircle/core/model/lite'
 import { liteHref, proHref, useApp, walletHref } from '../../state/AppState'
 import { isEvmAddr, normAddr } from '@yieldcircle/core/model/address'
 import { labelFor, shortAddr } from '@yieldcircle/core/identity/name'
@@ -58,6 +58,8 @@ export function LiteProfile({ addr }: { addr: string }) {
   const book = useAccountPnlBook(addr)
   // what it holds now: the index's positions, as Pro lists them (the book draws few of them)
   const held = useHeldPositions(addr, liteByKey)
+  // a wallet on no board still has a rate: its positions' own, weighted by the money in each
+  const now = rateNowOf(held.open)
   const chains = [
     ...[...(book.data?.positions ?? [])].sort((a, b) => (b.equityUsd ?? 0) - (a.equityUsd ?? 0)).map((x) => x.chainId),
     ...(row?.chains ?? []),
@@ -115,9 +117,14 @@ export function LiteProfile({ addr }: { addr: string }) {
       <div className="lite-prof-stats">
         {board.isLoading ? <Sk w={220} h={40} /> : row ? (
           <>
-            <div><b className="ok">{row.netAprPct != null ? pct(row.netAprPct, 1) : '–'}</b><small>a year on all its money</small></div>
+            <div><b className="ok">{row.netAprPct != null ? pct(row.netAprPct, 1) : '–'}</b><small>a year now, on all its money</small></div>
             <div><b className="ok">{row.perDayUsd != null ? usdShort(row.perDayUsd) : '–'}</b><small>a day</small></div>
             <div><b>#{rank!.n}</b><small>on the board, {rank!.by}</small></div>
+          </>
+        ) : now ? (
+          <>
+            <div><b className={now.aprPct >= 0 ? 'ok' : 'bad'}>{pct(now.aprPct, 1)}</b><small>a year now, on all its money</small></div>
+            <div><b className={now.perDayUsd >= 0 ? 'ok' : 'bad'}>{usdShort(now.perDayUsd)}</b><small>a day</small></div>
           </>
         ) : <p className="t50">Not in the board’s top 100 today.</p>}
       </div>

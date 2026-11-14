@@ -69,7 +69,7 @@ export function LiteYou() {
       <div className="feed-h"><h1>You</h1>{b.paper && <span className="pill paper">paper</span>}<span className="sp" /><ChainChip /></div>
       <div className={`lstats${b.paper ? ' three' : ''}`}>
         <Stat k="You have" v={b.positionsLoading && !b.books.length ? <Sk w={80} h={20} /> : usd(t.tot)} s={t.idle >= 1 ? `${usdShort(t.idle)} idle` : 'all of it at work'} />
-        <Stat k="Earning" v={<span className="ok">+{usd(t.yearly / 365)}</span>} s={`a day · ${usdShort(t.yearly)} a year`} />
+        <Stat k="Earning" v={<span className="ok">+{usd(t.yearly / 365)}</span>} s={`a day · ${usdShort(t.yearly)} a year${t.work >= 1 && t.yearly > 0 ? ` · ${pct(t.yearly / t.work * 100, 1)} now` : ''}`} />
         <Stat k="Streak" v={<span className="lstat-streak"><Flame size={18} />{day.streak}</span>} s={day.streak ? `${streakWord(day.streak)} in a row with money at work` : 'put money to work to start one'} />
         {!b.paper && <Stat k="Rank" v={stats.rank != null ? `#${stats.rank}` : 'Not yet'} s={stats.rank != null ? `on the board · ${usdShort(stats.perDay)} a day` : 'the board is the top 100 by dollars a day'} href={liteHref('board?t=perDay')} />}
       </div>
@@ -119,6 +119,8 @@ function Position({ h, s, on, made, isNew }: { h: Holding; s: Strategy | null; o
   const pnl = useHoldingPnl(h)
   const m = made ?? pnl?.pnlUsd ?? null
   const perDay = h.apr != null && h.kind !== 'borrow' && Math.abs(h.valueUsd * h.apr / 100 / 365) >= 0.01 ? h.valueUsd * h.apr / 100 / 365 : null
+  // the rate it earns at now, at its own leverage (the positions route's): a forecast beside the dollars
+  const rateNow = h.apr != null && h.kind !== 'borrow' && h.valueUsd >= 1 ? h.apr : null
   const open = () => {
     if (!h.directional) return go('you', { h: h.key })
     location.hash = proHref(`#/${h.group}?${new URLSearchParams({ ...(s ? { s: s.id } : {}), k: h.kind, h: h.key, m: 'manage' })}`)
@@ -131,7 +133,7 @@ function Position({ h, s, on, made, isNew }: { h: Holding; s: Strategy | null; o
         <small className="t50">{h.kind === 'borrow' ? row.what.replace(/A loan$/, `owes ${usd(owedOf(h))}`) : row.what}{h.directional ? ' · managed in Pro' : ''}</small>
         {row.risk && <small className={row.risk.tone || 't50'}>{row.risk.text}</small>}
       </span>
-      <span className="lrow-v"><b>{usd(h.valueUsd)}</b>{m != null && <small className={`made ${m >= 0 ? 'ok' : 'bad'}`}>{signedMoney(m)} made</small>}{perDay != null && <small className="t50">{signedMoney(perDay)} a day</small>}</span>
+      <span className="lrow-v"><b>{usd(h.valueUsd)}</b>{m != null && <small className={`made ${m >= 0 ? 'ok' : 'bad'}`}>{signedMoney(m)} made</small>}{(perDay != null || rateNow != null) && <small className="t50">{[perDay != null ? `${signedMoney(perDay)} a day` : '', rateNow != null ? `${pct(rateNow, 1)} now` : ''].filter(Boolean).join(' · ')}</small>}</span>
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { Linking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-n
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type * as idx from '@yieldcircle/core/index/api'
-import { boardWallets } from '@yieldcircle/core/model/lite'
+import { boardWallets, rateNowOf } from '@yieldcircle/core/model/lite'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { labelFor, shortAddr } from '@yieldcircle/core/identity/name'
 import { rowOfTx } from '@yieldcircle/core/model/moves'
@@ -58,6 +58,8 @@ export default function WalletPage() {
   const moves = (feed.data?.txs ?? []).map((t) => ({ t, r: rowOfTx(t, L.rows) })).slice(0, 6)
   // what it holds now: the index's positions, as Pro lists them (the book draws few of them)
   const held = useHeldPositions(addr, liteByKey)
+  // a wallet on no board still has a rate: its positions' own, weighted by the money in each
+  const now = rateNowOf(held.open)
   const said = useAccountMessages(addr)
   const msgs = (said.data?.messages ?? []).filter((m) => !m.deleted).slice(0, 4)
   if (own) return null
@@ -106,9 +108,12 @@ export default function WalletPage() {
         ) : <>
           <View style={st.stats}>
             {byRate.isLoading && byDay.isLoading ? <View style={st.stat}><Sk w={220} h={40} /></View> : row ? <>
-              <Stat v={row.netAprPct != null ? pct(row.netAprPct, 1) : '–'} s="a year on all its money" ok />
+              <Stat v={row.netAprPct != null ? pct(row.netAprPct, 1) : '–'} s="a year now, on all its money" ok />
               <Stat v={row.perDayUsd != null ? usdShort(row.perDayUsd) : '–'} s="a day" ok />
               <Stat v={`#${rank!.n}`} s={`on the board, ${rank!.by}`} />
+            </> : now ? <>
+              <Stat v={pct(now.aprPct, 1)} s="a year now, on all its money" ok={now.aprPct >= 0} />
+              <Stat v={usdShort(now.perDayUsd)} s="a day" ok={now.perDayUsd >= 0} />
             </> : <View style={st.stat}><Txt s={14} c={C.tx50}>Not in the board’s top 100 today.</Txt></View>}
           </View>
           {runsNothing && lately}

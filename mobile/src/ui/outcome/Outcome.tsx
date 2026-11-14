@@ -14,6 +14,7 @@ import { txUrl } from '../../explorer'
 import { Btn, Pill } from '../bits'
 import { Txt } from '../Txt'
 import { Confetti } from './Confetti'
+import { feel } from '../../feel'
 import { firstCheer, useCountUp, useReduceMotion } from './motion'
 import { Ring, Route } from './Ring'
 
@@ -58,7 +59,8 @@ export function OutcomeView({ id, onDone, onAgain, onLeave, onFail, partial, lin
   const o = t ? outcomeOf(t, { now, chain: chainLabel, onFail, partial }) : null
   React.useEffect(() => {
     if (!o) return
-    if (o.state === 'won' && !still && firstCheer(id)) setBurst(true)
+    if (o.state === 'won' && firstCheer(id)) { if (!still) setBurst(true); feel.won() }
+    if (o.state === 'lost' && firstCheer(id)) feel.lost()
     // seen here: the pill does not say it again
     if (o.state !== 'flying') dismissTrace(id)
   }, [o?.state])

@@ -4,13 +4,22 @@
  */
 
 export const pct = (x: number | null | undefined, d = 2) => (x == null || !Number.isFinite(x) ? '—' : (x < 0 ? '−' : '') + Math.abs(x).toFixed(d) + '%')
+/**
+ * A whole number with its thousands apart (`1,234,567`), as `toLocaleString('en-US')` writes it —
+ * without building a number format on every call: a list writes a hundred figures per render, and
+ * on the phone's engine each `toLocaleString` is a trip into the system's ICU.
+ */
+const whole = (v: number) => { const n = Math.round(v), s = String(n); return s.length < 4 ? s : s.includes('e') ? n.toLocaleString('en-US') : s.replace(/\B(?=(\d{3})+$)/g, ',') }
+/** The number formats asked for by options, each made once. */
+const formats = new Map<string, Intl.NumberFormat>()
+const fmt = (min: number, max: number) => { const k = `${min}|${max}`; let f = formats.get(k); if (!f) formats.set(k, f = new Intl.NumberFormat('en-US', { minimumFractionDigits: min, maximumFractionDigits: max })); return f }
 /** One decimal while the figure is a single digit (9.44 → "9.4", 5.02 → "5"), whole from 10 on (9.97 → "10"). */
-const oneDecimal = (v: number) => (v < 9.95 ? v.toFixed(1).replace(/\.0$/, '') : Math.round(v).toLocaleString('en-US'))
+const oneDecimal = (v: number) => (v < 9.95 ? v.toFixed(1).replace(/\.0$/, '') : whole(v))
 export const usd = (x: number | null | undefined) => {
   if (x == null || !Number.isFinite(x)) return '—'
   // under a dollar keeps its cents (1 MON is $0.03, not "$0"), a single digit keeps one decimal ($9.4 of equity,
   // not "$9"); the sign goes before the currency and a zero has none
-  const a = Math.abs(x), body = a > 0 && a < 1 ? `$${a.toFixed(2)}` : a < 10 ? `$${oneDecimal(a)}` : '$' + Math.round(a).toLocaleString('en-US')
+  const a = Math.abs(x), body = a > 0 && a < 1 ? `$${a.toFixed(2)}` : a < 10 ? `$${oneDecimal(a)}` : '$' + whole(a)
   return x < 0 && body !== '$0' && body !== '$0.00' ? `−${body}` : body.replace('$0.00', '$0')
 }
 /**
@@ -20,7 +29,7 @@ export const usd = (x: number | null | undefined) => {
  */
 export const usdBig = (x: number | null | undefined) => {
   if (x == null || !Number.isFinite(x) || Math.abs(x) < 1e7) return usd(x)
-  const body = '$' + (Math.abs(x) / 1e6).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'm'
+  const body = '$' + fmt(1, 1).format(Math.abs(x) / 1e6) + 'm'
   return x < 0 ? `−${body}` : body
 }
 export const usdShort = (x: number | null | undefined) => {
@@ -33,14 +42,14 @@ export const usdShort = (x: number | null | undefined) => {
   // no sign worth showing — a rebalance's net was reading as "$-0"
   return x < 0 && body !== '$0' ? `−${body}` : body
 }
-export const num = (x: number, d = 4) => x.toLocaleString('en-US', { maximumFractionDigits: d })
+export const num = (x: number, d = 4) => fmt(0, d).format(x)
 
 /** A logo URL worth trying: IPFS gateways time out more often than they answer. */
 const DEAD_LOGO = /^(ipfs:|https?:\/\/([^/]*\.)?(ipfs\.io|dweb\.link|cloudflare-ipfs\.com|cf-ipfs\.com|nftstorage\.link|w3s\.link|4everland\.io)\/)/i
 export const liveLogo = (u: string | null | undefined): u is string => !!u && !DEAD_LOGO.test(u)
 
 /** Dollars to the cent, `$1,234.56` — what a loss to confirm is said in. */
-export const cents = (x: number) => '$' + x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+export const cents = (x: number) => '$' + fmt(2, 2).format(x)
 /** A share, unsigned, in a percent: a 3.1 % loss reads 3.1 %, not −3.1 %. */
 export const pctAbs = (x: number) => { const a = Math.abs(x); return `${(a * 100).toFixed(a < 0.1 ? 2 : 1)}%` }
 

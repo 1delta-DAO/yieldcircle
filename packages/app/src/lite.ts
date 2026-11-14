@@ -9,27 +9,67 @@ import { holdingMatches, liteMenu, noteDay, pointsOf, streakOf, dayKey, type Day
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { totalsOf, type Holding } from '@yieldcircle/core/model/positions'
 import { useSettings } from './state/Settings'
+import { sharedCache } from './shared'
+
+/**
+ * The menu's parts, one for every page that reads it (`shared.ts`): the header's chip, each tab
+ * and every sheet call `useLiteMenu`, on every render, and the menu is the whole catalogue named,
+ * folded and sorted by a rate read off a month of history.
+ */
+const rankOf = sharedCache()
+const heldOf = sharedCache()
+const menuOf = sharedCache()
+const keysOf = sharedCache()
 
 /**
  * Lite's menu: the same catalogue, book and rate history every Pro page reads (one cache), cut by
  * `model/lite.ts`, ranked on the steady rate, with who holds each row. Every Lite page starts here.
+ *
+ * Under a `LiteMenuProvider` it is the provider's menu, read from context (as `useBook` under a
+ * `BookProvider`); without one the caller works out its own.
  */
-export function useLiteMenu() {
+export function useLiteMenu(): LiteMenu {
+  const shared = React.useContext(Ctx)
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return shared ?? useOwnLiteMenu()
+}
+export type LiteMenu = ReturnType<typeof useOwnLiteMenu>
+const Ctx = React.createContext<LiteMenu | null>(null)
+/** One menu for everything under it — the phone's root, inside its `BookProvider` (`book.ts` says why). */
+export function LiteMenuProvider({ children }: { children: React.ReactNode }) {
+  return React.createElement(Ctx.Provider, { value: useOwnLiteMenu() }, children)
+}
+
+function useOwnLiteMenu() {
   const b = useBook()
   // the reader's filters (You → Filters): at their defaults, Lite's own floors
   const { st } = useSettings()
   const get = useRateHistory(b.all, !b.isFetching)
-  const rank = React.useCallback((s: Strategy) => steadyRate(s, get), [get])
+  // a row's steady rate is asked for at every comparison of every sort: worked out once per row and history
+  const rank = rankOf([get], () => {
+    const seen = new WeakMap<Strategy, number>()
+    return (s: Strategy) => { let r = seen.get(s); if (r === undefined) seen.set(s, r = steadyRate(s, get)); return r }
+  })
   // the strategy a position is, wherever the catalogue holds it: on the menu, below a floor, or past a desk's cap
-  const runs = (h: Holding) => b.all.find((s) => holdingMatches(s, h)) ?? b.hidden.find((s) => holdingMatches(s, h)) ?? b.overflow.find((s) => holdingMatches(s, h))
-  const heldIds = new Set(b.holdings.map((h) => runs(h)?.id).filter((x): x is string => !!x))
-  const rows: LiteRow[] = liteMenu(b.all, rank, heldIds, st)
-  const keys = [...new Set(rows.map((r) => bookKeyOf(r.s)).filter((k): k is string => !!k))].sort()
+  // looked up once per position and catalogue: the lists ask for it per row, and it walks every row there is
+  const runs = React.useMemo(() => {
+    const seen = new WeakMap<Holding, Strategy | null>()
+    return (h: Holding) => {
+      let s = seen.get(h)
+      if (s === undefined) seen.set(h, s = b.all.find((s) => holdingMatches(s, h)) ?? b.hidden.find((s) => holdingMatches(s, h)) ?? b.overflow.find((s) => holdingMatches(s, h)) ?? null)
+      return s ?? undefined
+    }
+  }, [b.all, b.hidden, b.overflow])
+  const heldKey = b.holdings.map((h) => runs(h)?.id).filter((x): x is string => !!x).sort().join('\n')
+  const heldIds = heldOf([heldKey], () => new Set(heldKey ? heldKey.split('\n') : []))
+  const rows: LiteRow[] = menuOf([b.all, rank, heldIds, st], () => liteMenu(b.all, rank, heldIds, st))
+  const keys = keysOf([rows], () => [...new Set(rows.map((r) => bookKeyOf(r.s)).filter((k): k is string => !!k))].sort())
   const proofs = useStrategyProofs(keys)
-  const proof = (s: Strategy) => proofOf(s, proofs.data)
-  return { b, get, rank, rows, floors: st, proof, book: proofs.data, proofsHeld: proofs.current, runs, holdingsOf: (s: Strategy) => b.holdings.filter((h) => holdingMatches(s, h) && !h.putUp) }
+  const proof = React.useCallback((s: Strategy) => proofOf(s, proofs.data), [proofs.data])
+  const holdingsOf = React.useCallback((s: Strategy) => b.holdings.filter((h) => holdingMatches(s, h) && !h.putUp), [b.holdings])
+  // the same object until a part of it changes (the book is, too): a page re-renders for news only
+  return React.useMemo(() => ({ b, get, rank, rows, floors: st, proof, book: proofs.data, proofsHeld: proofs.current, runs, holdingsOf }), [b, get, rank, rows, st, proof, proofs.data, proofs.current, runs, holdingsOf])
 }
-export type LiteMenu = ReturnType<typeof useLiteMenu>
 
 /**
  * The days this reader had money at work, as this device saw them (docs/lite-plan.md phase 4):

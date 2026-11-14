@@ -13,6 +13,7 @@ import { useMyFollows } from '../../social/queries'
 import { applyEarn } from '@yieldcircle/core/model/earnFilter'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { EarnTools, useEarnFilter } from '../EarnTools'
+import { useArrivals } from '@yieldcircle/app/sdk/activity'
 
 /** How many of the best rows Earn shows before a category is picked. */
 const TOP_ROWS = 10
@@ -55,6 +56,15 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   const rows = ef.active ? applyEarn(base, ef.f, (r) => r.s, { extra: (r) => [r.title, r.sub, chainLabel(r.s.chainId)], rank: L.rank }) : base
   const shown = group && !allRows && !ef.active ? rows.slice(0, LITE_LIST_ROWS) : rows
   const valueOf = (id: string) => b.holdings.filter((h) => L.runs(h)?.id === id).reduce((a, h) => a + h.valueUsd, 0)
+  // what the reader's own positions on a row earn, weighted by what is in each
+  const aprOf = (id: string) => { const hs = b.holdings.filter((h) => L.runs(h)?.id === id && h.apr != null); const v = hs.reduce((a, h) => a + h.valueUsd, 0); return v > 0 ? hs.reduce((a, h) => a + h.valueUsd * h.apr!, 0) / v : undefined }
+  // the row an action just landed in glows once — when the ticket over it has closed (ticket 0016 §3)
+  const arrived = useArrivals(!ticketOpen)
+  // a category's list puts what you hold first, under its own label; the rest keep their ranking
+  const mineFirst = !!group && !ef.active
+  const mine = mineFirst ? rows.filter((r) => r.yours) : []
+  const rest = mine.length ? rows.filter((r) => !r.yours) : rows
+  const row = (r: (typeof rows)[number]) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} on={sel?.id === r.s.id} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} yoursApr={r.yours ? aprOf(r.s.id) : undefined} arrived={arrived.has(r.s.id)} followed={isFollowed(r.s)} />
   const name = group ? LITE_NAME[group.id] ?? { name: group.name, line: group.desc } : null
   const yours = group ? b.books.filter((x) => x.group === group.id) : []
   const work = yours.reduce((a, x) => a + x.atWorkUsd, 0), yearly = yours.reduce((a, x) => a + x.yearlyUsd, 0), idle = yours.reduce((a, x) => a + x.idleUsd, 0)
@@ -100,8 +110,14 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
                 ? [0, 1, 2, 3, 4].map((i) => <div key={i} className="lrow sk"><Sk w={28} h={28} /><span className="lrow-n"><Sk w={120} h={14} /><Sk w={180} h={10} /></span><Sk w={60} h={18} /></div>)
                 : !rows.length && base.length ? <div className="empty">Nothing here matches{ef.f.q.trim() ? <> “{ef.f.q.trim()}”</> : ''} with these filters. <button type="button" className="lnk" onClick={ef.reset}>Reset</button></div>
                 : !rows.length ? <div className="empty">Nothing {name ? `in ${name.name.toLowerCase()} ` : ''}clears Lite’s bar on these chains right now.{group && <> <a className="pri" href={proHref(`#/${group.id}`)}>See everything in Pro ›</a></>}</div>
-                : shown.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} on={sel?.id === r.s.id} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} followed={isFollowed(r.s)} />)}
-              {rows.length > shown.length && <button type="button" className="lrow lite-showall" onClick={() => setAllRows(true)}>Show all {rows.length} ways to earn on {name!.name.toLowerCase()}</button>}
+                : mine.length ? <>
+                    <div className="lrows-h">Yours</div>
+                    {mine.map(row)}
+                    <div className="lrows-h">{allRows ? 'Every other way' : 'The best of the rest'}</div>
+                    {(allRows ? rest : rest.slice(0, LITE_LIST_ROWS)).map(row)}
+                  </>
+                : shown.map(row)}
+              {(mine.length ? rest.length > LITE_LIST_ROWS && !allRows : rows.length > shown.length) && <button type="button" className="lrow lite-showall" onClick={() => setAllRows(true)}>Show all {rows.length} ways to earn on {name!.name.toLowerCase()}</button>}
             </div>
             {rows.length > 0 && <p className="t70 lite-foot"><span className="lite-key"><i className="r1" />low risk <i className="r2" />medium · <b className="lever-k">×</b> borrows to earn more</span> Rates are a year, before compounding, and each row is the best of its kind on the chains you use. <a href={proHref(group ? `#/${group.id}` : '#/earn')}>Pro</a> lists every venue.</p>}
           </section>

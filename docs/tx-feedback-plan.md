@@ -298,7 +298,7 @@ The same data and words; CSS for the motion (`@keyframes`, all of it inside the 
 | 3 | §4.5 the phone's pill, chip ring and Activity sheet | `pnpm mobile update` | 1 day |
 | 4 | §4.1–4.4 the ring, the success and failure screens in the ticket and in *Get*, `app/receipt.tsx` | `pnpm mobile update` | 2–3 days |
 | 5 | §5 the web: receipt card, Get, tray | web deploy | 1.5–2 days |
-| 6 | Needs a native build, so it rides the next `pnpm mobile release` (one is already owed for Solflare and the wallet-return link): `expo-haptics` (a success tap, a double knock on failure), later a local notification when a bridge lands while the app is in the background | release | half a day |
+| 6 | **Built** (§9). Needs a native build, so it rides the next `pnpm mobile release` (one is already owed for Solflare and the wallet-return link): `expo-haptics` (a success tap, a double knock on failure), later a local notification when a bridge lands while the app is in the background | release | half a day |
 
 1 and 3 fix the two things that hurt most in the test run and can go out before any of the design
 work is settled.
@@ -349,3 +349,18 @@ work is settled.
   Checked in a browser with injected traces (won, refunded bridge, bridging) at 1280 and 390 px.
 - **"Done"** resets the ladder, so the same ticket opened later starts fresh; on the phone it also
   closes the sheet. A "Half done" failure goes back to the steps; any other "Try again" rebuilds.
+- **Ticket 0016 §3–§4**, the same day: Lite's category lists put what you hold first under "Yours"
+  (both apps; Pro unchanged), the yours pill says its rate (`yours $48 · 3.7%`), the row an action
+  just landed in glows once when the ticket over it closes (`useArrivals`; scrolled to on the web),
+  the balance chip's total moves instead of jumping and says what just landed for a few seconds
+  (`useTween`, `useChipNews`, "+$250 at work"), and You puts positions opened in the last day
+  first, marked new (`useNewHoldings`). On the phone the tab pages leave room for the pill while it
+  shows (the bar's inset). The phone scrolls the glowing row into view; Pro's Earn on the phone puts
+  held rows first (the web's Pro already lists your positions apart). A swap's or bridge's result
+  remembers the ticket it was opened from (`useGetAsset`'s `from`), so "Try again" from the pill or
+  the tray goes back there.
+- **Slice 6, native** (`mobile/src/feel.tsx`): `expo-haptics` (success pattern, error knock, a light
+  tap as the pill lands) and `expo-notifications` (a reminder at a bridge's quoted arrival while the
+  app is in the background, cancelled on return, a tap opens its receipt). Needs `pnpm mobile
+  release`; older builds run the same JS without them. A bridge sent as a batch from a smart account
+  still has no transaction to ask the bridge about: it settles on the destination balance, as before.

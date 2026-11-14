@@ -1,6 +1,7 @@
 import React from 'react'
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useLocalSearchParams } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import Svg, { Circle, Path } from 'react-native-svg'
 import type { Idle } from '@yieldcircle/core/model/positions'
@@ -41,7 +42,9 @@ export function GetSheet({ targets, want, sources, onTarget, onClose }: { target
 
 function Body({ targets, want, sources, onTarget, onClose, bottom }: { targets: GetTarget[]; want: number; sources: Idle[]; onTarget?: (t: Target) => void; onClose: () => void; bottom: number }) {
   const platform = usePlatform()
-  const g = useGetAsset(targets, want, sources, onTarget)
+  // the ticket it opened over: a result opened later from the pill goes back to it
+  const { id: from } = useLocalSearchParams<{ id?: string }>()
+  const g = useGetAsset(targets, want, sources, onTarget, from && from !== '_' ? from : undefined)
   const { account, solSigner, paper, walletOn, ti, setTi, target, need, opts, custom, setCustom, otherOpen, setOtherOpen, src, choose, amt, setAmt, amount, quoting, err, sent, setSent, setPendingApprove, cross, dstGas, gasHeldUsd, gasPref, setGasPref, gasOn, setGasOn, gasPlan, gasMiss, sel, setSel, quotes, best, tx, needsApprove, pendingApprove, approved, connector, switching, wrongChain, sentTr, busy, setBusy, remote, dollar, topupsLeft, topup, canBatch, gasLegMiss, setGasLegMiss, go, sendGasLeg, out, covers, srcNative, srcNativeDec, extraNative, nativeShort, askGas, v } = g
   const [routesOpen, setRoutesOpen] = React.useState(false)
   return (

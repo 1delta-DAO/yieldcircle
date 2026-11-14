@@ -11,6 +11,7 @@ import { Confetti } from './outcome/Confetti'
 import { useReduceMotion } from './outcome/motion'
 import { progressOf } from './outcome/Outcome'
 import { Ring } from './outcome/Ring'
+import { feel } from '../feel'
 
 /** the pill's own bursts: one per trace, apart from the receipt's */
 const popped = new Set<string>()
@@ -30,7 +31,7 @@ export function ActivityPill({ bottom }: { bottom: number }) {
   const [burst, setBurst] = React.useState<string | null>(null)
   const o = lead ? outcomeOf(lead, { now: a.now, chain: chainLabel }) : null
   React.useEffect(() => { Animated.spring(rise, { toValue: lead ? 1 : 0, friction: 7, tension: 90, useNativeDriver: true }).start() }, [!!lead])
-  React.useEffect(() => { if (lead && o?.state === 'won' && !still && !popped.has(lead.id)) { popped.add(lead.id); setBurst(lead.id) } }, [lead?.id, o?.state])
+  React.useEffect(() => { if (lead && o?.state === 'won' && !popped.has(lead.id)) { popped.add(lead.id); feel.tap(); if (!still) setBurst(lead.id) } }, [lead?.id, o?.state])
   if (!lead || !o) return null
   const more = a.shown.length - 1
   const open = () => (more > 0 ? router.push('/activity') : router.push({ pathname: '/receipt', params: { id: lead.id } }))

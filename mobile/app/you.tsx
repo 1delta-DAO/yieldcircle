@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNewHoldings } from '@yieldcircle/app/sdk/activity'
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import { router, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -11,18 +12,20 @@ import { pnlNotReadYet } from '@yieldcircle/core/model/holdingPnl'
 import { pnlWaiting, unsupportedLine, useAccountsPnlBook, useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { useAccountSync } from '@yieldcircle/app/index/queries'
 import { isSolAddr, normAddr } from '@yieldcircle/core/model/address'
-import { totalsOf, type Holding } from '@yieldcircle/core/model/positions'
-import { holdingRow, holdingTitle, pnlSummary, signedMoney, streakWord, type BoardPosition, type PnlSummary } from '@yieldcircle/core/model/lite'
+import { totalsOf, type Holding, type Idle } from '@yieldcircle/core/model/positions'
+import { groupOf } from '@yieldcircle/core/model/assets'
+import { LITE_GROUPS, holdingRow, holdingTitle, pnlSummary, signedMoney, streakWord, type BoardPosition, type PnlSummary } from '@yieldcircle/core/model/lite'
 import { owedOf } from '@yieldcircle/core/model/borrow'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import type { Accounts } from '@yieldcircle/app/book'
-import { pct, usd, usdShort } from '@yieldcircle/core/model/format'
+import { num, pct, usd, usdShort } from '@yieldcircle/core/model/format'
+import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { useNav } from '@yieldcircle/app/nav'
 import { useClosedRecord, useBoardNames } from '@yieldcircle/app/board'
 import { useChains } from '../src/chains'
 import { C } from '../src/theme'
-import { ChainChip } from '../src/ui/ChainChip'
-import { Btn, Sk, Tok } from '../src/ui/bits'
+import { ChainChip, ChainMark } from '../src/ui/ChainChip'
+import { Btn, Pill, Sk, Tok } from '../src/ui/bits'
 import { Character } from '../src/ui/Character'
 import { BalanceChip } from '../src/ui/TopBar'
 import { IconBack, IconFlame } from '../src/ui/icons'
@@ -53,7 +56,9 @@ export default function You() {
   const rank = useRank(b.paper ? undefined : b.account)
   const { open } = useAppKit()
   const p = useProfile(b.account).data?.profile ?? null
-  const mine = b.holdings.filter((h) => !h.putUp).sort((x, y) => y.valueUsd - x.valueUsd)
+  // what this phone opened in the last day leads, marked new (ticket 0016 §4); then by value
+  const fresh = useNewHoldings(b.holdings)
+  const mine = b.holdings.filter((h) => !h.putUp).sort((x, y) => Number(fresh.has(y.key)) - Number(fresh.has(x.key)) || y.valueUsd - x.valueUsd)
   // a paper position's figure is the paper ledger's (the index never holds one): keyed as its holding is
   const paper = usePaper()
   const paperMade = React.useMemo(() => new Map<string, number>(b.paper && paper.ledger ? paperPnlBook(paper.ledger, paper.viewNow, paper.price).positions.map((x) => [`paper:${x.key}`, x.pnlUsd] as const) : []), [b.paper, paper.ledger, paper.viewNow, paper.price])
@@ -100,9 +105,10 @@ export default function You() {
             <View style={{ gap: 6 }}>
               {b.positionsLoading && !mine.length ? [0, 1].map((i) => <View key={i} style={st.row}><Sk w={28} h={28} r={14} /><Sk w={120} /></View>)
                 : !mine.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing at work yet.</Txt>
-                : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} made={paperMade.get(h.key)} />)}
+                : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} made={paperMade.get(h.key)} isNew={fresh.has(h.key)} />)}
             </View>
             {!b.paper && <Closed account={b.accounts.evm} />}
+            <Wallet idle={b.idlePerChain} total={t.idle} loading={b.positionsLoading && !b.books.length} />
             <LiteMoves rows={L.rows} account={b.account} limit={12} title="What the people you follow did" followingOnly />
           </>
         )}
@@ -284,7 +290,7 @@ const TONE = { bad: C.bad, warn: C.warn, ok: C.ok, '': C.tx50 } as Record<string
  * a fact, so it wears the colour — and what it earns a day, a forecast, in grey. Its ticket
  * (manage, share) is a tap away. No figure from the index is no line, never a zero.
  */
-function Position({ h, s, made }: { h: Holding; s: Strategy | null; /** a paper position's figure, off the paper ledger */ made?: number }) {
+function Position({ h, s, made, isNew }: { h: Holding; s: Strategy | null; /** a paper position's figure, off the paper ledger */ made?: number; /** opened from this phone in the last day */ isNew?: boolean }) {
   const title = holdingTitle(h)
   const row = holdingRow(h, title)
   // what it made since it was opened, the index's figure for it
@@ -301,7 +307,10 @@ function Position({ h, s, made }: { h: Holding; s: Strategy | null; /** a paper 
     <Pressable onPress={open} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]}>
       <Tok sym={h.symbol} logo={h.logo} size={28} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Txt s={14.5} w={600} numberOfLines={1}>{title}</Txt>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Txt s={14.5} w={600} numberOfLines={1} style={{ flexShrink: 1 }}>{title}</Txt>
+          {isNew && <Pill tone="pri">new</Pill>}
+        </View>
         <Txt s={12} c={C.tx50} numberOfLines={1}>{h.kind === 'borrow' ? row.what.replace(/A loan$/, `owes ${usd(owedOf(h))}`) : row.what}{h.directional ? ' · managed in Pro' : ''}</Txt>
         {row.risk && <Txt s={12} c={TONE[row.risk.tone] ?? C.tx50} numberOfLines={1}>{row.risk.text}</Txt>}
       </View>
@@ -313,6 +322,55 @@ function Position({ h, s, made }: { h: Holding; s: Strategy | null; /** a paper 
       </View>
       <Txt c={C.tx40}>›</Txt>
     </Pressable>
+  )
+}
+
+/** How many wallet balances are listed before the rest fold under "more". */
+const IDLE_SHOWN = 5
+
+/**
+ * What sits in the wallet, not at work: one row per token per chain (`idlePerChain`), biggest
+ * first — the money behind the card's "idle" figure. A row opens Earn on its money's category,
+ * where there is one in Lite; the rest only say what is there.
+ */
+function Wallet({ idle, total, loading }: { idle: Idle[]; total: number; loading: boolean }) {
+  const [all, setAll] = React.useState(false)
+  const nav = useNav()
+  const rows = [...idle].sort((x, y) => y.usd - x.usd)
+  const shown = all ? rows : rows.slice(0, IDLE_SHOWN)
+  return (
+    <>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 26, marginBottom: 10 }}>
+        <Txt s={16} w={600} style={{ letterSpacing: -0.16, flex: 1 }}>In your wallet</Txt>
+        {rows.length > 0 && <Txt s={13} c={C.tx50}>{usd(total)} idle</Txt>}
+      </View>
+      <View style={{ gap: 6 }}>
+        {loading ? [0, 1].map((i) => <View key={i} style={st.row}><Sk w={28} h={28} r={14} /><Sk w={120} /></View>)
+          : !rows.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing idle on the chains in scope.</Txt>
+          : shown.map((i) => {
+            const g = groupOf(i.asset)
+            const to = LITE_GROUPS.includes(g) ? () => nav.go({ to: 'earn', group: g }) : undefined
+            return (
+              <Pressable key={`${i.chainId}:${i.address}`} onPress={to} disabled={!to} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]} accessibilityHint={to ? 'Where this could earn' : undefined}>
+                <View>
+                  <Tok sym={i.symbol} size={28} />
+                  <View style={{ position: 'absolute', right: -4, bottom: -3 }}><ChainMark id={i.chainId} size={13} /></View>
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt s={14.5} w={600} numberOfLines={1}>{i.symbol}</Txt>
+                  <Txt s={12} c={C.tx50} numberOfLines={1}>{chainLabel(i.chainId)}</Txt>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 1 }}>
+                  <Txt w={700}>{usd(i.usd)}</Txt>
+                  <Txt s={12} c={C.tx50}>{num(i.amount, i.amount >= 100 ? 2 : 4)} {i.symbol}</Txt>
+                </View>
+                {to && <Txt c={C.tx40}>›</Txt>}
+              </Pressable>
+            )
+          })}
+        {rows.length > IDLE_SHOWN && <Pressable onPress={() => setAll((a) => !a)} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 14 }}><Txt s={12.5} c={C.tx50}>{all ? 'Show fewer' : `${rows.length - IDLE_SHOWN} more ›`}</Txt></Pressable>}
+      </View>
+    </>
   )
 }
 

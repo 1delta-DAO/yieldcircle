@@ -111,7 +111,9 @@ function issuerWords(id: string): string {
 export const leverTag = (lev: number) => `×${(Math.round(lev * 10) / 10).toFixed(lev >= 10 ? 0 : 1)}`
 
 const DAY = 86_400
-const dayMonth = (t: number) => new Date(t * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+// one formatter, made once: `toLocaleDateString` builds its own on every call, and every dated row of the catalogue is named on each pass
+const DAY_MONTH = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' })
+const dayMonth = (t: number) => DAY_MONTH.format(new Date(t * 1000))
 
 /**
  * A row's two lines: what it is, and how it earns — never a chain. Where it sits is the shown

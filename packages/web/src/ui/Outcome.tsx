@@ -14,6 +14,7 @@ import { holdingFor, outcomeOf, type Next, type OutcomeState } from '@yieldcircl
 import { reached, stages, useNow } from '@yieldcircle/app/sdk/txWords'
 import { bufferOfHealth, leverTag } from '@yieldcircle/core/model/lite'
 import type { Holding } from '@yieldcircle/core/model/positions'
+import { liteHash } from '@yieldcircle/core/model/liteLinks'
 import { txUrl } from './ChainMark'
 import { pct, usd } from './bits'
 
@@ -201,12 +202,16 @@ function rowsOf(t: Trace, h: Holding | undefined, compact: boolean): Row[] {
 /** One trace's end, over the page: what the tray opens for an action whose ticket was closed. */
 export function ReceiptDialog({ id, onClose }: { id: string; onClose: () => void }) {
   const lite = location.hash.startsWith('#/lite') || !location.hash.startsWith('#/pro')
+  // "Try again" goes back to the ticket it was sent from: nothing is rebuilt from here
+  const t = useTrace(id)
+  const s = useBook().all.find((x) => x.id === t?.receipt?.strategyId)
+  const again = s ? () => { onClose(); location.hash = lite ? liteHash({ to: 'strategy', s }) : `#/pro/${s.group}?${new URLSearchParams({ s: s.id, ...(s.kind === 'simple' ? {} : { k: s.kind }) })}` } : undefined
   React.useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
   return createPortal(
     <div className="o-dialog" role="dialog" aria-modal="true" aria-label="Transaction" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="o-card">
         <button className="x" onClick={onClose} aria-label="Close">✕</button>
-        <OutcomeCard id={id} onDone={onClose} links={(h) => (h ? [{ label: 'See it', href: holdingHref(h, lite), onClick: onClose }] : [])} />
+        <OutcomeCard id={id} onDone={onClose} onAgain={again} links={(h) => (h ? [{ label: 'See it', href: holdingHref(h, lite), onClick: onClose }] : [])} />
       </div>
     </div>,
     document.body,

@@ -30,6 +30,12 @@ The rules behind these are shared, not copied: `tileRates`, `safestFirst`, `BOAR
 (`liteMoves.ts`: `useLiteMoves`, `useMoveReasons`; `board.ts`: `useLiteByKey`, `useBoardNames`,
 `useWalletRecord`; `earnFilter.ts`; `social/seen.ts`).
 
+**One book for the app** (2026-11-14, [`mobile-perf.md`](mobile-perf.md)): `app/_layout.tsx` mounts
+`BookProvider` and `LiteMenuProvider` (`@yieldcircle/app/book`, `/lite`) under the session, so
+`useBook()` and `useLiteMenu()` are context reads on every page — the header, each tab and each
+sheet used to hold a copy each, and a tab switch took a second. How it was measured and what is
+left: that file; `scripts/mobile-perf.mjs` measures it again.
+
 **The ticket's people** (2026-11-02): adding opens "Who's in it" under the ticket — the biggest
 holders, the people you follow first, what each said, a Copy on each (`useWhoIsIn`) — and the
 strategy's thread folded under it (`src/ui/thread.tsx`: reactions, replies, delete, one signature
@@ -160,8 +166,20 @@ then the order in rows with confetti, or where the money is when it failed. Each
 (`@yieldcircle/app/sdk/txOutcome`). *Get* ends on the same screen, compact. Anything still going
 shows on a pill above the tab bar (`src/ui/ActivityPill.tsx`) and as a turning ring on the
 balance chip; `app/activity.tsx` lists the last day, `app/receipt.tsx` is one trace's end screen.
-Plain `Animated` + `react-native-svg`, so it shipped as an update; haptics wait for the next native
-release. Untested on a phone.
+Plain `Animated` + `react-native-svg`. Haptics and a reminder when a bridge should have landed while
+the app was in the background (`src/feel.tsx`: `expo-haptics`, `expo-notifications`, added
+2026-11-14) are **native**: they need a `pnpm mobile release`, and they change the fingerprint, so
+`pnpm mobile update` reaches only builds made after it. An older build loads the same JS and simply
+has neither (the requires are caught). The reminder is scheduled at the bridge's quoted arrival when
+the app goes to the background and cancelled when it comes back — the app has not seen it land, so it
+says "should have landed". Untested on a phone.
+
+**A WalletConnect 5000 is not a "no"** (2026-11-14, core's `sdk/walletErrors.ts`): MetaMask Mobile
+answers code 5000 for every request it could not carry out, with the reason in the message, and
+viem files 5000 under `UserRejectedRequestError`. Read as a rejection, a batch MetaMask refused
+never fell back to one step per tap and every failure said "Rejected in the wallet". `isRejection`
+now takes a 5000 as a rejection only when its message says so; `walletWhy` shows the wallet's own
+reason. Untested on a phone.
 
 **One copy of each context library** (`mobile/metro.config.js`): pnpm installs
 a package once per set of its peers, so the phone's wagmi (built against

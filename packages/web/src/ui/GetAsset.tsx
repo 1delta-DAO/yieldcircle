@@ -16,7 +16,7 @@ import { isNativeAddress } from '@yieldcircle/core/model/positions'
 import { Spin } from './TxTray'
 import { OutcomeCard } from './Outcome'
 import type { ApiEnvelope } from '@yieldcircle/core/vendor/allocator/http'
-import { useApp } from '../state/AppState'
+import { useApp, useRoute } from '../state/AppState'
 import { isRemote, openWallet } from '../wallet/deeplink'
 import { useSwitchTo } from '../wallet/useSwitchTo'
 import { base58Encode, isSolAddr, isSvmChain, normAddr } from '@yieldcircle/core/model/address'
@@ -46,8 +46,10 @@ import type { GetTarget, Target } from '@yieldcircle/app/tickets/get'
  * form was bought, so it pays with that one.
  */
 export function GetAsset({ targets, want, sources, onTarget, onClose }: { targets: GetTarget[]; want: number; sources: Idle[]; onTarget?: (t: Target) => void; onClose: () => void }) {
+  // the ticket it opened over: a result opened later from the tray goes back to it
+  const route = useRoute()
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/get`)
-  const { account, solSigner, paper, walletOn, ti, setTi, target, need, isTarget, opts, pick, setPick, custom, setCustom, otherOpen, setOtherOpen, src, choose, amt, setAmt, amount, payR, quote, setQuote, quoting, setQuoting, err, setErr, sent, setSent, pendingApprove, setPendingApprove, reqId, cross, dstGasTok, dstGas, dstGasRef, realGas, gasHeldUsd, gasPref, setGasPrefState, setGasPref, gasOn, setGasOn, tradeUsd, gasPlan, askGas, gasMiss, setGasMiss, sel, setSel, quotes, best, tx, srcSvm, perms, approveTr, approved, needsApprove, walletChain, address, connector, switchTo, switching, send, wrongChain, sendTx, sentTr, now, arrived, lost, busy, setBusy, remote, goPaper, dollar, topupsLeft, topup, qc, walletClient, caps, canBatch, gasLegMiss, setGasLegMiss, traceBridge, sendBatched, go, sendGasLeg, traceGas, out, covers, bg, gasPaidUsd, srcNative, srcNativeDec, feeNative, feeUsd, legNative, extraNative, nativeShort, gasGotUsd, v } = useGetAsset(targets, want, sources, onTarget)
+  const { account, solSigner, paper, walletOn, ti, setTi, target, need, isTarget, opts, pick, setPick, custom, setCustom, otherOpen, setOtherOpen, src, choose, amt, setAmt, amount, payR, quote, setQuote, quoting, setQuoting, err, setErr, sent, setSent, pendingApprove, setPendingApprove, reqId, cross, dstGasTok, dstGas, dstGasRef, realGas, gasHeldUsd, gasPref, setGasPrefState, setGasPref, gasOn, setGasOn, tradeUsd, gasPlan, askGas, gasMiss, setGasMiss, sel, setSel, quotes, best, tx, srcSvm, perms, approveTr, approved, needsApprove, walletChain, address, connector, switchTo, switching, send, wrongChain, sendTx, sentTr, now, arrived, lost, busy, setBusy, remote, goPaper, dollar, topupsLeft, topup, qc, walletClient, caps, canBatch, gasLegMiss, setGasLegMiss, traceBridge, sendBatched, go, sendGasLeg, traceGas, out, covers, bg, gasPaidUsd, srcNative, srcNativeDec, feeNative, feeUsd, legNative, extraNative, nativeShort, gasGotUsd, v } = useGetAsset(targets, want, sources, onTarget, route.s)
   return (
     <Drawer open onClose={onClose} side="right" label={`Get ${target.symbol}`} cls="get-drawer">
     <div className="get">

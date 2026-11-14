@@ -13,7 +13,7 @@ import { usePending } from '@yieldcircle/app/social/pending'
 import { Character } from './Character'
 import { Txt } from './Txt'
 import { Orbit } from './outcome/Ring'
-import { useActivity } from '@yieldcircle/app/sdk/activity'
+import { useActivity, useChipNews, useTween } from '@yieldcircle/app/sdk/activity'
 
 /**
  * The web's top bar on a phone (app.css `.top` under 768px): the face left — profile and settings,
@@ -53,6 +53,9 @@ export function TopBar({ pro, on }: { pro?: boolean; /** You is open: the chip i
 
 /** The web's balance chip (`.lite-chip`): a wallet mark, what you have, what it earns a day — You behind it. */
 export function BalanceChip({ tot, perDay, loading, on, busy }: { tot: number; perDay: number; loading: boolean; on: boolean; /** a transaction is on its way */ busy?: boolean }) {
+  // the total moves to its new value; an action that just landed says where the money went (ticket 0016 §4)
+  const shown = useTween(tot)
+  const news = useChipNews()
   return (
     <Pressable onPress={() => router.push('/you')} style={[st.chip, on && { backgroundColor: C.priBg, borderColor: C.primary }]} accessibilityLabel="You">
       <View style={st.chipIc}>
@@ -60,8 +63,8 @@ export function BalanceChip({ tot, perDay, loading, on, busy }: { tot: number; p
         <Svg width={18} height={18} viewBox="0 0 20 20" fill="none" stroke={C.primary} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><Rect x="2.5" y="5" width="15" height="11" rx="2.5" /><Path d="M2.5 8.5h15" /><Circle cx="13.5" cy="12.3" r="1.2" fill={C.primary} stroke="none" /></Svg>
       </View>
       <View>
-        <Txt s={14.5} w={600} lh={16.7}>{loading ? '…' : usdShort(tot)}</Txt>
-        {perDay > 0 && <Txt s={11} w={500} c={C.ok} lh={12.7}>+{usdShort(perDay)} a day</Txt>}
+        <Txt s={14.5} w={600} lh={16.7}>{loading ? '…' : usdShort(shown)}</Txt>
+        {news ? <Txt s={11} w={600} c={C.primary} lh={12.7}>{news}</Txt> : perDay > 0 && <Txt s={11} w={500} c={C.ok} lh={12.7}>+{usdShort(perDay)} a day</Txt>}
       </View>
       <Svg width={10} height={10} viewBox="0 0 12 12" fill="none" stroke={C.primary} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><Path d="M4.5 2.5 8 6l-3.5 3.5" /></Svg>
     </Pressable>

@@ -28,6 +28,7 @@
  * A visitor in on the beta's access code gets one strip above the page asking
  * them to join the waitlist (`Waitlist`), until their wallet holds a place.
  */
+import { useActivity, useChipNews, useTween } from '@yieldcircle/app/sdk/activity'
 import React from 'react'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { Logo } from '@yieldcircle/design'
@@ -202,16 +203,20 @@ function LiteYours() {
   const r = useRoute()
   const b = useBook()
   const day = useDayLog(b)
-  if (!account) return <ConnectButton compact />
   const t = totalsOf(b)
+  // the total moves to its new value; an action that just landed says where the money went, and one on its way turns the mark (ticket 0016 §4)
+  const tot = useTween(t.tot)
+  const news = useChipNews()
+  const busy = useActivity().live.length > 0
+  if (!account) return <ConnectButton compact />
   const loading = b.positionsLoading && !b.books.length
   const on = r.view === 'you'
   return (
     <a className={`lite-chip${b.paper ? ' paper' : ''}${on ? ' on' : ''}`} href={liteHref('you')} aria-current={on ? 'page' : undefined} aria-label={`You${loading ? '' : `: ${usd(t.tot)}`}${t.yearly > 0 ? `, earning ${usd(t.yearly / 365)} a day` : ''}`}>
-      <span className="lc-ic" aria-hidden><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="15" height="11" rx="2.5" /><path d="M2.5 8.5h15" /><circle cx="13.5" cy="12.3" r="1.2" fill="currentColor" stroke="none" /></svg></span>
+      <span className={`lc-ic${busy ? ' busy' : ''}`} aria-hidden><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="15" height="11" rx="2.5" /><path d="M2.5 8.5h15" /><circle cx="13.5" cy="12.3" r="1.2" fill="currentColor" stroke="none" /></svg></span>
       <span className="lc-t">
-        {loading ? <Sk w={64} h={14} /> : <b>{usdShort(t.tot)}</b>}
-        {loading ? null : t.yearly > 0 ? <small className="ok">+{usdShort(t.yearly / 365)} a day</small> : <small>{b.paper ? 'paper money' : 'nothing earning yet'}</small>}
+        {loading ? <Sk w={64} h={14} /> : <b>{usdShort(tot)}</b>}
+        {loading ? null : news ? <small className="lc-news">{news}</small> : t.yearly > 0 ? <small className="ok">+{usdShort(t.yearly / 365)} a day</small> : <small>{b.paper ? 'paper money' : 'nothing earning yet'}</small>}
       </span>
       {day.streak > 0 && <span className="lc-streak" aria-label={`${day.streak} day${day.streak === 1 ? '' : 's'} in a row with money at work`}><Flame />{day.streak}</span>}
       <svg className="lc-chev" viewBox="0 0 12 12" width="10" height="10" aria-hidden><path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>

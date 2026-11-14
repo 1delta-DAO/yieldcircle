@@ -8,6 +8,7 @@ import { IconBoard, IconBorrow, IconEarn, IconFeed, IconHome, IconSearch } from 
 import { Txt } from './Txt'
 import { HomeDot } from './social'
 import { ActivityPill } from './ActivityPill'
+import { useActivity } from '@yieldcircle/app/sdk/activity'
 
 type Tab = { href: string; label: string; Icon: typeof IconHome }
 const TABS: Record<Mode, Tab[]> = {
@@ -57,14 +58,20 @@ export function AppTabBar({ children }: { children: React.ReactNode }) {
   if (shell) last.current = { mode: shell, tab: TABS[shell].find((t) => t.href === path)?.href ?? `/${shell}` }
   const mode = shell ?? last.current.mode
   const show = !flow(path)
+  // the pill sits over the foot of the page: while it shows, the pages above the bar leave room for it
+  const pill = useActivity().shown.length > 0 && path !== '/activity'
   const go = (href: string) => {
     if (router.canDismiss()) router.dismissAll()
     if (href !== path) router.navigate(href as Href)
   }
+  // the same object until an inset changes: a new one on every render here (each tab switch, each
+  // second of a transaction's clock) re-rendered every page and header under it
+  const foot = show && !sheet(path) ? (pill ? 64 : 0) : null
+  const pageInsets = React.useMemo(() => (foot == null ? insets : { ...insets, bottom: foot }), [insets, foot])
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       {/* the bar takes the home indicator's inset: the pages above it have none at their foot (the ticket, over the bar, keeps it) */}
-      <SafeAreaInsetsContext.Provider value={show && !sheet(path) ? { ...insets, bottom: 0 } : insets}>{children}</SafeAreaInsetsContext.Provider>
+      <SafeAreaInsetsContext.Provider value={pageInsets}>{children}</SafeAreaInsetsContext.Provider>
       {/* what is still going, just above the bar on every page (docs/tx-feedback-plan.md §4.5): Activity lists them itself */}
       {show && path !== '/activity' && <ActivityPill bottom={56 + insets.bottom + 10} />}
       {show && (

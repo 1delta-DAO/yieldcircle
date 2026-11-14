@@ -1,8 +1,10 @@
 import React from 'react'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useQueryClient } from '@tanstack/react-query'
-import { useLocalSearchParams } from 'expo-router'
+import { useIsFocused, useLocalSearchParams } from 'expo-router'
+import { useArrivals } from '@yieldcircle/app/sdk/activity'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { GROUPS, type Group, type GroupId } from '@yieldcircle/core/model/assets'
 import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, safestFirst, tileRates } from '@yieldcircle/core/model/lite'
@@ -28,6 +30,8 @@ const TOP_ROWS = 10
  * over it (`EarnTools`); asked with no tile picked, they search every row, not only the best few.
  */
 export default function LiteEarn() {
+  // room for the activity pill while it shows (src/ui/TabBar.tsx)
+  const { bottom } = useSafeAreaInsets()
   const L = useLiteMenu()
   const { b } = L
   // a link's category (`?g=USD`, core's route map), else every category
@@ -46,6 +50,18 @@ export default function LiteEarn() {
   const f = useMyFollows(b.account)
   const isFollowed = (s: (typeof rows)[number]['s']) => { const a = L.proof(s)?.best?.account; return !!a && f.isFollowing('wallet', a) }
   const valueOf = (id: string) => b.holdings.filter((h) => L.runs(h)?.id === id).reduce((a, h) => a + h.valueUsd, 0)
+  // what the reader's own positions on a row earn, weighted by what is in each
+  const aprOf = (id: string) => { const hs = b.holdings.filter((h) => L.runs(h)?.id === id && h.apr != null); const v = hs.reduce((a, h) => a + h.valueUsd, 0); return v > 0 ? hs.reduce((a, h) => a + h.valueUsd * h.apr!, 0) / v : undefined }
+  // the row an action just landed in glows once, when this tab is in front again — the ticket over it closed (ticket 0016 §3)
+  const arrived = useArrivals(useIsFocused())
+  // the page scrolls the row it landed in into view (the list's own place on the page, then the row's in it)
+  const scroll = React.useRef<React.ComponentRef<typeof ScrollView>>(null)
+  const [listY, setListY] = React.useState(0)
+  const toArrived = (y: number) => scroll.current?.scrollTo({ y: Math.max(0, listY + y - 160), animated: true })
+  // a category's list puts what you hold first, under its own label; the rest keep their ranking
+  const mine = group && !ef.active ? rows.filter((r) => r.yours) : []
+  const rest = mine.length ? rows.filter((r) => !r.yours) : rows
+  const row = (r: (typeof rows)[number]) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} yoursApr={r.yours ? aprOf(r.s.id) : undefined} arrived={arrived.has(r.s.id)} onArrivedAt={toArrived} followed={isFollowed(r.s)} />
   const name = group ? LITE_NAME[group] : null
   const yours = group ? b.books.filter((x) => x.group === group) : []
   const work = yours.reduce((a, x) => a + x.atWorkUsd, 0), yearly = yours.reduce((a, x) => a + x.yearlyUsd, 0), idle = yours.reduce((a, x) => a + x.idleUsd, 0)
@@ -54,7 +70,7 @@ export default function LiteEarn() {
   const refresh = async () => { setRefreshing(true); await qc.invalidateQueries(); setRefreshing(false) }
 
   return (
-    <ScrollView contentContainerStyle={st.page} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={C.tx50} />}>
+    <ScrollView ref={scroll} contentContainerStyle={[st.page, { paddingBottom: 40 + bottom }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={C.tx50} />}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2, marginBottom: 16 }}>
         <Txt s={18} w={700} lh={26} style={[st.h1, { flex: 1, marginTop: 0, marginBottom: 0 }]}>Earn</Txt>
         <ChainChip />
@@ -80,12 +96,18 @@ export default function LiteEarn() {
         </View>
       )}
       <EarnTools st={ef} n={rows.length} total={base.length} kinds />
-      <View style={rowStyles.rows}>
+      <View style={rowStyles.rows} onLayout={(e) => setListY(e.nativeEvent.layout.y)}>
         {b.isLoading && !rows.length ? [0, 1, 2, 3, 4].map((i) => <LiteRowSk key={i} />)
           : !rows.length && base.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing here matches{ef.f.q.trim() ? ` “${ef.f.q.trim()}”` : ''} with these filters. <Txt s={13} c={C.primary} onPress={ef.reset}>Reset</Txt></Txt>
           : !rows.length ? <Txt s={13} c={C.tx50} style={{ padding: 14 }}>Nothing {name ? `in ${name.name.toLowerCase()} ` : ''}clears Lite’s bar on these chains right now.</Txt>
-          : shown.map((r) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} followed={isFollowed(r.s)} />)}
-        {rows.length > shown.length && (
+          : mine.length ? <>
+              <Txt s={11} w={600} c={C.tx50} style={st.listH}>YOURS</Txt>
+              {mine.map(row)}
+              <Txt s={11} w={600} c={C.tx50} style={st.listH}>{all ? 'EVERY OTHER WAY' : 'THE BEST OF THE REST'}</Txt>
+              {(all ? rest : rest.slice(0, LITE_LIST_ROWS)).map(row)}
+            </>
+          : shown.map(row)}
+        {(mine.length ? rest.length > LITE_LIST_ROWS && !all : rows.length > shown.length) && (
           <Pressable onPress={() => setAll(true)} style={st.showAll}><Txt s={13} c={C.tx70}>Show all {rows.length} ways to earn on {name!.name.toLowerCase()}</Txt></Pressable>
         )}
       </View>
@@ -117,6 +139,7 @@ function Tile({ g, on, dim, rates: { best, bestLoop }, n, mine, loading, onPress
 }
 
 const st = StyleSheet.create({
+  listH: { letterSpacing: 0.66, paddingTop: 10, paddingHorizontal: 2 },
   page: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 },
   h1: { letterSpacing: -0.36, marginTop: 2, marginBottom: 16 },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

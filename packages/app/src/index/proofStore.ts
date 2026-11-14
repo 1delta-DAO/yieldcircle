@@ -74,7 +74,7 @@ export const proofsHeld = (keys: Iterable<string>) => { for (const k of keys) if
  */
 export function useProofsFor(keys: string[]) {
   const v = useSyncExternalStore(subscribe, getVersion, getVersion)
-  const joined = keys.join(' ')
+  const joined = useMemo(() => keys.join(' '), [keys])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (joined) requestProofs(joined.split(' ')) }, [joined])
   return useMemo(() => {

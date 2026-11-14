@@ -1,4 +1,5 @@
 import React from 'react'
+import { useNewHoldings } from '@yieldcircle/app/sdk/activity'
 import { go, liteHref, proHref, useApp, useRoute, walletHref } from '../../state/AppState'
 import { holdingRow, holdingTitle, signedMoney, streakWord, type BoardPosition } from '@yieldcircle/core/model/lite'
 import type { Holding } from '@yieldcircle/core/model/positions'
@@ -56,7 +57,9 @@ export function LiteYou() {
       <PaperOffer lite />
     </div>
   )
-  const mine = b.holdings.filter((h) => !h.putUp).sort((x, y) => y.valueUsd - x.valueUsd)
+  // what this device opened in the last day leads, marked new (ticket 0016 §4); then by value
+  const fresh = useNewHoldings(b.holdings)
+  const mine = b.holdings.filter((h) => !h.putUp).sort((x, y) => Number(fresh.has(y.key)) - Number(fresh.has(x.key)) || y.valueUsd - x.valueUsd)
   const selS = sel ? L.runs(sel) ?? null : null
   return (
     <>
@@ -79,7 +82,7 @@ export function LiteYou() {
         <div className="lrows">
           {b.positionsLoading && !mine.length ? [0, 1].map((i) => <div key={i} className="lrow sk"><Sk w={28} h={28} /><span className="lrow-n"><Sk w={120} h={14} /></span></div>)
             : !mine.length ? <div className="empty">Nothing at work yet. <a className="pri" href={liteHref('earn')}>Find something to earn ›</a></div>
-            : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} on={sel?.key === h.key} made={paperMade.get(h.key)} />)}
+            : mine.map((h) => <Position key={h.key} h={h} s={L.runs(h) ?? null} on={sel?.key === h.key} made={paperMade.get(h.key)} isNew={fresh.has(h.key)} />)}
         </div>
         {!b.paper && <Closed account={b.accounts.evm} />}
       </section>
@@ -109,7 +112,7 @@ function Stat({ k, v, s, href }: { k: string; v: React.ReactNode; s: string; hre
  * a zero. Tapping it opens its Lite ticket (where it is managed and shared); a price bet opens in
  * Pro, the one kind Lite has no actions for.
  */
-function Position({ h, s, on, made }: { h: Holding; s: Strategy | null; on: boolean; /** a paper position's figure, off the paper ledger */ made?: number }) {
+function Position({ h, s, on, made, isNew }: { h: Holding; s: Strategy | null; on: boolean; /** a paper position's figure, off the paper ledger */ made?: number; /** opened from this device in the last day */ isNew?: boolean }) {
   const title = holdingTitle(h)
   const row = holdingRow(h, title)
   // what it made since it was opened, the index's figure for it
@@ -124,7 +127,7 @@ function Position({ h, s, on, made }: { h: Holding; s: Strategy | null; on: bool
     <div className={`lrow${on ? ' on' : ''}`} role="button" tabIndex={0} aria-pressed={on} onClick={open} onKeyDown={(e) => { if (e.key === 'Enter') open() }}>
       <Tok sym={h.symbol} logo={h.logo} size={28} />
       <span className="lrow-n">
-        <b>{title}</b>
+        <b>{title}{isNew && <span className="pill pick new-pill">new</span>}</b>
         <small className="t50">{h.kind === 'borrow' ? row.what.replace(/A loan$/, `owes ${usd(owedOf(h))}`) : row.what}{h.directional ? ' · managed in Pro' : ''}</small>
         {row.risk && <small className={row.risk.tone || 't50'}>{row.risk.text}</small>}
       </span>

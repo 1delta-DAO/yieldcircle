@@ -6,7 +6,7 @@ import { nativeSymbol, WRAPPED_NATIVE } from '@yieldcircle/core/model/positions'
 import { venueLabel } from '@yieldcircle/core/model/strategies'
 import { useLiveBalances } from './sdk/liveBalances'
 import { baselineOf, batchFailed, batchLanded, batchTraceId, hasLanded, isBatchTrace, isDone, markBatch, tracePaper, traceBatch, traceTx, useTrace, type Baseline, type Moves, type Receipt } from './sdk/txTrace'
-import { isRejection } from '@yieldcircle/core/sdk/walletErrors'
+import { isRejection, walletWhy } from '@yieldcircle/core/sdk/walletErrors'
 import type { PaperOp } from '@yieldcircle/core/model/paper'
 import { usePlatform } from './platform'
 import { useSession } from './session'
@@ -234,7 +234,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
       }
       return
     }
-    if (wrongChain) { try { await switchTo(Number(chainId)) } catch (e) { setErr(shortErr((e as Error).message)) } return }
+    if (wrongChain) { try { await switchTo(Number(chainId)) } catch (e) { setErr(isRejection(e) ? REJECTED : shortErr(walletWhy(e))) } return }
     // before the first await: iOS only follows the hand-off while the tap is live (wallet/deeplink.ts)
     openWallet(connector?.id)
     if (together && walletClient) {
@@ -257,7 +257,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
       } catch (e) {
         if (isRejection(e)) setErr(REJECTED)
         // the wallet would not take it as one: the same steps, one per tap (a second tap, so the hand-off stays live on iOS)
-        else { setNoBatch(true); setErr('Your wallet would not send these as one batch. Send them one at a time below.') }
+        else { setNoBatch(true); setErr(`Your wallet would not send these as one batch (${shortErr(walletWhy(e))}). Send them one at a time below.`) }
       } finally { setBatchSigning(false) }
       return
     }
@@ -266,7 +266,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
       const hash = await send.sendTransactionAsync({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}`, value: BigInt(tx.value || '0') })
       follow(hash, next)
       setPending(hash); setBundle((b) => b && { ...b, steps: b.steps.map((s) => (s === next ? { ...s, hash } : s)) })
-    } catch (e) { setErr(isRejection(e) ? REJECTED : next.onFail && /revert/i.test((e as Error).message) ? next.onFail : shortErr((e as Error).message)) }
+    } catch (e) { setErr(isRejection(e) ? REJECTED : next.onFail && /revert/i.test((e as Error).message) ? next.onFail : shortErr(walletWhy(e))) }
   }
   // a batch the wallet took: its report, when it comes, hands the trace the transaction (the chain may have first).
   // A wallet that never reports — in the background on a phone — is no error: the trace asks the chain

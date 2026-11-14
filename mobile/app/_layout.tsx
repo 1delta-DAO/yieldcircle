@@ -15,11 +15,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import { AppKit, AppKitProvider } from '@reown/appkit-react-native'
 import { SettingsProvider } from '@yieldcircle/app/state/Settings'
+import { BookProvider } from '@yieldcircle/app/book'
+import { LiteMenuProvider } from '@yieldcircle/app/lite'
 import { appKit, wagmiAdapter } from '../src/appkit'
 import { PhoneSession } from '../src/session'
 import { PhonePaper } from '../src/paper'
 import { PhonePlatform } from '../src/platform'
 import { PhoneNav } from '../src/nav'
+import { BridgeReminders } from '../src/feel'
 import { AppTabBar } from '../src/ui/TabBar'
 import { configureTrace, initTxTrace, resumeTraces } from '@yieldcircle/app/sdk/txTrace'
 import { C } from '../src/theme'
@@ -46,7 +49,12 @@ export default function RootLayout() {
           <SettingsProvider>
             <PhonePaper>
             <PhoneSession>
+            {/* one book and one menu for every page: the header, each tab and each sheet read these, not their own (docs/mobile-perf.md) */}
+            <BookProvider>
+            <LiteMenuProvider>
               <StatusBar style="light" />
+              {/* a tap as an action ends, a reminder when a bridge lands while the app is away (src/feel.tsx) */}
+              <BridgeReminders />
               {/* one tab bar under every page, pushed ones too: the anchor home (src/ui/TabBar.tsx) */}
               <AppTabBar>
               <Stack screenOptions={{ ...header, headerShown: false }}>
@@ -66,6 +74,8 @@ export default function RootLayout() {
               <View pointerEvents="box-none" style={{ position: 'absolute', height: '100%', width: '100%' }}>
                 <AppKit />
               </View>
+            </LiteMenuProvider>
+            </BookProvider>
             </PhoneSession>
             </PhonePaper>
           </SettingsProvider>

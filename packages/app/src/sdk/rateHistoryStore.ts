@@ -77,6 +77,10 @@ export const historyHeld = (uids: Iterable<string>) => { for (const u of uids) i
 
 export type HistoryLookup = (uid: string) => RateHistoryItem | undefined
 const lookup: HistoryLookup = (uid) => entries.get(uid)?.item ?? undefined
+// one lookup per version for every surface: what is ranked through it (Lite's menu) is then
+// ranked once, not once per component that reads it
+let current: { v: number; get: HistoryLookup } | null = null
+const lookupAt = (v: number): HistoryLookup => (current?.v === v ? current : (current = { v, get: (uid) => lookup(uid) })).get
 
 /**
  * The history of `uids`, fetched as needed. Returns a lookup that changes
@@ -85,9 +89,9 @@ const lookup: HistoryLookup = (uid) => entries.get(uid)?.item ?? undefined
  */
 export function useHistoryFor(uids: string[], enabled = true): HistoryLookup {
   const v = useSyncExternalStore(subscribe, getVersion, getVersion)
-  const key = enabled ? uids.join(',') : ''
+  // the whole catalogue's uids are a few hundred kB of text: joined when the list changes, not on every render
+  const key = useMemo(() => (enabled ? uids.join(',') : ''), [uids, enabled])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (key) requestRateHistory(key.split(',')) }, [key])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => (uid: string) => lookup(uid), [v])
+  return lookupAt(v)
 }

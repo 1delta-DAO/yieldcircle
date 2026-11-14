@@ -16,6 +16,7 @@ import { isEvmAddr, isEvmChain, isSolAddr, isSvmChain, normAddr } from '@yieldci
 import { toRaw } from '@yieldcircle/core/model/leverage'
 import { historyUids, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
 import { useHistoryFor } from './rateHistoryStore'
+import { sharedCache, useSame } from '../shared'
 
 const HOUR = 3600_000
 /**
@@ -403,6 +404,12 @@ export type HiddenRow = Strategy & { hide: HideCode }
  * is asked with no risk cap and no liquidity floor: both cost nothing extra
  * upstream (measured: identical row counts) and both become instant switches.
  */
+// the catalogue's derivations, one for every component that reads it (`shared.ts`)
+const earnSortedOf = sharedCache()
+const catalogOf = sharedCache()
+// a set of chain ids, the same object while it holds the same chains: a new one on every render made everything that reads the catalogue look changed
+const chainSetOf = sharedCache(32)
+const sameSet = (s: Set<string>) => chainSetOf([[...s].sort().join(',')], () => s)
 export function useCatalog(chainIds: string[]) {
   const { st } = useSettings()
   const buckets = chainBuckets(chainIds)
@@ -488,11 +495,11 @@ export function useCatalog(chainIds: string[]) {
   // one stamp for "any answer changed": this hook runs in the header, the
   // feed and Hot at once, and every catalogue query landing re-renders all three
   const stamp = [chainIds.join(','), stocks.dataUpdatedAt, ...[...earn, ...loops, ...extra].map((q) => q.dataUpdatedAt)].join('|')
-  const earnSorted = useMemo(() => {
+  const earnSorted = useMemo(() => earnSortedOf([stamp, st.minTvlUsd, st.showCollateral], () => {
     return earn.map((q) => (q.data ? sortOut(q.data.map((m) => classifyEarn(m)), 'simple') : undefined))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stamp])
-  const derived = useMemo(() => {
+  }), [stamp])
+  const derived = useMemo(() => catalogOf([stamp, st], () => {
     const exposureRows = extra.flatMap((q) => q.data?.rows ?? [])
     const earnRows = [...earnSorted.flatMap((d) => d?.rows ?? []), ...exposureRows.filter((r): r is SimpleStrategy => r.kind === 'simple')]
     const loopRows = [...loops.flatMap((q) => q.data?.rows ?? []), ...exposureRows.filter((r): r is LoopStrategy => r.kind === 'loop')]
@@ -539,7 +546,7 @@ export function useCatalog(chainIds: string[]) {
     const earnAll = earnRows
     return { simple, loops: loopRowsOut, hidden, overflow, structural, addresses, extraAddresses, earnAll }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [earnSorted, stamp, st])
+  }), [earnSorted, stamp, st])
   // A chain is SETTLED once every request covering it has answered (or failed):
   // only then is its list of token addresses final, and only then is its
   // balance read worth sending (see `useBalancesPerChain`). The registry is not
@@ -550,25 +557,21 @@ export function useCatalog(chainIds: string[]) {
   const loopsPending = new Set(loopReqs.flatMap((r, i) => (loops[i]?.isFetched ? [] : r.chainIds)))
   // a chain is not settled before the stock request answers: its balance read would miss the stock tokens
   const depositsIn = new Set(buckets.flatMap((ids, j) => (earn[j]?.isFetched ? ids : [])))
-  const settled = new Set([...depositsIn].filter((c) => !exposurePending.has(c) && !loopsPending.has(c) && (stocks.isFetched || !stocks.isFetching)))
+  const settled = sameSet(new Set([...depositsIn].filter((c) => !exposurePending.has(c) && !loopsPending.has(c) && (stocks.isFetched || !stocks.isFetching))))
   /**
    * The same, per kind of row, for a page that can show one kind before the
    * others (Start's bands): the deposit listing, the loop archetypes, and the
    * PT loops (asked only once the deposit listing has named the PTs).
    */
   const ptPending = new Set(ptMints.flatMap((m, i) => (ptLoops[i]?.isFetched ? [] : [m.chainId])))
-  const phases = {
-    deposits: depositsIn,
-    loops: new Set(chainIds.filter((c) => !loopsPending.has(c))),
-    pts: new Set([...depositsIn].filter((c) => !ptPending.has(c))),
-  }
-  return {
-    ...derived, settled, phases,
-    isLoading: earn.some((q) => q.isLoading) || loops.some((q) => q.isLoading),
-    isFetching: earn.some((q) => q.isFetching) || loops.some((q) => q.isFetching) || extra.some((q) => q.isFetching),
-    anyData: earn.some((q) => q.data) || loops.some((q) => q.data),
-    errors: [...earn, ...loops, ...extra].map((q) => q.error).filter((e): e is Error => !!e),
-  }
+  const deposits = sameSet(depositsIn), loopsIn = sameSet(new Set(chainIds.filter((c) => !loopsPending.has(c)))), pts = sameSet(new Set([...depositsIn].filter((c) => !ptPending.has(c))))
+  const phases = useMemo(() => ({ deposits, loops: loopsIn, pts }), [deposits, loopsIn, pts])
+  const isLoading = earn.some((q) => q.isLoading) || loops.some((q) => q.isLoading)
+  const isFetching = earn.some((q) => q.isFetching) || loops.some((q) => q.isFetching) || extra.some((q) => q.isFetching)
+  const anyData = earn.some((q) => q.data) || loops.some((q) => q.data)
+  const errors = useSame([...earn, ...loops, ...extra].map((q) => q.error).filter((e): e is Error => !!e))
+  // the same object until one of its parts changes: a reader's own memos (and the book's) can hang off it
+  return useMemo(() => ({ ...derived, settled, phases, isLoading, isFetching, anyData, errors }), [derived, settled, phases, isLoading, isFetching, anyData, errors])
 }
 /**
  * The Fixed rate shelf (tickets/0013): dated loans on order books (Morpho Midnight, Term Finance) a
@@ -698,6 +701,13 @@ function split<T extends Strategy>(rows: T[], st: Settings): { show: T[]; hide: 
  */
 const balanceAssets = (addresses: string[], chainId?: string, extra: string[] = []) =>
   [...new Set([...(isSvmChain(chainId) ? [] : ['0x0000000000000000000000000000000000000000']), ...[...addresses, ...extra].filter(Boolean).map((a) => normAddr(a))])].sort()
+const NO_ADDRESSES: string[] = []
+// the book asks per chain on every render of every one of its readers (Ethereum's list is ~450
+// addresses): one list per catalogue answer, whose address lists hold still between answers
+const chainAssetsOf = sharedCache(64)
+const chainAssets = (addresses: string[], chainId: string, extra: string[] = NO_ADDRESSES) => chainAssetsOf([addresses, chainId, extra], () => balanceAssets(addresses, chainId, extra))
+/** What the index's balance POST is asked, and the query key that says so — a few hundred kB of text, written once per catalogue answer. */
+const indexAskOf = sharedCache()
 /** assets per chain the index's balance POST accepts (pos-indexer `api/balances.ts`) */
 const INDEX_ASK_MAX = 500
 /** EVM `assets` per balance request: one multicall each, and a URL that stays short */
@@ -772,10 +782,14 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
   const settled = chains.filter((c) => c.ready && accountFits(accountOn(accounts, c.chainId), c.chainId))
   // the index's balance POST is the EVM index's; Solana reads live only
   // the index takes INDEX_ASK_MAX per chain (400 above it); the rest is read live beside it
-  const asked = Object.fromEntries(settled.filter((c) => isEvmChain(c.chainId)).map((c) => [c.chainId, balanceAssets(c.addresses, c.chainId, c.extra).slice(0, INDEX_ASK_MAX)]))
+  const lists = settled.filter((c) => isEvmChain(c.chainId)).map((c) => [c.chainId, chainAssets(c.addresses, c.chainId, c.extra)] as const)
+  const { asked, askedKey } = indexAskOf(lists.flat(), () => {
+    const asked = Object.fromEntries(lists.map(([c, a]) => [c, a.slice(0, INDEX_ASK_MAX)]))
+    return { asked, askedKey: JSON.stringify(asked) }
+  })
   const idx = useQuery({
-    enabled: !!account && Object.keys(asked).length > 0,
-    queryKey: ['balances-index', account, JSON.stringify(asked)],
+    enabled: !!account && lists.length > 0,
+    queryKey: ['balances-index', account, askedKey],
     queryFn: ({ signal }) => indexBalances(account!, asked, signal),
     staleTime: 15_000,
     refetchInterval: 60_000,
@@ -801,7 +815,7 @@ export function useBalancesPerChain(accounts: VmAccounts, chains: { chainId: str
     // seconds. `idleFrom` keeps only whitelisted mints, as the catalogue filter did.
     const svm = isSvmChain(chainId)
     const ready = svm || catReady
-    const all = fits ? (svm ? [SVM_ALL] : balanceAssets(addresses, chainId, extra)) : []
+    const all = fits ? (svm ? [SVM_ALL] : chainAssets(addresses, chainId, extra)) : []
     const c = idx.data?.chains.find((x) => x.chainId === chainId)
     const fromIdx = !!c && c.state === 'complete' && !live.has(chainId) && !idx.isError
     const indexItems: TokenBalance[] = []
@@ -1020,8 +1034,9 @@ export function useIrm(marketUid: string | null | undefined, enabled = true) {
  * held are fetched, every surface asking at once costs one request. `settled`
  * holds the ask back while a list is still growing as chain buckets land.
  */
+const historyUidsOf = sharedCache()
 export function useRateHistory(rows: Strategy[], settled = true): HistoryGet {
-  const uids = useMemo(() => [...new Set(rows.flatMap(historyUids))].sort(), [rows])
+  const uids = useMemo(() => historyUidsOf([rows], () => [...new Set(rows.flatMap(historyUids))].sort()), [rows])
   return useHistoryFor(uids, settled)
 }
 

@@ -11,7 +11,7 @@ import { openStrategy } from './lite'
 const chainLabel = (id: string) => CHAINS.find((c) => c.id === id)?.label ?? id
 
 /** Pro's row: the symbols, the venue and chain, size — every venue, not Lite's one-per-thing. */
-export function ProRow({ s, get }: { s: Strategy; get: HistoryGet }) {
+export function ProRow({ s, get, yoursUsd }: { s: Strategy; get: HistoryGet; /** what the reader holds in it: the row says so */ yoursUsd?: number }) {
   return (
     <Pressable onPress={() => openStrategy(s)} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]}>
       <Face s={s} />
@@ -19,6 +19,7 @@ export function ProRow({ s, get }: { s: Strategy; get: HistoryGet }) {
         <Text style={{ color: C.tx, fontWeight: '700' }} numberOfLines={1}>{s.kind === 'loop' ? `${s.holds} / ${s.debt}` : s.assetSymbol}</Text>
         <Text style={[T.dim, { fontSize: 12 }]} numberOfLines={1}>{s.venue} · {chainLabel(s.chainId)} · {usdShort(s.tvlUsd)}</Text>
       </View>
+      {!!yoursUsd && yoursUsd > 0 && <Pill tone="ok">yours {usdShort(yoursUsd)}</Pill>}
       {s.kind === 'loop' && <Pill tone="pri">{leverTag(s.tiers.balanced)}</Pill>}
       <RiskDot r={s.risk} />
       <Rate s={s} get={get} style={{ minWidth: 58, textAlign: 'right' }} />

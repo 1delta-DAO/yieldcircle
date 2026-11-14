@@ -1,4 +1,5 @@
 import React from 'react'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { router } from 'expo-router'
 import { useBook } from '@yieldcircle/app/book'
@@ -13,11 +14,13 @@ import { ProRow } from '../../src/ui/pro'
 
 /** Pro's home, first cut: your money, then the best rate in each money (the full lists are under Earn). */
 export default function ProHome() {
+  // room for the activity pill while it shows (src/ui/TabBar.tsx)
+  const { bottom } = useSafeAreaInsets()
   const b = useBook()
   const get = useRateHistory(b.all, !b.isFetching)
   const t = totalsOf(b)
   return (
-    <ScrollView contentContainerStyle={st.page}>
+    <ScrollView contentContainerStyle={[st.page, { paddingBottom: 40 + bottom }]}>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}><ChainChip /></View>
       {b.account && (
         <View style={st.card}>

@@ -95,7 +95,8 @@ export const dayOf = (days: number) => new Date(Date.now() + days * 86400_000).t
 export const DAY_S = 86_400
 
 /** `25 Dec` — a picker's date, the year said elsewhere */
-export const dayMonth = (t: number) => new Date(t * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+const DAY_MONTH = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' })
+export const dayMonth = (t: number) => DAY_MONTH.format(new Date(t * 1000))
 
 /**
  * A full close is sized off a market quote taken seconds before the block. INTEREST: the debt grows

@@ -56,19 +56,21 @@ function RiskTag({ s }: { s: Strategy }) {
 export const spikeOf = (s: Strategy, get: HistoryGet) => isSpike(s.rate, seriesFor(s, get, true))
 
 /** One list row: face · what it is · held by · yours · lever · rate over its risk. The whole row is the button. */
-export function LiteRowView({ r, get, proof, on, yoursUsd, followed }: { r: LiteRow; get: HistoryGet; proof: Proof | null; on?: boolean; yoursUsd?: number; /** the proof's face is someone the reader follows: said first (docs/lite-social-search.md §4.6) */ followed?: boolean }) {
+export function LiteRowView({ r, get, proof, on, yoursUsd, yoursApr, arrived, followed }: { r: LiteRow; get: HistoryGet; proof: Proof | null; on?: boolean; yoursUsd?: number; /** what the reader's own position here earns, beside its value */ yoursApr?: number; /** an action just landed in it: glows once, scrolled to (ticket 0016 §3) */ arrived?: boolean; /** the proof's face is someone the reader follows: said first (docs/lite-social-search.md §4.6) */ followed?: boolean }) {
   const s = r.s
   const who = heldBy(proof)
   const friend = followed && proof?.best ? proof.best.account : null
   const spike = spikeOf(s, get)
+  const ref = React.useRef<HTMLButtonElement>(null)
+  React.useEffect(() => { if (arrived) ref.current?.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }) }, [arrived])
   return (
-    <button type="button" className={`lrow${on ? ' on' : ''}`} aria-pressed={on} onClick={() => openRow(s)}>
+    <button ref={ref} type="button" className={`lrow${on ? ' on' : ''}${arrived ? ' arrive' : ''}`} aria-pressed={on} onClick={() => openRow(s)}>
       <LiteFace s={s} />
       <span className="lrow-n">
         <LiteTitle r={r} />
         <small>{r.sub}{spike && <> · <span className="warn">higher than usual</span></>}{friend ? <> · <span className="lite-friend"><Face account={friend} size={14} /> you follow{proof!.wallets > 1 ? ` + ${proof!.wallets - 1}` : ''}</span></> : who ? <> · <span className="t70">{who}</span></> : null}</small>
       </span>
-      {yoursUsd != null && yoursUsd > 0 && <span className="pill run">yours {usdShort(yoursUsd)}</span>}
+      {yoursUsd != null && yoursUsd > 0 && <span className="pill run">yours {usdShort(yoursUsd)}{yoursApr != null && yoursApr > 0 ? ` · ${pct(yoursApr, 1)}` : ''}</span>}
       {s.kind === 'loop' && <span className="pill lever">{leverTag(s.tiers.balanced)}</span>}
       <span className="lrow-r"><LiteRate s={s} /><RiskTag s={s} /></span>
     </button>

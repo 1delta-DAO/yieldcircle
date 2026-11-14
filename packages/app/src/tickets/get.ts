@@ -10,7 +10,7 @@ import { isNativeAddress, type Idle } from '@yieldcircle/core/model/positions'
 import type { ApiEnvelope } from '@yieldcircle/core/vendor/allocator/http'
 import { base58Encode, isSvmChain, normAddr } from '@yieldcircle/core/model/address'
 import { isSvmTx, type AnyTx, type ApiTx } from '@yieldcircle/core/sdk/types'
-import { isRejection } from '@yieldcircle/core/sdk/walletErrors'
+import { isRejection, walletWhy } from '@yieldcircle/core/sdk/walletErrors'
 import { num } from '@yieldcircle/core/model/format'
 import { chainLabel, useBalances } from '../sdk/queries'
 import { baselineOf, batchFailed, batchLanded, hasLanded, isDone, isOk, markBatch, traceBatch, tracePaper, traceTx, useTrace, type Receipt } from '../sdk/txTrace'
@@ -49,7 +49,7 @@ export function gasOf(g: DestinationGas | undefined, srcGasDecimals: number): { 
  * the send — approve, then one transaction (or the route and its gas leg in one wallet batch).
  * `targets`: the forms the strategy takes the money in, preferred first; `onTarget` says which was bought.
  */
-export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[], onTarget?: (t: Target) => void) {
+export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[], onTarget?: (t: Target) => void, /** the strategy whose ticket opened it: its result's "Try again" goes back there */ from?: string) {
   const session = useSession()
   const platform = usePlatform()
   const account = session.account, solSigner = session.solSigner
@@ -199,7 +199,7 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
   const [gasLegMiss, setGasLegMiss] = React.useState<{ leg: AnyTx; q: SwapRouteQuote; why: string } | null>(null)
   React.useEffect(() => { if (!sent) setGasLegMiss(null) }, [sent])
   /** What the end screen says it was: what went in, what the route said comes out. */
-  const receiptOf = (): Receipt | undefined => src ? { kind: cross ? 'bridge' : 'swap', amount: `${num(amount, amount < 0.01 ? 6 : 4)} ${src.symbol}`, usd: src.price > 0 ? amount * src.price : undefined, out: best ? `${num(best.tradeOutput ?? 0, (best.tradeOutput ?? 0) > 100 ? 2 : 4)} ${target.symbol}` : undefined } : undefined
+  const receiptOf = (): Receipt | undefined => src ? { kind: cross ? 'bridge' : 'swap', strategyId: from, amount: `${num(amount, amount < 0.01 ? 6 : 4)} ${src.symbol}`, usd: src.price > 0 ? amount * src.price : undefined, out: best ? `${num(best.tradeOutput ?? 0, (best.tradeOutput ?? 0) > 100 ? 2 : 4)} ${target.symbol}` : undefined } : undefined
   /** What the swap or bridge is traced as, whichever way its transaction comes to be known. */
   const bridgeTrace = () => {
     const signer = srcSvm ? solSigner : address
@@ -291,7 +291,7 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
       setSent({ hash: h, bridge: best?.bridge })
       // a gas leg (NEAR Intents, Gas.zip) beside the route is a second deposit the wallet sends right after it
       if (leg && dstGas) await sendGasLeg(leg, best!)
-    } catch (e) { setErr(isRejection(e) ? REJECTED : shortErr((e as Error).message)) } finally { setBusy(false) }
+    } catch (e) { setErr(isRejection(e) ? REJECTED : shortErr(walletWhy(e))) } finally { setBusy(false) }
   }
   /**
    * The gas leg on its own. A rejection (or a failure) does not undo the bridge, which is already on its
@@ -306,7 +306,7 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
       setGasLegMiss(null)
       traceGas(g, q, signer)
     } catch (e) {
-      setGasLegMiss({ leg, q, why: isRejection(e) ? 'rejected' : shortErr((e as Error).message) })
+      setGasLegMiss({ leg, q, why: isRejection(e) ? 'rejected' : shortErr(walletWhy(e)) })
     } finally { balancesChanged(qc, src.chainId, target.chainId) }
   }
   const traceGas = (g: string, q: SwapRouteQuote, signer: string | undefined) => {

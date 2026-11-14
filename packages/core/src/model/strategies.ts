@@ -335,7 +335,9 @@ export const riskOf = (score: number | undefined, _label?: string): { risk: Risk
 const EXIT_WORD: Record<string, string> = { instant: 'Any time', 'instant-capped': 'Any time', 'instant-or-queued': 'Any time or queued', queued: 'Queued', 'fixed-cooldown': 'Cooldown', 'request-based': 'Queued', 'market-sale': 'Sell on market', 'off-chain': 'Off-chain', 'fee-or-queued': 'Fee or queue' }
 const DAY = 86400
 /** `17 Dec 2026` */
-export const dateOf = (t: number) => new Date(t * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+// made once: `toLocaleDateString` builds a formatter per call, and every dated row is classified with one
+const DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+export const dateOf = (t: number) => DATE.format(new Date(t * 1000))
 const MON: Record<string, number> = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 }
 /**
  * A PT's maturity from its symbol, `PT-USD3-17DEC2026` → 17 Dec 2026 00:00 UTC,

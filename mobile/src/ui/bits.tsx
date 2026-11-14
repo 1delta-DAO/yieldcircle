@@ -1,6 +1,6 @@
 import React from 'react'
 import { Image, Pressable, StyleSheet, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native'
-import { SvgUri } from 'react-native-svg'
+import { SvgAst, fetchText, parse, type JsxAST } from 'react-native-svg'
 import { assetLogo, colorOf, short, subscribeWideLogos, wideLogosReady } from '@yieldcircle/core/model/assets'
 import { liveLogo, pct } from '@yieldcircle/core/model/format'
 import { isSpike, seriesFor, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
@@ -10,8 +10,45 @@ import { C, RISK, alpha, mix } from '../theme'
 import { family } from '../fonts'
 import { Txt } from './Txt'
 
-// React Native's <Image> draws no SVG; react-native-svg's SvgUri does (many token-list logos are SVG)
+// React Native's <Image> draws no SVG; react-native-svg does (many token-list logos are SVG)
 const isSvg = (u: string) => /\.svg(\?|#|$)/i.test(u)
+
+/**
+ * An SVG logo, fetched and parsed once per address for the whole app. react-native-svg's own
+ * `SvgUri` keeps nothing: every mounted mark fetched its file and parsed the XML on the JS thread —
+ * and, its effect being keyed on the `onError` it is handed, did so again on every render of the
+ * row it sits in (docs/mobile-perf.md). A failed address is left alone for a while, then tried again.
+ */
+const SVG_RETRY_MS = 5 * 60_000
+const svgs = new Map<string, JsxAST>()
+const svgFailed = new Map<string, number>()
+const svgLoading = new Map<string, Promise<JsxAST | null>>()
+function loadSvg(uri: string): Promise<JsxAST | null> {
+  let p = svgLoading.get(uri)
+  if (!p) {
+    p = fetchText(uri).then((xml) => (xml ? parse(xml) : null)).catch(() => null).then((ast) => {
+      svgLoading.delete(uri)
+      if (ast) svgs.set(uri, ast); else svgFailed.set(uri, Date.now())
+      return ast
+    })
+    svgLoading.set(uri, p)
+  }
+  return p
+}
+const svgBroken = (uri: string) => Date.now() - (svgFailed.get(uri) ?? -Infinity) < SVG_RETRY_MS
+function SvgLogo({ uri, size, onError }: { uri: string; size: number; onError: () => void }) {
+  const [ast, setAst] = React.useState<JsxAST | null>(() => svgs.get(uri) ?? null)
+  React.useEffect(() => {
+    const have = svgs.get(uri)
+    setAst(have ?? null)
+    if (have) return
+    if (svgBroken(uri)) { onError(); return }
+    let on = true
+    void loadSvg(uri).then((a) => { if (!on) return; if (a) setAst(a); else onError() })
+    return () => { on = false }
+  }, [uri]) // eslint-disable-line react-hooks/exhaustive-deps
+  return ast ? <SvgAst ast={ast} override={{ width: size, height: size }} /> : null
+}
 
 /**
  * A token's mark (the web's `Tok`, app.css `.tok`): the strategy's own pictures in order, then the
@@ -29,7 +66,7 @@ export function Tok({ sym, logo, size = 22, ring }: { sym: string; logo?: string
       <View style={{ position: 'absolute', top: -r.w, left: -r.w, width: size + 2 * r.w, height: size + 2 * r.w, borderRadius: size, backgroundColor: r.color }} />
       {i < urls.length
         ? isSvg(urls[i])
-          ? <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden', backgroundColor: '#111' }}><SvgUri uri={urls[i]} width={size} height={size} onError={() => setI((n) => n + 1)} /></View>
+          ? <View style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden', backgroundColor: '#111' }}><SvgLogo uri={urls[i]} size={size} onError={() => setI((n) => n + 1)} /></View>
           : <Image source={{ uri: urls[i] }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: '#111' }} onError={() => setI((n) => n + 1)} />
         : <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colorOf(sym), alignItems: 'center', justifyContent: 'center' }}>
             <Txt s={size * 0.41} w={600} mono c="#000" lh={size * 0.6}>{short(sym)}</Txt>

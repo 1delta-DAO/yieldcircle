@@ -1,4 +1,5 @@
 import React from 'react'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { router } from 'expo-router'
 import { useAppKit } from '@reown/appkit-react-native'
@@ -27,6 +28,8 @@ import { IconFlame } from '../../src/ui/icons'
  * yet: what it is, Connect, and the paper bank to play the whole thing with.
  */
 export default function LiteHome() {
+  // room for the activity pill while it shows (src/ui/TabBar.tsx)
+  const { bottom } = useSafeAreaInsets()
   const { chainIds } = useSession()
   const L = useLiteMenu()
   const { b } = L
@@ -48,7 +51,7 @@ export default function LiteHome() {
   const refresh = async () => { setRefreshing(true); await qc.invalidateQueries(); setRefreshing(false) }
 
   return (
-    <ScrollView contentContainerStyle={st.page} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={C.tx50} />}>
+    <ScrollView contentContainerStyle={[st.page, { paddingBottom: 40 + bottom }]} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={C.tx50} />}>
       <View style={st.hero}>
         {b.account ? (
           <>

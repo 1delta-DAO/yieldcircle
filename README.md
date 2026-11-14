@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/banner.png" alt="YieldCircle — everything you hold, earning" width="100%"></p>
+<p align="center"><img src="docs/banner.png" alt="YieldCircle: everything you hold, earning" width="100%"></p>
 
 # YieldCircle
 

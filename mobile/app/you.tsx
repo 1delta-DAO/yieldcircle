@@ -63,11 +63,13 @@ export default function You() {
   const paper = usePaper()
   const paperMade = React.useMemo(() => new Map<string, number>(b.paper && paper.ledger ? paperPnlBook(paper.ledger, paper.viewNow, paper.price).positions.map((x) => [`paper:${x.key}`, x.pnlUsd] as const) : []), [b.paper, paper.ledger, paper.viewNow, paper.price])
   const perDay = t.yearly / 365
+  // what all of it earns a year at today's rates: every position's rate, weighted by the money in it, over every linked wallet
+  const rateNow = t.work >= 1 ? t.yearly / t.work * 100 : null
   const have = (
     <View style={{ flex: 1, gap: 3 }}>
       <Txt s={12} w={600} c={C.tx50}>You have</Txt>
       {b.positionsLoading && !b.books.length ? <Sk w={110} h={26} /> : <Txt s={26} w={700} lh={32} style={{ letterSpacing: -0.52 }}>{usd(t.tot)}</Txt>}
-      <Txt s={12} c={C.tx50} lh={16}>{signedMoney(perDay)} a day{t.work >= 1 && t.yearly > 0 ? ` · ${pct(t.yearly / t.work * 100, 1)} now` : ''}{t.idle >= 1 ? ` · ${usdShort(t.idle)} idle` : ''}</Txt>
+      <Txt s={12} c={C.tx50} lh={16}>{signedMoney(perDay)} a day{t.idle >= 1 ? ` · ${usdShort(t.idle)} idle` : ''}</Txt>
     </View>
   )
   return (
@@ -94,6 +96,7 @@ export default function You() {
         ) : (
           <>
             <View style={st.stats}>
+              <Stat k="Earning now" v={b.positionsLoading && !b.books.length ? <Sk w={70} h={26} /> : <Txt s={22} w={600} lh={32} c={rateNow == null ? C.tx50 : rateNow >= 0 ? C.ok : C.bad}>{rateNow != null ? pct(rateNow, 1) : '–'}</Txt>} s={rateNow != null ? `a year on the ${usdShort(t.work)} at work · ${signedMoney(perDay)} a day` : 'nothing at work yet'} wide />
               <Stat k="Streak" v={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><IconFlame color={C.warn} size={18} /><Txt s={22} w={600}>{day.streak}</Txt></View>} s={day.streak ? `${streakWord(day.streak)} in a row with money at work` : 'put money to work to start one'} wide={b.paper} />
               {!b.paper && <Stat k="Rank ›" v={rank.rank != null ? `#${rank.rank}` : '—'} s={rank.rank != null ? `on the board · ${usdShort(rank.perDay)}/day` : 'top 100 by what they earn a day'} onPress={() => router.push('/lite/board')} />}
             </View>

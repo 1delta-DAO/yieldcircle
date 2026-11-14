@@ -9,11 +9,14 @@ import { Txt } from './Txt'
 import { ActivityPill } from './ActivityPill'
 import { useActivity } from '@yieldcircle/app/sdk/activity'
 
+const SEARCH = '/search'
 type Tab = { href: string; label: string; Icon: typeof IconEarn }
 const TABS: Record<Mode, Tab[]> = {
   lite: [
     { href: '/lite', label: 'Earn', Icon: IconEarn },
     { href: '/lite/board', label: 'Board', Icon: IconBoard },
+    // a page pushed over the tabs, not one of the navigator's: it opens over where you are (`go`)
+    { href: SEARCH, label: 'Search', Icon: ({ color }) => <IconSearch color={color} size={20} /> },
   ],
   pro: [
     { href: '/pro', label: 'Earn', Icon: IconEarn },
@@ -35,8 +38,8 @@ const flow = (path: string) => path === '/paper' || path === '/receipt' || (Plat
 
 /**
  * The web's bottom tab bar (app.css `.tabbar` + the refit at its end): icon over word, the active
- * one in the primary colour with its icon on a pill. Lite's ends on a round search button after the
- * tabs (docs/lite-social-search.md §4.1): Pro's search is in its top bar. There is no Home tab:
+ * one in the primary colour with its icon on a pill. Lite's third tab is Search, a tab like the
+ * other two (it was a round button after them); Pro's search is in its top bar. There is no Home tab:
  * each shell opens on its Earn, and the dot for unseen moves is on Lite's balance chip (`TopBar.tsx`).
  *
  * One bar under the whole app, not the tab navigator's: a wallet's page, You, a position, search and
@@ -58,6 +61,8 @@ export function AppTabBar({ children }: { children: React.ReactNode }) {
   // the pill sits over the foot of the page: while it shows, the pages above the bar leave room for it
   const pill = useActivity().shown.length > 0 && path !== '/activity'
   const go = (href: string) => {
+    // search opens over the page you are on, so back returns there; a second tap on it changes nothing
+    if (href === SEARCH) { if (path !== SEARCH) router.push(SEARCH); return }
     if (router.canDismiss()) router.dismissAll()
     if (href !== path) router.navigate(href as Href)
   }
@@ -74,7 +79,7 @@ export function AppTabBar({ children }: { children: React.ReactNode }) {
       {show && (
         <View style={[st.bar, { paddingBottom: insets.bottom }]}>
           {TABS[mode].map(({ href, label, Icon }) => {
-            const on = path !== '/search' && last.current.tab === href
+            const on = href === SEARCH ? path === SEARCH : path !== SEARCH && last.current.tab === href
             const color = on ? C.primary : C.tx50
             return (
               <Pressable key={href} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={label} onPress={() => go(href)} style={st.item}>
@@ -83,15 +88,6 @@ export function AppTabBar({ children }: { children: React.ReactNode }) {
               </Pressable>
             )
           })}
-          {/* set apart from the tabs by a hairline: a button that opens search, not a fourth place (docs/lite-design-review.md §3.6) */}
-          {mode === 'lite' && <View style={st.rule} />}
-          {mode === 'lite' && (
-            <View style={st.searchSlot}>
-              <Pressable onPress={() => { if (path !== '/search') router.push('/search') }} style={({ pressed }) => [st.search, path === '/search' && st.searchOn, pressed && { backgroundColor: C.b400 }]} accessibilityLabel="Search" accessibilityRole="search">
-                <IconSearch color={path === '/search' ? C.primary : C.tx70} size={20} />
-              </Pressable>
-            </View>
-          )}
         </View>
       )}
     </View>
@@ -101,9 +97,5 @@ export function AppTabBar({ children }: { children: React.ReactNode }) {
 const st = StyleSheet.create({
   bar: { flexDirection: 'row', paddingHorizontal: 8, backgroundColor: 'rgba(0,0,0,0.92)', borderTopWidth: 1, borderTopColor: C.line },
   item: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  rule: { width: 1, height: 28, alignSelf: 'center', backgroundColor: C.line2 },
-  searchSlot: { width: 63, alignItems: 'center', justifyContent: 'center' },
-  search: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: C.b300, borderWidth: 1, borderColor: C.line },
-  searchOn: { borderColor: C.primary },
   icon: { width: 48, height: 28, paddingVertical: 4, paddingHorizontal: 14, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 })

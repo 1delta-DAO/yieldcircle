@@ -39,6 +39,8 @@ export function LiteYou() {
   const L = useLiteMenu()
   const { b } = L
   const t = totalsOf(b)
+  // what all of it earns a year at today's rates: every position's rate, weighted by the money in it, over every linked wallet
+  const rateNow = t.work >= 1 ? t.yearly / t.work * 100 : null
   const day = useDayLog(b)
   const stats = useMyStats(b.paper ? undefined : b.account)
   // a paper position's figure is the paper ledger's (the index never holds one): keyed as its holding is
@@ -69,7 +71,7 @@ export function LiteYou() {
       <div className="feed-h"><h1>You</h1>{b.paper && <span className="pill paper">paper</span>}<span className="sp" /><ChainChip /></div>
       <div className={`lstats${b.paper ? ' three' : ''}`}>
         <Stat k="You have" v={b.positionsLoading && !b.books.length ? <Sk w={80} h={20} /> : usd(t.tot)} s={t.idle >= 1 ? `${usdShort(t.idle)} idle` : 'all of it at work'} />
-        <Stat k="Earning" v={<span className="ok">+{usd(t.yearly / 365)}</span>} s={`a day · ${usdShort(t.yearly)} a year${t.work >= 1 && t.yearly > 0 ? ` · ${pct(t.yearly / t.work * 100, 1)} now` : ''}`} />
+        <Stat k="Earning now" v={rateNow != null ? <span className={rateNow >= 0 ? 'ok' : 'bad'}>{pct(rateNow, 1)}</span> : '–'} s={rateNow != null ? `a year on the ${usdShort(t.work)} at work · ${signedMoney(t.yearly / 365)} a day` : 'nothing at work yet'} />
         <Stat k="Streak" v={<span className="lstat-streak"><Flame size={18} />{day.streak}</span>} s={day.streak ? `${streakWord(day.streak)} in a row with money at work` : 'put money to work to start one'} />
         {!b.paper && <Stat k="Rank" v={stats.rank != null ? `#${stats.rank}` : 'Not yet'} s={stats.rank != null ? `on the board · ${usdShort(stats.perDay)} a day` : 'the board is the top 100 by dollars a day'} href={liteHref('board?t=perDay')} />}
       </div>

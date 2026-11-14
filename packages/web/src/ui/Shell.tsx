@@ -95,8 +95,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {tabList.map((t) => (
         <a key={t.id} href={t.href} aria-current={t.on(r) ? 'page' : undefined}>{t.icon}<span>{t.label}</span></a>
       ))}
-      {/* fomo's search in the tab bar (docs/lite-social-search.md §4.1): a round button after the tabs, not a fourth tab */}
-      {lite && cls === 'tabbar' && <a className={`lite-tab-search${r.view === 'search' ? ' on' : ''}`} href={liteHref('search')} aria-label="Search" title="Search">{SEARCH_IC}</a>}
+      {/* Lite's search on a phone: the bar's third tab, like the other two (a desk has the field in the top bar) */}
+      {lite && cls === 'tabbar' && <a href={liteHref('search')} aria-current={r.view === 'search' ? 'page' : undefined}>{SEARCH_IC}<span>Search</span></a>}
     </nav>
   )
   return (

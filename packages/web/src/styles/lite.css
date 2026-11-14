@@ -4,8 +4,8 @@
 
 /* ---------------------------------------------------------------- shell */
 body[data-mode=lite] .top .inner > .sp{flex:1}
-@media (max-width:767.98px){body[data-mode=lite] .tabbar{grid-template-columns:repeat(3,1fr) 64px}}
-/* search (docs/lite-social-search.md §4.1): a field-like link in the top bar on a desk, a round button after the tabs on a phone */
+@media (max-width:767.98px){body[data-mode=lite] .tabbar{grid-template-columns:repeat(3,1fr)}}
+/* search (docs/lite-social-search.md §4.1): a field-like link in the top bar on a desk, the bar's third tab on a phone */
 .lite-search-btn{display:flex;align-items:center;gap:8px;flex:0 1 300px;min-width:0;height:38px;margin-right:10px;padding:0 14px;border-radius:999px;background:var(--b300);border:1px solid transparent;color:var(--tx50);font-size:var(--fs-body);white-space:nowrap;overflow:hidden}
 .lite-search-btn span{overflow:hidden;text-overflow:ellipsis}
 .lite-search-btn:hover,.lite-search-btn.on{border-color:var(--line2);color:var(--tx70)}
@@ -14,11 +14,6 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .lite-you .feed-h .chainbtn,.lite-page .feed-h .chainbtn{min-height:34px;padding:0 12px;background:var(--b300);border-color:transparent;color:var(--tx70)}
 .lite-you .feed-h .chainbtn:hover,.lite-page .feed-h .chainbtn[aria-expanded="true"],.lite-you .feed-h .chainbtn[aria-expanded="true"]{border-color:var(--line2);color:var(--tx)}
 .lite-you .feed-h .chainbtn.on,.lite-page .feed-h .chainbtn.on{border-color:var(--primary);background:#062830;color:var(--tx)}
-.tabbar .lite-tab-search{align-self:center;justify-self:center;width:48px;height:48px;min-height:0;border-radius:50%;background:var(--b300);border:1px solid var(--line);color:var(--tx70)}
-.tabbar .lite-tab-search svg{width:20px;height:20px;padding:0;background:none}
-.tabbar .lite-tab-search.on{border-color:var(--primary);color:var(--primary)}
-/* set apart from the tabs by a hairline: a button that opens search, not a fourth place (docs/lite-design-review.md §3.6) */
-.tabbar .lite-tab-search::before{content:"";position:absolute;left:-9px;top:10px;bottom:10px;width:1px;background:var(--line2)}
 .tabs-top a,.tabbar a{position:relative}
 .tab-dot{position:absolute;top:8px;left:calc(50% + 10px);width:8px;height:8px;border-radius:50%;background:var(--primary)}
 .tabs-top .tab-dot{top:4px;left:auto;right:2px}

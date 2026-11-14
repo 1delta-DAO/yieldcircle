@@ -6,6 +6,10 @@
  * wallet is either whitelisted (sign, you're in), already waitlisted (you're
  * in line, access soon), or invited to join the waitlist (just an email — no
  * signature, so joining is one step and nobody stops short of it).
+ * No wallet (none yet, or not on this device) joins with the email alone
+ * ("No wallet? Just leave your email"): on the web that changes nothing they
+ * can do — paper trading is open to everyone — but it holds a place; on the
+ * landing it is the whole way to the iPhone app, whose invite goes to the email.
  * The connecting is the app's own wallet sheet (`src/wallet/GateBridge.tsx`):
  * every injected EVM wallet by name, WalletConnect, and the Solana wallets —
  * a Solana pubkey joins and signs in like any other address. Only a page whose
@@ -100,12 +104,13 @@ export const overlay = ({ waitlist = false, hidden = false, app = '' } = {}) => 
   <h1 id="yc-title">${app ? 'Get the iPhone app' : 'Join the waitlist'}</h1>
   <p id="yc-sub">${waitlist
     ? 'You&rsquo;re in on an access code, which isn&rsquo;t yours to keep. Connect your wallet and leave an email to hold a place of your own &mdash; access opens in waves.'
-    : app ? 'The YieldCircle iPhone app is in beta, and invites go out in waves through Apple&rsquo;s TestFlight. Connect your wallet and leave an email to get one.'
+    : app ? 'The YieldCircle iPhone app is in beta, and invites go out in waves through Apple&rsquo;s TestFlight. Connect your wallet and leave an email to get one &mdash; or just the email, if you don&rsquo;t have a wallet yet.'
     : 'Everything you see is live. Access opens in waves down the waitlist &mdash; connect your wallet to join it, or to walk in if it&rsquo;s your turn.'}</p>
   <div class="yc-row" id="yc-row">
     <input id="yc-email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" hidden />
     <button class="yc-btn" id="yc-go">Connect wallet</button>
   </div>
+  <a class="yc-back" id="yc-mail" href="#">No wallet? Just leave your email</a>
   <div id="yc-status"></div>
   <div class="yc-social" id="yc-social"><a class="yc-tg" href="${TELEGRAM_URL}" target="_blank" rel="noopener noreferrer">${tgMark(TELEGRAM_BLUE)}Join us on Telegram</a><a class="yc-x" href="${X_URL}" target="_blank" rel="noopener noreferrer" aria-label="YieldCircle on X" title="YieldCircle on X"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${X_D}" fill="currentColor"/></svg></a></div>${waitlist ? `
   <a class="yc-back" href="/">Back to the app</a>` : hidden ? `
@@ -123,6 +128,7 @@ export const overlay = ({ waitlist = false, hidden = false, app = '' } = {}) => 
   var address = null;
   var btn = $('yc-go');
   var gate = $('yc-gate');
+  var mailOnly = $('yc-mail');
 
   var toHex = function (b) { if (typeof b === 'string') b = new TextEncoder().encode(b); var o = '0x', i = 0; for (; i < b.length; i++) o += b[i].toString(16).padStart(2, '0'); return o; };
   var norm = function (a) { return a.indexOf('0x') === 0 ? a.toLowerCase() : a; };
@@ -179,10 +185,25 @@ export const overlay = ({ waitlist = false, hidden = false, app = '' } = {}) => 
     p.catch(function (e) {
       status(e && (e.shortMessage || e.message) ? (e.shortMessage || e.message) : String(e), true);
       btn.disabled = false;
+      if (next === start) mailOnly.style.display = '';
     });
   };
 
+  // no wallet: the email alone holds the place (and on the landing, gets the TestFlight invite)
+  mailOnly.onclick = function (e) {
+    e.preventDefault();
+    address = null;
+    var mm = $('yc-mm');
+    if (mm) mm.remove();
+    btn.style.display = '';
+    $('yc-sub').textContent = APP
+      ? 'No wallet needed. Leave the email your TestFlight invite should go to \\u2014 in the app you can trade on paper until you have one.'
+      : 'No wallet needed to hold a place. Leave an email and you\\u2019re in line \\u2014 paper trading is open right now.';
+    lineup();
+  };
+
   function start() {
+    mailOnly.style.display = 'none';
     status('Waiting for the wallet\\u2026');
     return wallet().then(function (got) {
       if (!got) return none();
@@ -197,7 +218,10 @@ export const overlay = ({ waitlist = false, hidden = false, app = '' } = {}) => 
   /** The bundle never registered and there is no injected wallet: the wallet's own browser is the way in. */
   function none() {
     var here = location.host + location.pathname + location.search;
-    $('yc-row').innerHTML = '<a class="yc-btn" href="https://metamask.app.link/dapp/' + here + '">Open in MetaMask</a>';
+    // beside the button, not over it: "No wallet?" brings the button back for the email
+    btn.insertAdjacentHTML('beforebegin', '<a class="yc-btn" id="yc-mm" href="https://metamask.app.link/dapp/' + here + '">Open in MetaMask</a>');
+    btn.style.display = 'none';
+    mailOnly.style.display = '';
     status('No wallet in this browser. Open this page in your wallet app\\u2019s browser (MetaMask, Rabby, Coinbase Wallet\\u2026), or on a desktop with a wallet extension.');
   }
 
@@ -231,10 +255,12 @@ export const overlay = ({ waitlist = false, hidden = false, app = '' } = {}) => 
   }
 
   function lineup() {
-    $('yc-sub').textContent = address.slice(0, 6) + '\\u2026' + address.slice(-4) + (APP
+    mailOnly.style.display = 'none';
+    if (address) $('yc-sub').textContent = address.slice(0, 6) + '\\u2026' + address.slice(-4) + (APP
       ? ' isn\\u2019t on the list yet. Leave the email your TestFlight invite should go to.'
       : ' isn\\u2019t on the waitlist yet. Leave an email and you\\u2019re in line.');
     $('yc-email').hidden = false;
+    $('yc-email').focus();
     btn.textContent = APP ? 'Request an invite' : 'Join the waitlist';
     btn.disabled = false;
     status('');
@@ -243,14 +269,17 @@ export const overlay = ({ waitlist = false, hidden = false, app = '' } = {}) => 
 
   function waiting(email) {
     $('yc-title').textContent = APP ? 'You\\u2019re on the list' : 'You\\u2019re on the waitlist';
+    var who = address ? 'This wallet' : 'This email';
     $('yc-sub').textContent = APP
-      ? (email ? 'We\\u2019ll send a TestFlight invite to ' + email : 'This wallet is on the list. We\\u2019ll email you a TestFlight invite') + ' when your wave opens. Until then, come say hi on Telegram.'
-      : (email ? 'We\\u2019ll email ' + email : 'This wallet is in line. We\\u2019ll email you') + ' the moment access reaches it \\u2014 it opens in waves. Until then, come say hi on Telegram.';
+      ? (email ? 'We\\u2019ll send a TestFlight invite to ' + email : who + ' is on the list. We\\u2019ll email you a TestFlight invite') + ' when your wave opens. Until then, come say hi on Telegram.'
+      : (email ? 'We\\u2019ll email ' + email : who + ' is in line. We\\u2019ll email you') + (address
+        ? ' the moment access reaches it \\u2014 it opens in waves. Until then, come say hi on Telegram.'
+        : ' when access opens. Paper trading needs no wallet: try it now, and connect one with this email once you have it.');
     var text = encodeURIComponent((APP ? 'On the list for the YieldCircle iPhone app' : 'On the YieldCircle waitlist') + ' \\u{1F440} ' + location.origin);
     // in line, the community is the next step: Telegram leads, sharing follows, and the quiet row goes
     $('yc-row').innerHTML = TG + '<a class="yc-btn yc-ghost" target="_blank" rel="noopener" href="https://x.com/intent/post?text=' + text + '">Share on X</a>';
     $('yc-social').style.display = 'none';
-    status(address);
+    status(address || '');
   }
 
   function request() {
@@ -258,7 +287,7 @@ export const overlay = ({ waitlist = false, hidden = false, app = '' } = {}) => 
     var email = el.value.trim().toLowerCase();
     if (!email || !el.checkValidity()) { status('Enter a valid email address.', true); btn.disabled = false; el.focus(); return; }
     status('Joining\\u2026');
-    return post('/gate/request', { address: address, email: email }).then(function (out) {
+    return post('/gate/request', address ? { address: address, email: email } : { email: email }).then(function (out) {
       // whitelisted after all: straight to signing in; already in line: the email on file stands
       return out.listed ? (APP ? onList() : ready()) : waiting(out.again ? undefined : email);
     });

@@ -26,6 +26,11 @@
  *                   visitor never joined the waitlist, so the app nudges them to: the
  *                   HTML carries `window.ycPass`, and `/?waitlist` serves them the
  *                   overlay in its waitlist mode (`src/wallet/gate.ts`)
+ *   TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET (Secrets), TELEGRAM_ADMIN — optional, the waitlist's
+ *                   Telegram bot: every new request is posted to the admins, who approve it there
+ *                   (`POST /gate/telegram`, `gate/bot.ts`). Needs only `WHITELIST`, not the gate's secret
+ *   ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY (Secret), ASC_GROUP_ID — optional, the bot's Approve
+ *                   also sends the TestFlight invite (`gate/testflight.ts`)
  *
  * Unconfigured (missing binding or secret) the gate is OFF and the app serves
  * normally — a misconfiguration must never take the site down.
@@ -35,9 +40,12 @@ import { overlay, message, norm } from '../gate/page'
 import { check, join, json, okAddress, type KV, type WaitUntil, type WaitlistEnv } from '../gate/waitlist'
 import { isSolAddr, base58Decode } from '@yieldcircle/core/model/address'
 import { contentSecurityPolicy } from '../gate/csp'
+import { webhook, type BotEnv } from '../gate/bot'
+import type { TestFlightEnv } from '../gate/testflight'
 
-interface Env extends Partial<WaitlistEnv> {
+interface Env extends Partial<WaitlistEnv>, TestFlightEnv {
   GATE_SECRET?: string
+  TELEGRAM_WEBHOOK_SECRET?: string
   GATE_OFF?: string
   GATE_PASS?: string
 }
@@ -59,6 +67,9 @@ async function withPolicy(res: Response, env: Env): Promise<Response> {
 export const onRequest = async ({ request, env, next, waitUntil }: Ctx): Promise<Response> => {
   const configured = !!(env.WHITELIST && env.GATE_SECRET) && env.GATE_OFF !== '1'
   const url = new URL(request.url)
+  if (request.method === 'POST' && url.pathname === '/gate/telegram' && env.WHITELIST && env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_WEBHOOK_SECRET) {
+    return webhook(request, env as BotEnv)
+  }
   if (configured) {
     const gated = env as Gated
     if (request.method === 'POST' && url.pathname === '/gate/verify') return verify(request, gated)

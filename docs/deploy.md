@@ -75,6 +75,9 @@ both Production and Preview:
 | Variables and Secrets (Secret, optional) | `RESEND_API_KEY` | resend.com API key — emails each `/lineup` request; without it requests are only stored |
 | Variables and Secrets (optional) | `NOTIFY_EMAIL` | where requests are mailed; defaults to `achim@1delta.io`. Resend's `onboarding@resend.dev` sender only delivers to the Resend account's own address, so sign up with this one (or verify a domain) |
 | Variables and Secrets (optional) | `GATE_OFF` | `1` opens the app to everyone — the end of the beta |
+| Variables and Secrets (Secret, optional) | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` | the waitlist bot (below) |
+| Variables and Secrets (optional) | `TELEGRAM_ADMIN` | Telegram user ids allowed to use the bot, comma-separated |
+| Variables and Secrets (optional; `ASC_PRIVATE_KEY` Secret) | `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY`, `ASC_GROUP_ID` | the bot's Approve also sends the TestFlight invite (`packages/web/gate/testflight.ts`) |
 | Variables and Secrets (Secret, optional) | `GATE_PASS` | an access code: `https://<site>/?access=<code>` lets the holder in for 30 days without a whitelisted wallet (hackathon judges, reviewers). Change it to stop new entries; rotate `GATE_SECRET` to also log out those already in |
 
 The gate is an **overlay**: the app always loads and stays visible behind a
@@ -87,7 +90,28 @@ real wallet in the wallet sheet, a real ticket, a real swap or bridge — sends
 them to the waitlist. Client-side, like the gate itself. Missing binding or secret =
 gate **off**, app open (a misconfiguration never takes the site down). Manage the list with `pnpm whitelist`
 (`add`, `remove`, `list`, `waitlist`, `wait`, `promote N` — see
-`scripts/whitelist.mjs`).
+`scripts/whitelist.mjs`), or from Telegram (below).
+
+**No wallet:** the card's "No wallet? Just leave your email" puts an email in
+line alone (`mail:<email>`). On the web that holds a place (paper is open
+anyway); on the landing it is the way to the iPhone app — the TestFlight
+invite goes to the email. `promote` skips these rows (no wallet to whitelist).
+
+**The waitlist bot** (`packages/web/gate/bot.ts`): every new request — from
+the app or the landing — is posted to the admins with an Approve button;
+`/pending`, `/find`, `/approve`, `/invite`, `/all` (CSV), `/stats`. Approve
+whitelists the row's wallet and, with the `ASC_*` secrets, invites its email to
+TestFlight. Its webhook is `POST /gate/telegram` on the app and needs only the
+`WHITELIST` binding. Setup, once:
+
+1. @BotFather → `/newbot` → the token. `openssl rand -hex 32` → the webhook secret.
+2. Both as Secrets on the app (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`), the token also on
+   the landing (it posts new requests there too); redeploy.
+3. `TELEGRAM_BOT_TOKEN=… TELEGRAM_WEBHOOK_SECRET=… pnpm telegram webhook`.
+4. Message the bot: it answers with your user id. Set it as `TELEGRAM_ADMIN` on both projects; redeploy.
+5. Optional, TestFlight from the bot: an App Store Connect Team Key with the App Manager role
+   (Users and Access → Integrations), its id, the issuer id, the `.p8` file's contents and the
+   Alpha group's id (the last part of its URL) as the four `ASC_*` variables on the app.
 
 **What the middleware runs on** (tickets/0022): the build writes `dist/_routes.json`
 (`packages/web/vite.config.ts`), which excludes `/assets/*` and every file in `public/`, so
@@ -127,6 +151,7 @@ Plus the three variables under [Monorepo builds](#monorepo-builds-both-pages-pro
 | Build variable (optional) | `VITE_APP_URL` | defaults to `https://app.yieldcircle.io` — every "Sign in" and app link |
 | Build variable (optional) | `VITE_SITE_URL` | defaults to `https://yieldcircle.io` |
 | Secret (optional) | `RESEND_API_KEY`, `NOTIFY_EMAIL` | as on the app — a request mail per new waitlist entry |
+| Secret / variable (optional) | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN` | as on the app — each new entry posted to the bot (its webhook is the app's) |
 
 The gate's card is built into the landing's `index.html` at build time
 (`packages/landing/vite.config.ts`), so nothing rewrites HTML at the edge. Locally:

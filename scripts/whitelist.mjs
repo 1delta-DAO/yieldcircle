@@ -4,9 +4,12 @@
 //   node scripts/whitelist.mjs add --file wave1.txt [--source wave1] one address per line
 //   node scripts/whitelist.mjs remove 0xabc…
 //   node scripts/whitelist.mjs list                                 whitelisted wallets
-//   node scripts/whitelist.mjs waitlist                             requests from /lineup as CSV: address,email,when
+//   node scripts/whitelist.mjs waitlist                             requests as CSV: address,email,when (address empty: email only)
 //   node scripts/whitelist.mjs wait 0xabc… [--email you@x.y]        waitlist addresses by hand (same write as the gate)
-//   node scripts/whitelist.mjs promote 100                          whitelist the 100 oldest waitlist entries
+//   node scripts/whitelist.mjs promote 100                          whitelist the 100 oldest waitlisted wallets
+//
+// Email-only rows (`mail:<email>`, joined without a wallet) are listed by `waitlist` but have no
+// wallet to promote; approve them, and send their TestFlight invite, from the Telegram bot (gate/bot.ts).
 //
 // Both layers in one go (the wait: row is kept for the record; wl: wins):
 //   node scripts/whitelist.mjs wait 0xabc… --email you@x.y && node scripts/whitelist.mjs add 0xabc…
@@ -50,12 +53,13 @@ const addresses = (list) => {
 
 const entries = (prefix) => JSON.parse(wrangler('key', 'list', '--prefix', prefix))
 const keys = (prefix) => entries(prefix).map((k) => k.name)
-const pending = () => {
+const pending = ({ mail = false } = {}) => {
   const listed = new Set(keys('wl:').map((k) => k.slice(3)))
-  return entries('wait:')
+  const wallets = entries('wait:')
     .map((k) => ({ a: k.name.slice(5), email: k.metadata?.email ?? '', ts: k.metadata?.ts ?? '' }))
     .filter((x) => !listed.has(x.a))
-    .sort((x, y) => x.ts.localeCompare(y.ts))
+  const emails = mail ? entries('mail:').filter((k) => !k.metadata?.ok).map((k) => ({ a: '', email: k.name.slice(5), ts: k.metadata?.ts ?? '' })) : []
+  return [...wallets, ...emails].sort((x, y) => x.ts.localeCompare(y.ts))
 }
 
 const bulk = (rows) => {
@@ -88,7 +92,7 @@ switch (cmd) {
     console.log(keys('wl:').map((k) => k.slice(3)).join('\n'))
     break
   case 'waitlist':
-    console.log(pending().map((x) => `${x.a},${x.email},${x.ts}`).join('\n'))
+    console.log(pending({ mail: true }).map((x) => `${x.a},${x.email},${x.ts}`).join('\n'))
     break
   case 'wait': {
     const email = flag('email') ?? ''

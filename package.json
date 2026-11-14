@@ -21,6 +21,7 @@
     "deploy:landing": "pnpm --filter @yieldcircle/landing run deploy",
     "ship": "scripts/ship-all.sh",
     "whitelist": "node scripts/whitelist.mjs",
+    "telegram": "node scripts/telegram.mjs",
     "logos": "node scripts/logos.mjs",
     "brand-icons": "node scripts/brand-icons.mjs",
     "notes": "node scripts/notes.mjs",

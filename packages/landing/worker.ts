@@ -8,7 +8,8 @@
  * set on the app's origin — so there is no `/gate/verify` here.
  *
  * Bindings (Pages → Settings): `WHITELIST` KV, the app's namespace;
- * `RESEND_API_KEY` (Secret) and `NOTIFY_EMAIL` optional, as on the app. Without the KV binding the endpoints
+ * `RESEND_API_KEY` (Secret), `NOTIFY_EMAIL`, and `TELEGRAM_BOT_TOKEN` (Secret) + `TELEGRAM_ADMIN` (a
+ * request posted to the bot, whose webhook lives on the app) optional, as on the app. Without the KV binding the endpoints
  * answer 503 and the page still serves.
  */
 import { check, join, json, type WaitlistEnv } from '../web/gate/waitlist'

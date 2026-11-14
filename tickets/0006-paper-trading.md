@@ -404,11 +404,15 @@ address means either someone else has it or the password was mistyped — both s
 password on an existing name is caught instead of silently making an empty
 second account.
 
-**Sign in and create are one form** (the *Paper account* entry in `ConnectSheet`):
-name, password, one button. The app derives the address, looks up its profile
-(`profiles([addr])`): found → signed in; not found and the handle free → "No
-paper account for this name and password yet — create it?" with the one warning
-that matters: *there is no reset; a new password is a new account; never send
+**Sign up and log in are one form with the choice on top** (the *Paper account*
+entry in `ConnectSheet`): a *Sign up · Log in* switch, name, password, one button.
+The switch opens on *Log in* (name filled in) when this device has stayed signed
+in to an account before — the name is remembered past a sign-out — else on
+*Sign up*. The app derives the address and looks up its profile
+(`profiles([addr])`): found → in, whichever was chosen; not found and the handle
+free → *Sign up* creates it at once, *Log in* says there is no such account. There
+is no "create it?" step: *Sign up* carries the one warning that matters on the
+form itself — *there is no reset; a new password is a new account; never send
 real money here.* The derived key then lives in localStorage ("stay signed in",
 default on); **Sign out** wipes it; the password is never stored anywhere.
 

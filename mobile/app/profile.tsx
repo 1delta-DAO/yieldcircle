@@ -79,6 +79,7 @@ export default function Profile() {
             </View>
           ) : <Wallets />}
           {own && <Link label="Edit your name and face" onPress={() => router.push('/me')} />}
+          {(own || paper.active) && <Link label="Activity · your transactions" onPress={() => router.push('/activity')} />}
         </View>
 
         {author && !viewAs && <Fold label="Your wallets" state="one profile across your addresses" on={false}><View style={{ padding: 14, paddingTop: 0 }}><LinkedWallets account={author} /></View></Fold>}

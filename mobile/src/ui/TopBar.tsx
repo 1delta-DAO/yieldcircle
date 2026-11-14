@@ -12,6 +12,8 @@ import { useProfile } from '@yieldcircle/app/social/queries'
 import { usePending } from '@yieldcircle/app/social/pending'
 import { Character } from './Character'
 import { Txt } from './Txt'
+import { Orbit } from './outcome/Ring'
+import { useActivity } from '@yieldcircle/app/sdk/activity'
 
 /**
  * The web's top bar on a phone (app.css `.top` under 768px): the face left — profile and settings,
@@ -25,6 +27,8 @@ export function TopBar({ pro, on }: { pro?: boolean; /** You is open: the chip i
   const t = totalsOf(b)
   const p = useProfile(b.account).data?.profile ?? null
   const waiting = usePending().count > 0
+  // a transaction on its way: the chip's mark turns, where the eye is when the pill is covered
+  const busy = useActivity().live.length > 0
   return (
     <View style={[st.bar, { paddingTop: insets.top, height: 60 + insets.top }]}>
       <Pressable onPress={() => router.push('/profile')} hitSlop={4} style={st.me} accessibilityLabel="Profile and settings">
@@ -37,7 +41,7 @@ export function TopBar({ pro, on }: { pro?: boolean; /** You is open: the chip i
           <Txt s={16} c={C.tx40} numberOfLines={1} style={{ flex: 1 }}>Search wallets, vaults, protocols</Txt>
         </Pressable>
       ) : <View style={{ flex: 1 }} />}
-      {b.account ? <BalanceChip tot={t.tot} perDay={t.yearly / 365} loading={b.positionsLoading && !b.books.length} on={!!on} />
+      {b.account ? <BalanceChip tot={t.tot} perDay={t.yearly / 365} loading={b.positionsLoading && !b.books.length} on={!!on} busy={busy} />
         : (
         <Pressable onPress={() => open()} style={({ pressed }) => [st.pill, st.connect, pressed && { transform: [{ scale: 0.97 }] }]}>
           <Txt s={12.5} w={600} c={C.primaryInk}>Connect</Txt>
@@ -48,10 +52,11 @@ export function TopBar({ pro, on }: { pro?: boolean; /** You is open: the chip i
 }
 
 /** The web's balance chip (`.lite-chip`): a wallet mark, what you have, what it earns a day — You behind it. */
-export function BalanceChip({ tot, perDay, loading, on }: { tot: number; perDay: number; loading: boolean; on: boolean }) {
+export function BalanceChip({ tot, perDay, loading, on, busy }: { tot: number; perDay: number; loading: boolean; on: boolean; /** a transaction is on its way */ busy?: boolean }) {
   return (
     <Pressable onPress={() => router.push('/you')} style={[st.chip, on && { backgroundColor: C.priBg, borderColor: C.primary }]} accessibilityLabel="You">
       <View style={st.chipIc}>
+        {busy && <View style={{ position: 'absolute', left: -3, top: -3 }}><Orbit size={38} /></View>}
         <Svg width={18} height={18} viewBox="0 0 20 20" fill="none" stroke={C.primary} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"><Rect x="2.5" y="5" width="15" height="11" rx="2.5" /><Path d="M2.5 8.5h15" /><Circle cx="13.5" cy="12.3" r="1.2" fill={C.primary} stroke="none" /></Svg>
       </View>
       <View>

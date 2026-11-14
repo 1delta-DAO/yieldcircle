@@ -5,7 +5,7 @@ import { base58Encode, isSvmChain, normAddr } from '@yieldcircle/core/model/addr
 import { nativeSymbol, WRAPPED_NATIVE } from '@yieldcircle/core/model/positions'
 import { venueLabel } from '@yieldcircle/core/model/strategies'
 import { useLiveBalances } from './sdk/liveBalances'
-import { baselineOf, batchFailed, batchLanded, batchTraceId, hasLanded, isBatchTrace, isDone, markBatch, tracePaper, traceBatch, traceTx, useTrace, type Baseline, type Moves } from './sdk/txTrace'
+import { baselineOf, batchFailed, batchLanded, batchTraceId, hasLanded, isBatchTrace, isDone, markBatch, tracePaper, traceBatch, traceTx, useTrace, type Baseline, type Moves, type Receipt } from './sdk/txTrace'
 import { isRejection } from '@yieldcircle/core/sdk/walletErrors'
 import type { PaperOp } from '@yieldcircle/core/model/paper'
 import { usePlatform } from './platform'
@@ -45,7 +45,8 @@ import { useSession } from './session'
 export type Step = { kind: 'permission' | 'setup' | 'route'; tx: AnyTx; label: string; hash?: string; done?: boolean; onFail?: string; moves?: Moves }
 /** A token the action moves in the wallet — paid with, or paid back into (a close, a swap's leftover). */
 export type Watch = { address: string | undefined; symbol?: string }
-type Bundle = { steps: Step[]; title?: string; touches?: string[]; watch?: { address: string; symbol?: string }[] }
+/** `receipt`: what the action is, for its end screen — handed to the trace of the step that moves the position. */
+type Bundle = { steps: Step[]; title?: string; touches?: string[]; watch?: { address: string; symbol?: string }[]; receipt?: Receipt }
 /**
  * Does the wallet batch atomically on this chain (EIP-5792 `wallet_getCapabilities`)? `atomic` as
  * `supported`, or `ready` — it upgrades the EOA on first use (EIP-7702) — and the draft's
@@ -57,8 +58,11 @@ export function canBatchOn(caps: unknown, chainId: string | number | undefined):
   return c?.atomic?.status === 'supported' || c?.atomic?.status === 'ready' || c?.atomicBatch?.supported === true
 }
 
-/** `batch`: the `wallet_sendCalls` id in flight, until the wallet reports the transaction it became (or the chain did first). */
-type Saved = { key: string; bundle: Bundle; pending?: string; batch?: string }
+/**
+ * `batch`: the `wallet_sendCalls` id in flight, until the wallet reports the transaction it became (or the chain did first).
+ * `failed`: the trace of the send that ended badly, until the ticket's failure screen is left.
+ */
+type Saved = { key: string; bundle: Bundle; pending?: string; batch?: string; failed?: string }
 const SS = 'yieldcircle.bundle'
 type Scratch = ReturnType<typeof usePlatform>['scratch']
 const load = (x: Scratch, key: string): Saved | null => { try { const v = JSON.parse(x.get(SS) ?? 'null') as Saved | null; return v && v.key === key ? v : null } catch { return null } }
@@ -153,6 +157,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   const [bundle, setBundle] = React.useState<Bundle | null>(() => load(scratch, key)?.bundle ?? null)
   const [pending, setPending] = React.useState<string | undefined>(() => load(scratch, key)?.pending)
   const [batch, setBatch] = React.useState<string | undefined>(() => load(scratch, key)?.batch)
+  const [failed, setFailed] = React.useState<string | undefined>(() => load(scratch, key)?.failed)
   const [batchSigning, setBatchSigning] = React.useState(false)
   const [noBatch, setNoBatch] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
@@ -170,17 +175,17 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   React.useEffect(() => {
     if (first.current) { first.current = false; return }
     const saved = load(scratch, key)
-    setBundle(saved?.bundle ?? null); setPending(saved?.pending); setBatch(saved?.batch); setErr(null)
+    setBundle(saved?.bundle ?? null); setPending(saved?.pending); setBatch(saved?.batch); setFailed(saved?.failed); setErr(null)
   }, [key])
-  React.useEffect(() => { save(scratch, bundle ? { key, bundle, pending, batch } : null) }, [key, bundle, pending, batch])
-  const start = async (title?: string) => {
-    setBusy(true); setErr(null)
+  React.useEffect(() => { save(scratch, bundle ? { key, bundle, pending, batch, failed } : null) }, [key, bundle, pending, batch, failed])
+  const start = async (title?: string, receipt?: Receipt) => {
+    setBusy(true); setErr(null); setFailed(undefined)
     try {
       // the ticket builds for `actorOn`; it must be the wallet that signs, and never a `?as=` view (security review #1)
       const who = svm ? sol.account?.address : address?.toLowerCase()
       if (!who || session.actorOn?.(chainId) !== who) throw new Error('This ticket is not built for the connected wallet.')
       if (session.viewAs && normAddr(session.viewAs) !== who) throw new Error('You are viewing another wallet: stop viewing it to sign.')
-      const steps = await build(); if (!steps.length) throw new Error('the API returned nothing to sign'); setPending(undefined); setBundle({ steps, title, touches: touches.filter((u): u is string => !!u), watch: watch.filter((w): w is { address: string; symbol?: string } => !!w.address) }) }
+      const steps = await build(); if (!steps.length) throw new Error('the API returned nothing to sign'); setPending(undefined); setBundle({ steps, title, receipt, touches: touches.filter((u): u is string => !!u), watch: watch.filter((w): w is { address: string; symbol?: string } => !!w.address) }) }
     catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
   const next = bundle?.steps.find((s) => !s.done)
@@ -193,7 +198,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
   // only the step that waits for the positions watches the wallet: an approval moves nothing, a wrap is its own read
   const watchOf = (st: Step) => ((st.moves ?? 'positions') === 'positions' ? bundle?.watch?.map((w) => ({ chainId, ...w })) : undefined)
   const follow = (hash: string, st: Step, lastValidHeight?: number, base?: Baseline) =>
-    signer && traceTx({ hash, chainId, account: signer, title: bundle?.title ?? st.label, label: st.label, moves: st.moves ?? 'positions', touches: bundle?.touches, lastValidHeight, watch: watchOf(st) }, base)
+    signer && traceTx({ hash, chainId, account: signer, title: bundle?.title ?? st.label, label: st.label, moves: st.moves ?? 'positions', touches: bundle?.touches, lastValidHeight, watch: watchOf(st), receipt: (st.moves ?? 'positions') === 'positions' ? bundle?.receipt : undefined }, base)
   /** The step a batch is followed as: the one that moves the positions, else its last. */
   const mainOf = (steps: Step[]) => steps.find((s) => s.moves === 'positions') ?? steps[steps.length - 1]
   // a ladder restored after a reload whose trace did not survive (storage off): pick the hash up again
@@ -203,15 +208,15 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
     if (hasLanded(tr)) { setBundle((b) => b && { ...b, steps: b.steps.map((s) => (s.hash === pending ? { ...s, done: true } : s)) }); setPending(undefined) }
     else if (isDone(tr) && isBatchTrace(pending)) {
       // all of it or none: no step's `onFail` applies, and the steps go out again as a batch
-      setErr(tr.err ?? 'The batch did not go through.'); setPending(undefined); setBatch(undefined)
+      setErr(tr.err ?? 'The batch did not go through.'); setFailed(pending); setPending(undefined); setBatch(undefined)
       setBundle((b) => b && { ...b, steps: b.steps.map((s) => (s.hash === pending ? { ...s, hash: undefined } : s)) })
     }
-    else if (isDone(tr)) { setErr(tr.phase === 'reverted' ? pendingStep?.onFail ?? 'the transaction reverted' : tr.err ?? 'the transaction did not go through'); setPending(undefined) }
+    else if (isDone(tr)) { setErr(tr.phase === 'reverted' ? pendingStep?.onFail ?? 'the transaction reverted' : tr.err ?? 'the transaction did not go through'); setFailed(pending); setPending(undefined) }
   }, [pending, tr?.phase])
   const wrongChain = !svm && walletChain !== Number(chainId)
   const sendNext = async () => {
     if (!next) return
-    setErr(null)
+    setErr(null); setFailed(undefined)
     if (svm) {
       const tx = next.tx
       if (!isSvmTx(tx)) { setErr('the API answered an EVM step for a Solana chain'); return }
@@ -225,7 +230,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
       } catch (e) {
         const m = (e as Error).message
         if (/expired|block ?height|blockhash/i.test(m)) { setBundle(null); setPending(undefined); setErr(EXPIRED) }
-        else setErr(shortErr(m))
+        else setErr(isRejection(e) ? REJECTED : shortErr(m))
       }
       return
     }
@@ -244,13 +249,13 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
         const { id } = await walletClient.sendCalls({ account: walletClient.account, chain: walletClient.chain, calls, forceAtomic: true })
         const sent = new Set(together)
         const [m, b] = await Promise.all([mark, base])
-        const tid = signer ? traceBatch({ walletId: id, chainId, account: signer, title: bundle?.title ?? main.label, label: main.label, moves: main.moves ?? 'positions', touches: bundle?.touches, watch: watchOf(main), mark: m }, b) : batchTraceId(id)
+        const tid = signer ? traceBatch({ walletId: id, chainId, account: signer, title: bundle?.title ?? main.label, label: main.label, moves: main.moves ?? 'positions', touches: bundle?.touches, watch: watchOf(main), mark: m, receipt: bundle?.receipt }, b) : batchTraceId(id)
         // every step in it is followed as the batch: done together when it lands
         setBundle((x) => x && { ...x, steps: x.steps.map((s) => (sent.has(s) ? { ...s, hash: tid } : s)) })
         setPending(tid)
         setBatch(id)
       } catch (e) {
-        if (isRejection(e)) setErr('Rejected in the wallet — nothing was sent.')
+        if (isRejection(e)) setErr(REJECTED)
         // the wallet would not take it as one: the same steps, one per tap (a second tap, so the hand-off stays live on iOS)
         else { setNoBatch(true); setErr('Your wallet would not send these as one batch. Send them one at a time below.') }
       } finally { setBatchSigning(false) }
@@ -261,7 +266,7 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
       const hash = await send.sendTransactionAsync({ to: tx.to as `0x${string}`, data: tx.data as `0x${string}`, value: BigInt(tx.value || '0') })
       follow(hash, next)
       setPending(hash); setBundle((b) => b && { ...b, steps: b.steps.map((s) => (s === next ? { ...s, hash } : s)) })
-    } catch (e) { setErr(next.onFail && /revert/i.test((e as Error).message) ? next.onFail : shortErr((e as Error).message)) }
+    } catch (e) { setErr(isRejection(e) ? REJECTED : next.onFail && /revert/i.test((e as Error).message) ? next.onFail : shortErr((e as Error).message)) }
   }
   // a batch the wallet took: its report, when it comes, hands the trace the transaction (the chain may have first).
   // A wallet that never reports — in the background on a phone — is no error: the trace asks the chain
@@ -275,16 +280,24 @@ export function useLadder(key: string, chainId: string, build: () => Promise<Ste
     }).catch(() => { if (live) setBatch(undefined) })
     return () => { live = false }
   }, [batch, !!walletClient])
-  const reset = () => { setBundle(null); setPending(undefined); setBatch(undefined); setErr(null) }
+  const reset = () => { setBundle(null); setPending(undefined); setBatch(undefined); setFailed(undefined); setErr(null) }
   // a request out to a wallet in another app: the button brings it back rather than sitting disabled.
   // A Solana wallet is an extension in this tab — nothing to bring back.
   const remote = !svm && isRemote(connector?.id)
   const reopen = () => { if (!svm) openWallet(connector?.id) }
   const done = bundle ? bundle.steps.filter((s) => s.done).length : 0
   // every step in a block is not yet every number on screen: the action's own trace says when it is
-  const main = useTrace(bundle?.steps.find((s) => s.moves === 'positions')?.hash)
+  const traceId = bundle?.steps.find((s) => s.moves === 'positions')?.hash
+  const main = useTrace(traceId)
   const finished = !!bundle && !next
-  return { bundle, next, together, done, total: bundle?.steps.length ?? 0, pending: pending ?? batch, err, busy, start, sendNext, reset, isConnected: svm ? !!sol.account : isConnected, wrongChain, switching, signing: send.isPending || batchSigning, remote, reopen, finished, settled: finished && (!main || isDone(main)), main }
+  // every step out (a batch's hash is on each), not yet all in a block: the end screen can take over
+  const sent = !!bundle && bundle.steps.every((s) => !!s.hash) && !failed
+  const failedStep = failed ? bundle?.steps.find((s) => s.hash === failed) : undefined
+  return { bundle, next, together, done, total: bundle?.steps.length ?? 0, pending: pending ?? batch, err, busy, start, sendNext, reset, isConnected: svm ? !!sol.account : isConnected, wrongChain, switching, signing: send.isPending || batchSigning, remote, reopen, finished, settled: finished && (!main || isDone(main)), main,
+    /** the trace the action's end screen follows: the step that moves the position */
+    traceId, sent,
+    /** a send that ended badly (its trace), the step it was, and leaving its failure screen for the step list */
+    failed, failedStep, dismissFailed: () => { setBundle((b) => b && { ...b, steps: b.steps.map((s) => (s.hash === failed ? { ...s, hash: undefined } : s)) }); setFailed(undefined); setErr(null) } }
 }
 export type Ladder = ReturnType<typeof useLadder> & { paper?: boolean }
 
@@ -315,7 +328,7 @@ const loadPaper = (x: Scratch, key: string): Bundle | null => { try { const v = 
  */
 const FUNDS_ONLY = /insufficient|balance|allowance|not enough|funds|AccountNotFound|does not exist on chain|token account/i
 
-export function usePaperLadder(key: string, chainId: string, plan?: () => Promise<PaperBuilt>, dryBuild?: () => Promise<Step[]>): Ladder {
+export function usePaperLadder(key: string, chainId: string, plan?: () => Promise<PaperBuilt>, dryBuild?: () => Promise<Step[]>, touches: (string | undefined)[] = []): Ladder {
   const paper = useSession().paper
   const { scratch } = usePlatform()
   // mirrored like the real ladder's: the position a confirm creates remounts the ticket body (its
@@ -326,7 +339,7 @@ export function usePaperLadder(key: string, chainId: string, plan?: () => Promis
   const [busy, setBusy] = React.useState(false)
   const first = React.useRef(true)
   React.useEffect(() => { if (first.current) { first.current = false; return } setBundleRaw(loadPaper(scratch, key)); setErr(null) }, [key])
-  const start = async (title?: string) => {
+  const start = async (title?: string, receipt?: Receipt) => {
     if (!plan) { setErr('This action is not available on paper yet.'); return }
     setBusy(true); setErr(null)
     try {
@@ -339,7 +352,7 @@ export function usePaperLadder(key: string, chainId: string, plan?: () => Promis
       const b = await plan()
       if (!paper?.act || !paper.session) throw new Error('Sign in to a paper account first.')
       await paper.act(b.op, b.names)
-      const id = tracePaper({ id: (b.op as { id?: string }).id ?? Math.random().toString(16).slice(2), chainId, account: paper.session.evm, title: title ?? 'Paper', label: 'on paper', bridge: b.bridge ? { name: b.bridge.name, toChainId: b.bridge.toChainId } : undefined, arrivesAt: b.arrivesAt })
+      const id = tracePaper({ id: (b.op as { id?: string }).id ?? Math.random().toString(16).slice(2), chainId, account: paper.session.evm, title: title ?? 'Paper', label: 'on paper', bridge: b.bridge ? { name: b.bridge.name, toChainId: b.bridge.toChainId } : undefined, arrivesAt: b.arrivesAt, receipt, touches })
       setBundle({ steps: [{ kind: 'route', tx: PAPER_TX, label: title ?? 'Paper', hash: id, done: true, moves: 'positions' }], title })
     } catch (e) { setErr((e as Error).message) } finally { setBusy(false) }
   }
@@ -347,6 +360,7 @@ export function usePaperLadder(key: string, chainId: string, plan?: () => Promis
   return {
     bundle, next: undefined, together: null, done: bundle ? 1 : 0, total: bundle ? 1 : 0, pending: undefined, err, busy, start, sendNext: async () => {}, reset: () => { setBundle(null); setErr(null) },
     isConnected: !!paper?.active, wrongChain: false, switching: false, signing: false, remote: false, reopen: () => {}, finished, settled: finished, main: undefined, paper: true,
+    traceId: bundle?.steps[0]?.hash, sent: finished, failed: undefined, failedStep: undefined, dismissFailed: () => setErr(null),
   }
 }
 
@@ -358,7 +372,8 @@ export function useTicketLadder(key: string, chainId: string, build: () => Promi
   const real = useLadder(key, chainId, build, touches, watch)
   const onPaper = !!useSession().paper?.active
   // `dryRun`: on paper, the real build runs first, unsigned (tickets/0006: paper may do only what the API would build)
-  const paper = usePaperLadder(key, chainId, plan, dryRun ? build : undefined)
+  const paper = usePaperLadder(key, chainId, plan, dryRun ? build : undefined, touches)
   return onPaper ? paper : real
 }
 const shortErr = (m: string) => (m.length > 160 ? m.slice(0, 160) + '…' : m)
+const REJECTED = 'Rejected in the wallet — nothing was sent.'

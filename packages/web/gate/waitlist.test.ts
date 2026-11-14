@@ -84,4 +84,20 @@ describe('the bot', () => {
     expect((await entries(e))[0].ok).toBe(true)
     expect(sent.some((s) => s.method === 'sendMessage' && String(s.body.text).startsWith('✓'))).toBe(true)
   })
+
+  it('lists the waiting wallets, and mails the approved', async () => {
+    const e = { ...env(), RESEND_API_KEY: 'r', MAIL_FROM: 'YieldCircle <team@yieldcircle.io>' }
+    const sent = telegram()
+    const a = '0x' + 'cd'.repeat(20)
+    await join(request({ address: a, email: 'w@conf.io' }), e, noWait)
+    await join(request({ email: 'nowallet@conf.io' }), e, noWait)
+    await update(e, { message: { chat: { id: 42 }, from: { id: 42 }, text: '/wallets' } })
+    expect(String(sent[0].body.text)).toContain(a)
+    expect(String(sent[0].body.text)).not.toContain('nowallet')
+    await update(e, { message: { chat: { id: 42 }, from: { id: 42 }, text: `/approve ${a}` } })
+    // the first mail is the request notice to the team; the welcome is the last
+    const mail = sent.filter((s) => s.method === 'emails').at(-1)
+    expect(mail?.body).toMatchObject({ to: ['w@conf.io'] })
+    expect(String(mail?.body.text)).toContain(a)
+  })
 })

@@ -1,5 +1,5 @@
 import React from 'react'
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useGoPaper } from '../ui/paper'
@@ -9,6 +9,11 @@ import { normaliseDecimal, type Amount } from '@yieldcircle/core/model/amount'
 import { cents } from '@yieldcircle/core/model/format'
 import type { Line, ThreeLines } from '@yieldcircle/core/model/lite'
 import type { Ladder, Step } from '@yieldcircle/app/ladder'
+import type { Receipt } from '@yieldcircle/app/sdk/txTrace'
+import { useBook } from '@yieldcircle/app/book'
+import { useSession } from '@yieldcircle/app/session'
+import { OutcomeView } from '../ui/outcome/Outcome'
+import { sharePosition } from '../ui/lite'
 import { useTrace, isDone } from '@yieldcircle/app/sdk/txTrace'
 import { phaseWords, useNow } from '@yieldcircle/app/sdk/txWords'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
@@ -70,6 +75,7 @@ export function AmountBox({ unit, value, onChange, onMax, soft }: { unit: string
         onChangeText={(raw) => { const r = raw.replace(/[^0-9.,\s]/g, ''); setText(r); const t = normaliseDecimal(r); const c = t === '' || t === '.' ? '0' : t; emitted.current = c; onChange({ text: c }) }}
         onBlur={() => { const t = normaliseDecimal(text); setText(t === '' || t === '.' ? '0' : t.endsWith('.') ? t.slice(0, -1) : t) }}
         style={[st.input, soft && { fontSize: 16 }]}
+        placeholder="0"
         placeholderTextColor={C.tx40}
       />
       {unit !== '$' && <Txt s={13} mono c={C.tx50}>{unit}</Txt>}
@@ -195,11 +201,17 @@ export function GetLine({ account, short, symbol, onOpen }: { account?: string; 
 /** The strategy's thread, for "Say why" at the ticket's foot: set by the ticket screen, null where there is none (a loan). */
 export const ThreadCtx = React.createContext<ThreadRef | null>(null)
 
-/** The bottom of the ticket (`Action`): one button and "Say why", then the ladder once it is built — and "Say why" again when it is done. */
-export function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string }) {
+/**
+ * The bottom of the ticket (`Action`): one button and "Say why", then the ladder once it is built.
+ * Once every step is out, the end screen takes over the whole sheet (`TicketEnd`): the ring while it
+ * lands, the order and the confetti when it has, where the money is when it did not.
+ * `receipt`: what the action is, in the words that screen needs (docs/tx-feedback-plan.md §3.1).
+ */
+export function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId, receipt }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string; receipt?: Receipt }) {
   const { open } = useAppKit()
   const thread = React.useContext(ThreadCtx)
   const goPaper = useGoPaper()
+  const end = <TicketEnd l={l} label={label} receipt={receipt} />
   if (!l.bundle) return (
     <View style={st.cta}>
       {!!l.err && <Txt s={12.5} c={C.bad} style={{ marginBottom: 8 }}>{l.err}</Txt>}
@@ -211,14 +223,15 @@ export function Action({ ladder: l, label, account, isConnected, disabled, risky
         // someone else's address on screen (the browser render's `?as=`): nothing to sign with
         : !isConnected ? <Btn wide kind="plain" disabled title={`Viewing ${account.slice(0, 6)}… · connect to sign`} />
         : !l.isConnected ? <Btn wide kind="plain" disabled title="Connect a wallet to sign" />
-        : l.paper ? <Btn wide kind="paper" title={l.busy ? 'Applying on paper…' : blockedNote ?? `Confirm paper ${label}`} disabled={disabled || l.busy} onPress={() => l.start(label)} />
-        : <Btn wide title={l.busy ? 'Building…' : blockedNote ?? (risky ? `${label} anyway` : label)} kind={risky ? 'risky' : 'pri'} disabled={disabled || l.busy} onPress={() => l.start(label)} />}
+        : l.paper ? <Btn wide kind="paper" title={l.busy ? 'Applying on paper…' : blockedNote ?? `Confirm paper ${label}`} disabled={disabled || l.busy} onPress={() => l.start(label, receipt)} />
+        : <Btn wide title={l.busy ? 'Building…' : blockedNote ?? (risky ? `${label} anyway` : label)} kind={risky ? 'risky' : 'pri'} disabled={disabled || l.busy} onPress={() => l.start(label, receipt)} />}
       {isConnected && !l.paper && <SayWhy on={thread} />}
       <Txt s={12} c={C.tx40} lh={17} style={{ marginTop: 8 }}>{l.paper ? 'Play money on real rates and real quotes. Nothing is signed or sent on chain.' : `Your wallet asks you to sign: once where it can batch the steps. Network fee on ${chainLabel(chainId)}.`}</Txt>
     </View>
   )
   return (
     <View style={st.cta}>
+      {end}
       <Lbl>{l.paper ? 'Done on paper' : l.settled ? 'Done' : l.finished ? 'Updating your positions…' : l.signing ? 'Confirm in your wallet' : l.pending ? 'Waiting for the block…' : 'Sign in your wallet'}</Lbl>
       <View style={{ gap: 8 }}>
         {l.bundle.steps.map((s, i, all) => {
@@ -232,13 +245,46 @@ export function Action({ ladder: l, label, account, isConnected, disabled, risky
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
         <View style={{ flex: 1 }}>
           {l.finished
-            ? <Btn wide title={l.settled ? 'See your positions' : 'Updating your positions…'} disabled={!l.settled} onPress={() => { router.dismissAll(); router.replace('/') }} />
+            ? <Btn wide title={l.settled ? 'See your positions' : 'Updating your positions…'} disabled={!l.settled} onPress={() => { router.dismissAll(); router.push('/you') }} />
             : <Btn wide disabled={!!l.pending || l.switching} onPress={l.signing ? l.reopen : l.sendNext}
                 title={l.switching ? 'Switching…' : l.wrongChain ? `Switch wallet to ${chainLabel(chainId)}` : l.signing ? 'Open your wallet to confirm' : l.pending ? 'Waiting for the block…' : l.together ? `Send all ${l.together.length} in one` : `Send ${l.done + 1} of ${l.total}`} />}
         </View>
         <Btn kind="plain" title="Reset" disabled={!!l.pending} onPress={l.reset} />
       </View>
     </View>
+  )
+}
+
+/**
+ * The ticket's end screen, over the whole sheet: a full-screen modal from the moment every step is out
+ * (or one came back badly) until it is left. "Done" closes the ticket; "Try again" rebuilds the same
+ * action; "Send it again" goes back to the steps when earlier ones landed. Leaving it while it is on
+ * its way closes the ticket too: the pill above the tabs takes over.
+ */
+function TicketEnd({ l, label, receipt }: { l: Ladder; label: string; receipt?: Receipt }) {
+  const thread = React.useContext(ThreadCtx)
+  const b = useBook()
+  const { account } = useSession()
+  const id = l.failed ?? (l.sent ? l.traceId : undefined)
+  const [closing, setClosing] = React.useState(false)
+  // what to do once the modal is gone: iOS will not take a navigation while it is still dismissing
+  const after = React.useRef<() => void>(() => router.back())
+  const leave = (then: () => void) => { after.current = then; setClosing(true); if (Platform.OS !== 'ios') then() }
+  if (!id) return null
+  const s = receipt?.strategyId ? b.all.find((x) => x.id === receipt.strategyId) ?? null : null
+  return (
+    <Modal visible={!closing} animationType="fade" statusBarTranslucent onRequestClose={() => leave(() => router.back())} onDismiss={() => { if (closing) after.current() }}>
+      {/* Done clears the ladder: the same ticket opened later starts fresh, not on this end screen */}
+      <OutcomeView id={id} onDone={() => leave(() => { l.reset(); router.back() })} onLeave={() => leave(() => router.back())}
+        onAgain={l.failed ? (l.done > 0 ? l.dismissFailed : () => { l.reset(); void l.start(label, receipt) }) : undefined}
+        onFail={l.failedStep?.onFail} partial={!!l.failed && l.done > 0}
+        links={(h) => [
+          { label: 'See it', onPress: () => leave(() => { l.reset(); h ? router.replace({ pathname: '/strategy/[id]', params: { id: s?.id ?? receipt?.strategyId ?? '_', h: h.key } }) : (router.dismissAll(), router.push('/you')) }) },
+          ...(sharePosition(s, h ?? null, account) ? [{ label: 'Share', onPress: sharePosition(s, h ?? null, account)! }] : []),
+        ]}>
+        {!l.paper && <SayWhy on={thread} done />}
+      </OutcomeView>
+    </Modal>
   )
 }
 

@@ -37,7 +37,7 @@ export function AmountInput({ value, onChange, style, ariaLabel, autoFocus }: { 
   const [text, setText] = React.useState(value.text)
   const emitted = React.useRef(value.text)
   React.useEffect(() => { if (value.text !== emitted.current) { emitted.current = value.text; setText(value.text) } }, [value.text])
-  return <input inputMode="decimal" autoComplete="off" value={text} aria-label={ariaLabel} autoFocus={autoFocus} style={style}
+  return <input inputMode="decimal" autoComplete="off" placeholder="0" value={text} aria-label={ariaLabel} autoFocus={autoFocus} style={style}
     onChange={(e) => { const raw = e.target.value.replace(/[^0-9.,\s]/g, ''); setText(raw); const t = normaliseDecimal(raw); const c = t === '' || t === '.' ? '0' : t; emitted.current = c; onChange({ text: c }) }}
     onBlur={() => { const t = normaliseDecimal(text); setText(t === '' || t === '.' ? '0' : t.endsWith('.') ? t.slice(0, -1) : t) }} />
 }

@@ -8,6 +8,8 @@ export function useNow(on: boolean) {
   return now
 }
 const ago = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s` }
+/** A quoted time still to go, in the words a person uses: "about 2 min left", "any moment now". */
+export const leftOf = (ms: number) => (ms <= 15_000 ? 'any moment now' : ms < 60_000 ? 'under a minute left' : `about ${Math.round(ms / 60_000)} min left`)
 const blk = (n?: number) => (n != null ? n.toLocaleString('en-US') : '')
 /** What came back into the wallet — a withdrawal, or the few units a loop's swap left over. */
 const gained = (r: NonNullable<Trace['received']>) => `to your wallet: ${r.map((x) => `+${trim(x.amount)} ${x.symbol}`.trim()).join(', ')}`
@@ -27,7 +29,8 @@ export function phaseWords(t: Trace, now = Date.now()): { head: string; detail?:
       ? { head: 'Updating your positions', detail: `final in block ${blk(t.block)}`, tone: 'run' }
       : { head: 'Updating your balance', detail: t.bridge ? `${t.bridge.name}: delivered` : `final in block ${blk(t.block)}`, tone: 'run' }
     case 'bridging': if (t.paper) return { head: t.bridge?.toChainId === t.chainId ? 'Exit queued on paper' : 'Bridging on paper', detail: `${t.bridge?.name ?? 'the route'}: lands ${t.arrivesAt && t.arrivesAt > now ? `in ${ago(t.arrivesAt - now)}` : 'now'}`, tone: 'run' }
-      return { head: 'Bridging', detail: !t.bridge?.status || t.bridge.status === 'NOT_FOUND' ? 'waiting for the bridge to pick it up' : `${t.bridge.name}: ${t.bridge.status.toLowerCase().replace(/_/g, ' ')}`, tone: 'run' }
+      if (t.note) return { head: 'Bridging', detail: t.note, tone: 'warn' }
+      return { head: 'Bridging', detail: [t.arrivesAt ? leftOf(t.arrivesAt - now) : '', !t.bridge?.status || t.bridge.status === 'NOT_FOUND' ? `waiting for ${t.bridge?.name ?? 'the bridge'} to pick it up` : `${t.bridge.name}: ${t.bridge.status.toLowerCase().replace(/_/g, ' ')}`].filter(Boolean).join(' · '), tone: 'run' }
     case 'settled': if (t.paper) return { head: 'Done on paper', detail: 'nothing was sent on chain', tone: 'ok' }
       return { head: 'Done', detail: t.note ?? (t.received?.length ? gained(t.received) : t.block ? `final in block ${blk(t.block)}` : undefined), tone: t.note ? 'warn' : 'ok' }
     case 'reverted': return { head: 'Reverted', detail: t.err, tone: 'bad' }

@@ -6,35 +6,43 @@ import { derivePaperKeys, normName, PAPER_NAME, PAPER_PASSWORD_MIN, type PaperKe
 import * as social from '@yieldcircle/core/social/api'
 import { C } from '../src/theme'
 import { family } from '../src/fonts'
-import { usePaper } from '../src/paper'
-import { Btn } from '../src/ui/bits'
+import { lastPaperName, usePaper } from '../src/paper'
+import { Btn, Seg } from '../src/ui/bits'
 import { IconBack } from '../src/ui/icons'
 import { PAPER } from '../src/ui/paper'
 import { Txt } from '../src/ui/Txt'
 
-type Step = { at: 'form' } | { at: 'working'; what: string } | { at: 'create'; keys: PaperKeys } | { at: 'unreachable'; keys: PaperKeys }
+type Mode = 'signup' | 'login'
+type Step = { at: 'form' } | { at: 'working'; what: string } | { at: 'unreachable'; keys: PaperKeys }
+const MODES: { id: Mode; word: string }[] = [{ id: 'signup', word: 'Sign up' }, { id: 'login', word: 'Log in' }]
 
 /**
- * Sign in to — or create — a paper account (the web's `PaperSignIn`, tickets/0006 §H): one form;
- * the keys are derived here, and the social service says whether that name already has an account
- * at those keys (sign in), has one at other keys (taken, or the password is wrong), or is free
- * (create). The derivation is slow without a JIT (docs/mobile.md): a bar says how far it is, and the
- * keys are kept on the phone, so it is waited for once.
+ * Sign up for — or log in to — a paper account (the web's `PaperSignIn`, tickets/0006 §H): one form
+ * with the choice on top, "Log in" when this phone has had an account (`lastPaperName`), else
+ * "Sign up". The keys are derived here, and the social service says whether that name already has
+ * an account at those keys (in, whichever was chosen), has one at other keys (taken, or the
+ * password is wrong), or is free (sign up creates it at once; log in says there is none). The
+ * derivation is slow without a JIT (docs/mobile.md): a bar says how far it is, and the keys are
+ * kept on the phone, so it is waited for once.
  */
 export default function PaperSignIn() {
   const insets = useSafeAreaInsets()
   const paper = usePaper()
-  const [name, setName] = React.useState('')
+  const [last] = React.useState(lastPaperName)
+  const [mode, setMode] = React.useState<Mode>(last ? 'login' : 'signup')
+  const [name, setName] = React.useState(last ?? '')
   const [pw, setPw] = React.useState('')
   const [step, setStep] = React.useState<Step>({ at: 'form' })
   const [progress, setProgress] = React.useState(0)
   const [err, setErr] = React.useState<string | null>(null)
   const n = normName(name)
   const nameOk = PAPER_NAME.test(n), pwOk = pw.length >= PAPER_PASSWORD_MIN
+  const signup = mode === 'signup'
+  const pick = (m: Mode) => { if (step.at === 'working') return; setMode(m); setErr(null) }
   const done = () => { if (router.canDismiss()) router.dismissAll(); router.replace('/') }
 
   const enter = async (keys: PaperKeys, create: boolean) => {
-    setStep({ at: 'working', what: create ? 'Creating your paper account…' : 'Signing in…' })
+    setStep({ at: 'working', what: create ? 'Creating your paper account…' : 'Logging in…' })
     try { await paper.signIn(keys, { create }); done() }
     catch (e) { setErr((e as Error).message); setStep({ at: 'form' }) }
   }
@@ -44,13 +52,19 @@ export default function PaperSignIn() {
     let keys: PaperKeys
     try { keys = await derivePaperKeys(n, pw, 0, setProgress) } catch (e) { setErr((e as Error).message); setStep({ at: 'form' }); return }
     try {
+      // this name and password already are an account: in, whichever was chosen
       const prof = (await social.profiles([keys.evm]))[keys.evm]
       if (prof) return enter(keys, false)
       const h = await social.handleCheck(n, keys.evm)
-      if (!h.available) { setErr(`The name “${n}” is taken. If it is yours, the password is not the one it was made with; otherwise pick another name.`); setStep({ at: 'form' }); return }
-      setStep({ at: 'create', keys })
+      if (h.available && signup) return enter(keys, true)
+      setErr(!h.available
+        ? signup ? `The name “${n}” is taken. If it is yours, log in with its password; otherwise pick another name.` : `That is not the password “${n}” was made with.`
+        : `There is no paper account “${n}” with this password. Check both, or sign up to create it.`)
+      setStep({ at: 'form' })
     } catch {
-      setStep({ at: 'unreachable', keys })
+      // logging in needs no answer (same name and password, same keys); creating one does
+      if (signup) { setErr('The profile service did not answer, so the account cannot be created right now. Try again in a moment.'); setStep({ at: 'form' }) }
+      else setStep({ at: 'unreachable', keys })
     }
   }
 
@@ -68,16 +82,7 @@ export default function PaperSignIn() {
   )
   return (
     <Frame insets={insets}>
-      {step.at === 'create' ? (
-        <View style={{ gap: 12 }}>
-          <Txt s={14} lh={20}>No paper account for <Txt s={14} w={700}>{step.keys.name}</Txt> with this password yet. Create it?</Txt>
-          <Bullet>You start with 10,000 USDC and 1 SOL on Solana. To use another chain, bridge there — real routes, real fees, real wait.</Bullet>
-          <Bullet>Real rates, real quotes and real risks, but nothing is signed or sent on chain.</Bullet>
-          <Bullet warn>There is no password reset. A different password is a different account. Never send real money to it.</Bullet>
-          <Btn wide kind="paper" title={`Create “${step.keys.name}”`} onPress={() => void enter(step.keys, true)} />
-          <Btn wide kind="plain" title="Back" onPress={() => setStep({ at: 'form' })} />
-        </View>
-      ) : step.at === 'unreachable' ? (
+      {step.at === 'unreachable' ? (
         <View style={{ gap: 12 }}>
           <Txt s={14} lh={20}>The profile service did not answer, so it cannot say whether <Txt s={14} w={700}>{step.keys.name}</Txt> exists yet.</Txt>
           <Btn wide kind="paper" title="Continue anyway" onPress={() => void enter(step.keys, false)} />
@@ -86,10 +91,18 @@ export default function PaperSignIn() {
         </View>
       ) : (
         <View style={{ gap: 12 }}>
-          <Txt s={14} c={C.tx70} lh={20}>Try every strategy with play money — no wallet needed. A name and a password are the whole account: the same two on any device open the same book.</Txt>
-          <Field label="Name" value={name} onChangeText={setName} placeholder="3–20 letters, digits or _" autoComplete="username" textContentType="username" />
-          {!!name && !nameOk && <Txt s={12} c={C.warn}>3–20 characters: a–z, 0–9 and _. It is also your public handle.</Txt>}
-          <Field label="Password" value={pw} onChangeText={setPw} placeholder={`at least ${PAPER_PASSWORD_MIN} characters`} secureTextEntry autoComplete="password" textContentType="password" />
+          <Seg grow items={MODES} value={mode} onChange={pick} />
+          <Txt s={14} c={C.tx70} lh={20}>{signup
+            ? 'Try every strategy with play money — no wallet needed. A name and a password are the whole account.'
+            : 'The same name and password open the same book on any device.'}</Txt>
+          <Field label="Name" value={name} onChangeText={setName} placeholder={signup ? '3–20 letters, digits or _' : 'your paper name'} autoComplete="username" textContentType="username" />
+          {!!name && !nameOk && <Txt s={12} c={C.warn}>3–20 characters: a–z, 0–9 and _.{signup ? ' It is also your public handle.' : ''}</Txt>}
+          <Field label="Password" value={pw} onChangeText={setPw} placeholder={signup ? `at least ${PAPER_PASSWORD_MIN} characters` : 'password'} secureTextEntry autoComplete={signup ? 'new-password' : 'current-password'} textContentType={signup ? 'newPassword' : 'password'} />
+          {signup && <>
+            <Bullet>You start with 10,000 USDC and 1 SOL on Solana. Real rates, real quotes and real risks, but nothing is signed or sent on chain.</Bullet>
+            <Bullet>The name is also your public handle.</Bullet>
+            <Bullet warn>There is no password reset. A different password is a different account. Never send real money to it.</Bullet>
+          </>}
           {err && <Txt s={12.5} c={C.bad} lh={18}>{err}</Txt>}
           {step.at === 'working' && (
             <View style={{ gap: 6 }}>
@@ -97,8 +110,8 @@ export default function PaperSignIn() {
               <Txt s={12} c={C.tx50} lh={17}>{step.what}{step.what.startsWith('Deriving') ? ` ${Math.round(progress * 100)}% — slow on purpose, and only this once on this phone` : ''}</Txt>
             </View>
           )}
-          <Btn wide kind="paper" title={step.at === 'working' ? 'Working…' : 'Continue'} disabled={!nameOk || !pwOk || step.at === 'working'} onPress={() => void go()} />
-          <Txt s={12} c={C.tx50} lh={17}>New name: you will be asked to create it, and it is also your public handle. Your password never leaves this phone; the keys made from it stay on it until you sign out.</Txt>
+          <Btn wide kind="paper" title={step.at === 'working' ? 'Working…' : signup ? `Create ${nameOk ? `“${n}”` : 'account'}` : 'Log in'} disabled={!nameOk || !pwOk || step.at === 'working'} onPress={() => void go()} />
+          <Txt s={12} c={C.tx50} lh={17}>Your password never leaves this phone; the keys made from it stay on it until you sign out.</Txt>
         </View>
       )}
     </Frame>

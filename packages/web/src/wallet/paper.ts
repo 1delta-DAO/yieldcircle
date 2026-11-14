@@ -6,7 +6,8 @@
  * a paper account never moves anything on chain.
  *
  * The session (the derived keys, never the password) lives in localStorage when "stay signed in"
- * is on, else sessionStorage; signing out wipes both.
+ * is on, else sessionStorage; signing out wipes both. The NAME last signed in with "stay signed in"
+ * outlives a sign-out (`lastPaperName`): it is how the form knows to open on "Log in".
  */
 import { createConnector } from 'wagmi'
 import { getAddress, numberToHex, type Hex } from 'viem'
@@ -17,6 +18,7 @@ import { solPublicKey, solSign, type PaperKeys } from './paperKey'
 
 // ----------------------------------------------------------------- the session
 const LS = 'yieldcircle.paper.session'
+const LAST = 'yieldcircle.paper.last'
 let session: PaperKeys | null = read()
 const subs = new Set<() => void>()
 function read(): PaperKeys | null {
@@ -30,8 +32,12 @@ export const paperSession = () => session
 export function setPaperSession(k: PaperKeys | null, remember = true) {
   session = k
   try { localStorage.removeItem(LS); sessionStorage.removeItem(LS) } catch { /* private mode */ }
-  if (k) try { (remember ? localStorage : sessionStorage).setItem(LS, JSON.stringify(k)) } catch { /* private mode */ }
+  if (k) try { (remember ? localStorage : sessionStorage).setItem(LS, JSON.stringify(k)); if (remember) localStorage.setItem(LAST, k.name) } catch { /* private mode */ }
   emit()
+}
+/** The name of the paper account this device last stayed signed in to, if any: the form opens on "Log in" with it. */
+export function lastPaperName(): string | null {
+  try { return localStorage.getItem(LAST) ?? (JSON.parse(localStorage.getItem(LS) ?? 'null') as PaperKeys | null)?.name ?? null } catch { return null }
 }
 export function usePaperSession(): PaperKeys | null {
   return useSyncExternalStore((f) => { subs.add(f); return () => { subs.delete(f) } }, () => session)

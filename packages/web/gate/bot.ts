@@ -5,6 +5,8 @@
  * their phone, the request pops up here with an Approve button (`gate/telegram.ts`, `announce`).
  *
  *   /pending        the newest rows still waiting, each with Approve
+ *   /wallets        the waiting wallets, every address in one block to copy (`pnpm whitelist add …`)
+ *   /emails         the waiting email-only rows (no wallet)
  *   /find <text>    rows whose email or address has it (any message without a slash does the same)
  *   /approve <text> approve the one waiting row that matches
  *   /invite <email> a TestFlight invite for any email, on the list or not
@@ -12,7 +14,8 @@
  *   /stats          the counts
  *
  * Approve whitelists the row's wallet (it signs in on the app) and, with the App Store Connect
- * secrets set (`gate/testflight.ts`), invites its email to TestFlight.
+ * secrets set (`gate/testflight.ts`), invites its email to TestFlight; with `MAIL_FROM` set
+ * (`gate/mail.ts`) it also mails them that they are in.
  *
  *   TELEGRAM_WEBHOOK_SECRET  Secret — the `secret_token` the webhook was registered with
  *                            (`pnpm telegram webhook`); Telegram sends it on every update
@@ -20,8 +23,9 @@
 import { approve, entries, type Entry, type WaitlistEnv } from './waitlist'
 import { admins, esc, line, rowId, short, tg } from './telegram'
 import { invite, testflightOn, type TestFlightEnv } from './testflight'
+import { mailOn, welcome, type MailEnv } from './mail'
 
-export interface BotEnv extends WaitlistEnv, TestFlightEnv {
+export interface BotEnv extends WaitlistEnv, TestFlightEnv, MailEnv {
   TELEGRAM_BOT_TOKEN: string
   TELEGRAM_WEBHOOK_SECRET: string
 }
@@ -79,6 +83,8 @@ async function command(env: BotEnv, chat: number, text: string): Promise<void> {
         'Waitlist bot. New requests show up here with an Approve button.',
         '',
         '/pending — the newest still waiting',
+        '/wallets — waiting wallets, addresses to copy',
+        '/emails — waiting, no wallet',
         '/find &lt;email or address&gt; — or just send the text',
         '/approve &lt;email or address&gt;',
         '/invite &lt;email&gt; — TestFlight invite for any email',
@@ -86,11 +92,25 @@ async function command(env: BotEnv, chat: number, text: string): Promise<void> {
         '/stats — counts',
         '',
         testflightOn(env) ? 'Approve also sends the TestFlight invite.' : 'TestFlight is not connected: add approved emails to TestFlight by hand.',
+        mailOn(env) ? 'Approve also emails them that they are in.' : 'No welcome email (MAIL_FROM is not set).',
       ].join('\n')))
     case 'pending': {
       const waiting = (await entries(env)).filter((e) => !e.ok)
       if (!waiting.length) return void (await say(env, chat, 'Nobody is waiting.'))
       return list(env, chat, `${waiting.length} waiting${waiting.length > SHOWN ? `, the newest ${SHOWN}` : ''}`, waiting.slice(0, SHOWN))
+    }
+    case 'wallets': {
+      const waiting = (await entries(env)).filter((e) => !e.ok && e.address)
+      if (!waiting.length) return void (await say(env, chat, 'No wallet is waiting.'))
+      // the whole list to copy, as many as fit in one message (4096 characters), then the newest with buttons
+      const block = waiting.map((e) => e.address).join('\n')
+      await say(env, chat, `${waiting.length} wallet${waiting.length === 1 ? '' : 's'} waiting\n<pre>${esc(block.length > 3800 ? block.slice(0, block.lastIndexOf('\n', 3800)) + '\n…' : block)}</pre>`)
+      return list(env, chat, `The newest ${Math.min(SHOWN, waiting.length)}`, waiting.slice(0, SHOWN))
+    }
+    case 'emails': {
+      const waiting = (await entries(env)).filter((e) => !e.ok && !e.address)
+      if (!waiting.length) return void (await say(env, chat, 'No email-only row is waiting.'))
+      return list(env, chat, `${waiting.length} waiting without a wallet${waiting.length > SHOWN ? `, the newest ${SHOWN}` : ''}`, waiting.slice(0, SHOWN))
     }
     case 'find': {
       if (!query) return void (await say(env, chat, 'Send part of an email or an address.'))
@@ -156,7 +176,12 @@ async function button(env: BotEnv, chat: number, q: NonNullable<Update['callback
 async function approveRow(env: BotEnv, chat: number, e: Entry): Promise<void> {
   await approve(env, e)
   const done = [e.address ? 'Wallet whitelisted: they sign in on the app.' : 'Approved (no wallet: paper only until they join with one).']
-  if (e.email) done.push(testflightOn(env) ? await invite(env, e.email) : 'Add the email to TestFlight by hand.')
+  if (e.email) {
+    const tf = testflightOn(env) ? await invite(env, e.email) : null
+    done.push(tf ?? 'Add the email to TestFlight by hand.')
+    // Apple's invite is its own email; this one says they are in and what comes next
+    if (mailOn(env)) done.push(await welcome(env, e.email, e.address, tf === null || !tf.startsWith('TestFlight failed')))
+  }
   await say(env, chat, `✓ ${line(e.address, e.email)}\n${done.map(esc).join('\n')}`)
 }
 

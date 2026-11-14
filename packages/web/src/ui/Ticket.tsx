@@ -25,7 +25,8 @@ import { balanceOf, gasCoinOf, gasTokenOf, networkFeeUsd, NO_GAS, tokenKey, type
 import { openPaperSignIn } from './PaperSignIn'
 import { openGate, realTradingGated } from '../wallet/gate'
 import { depositPlan, leverPlan, loopPlan, reducePlan, withdrawPlan } from '@yieldcircle/app/tickets/paperPlans'
-import { isDone, useTrace } from '@yieldcircle/app/sdk/txTrace'
+import { isDone, useTrace, type Receipt } from '@yieldcircle/app/sdk/txTrace'
+import { OutcomeCard, holdingHref } from './Outcome'
 import { Spin, TxNote } from './TxTray'
 import { GetAsset, type Target } from './GetAsset'
 import { FundingLock } from './FundingLock'
@@ -354,7 +355,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
           onTarget={(t) => setRole(opts.find((o) => o.address === t.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}
       </div>
       <LiteLines l={depositLines({ rate: s.rate, amountUsd: amtUsd, exitWord: exit.word, exitWhen: exit.when, tight, maturity: s.maturity, booked: !!s.booked, rewards: s.rewards })} />
-      <Action ladder={ladder} label={`Put ${dollar ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`} to work`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} fee="deposit" />
+      <Action ladder={ladder} label={`Put ${dollar ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`} to work`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} receipt={{ kind: 'deposit', amount: dollar ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`, usd: amtUsd, apr: s.rate, venue: s.venue, strategyId: s.id, holdingKey: into?.key ?? undefined }} fee="deposit" />
       <LiteMoreSheet>
         {opts.length > 1 && <LiteChoices label="Pay with" items={opts.map((o) => ({ id: o.role, word: o.symbol, line: o.role === 'native' ? `wrapped into ${s.assetSymbol} for you` : 'as it is', side: account ? `you have ${num(balOf(o.address)?.amount ?? 0, dp)}` : undefined }))} on={chosen.role} onPick={(r) => setRole(r)} />}
         <LiteNumbers rows={[
@@ -413,7 +414,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
       <HistorySec s={s} now={s.rate} />
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={(i === 0 && s.risk >= 2) || (!isSavings(s.nature) && i === 0) ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
       {s.booked && <BookedSlippage pegged={isSavings(s.nature)} what={s.holds} />}
-      <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} fee="deposit" />
+      <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} receipt={{ kind: 'deposit', amount: unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`, usd: amtUsd, apr: s.rate, venue: s.venue, strategyId: s.id, holdingKey: into?.key ?? undefined }} fee="deposit" />
     </>
   )
 }
@@ -494,7 +495,7 @@ function FixedTicket({ s: s0, idle: chainIdle, allIdle, into }: { s: SimpleStrat
       </div></div>
       <HistorySec s={s} now={s.rate} />
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={i === 1 ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
-      <Action ladder={ladder} label={`Lend · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${tok.symbol}`} to ${dayMonth(s.maturity!)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || over} blockedNote={over ? `This book takes at most ${money(depth)} right now.` : undefined} chainId={s.chainId} fee="deposit" />
+      <Action ladder={ladder} label={`Lend · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${tok.symbol}`} to ${dayMonth(s.maturity!)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || over} blockedNote={over ? `This book takes at most ${money(depth)} right now.` : undefined} chainId={s.chainId} receipt={{ kind: 'deposit', amount: unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${tok.symbol}`, usd: amtUsd, apr: s.rate, venue: s.venue, strategyId: s.id, holdingKey: into?.key }} fee="deposit" />
     </>
   )
 }
@@ -556,7 +557,7 @@ function ManageFixed({ s, h, mode }: { s: SimpleStrategy; h: Holding; mode: Mode
         {sell && <div className="c"><span className="k">Or wait</span><span className="v">{usd(eff * px)}</span><span className="s">repaid {dateOf(s.maturity!)}</span></div>}
         <div className="c"><span className="k">Exit</span><span className="v" style={{ fontSize: 14 }}>{exit.word}</span><span className="s">{exit.when}</span></div>
       </div></div>
-      <Action ladder={ladder} label={locked ? `Locked to ${dayMonth(s.maturity!)}` : sell ? `Sell · ${num(eff, 4)} ${h.symbol}` : `Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={locked || !(eff > 0) || noBids} blockedNote={locked ? `${s.brand} repays after ${dateOf(s.maturity!)}; nothing can be taken out before.` : noBids ? 'Nobody on the book is buying this much right now: sell less, or wait for the date.' : undefined} chainId={h.chainId} fee="withdraw" />
+      <Action ladder={ladder} label={locked ? `Locked to ${dayMonth(s.maturity!)}` : sell ? `Sell · ${num(eff, 4)} ${h.symbol}` : `Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={locked || !(eff > 0) || noBids} blockedNote={locked ? `${s.brand} repays after ${dateOf(s.maturity!)}; nothing can be taken out before.` : noBids ? 'Nobody on the book is buying this much right now: sell less, or wait for the date.' : undefined} chainId={h.chainId} receipt={{ kind: 'withdraw', amount: `${num(eff, 4)} ${h.symbol}`, venue: h.venue, strategyId: s.id, holdingKey: h.key }} fee="withdraw" />
     </>
   )
 }
@@ -696,7 +697,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
           ['Where', `${brandOf(s)} · ${chainLabel(s.chainId)}`],
         ]} />
       </LiteMoreSheet>
-      <Action ladder={ladder} label={`Open ${leverTag(L)} loop · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={noPay ? 'This venue takes no margin with the loop' : short ? 'Too big for one lender — lower the amount' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} fee="loop" />
+      <Action ladder={ladder} label={`Open ${leverTag(L)} loop · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={noPay ? 'This venue takes no margin with the loop' : short ? 'Too big for one lender — lower the amount' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} receipt={{ kind: 'open', amount: usd(E), usd: E, apr: net, leverage: L, venue: s.venue, strategyId: s.id, holdingKey: holding?.key }} fee="loop" />
     </>
   )
   const entryWhy = econ && staleRef ? `The prices this quote was checked against are ${Math.round(staleRef.ageHours ?? 0)} h old${staleRef.asOf ? ` (as of ${staleRef.asOf.slice(0, 16).replace('T', ' ')} UTC)` : ''}, so the swap's fill cannot be valued: neither a loss nor a gain is shown, and the break-even is unknown. Network ${econ.entryCostUsd.gas == null ? 'not priced' : usd(econ.entryCostUsd.gas)}, fees ${usd(econ.entryCostUsd.fees)}. Max slippage ${slip / 100}% still bounds the fill.` : econ ? `Entry cost ${usd(cost)}: swap slippage ${usd(econ.entryCostUsd.slippage)}, fees ${usd(econ.entryCostUsd.fees)}, network ${econ.entryCostUsd.gas == null ? 'not priced' : usd(econ.entryCostUsd.gas)} (max slippage ${slip / 100}%), on the whole ${num(L, 2)}× position. ${payback == null ? `At ${pct(net)} the loop earns nothing, so the entry is never earned back.` : `At ${pct(net)} on ${usd(E)} it earns ${usd(E * net / 100 / 365)} a day, so the entry is earned back in ${daysWord(payback)}${clockDays != null ? ` — ${payback > clockDays ? 'after' : 'before'} ${clockWord}` : ''}.`} Closing costs about as much again.` : ''
@@ -832,7 +833,7 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
         {s.rewardsLong + s.rewardsShort > 0.05 && <li><i /><span>Part of the rate is incentives that can stop without notice.</span></li>}
       </ul></div>
       {noRoute && <div className="err" style={{ margin: '0 0 10px' }}>{NO_ROUTE}</div>}
-      <Action ladder={ladder} label={`Open ${onCopy && copyL != null ? 'copied ' : custom != null && canCustom ? '' : `${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} `}loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={noPay ? 'This venue takes no margin with the loop — see above' : short ? 'Too big for one lender — see above' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} fee="loop" />
+      <Action ladder={ladder} label={`Open ${onCopy && copyL != null ? 'copied ' : custom != null && canCustom ? '' : `${TIERS.find((t) => t.id === tier)!.name.toLowerCase()} `}loop · ${num(L, 2)}×${term ? ` · ${term.days}-day fixed` : tenor ? ` · ${tenorWord(tenor)}` : s.dueAt ? ` · due ${due}` : ''} · ${usd(E)}`} account={account} isConnected={isConnected} disabled={!(amount > 0) || !chosen || noRoute || !!short || vc.blocked || !!paperRefuse} risky={vc.severe} blockedNote={noPay ? 'This venue takes no margin with the loop — see above' : short ? 'Too big for one lender — see above' : vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : paperRefuse ?? undefined} chainId={s.chainId} receipt={{ kind: 'open', amount: usd(E), usd: E, apr: net, leverage: L, venue: s.venue, strategyId: s.id, holdingKey: holding?.key }} fee="loop" />
     </>
   )
 }
@@ -853,7 +854,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
       </div>}
       <LiteLines l={withdrawLines({ backUsd: eff * price, back: `${num(eff, wdp)} ${outSym}`, exitWord: exit?.word, exitWhen: exit?.when, leftUsd: Math.max(0, h.amount - eff) * price, rate: rate ?? null })} />
       {paper.active && queueSecs > 0 && <div className="tsec plain t70" style={{ fontSize: 12.5 }}><span className="pill paper">paper</span> This exit is queued: the {h.symbol} lands in your bank after the venue's wait.</div>}
-      <Action ladder={ladder} label={fullExit ? `Withdraw all · ${usd(eff * price)}` : `Withdraw ${usd(eff * price)}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} fee="withdraw" />
+      <Action ladder={ladder} label={fullExit ? `Withdraw all · ${usd(eff * price)}` : `Withdraw ${usd(eff * price)}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} receipt={{ kind: 'withdraw', amount: usd(eff * price), usd: eff * price, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} fee="withdraw" />
       <LiteMoreSheet>
         {canNative && <LiteChoices<'token' | 'coin'> label="Paid out as" on={native ? 'coin' : 'token'} onPick={(x) => setAsNative(x === 'coin')}
           note={maxRounds ? `This venue’s ${coin} exit fails on a full withdrawal: take ${h.symbol}, or leave a little in.` : undefined}
@@ -889,7 +890,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
       </div></div>
       {booked && <BookedSlippage pegged={s ? isSavings(s.nature) : true} what={h.symbol} sell />}
       {paper.active && queueSecs > 0 && <div className="tsec plain t70" style={{ fontSize: 12.5 }}><span className="pill paper">paper</span> This exit is queued: on paper the {h.symbol} lands in your bank {s?.exitSecs ? `after the venue's ${exit ? exit.word.toLowerCase() : 'wait'}` : 'after a week (the venue publishes no wait time)'}, and the tray shows it on its way.</div>}
-      <Action ladder={ladder} label={`Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} fee="withdraw" />
+      <Action ladder={ladder} label={`Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} receipt={{ kind: 'withdraw', amount: `${num(eff, 4)} ${h.symbol}`, usd: eff * price, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} fee="withdraw" />
     </>
   )
 }
@@ -946,7 +947,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
             : <div className="plain" style={{ marginTop: 10 }}>Borrows about <b>{usd(borrowUsd)}</b> more {debt} to buy more {holdsWord}. Nothing comes out of your wallet, and it moves closer to liquidation.</div>)}
         </div>
         <LiteLines l={saferLines({ net: s && !loan ? net ?? null : null, netBefore: s && !loan ? netAprAtLeverage(s.depSpot, s.borSpot, Lnow) : null, buffer: drop ?? null, bufferBefore: bufNow ?? null, equityUsd: E })} />
-        <Action ladder={ladder} label={same ? (safer.length ? 'Pick how much safer' : 'Pick a leverage') : `${down ? 'Lower' : 'Raise'} to ${leverTag(L)}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock} chainId={h.chainId} fee="reduce" />
+        <Action ladder={ladder} label={same ? (safer.length ? 'Pick how much safer' : 'Pick a leverage') : `${down ? 'Lower' : 'Raise'} to ${leverTag(L)}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock} chainId={h.chainId} receipt={{ kind: down ? 'delever' : 'lever', amount: leverTag(L), apr: net ?? undefined, leverage: L, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} fee="reduce" />
         <LiteMoreSheet>
           {loans.length > 1 && <LiteChoices label="Which loan" note="Each fixed-rate loan is paid back on its own." items={loans.map((x) => ({ id: x.id, word: `Loan ${x.id}`, line: `${usdShort(x.debtUsd)} owed` }))} on={loan?.id ?? null} onPick={(id) => { setLoanId(id); setL(Lnow) }} />}
           {targets.length
@@ -979,7 +980,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
         {valued && <LossAck v={vc} what="Closing now" advice={`It can be worth waiting for ${holds} to trade closer to its price on the venue.`} />}
       </div>
       <LiteLines l={closeLines({ backUsd: cq.isPending ? null : backUsd ?? null, back: cq.isPending ? 'pricing the sale…' : closeBlock ? '' : backDebt != null && !keep ? `≈ ${num(backDebt, 4)} ${debt}` : keep && backColl != null ? `≈ ${num(backColl, 4)} ${holds}` : '', costUsd: sale?.exitCostUsd ?? null, short: closeBlock === 'short' })} />
-      <Action ladder={ladder} label="Close and withdraw" account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} fee="reduce" />
+      <Action ladder={ladder} label="Close and withdraw" account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} receipt={{ kind: 'close', amount: usd(h.valueUsd), usd: h.valueUsd, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} fee="reduce" />
       <LiteMoreSheet>
         {sameToken ? null : venueKeeps
           ? <section className="lite-more-s"><h3>What you get it back in</h3><p className="plain">{h.venue.split(' · ')[0]} always hands back what the loop holds: only what repays the {debt} is sold.</p></section>
@@ -1043,7 +1044,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
           <div className="c"><span className="k">Buffer after</span><span className={`v ${drop == null ? '' : drop < 0.05 ? 'bad' : drop < 0.1 ? 'warn' : ''}`}>{drop == null ? '—' : `−${pct(drop * 100, 1)}`}</span><span className="s">{drop == null ? '' : `${holds} fall that liquidates`}</span></div>
         </>}
       </div></div>
-      <Action ladder={ladder} label={same ? 'Nothing to change' : closing ? (keep ? `Close · sell ≈ ${num(sellKeep ?? 0, 4)} ${holds}, keep the rest` : `Close · sell all ${holds} for ${debt}`) : down ? `Deleverage to ${num(L, 2)}× · sell ${num(sellTok, 4)} ${holds}` : `${putUp ? 'Lever' : 'Increase'} to ${num(L, 2)}× · borrow ${num(borrowTok, 4)} ${debt}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} fee={closing || down ? 'reduce' : 'lever'} />
+      <Action ladder={ladder} label={same ? 'Nothing to change' : closing ? (keep ? `Close · sell ≈ ${num(sellKeep ?? 0, 4)} ${holds}, keep the rest` : `Close · sell all ${holds} for ${debt}`) : down ? `Deleverage to ${num(L, 2)}× · sell ${num(sellTok, 4)} ${holds}` : `${putUp ? 'Lever' : 'Increase'} to ${num(L, 2)}× · borrow ${num(borrowTok, 4)} ${debt}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} receipt={closing ? { kind: 'close', amount: usd(h.valueUsd), usd: h.valueUsd, venue: h.venue, strategyId: s?.id, holdingKey: h.key } : { kind: down ? 'delever' : 'lever', amount: leverTag(L), apr: net ?? undefined, leverage: L, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} fee={closing || down ? 'reduce' : 'lever'} />
     </>
   )
 }
@@ -1095,7 +1096,7 @@ export function AmountBox({ unit, value, onChange, onMax }: { unit: string; valu
 }
 
 /** The sticky bottom of the ticket: one button, then the ladder once built. */
-export function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId, fee }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string; /** what the action pays in network fees on paper (tickets/0007 B) */ fee: FeeKind }) {
+export function Action({ ladder: l, label, account, isConnected, disabled, risky, blockedNote, chainId, fee, receipt }: { ladder: Ladder; label: string; account?: string; isConnected: boolean; disabled: boolean; risky?: boolean; blockedNote?: string; chainId: string; /** what the action pays in network fees on paper (tickets/0007 B) */ fee: FeeKind; /** what the action is, for its end screen (docs/tx-feedback-plan.md §3.1) */ receipt?: Receipt }) {
   const { setViewAs, viewAs, signer, solSigner } = useApp()
   const { thread, lite } = React.useContext(TicketCtx)
   // `?as=` someone else: their page is shown, but no ticket signs while it is (security review #1)
@@ -1122,13 +1123,25 @@ export function Action({ ladder: l, label, account, isConnected, disabled, risky
         : !account ? <><button className="btn wide pri" onClick={() => setViewAs(undefined)} disabled>Connect a wallet to continue</button><button className="btn wide paper" style={{ marginTop: 8 }} onClick={openPaperSignIn}>Or try it with paper money</button></>
         : viewing ? <button className="btn wide" disabled>Viewing {account.slice(0, 6)}… · connect to sign</button>
         : !l.isConnected ? <button className="btn wide" disabled>{isSvmChain(chainId) ? 'Connect a Solana wallet (Phantom, Solflare, Backpack) to sign' : 'Connect a wallet to sign'}</button>
-        : l.paper ? <button className={`btn wide pri paperbtn ${risky ? 'risky' : ''}`} disabled={disabled || l.busy} onClick={() => l.start(label)}>{l.busy ? 'Applying on paper…' : blockedNote ?? `Confirm paper ${label.charAt(0).toLowerCase()}${label.slice(1)}${risky ? ' anyway' : ''}`}</button>
-        : <button className={`btn wide pri ${risky ? 'risky' : ''}`} disabled={disabled || l.busy} onClick={() => l.start(label)}>{l.busy ? 'Building…' : blockedNote ?? (risky ? `${label} anyway` : label)}</button>}
+        : l.paper ? <button className={`btn wide pri paperbtn ${risky ? 'risky' : ''}`} disabled={disabled || l.busy} onClick={() => l.start(label, receipt)}>{l.busy ? 'Applying on paper…' : blockedNote ?? `Confirm paper ${label.charAt(0).toLowerCase()}${label.slice(1)}${risky ? ' anyway' : ''}`}</button>
+        : <button className={`btn wide pri ${risky ? 'risky' : ''}`} disabled={disabled || l.busy} onClick={() => l.start(label, receipt)}>{l.busy ? 'Building…' : blockedNote ?? (risky ? `${label} anyway` : label)}</button>}
       {!viewing && !l.paper && <SayWhy on={thread ?? null} />}
       {l.paper
         ? <div className="foot" style={{ marginTop: 8 }}><span className="pill paper">paper</span> Play money on real rates and real quotes. Nothing is signed or sent on chain.</div>
         : lite ? <div className="foot" style={{ marginTop: 8 }}>Your wallet asks you to sign: once where it can batch the steps. Network fee on {chainLabel(chainId)}.</div>
         : <div className="foot" style={{ marginTop: 8 }}>The API builds the exact calls (approvals, then the action); nothing is sent until you sign — once, where your wallet batches them. Gas on {chainLabel(chainId)}.</div>}
+    </div>
+  )
+  // every step out, or one came back badly: the end takes the place of the steps (docs/tx-feedback-plan.md §5)
+  const endId = l.failed ?? (l.sent ? l.traceId : undefined)
+  if (endId) return (
+    <div className="tsec cta">
+      <OutcomeCard id={endId} onDone={l.reset}
+        onAgain={l.failed ? (l.done > 0 ? l.dismissFailed : () => { l.reset(); void l.start(label, receipt) }) : undefined}
+        onFail={l.failedStep?.onFail} partial={!!l.failed && l.done > 0}
+        links={(h) => [...(h ? [{ label: 'See it', href: holdingHref(h, !!lite) }] : []), { label: 'Do another', onClick: l.reset }]}>
+        {!l.paper && <SayWhy on={thread ?? null} done />}
+      </OutcomeCard>
     </div>
   )
   return (
@@ -1143,7 +1156,7 @@ export function Action({ ladder: l, label, account, isConnected, disabled, risky
       {l.err && <div className="err" style={{ marginTop: 8 }}>{l.err}</div>}
       {l.finished && !l.paper && <SayWhy on={thread ?? null} done />}
       <div className="actions" style={{ marginTop: 12 }}>
-        {l.finished ? <a className="btn wide pri" href="#/">{l.settled ? 'See your positions' : <><Spin sm /> Updating your positions…</>}</a>
+        {l.finished ? <a className="btn wide pri" href={lite ? '#/lite/you' : '#/'}>{l.settled ? 'See your positions' : <><Spin sm /> Updating your positions…</>}</a>
           : <button className="btn wide pri" disabled={!!l.pending || l.switching || (l.signing && !l.remote)} onClick={l.signing ? l.reopen : l.sendNext}>{l.switching ? 'Switching…' : l.wrongChain ? `Switch wallet to ${chainLabel(chainId)}` : l.signing ? (l.remote ? 'Open your wallet to confirm' : 'Confirm in your wallet…') : l.pending ? <><Spin sm /> Waiting for the block…</> : l.together ? `Send all ${l.together.length} in one` : `Send ${l.done + 1} of ${l.total}`}</button>}
         <button className="btn" onClick={l.reset} disabled={!!l.pending}>Reset</button>
       </div>

@@ -31,6 +31,8 @@
  *                   (`POST /gate/telegram`, `gate/bot.ts`). Needs only `WHITELIST`, not the gate's secret
  *   ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY (Secret), ASC_GROUP_ID — optional, the bot's Approve
  *                   also sends the TestFlight invite (`gate/testflight.ts`)
+ *   MAIL_FROM       optional, a sender on a domain verified in Resend: the bot's Approve also mails
+ *                   the person that they are in (`gate/mail.ts`)
  *
  * Unconfigured (missing binding or secret) the gate is OFF and the app serves
  * normally — a misconfiguration must never take the site down.

@@ -18,6 +18,7 @@ import type { PaperKeys } from '@yieldcircle/app/paper/keys'
  */
 const KEY = 'yieldcircle.paper.session'
 const ON = 'yieldcircle.paper.on'
+const LAST = 'yieldcircle.paper.last'
 const read = (): PaperKeys | null => {
   try { const v = JSON.parse(localStorage.getItem(KEY) ?? 'null') as PaperKeys | null; return v?.evmKey && v.evm && v.solKey && v.sol ? v : null } catch { return null }
 }
@@ -26,8 +27,12 @@ let on = (() => { try { return localStorage.getItem(ON) !== '0' } catch { return
 const subs = new Set<() => void>()
 function setSession(k: PaperKeys | null) {
   session = k
-  try { k ? localStorage.setItem(KEY, JSON.stringify(k)) : localStorage.removeItem(KEY) } catch { /* the store is optional */ }
+  try { if (k) { localStorage.setItem(KEY, JSON.stringify(k)); localStorage.setItem(LAST, k.name) } else localStorage.removeItem(KEY) } catch { /* the store is optional */ }
   subs.forEach((f) => f())
+}
+/** The name of the paper account this phone was last signed in to, if any (it outlives a sign-out): the form opens on "Log in" with it. */
+export function lastPaperName(): string | null {
+  try { return localStorage.getItem(LAST) ?? session?.name ?? null } catch { return null }
 }
 function setOn(v: boolean) {
   on = v

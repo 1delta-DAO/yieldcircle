@@ -23,6 +23,8 @@ const call = async (method, body) => {
 
 const COMMANDS = [
   ['pending', 'the newest still waiting'],
+  ['wallets', 'waiting wallets, addresses to copy'],
+  ['emails', 'waiting, no wallet'],
   ['find', 'rows matching an email or address'],
   ['approve', 'approve one waiting row'],
   ['invite', 'TestFlight invite for any email'],

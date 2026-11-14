@@ -7,6 +7,7 @@ import { useMode, type Mode } from '../mode'
 import { IconBoard, IconBorrow, IconEarn, IconFeed, IconHome, IconSearch } from './icons'
 import { Txt } from './Txt'
 import { HomeDot } from './social'
+import { ActivityPill } from './ActivityPill'
 
 type Tab = { href: string; label: string; Icon: typeof IconHome }
 const TABS: Record<Mode, Tab[]> = {
@@ -31,7 +32,8 @@ const TABS: Record<Mode, Tab[]> = {
  * the page behind the sheet does not jump.
  */
 const sheet = (path: string) => path.startsWith('/strategy')
-const flow = (path: string) => path === '/paper' || (Platform.OS !== 'ios' && sheet(path))
+// the receipt is an end screen over everything, like the ticket's own
+const flow = (path: string) => path === '/paper' || path === '/receipt' || (Platform.OS !== 'ios' && sheet(path))
 
 /**
  * The web's bottom tab bar (app.css `.tabbar` + the refit at its end): icon over word, the active
@@ -63,6 +65,8 @@ export function AppTabBar({ children }: { children: React.ReactNode }) {
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       {/* the bar takes the home indicator's inset: the pages above it have none at their foot (the ticket, over the bar, keeps it) */}
       <SafeAreaInsetsContext.Provider value={show && !sheet(path) ? { ...insets, bottom: 0 } : insets}>{children}</SafeAreaInsetsContext.Provider>
+      {/* what is still going, just above the bar on every page (docs/tx-feedback-plan.md §4.5): Activity lists them itself */}
+      {show && path !== '/activity' && <ActivityPill bottom={56 + insets.bottom + 10} />}
       {show && (
         <View style={[st.bar, { paddingBottom: insets.bottom }]}>
           {TABS[mode].map(({ href, label, Icon }, i) => {

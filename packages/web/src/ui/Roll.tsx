@@ -108,7 +108,7 @@ function RollLend({ h, src, targets, loading }: { h: Holding; src: SimpleStrateg
         {r.left != null && r.left > 0 && !locked && <div className="c"><span className="k">To your wallet</span><span className="v">{usd(r.left * px)}</span><span className="s">≈ {num(r.left, 2)} {h.symbol} kept back</span></div>}
       </div></div>
       <Action ladder={ladder} label={locked ? `Rolls from ${dayMonth(src.maturity!)}` : to ? `Roll to ${dayMonth(to.maturity!)} · ${num(face, 2)} ${h.symbol}` : 'Pick a date'} account={account} isConnected={isConnected} disabled={locked || !to || !lendRaw || noBids || full}
-        blockedNote={locked ? `${src.brand} repays after ${dateOf(src.maturity!)}; nothing moves before.` : noBids ? 'Nobody on this book is buying it right now: wait, or roll after the date.' : full ? `The ${dayMonth(to!.maturity!)} book takes less than this right now: pick another date.` : undefined} chainId={h.chainId} fee="deposit" />
+        blockedNote={locked ? `${src.brand} repays after ${dateOf(src.maturity!)}; nothing moves before.` : noBids ? 'Nobody on this book is buying it right now: wait, or roll after the date.' : full ? `The ${dayMonth(to!.maturity!)} book takes less than this right now: pick another date.` : undefined} chainId={h.chainId} receipt={{ kind: 'roll', amount: to ? `To ${dayMonth(to.maturity!)}` : undefined, venue: h.venue, strategyId: src.id, holdingKey: h.key }} fee="deposit" />
     </>
   )
 }
@@ -164,7 +164,7 @@ function RollLoan({ s, h, targets, loading }: { s: LoopStrategy | null; h: Holdi
         <div className="c"><span className="k">Collateral</span><span className="v">{num(h.amount, 4)}</span><span className="s">{h.symbol} · moves with it</span></div>
       </div></div>}
       <Action ladder={ladder} label={to ? `Roll to ${dayMonth(to.dueAt!)} · ${num(owed, 2)} ${debt}` : 'No later date'} account={account} isConnected={isConnected} disabled={!to || full}
-        blockedNote={full ? `The ${dayMonth(to!.dueAt!)} lenders cannot fund ${num(owed, 2)} ${debt} right now: pick another date.` : undefined} chainId={h.chainId} fee="loop" />
+        blockedNote={full ? `The ${dayMonth(to!.dueAt!)} lenders cannot fund ${num(owed, 2)} ${debt} right now: pick another date.` : undefined} chainId={h.chainId} receipt={{ kind: 'roll', amount: to ? `To ${dayMonth(to.dueAt!)}` : undefined, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} fee="loop" />
     </>
   )
 }
@@ -209,7 +209,7 @@ function RollTerm({ s, h }: { s: LoopStrategy; h: Holding }) {
         <div className="c"><span className="k">Re-fixed</span><span className="v">{num(src.debt, 2)}</span><span className="s">{s.debt} · {src.id ? `loan ${src.id}` : 'the variable part'}</span></div>
         <div className="c"><span className="k">Where</span><span className="v" style={{ fontSize: 14 }}>{h.venue.split(' · ')[0]}</span><span className="s">{chainLabel(h.chainId)}</span></div>
       </div></div>
-      <Action ladder={ladder} label={`Fix ${src.id ? `loan ${src.id}` : 'the variable part'} · ${term.days} days at ${pct(term.apr)}`} account={account} isConnected={isConnected} disabled={false} chainId={h.chainId} fee="loop" />
+      <Action ladder={ladder} label={`Fix ${src.id ? `loan ${src.id}` : 'the variable part'} · ${term.days} days at ${pct(term.apr)}`} account={account} isConnected={isConnected} disabled={false} chainId={h.chainId} receipt={{ kind: 'roll', amount: `${term.days} days at ${pct(term.apr)}`, venue: h.venue, strategyId: s.id, holdingKey: h.key }} fee="loop" />
     </>
   )
 }

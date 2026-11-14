@@ -152,6 +152,17 @@ ladder, the transaction trace and one controller per ticket body live in
 `localStorage` as the scratchpad, the WalletConnect session's redirect to bring
 the wallet forward, wagmi for chain switches.
 
+**How an action ends** (2026-11-14, [`tx-feedback-plan.md`](tx-feedback-plan.md)): once every step
+of a ticket is out, a full-screen end screen takes over the sheet (`TicketEnd` in
+`src/ticket/parts.tsx`, drawn by `src/ui/outcome/Outcome.tsx`): a ring that fills while it lands,
+then the order in rows with confetti, or where the money is when it failed. Each body hands its
+`Action` a `receipt` (what the action was); the words are the shared `outcomeOf`
+(`@yieldcircle/app/sdk/txOutcome`). *Get* ends on the same screen, compact. Anything still going
+shows on a pill above the tab bar (`src/ui/ActivityPill.tsx`) and as a turning ring on the
+balance chip; `app/activity.tsx` lists the last day, `app/receipt.tsx` is one trace's end screen.
+Plain `Animated` + `react-native-svg`, so it shipped as an update; haptics wait for the next native
+release. Untested on a phone.
+
 **One copy of each context library** (`mobile/metro.config.js`): pnpm installs
 a package once per set of its peers, so the phone's wagmi (built against
 AsyncStorage) and the shared package's (a dev dependency there) were two copies
@@ -411,5 +422,5 @@ Share text and its link are core's (`shareOf`, `canShare` in `model/lite.ts`); b
   phone). If it is too slow, swap `derivePaperKeys`'s scrypt for `react-native-quick-crypto`'s on the
   phone only (a dev-client rebuild); the derived keys must stay byte-identical (`keys.test.ts`).
 - **Paper on the phone, untested end to end:** creating an account posts a real profile, so the
-  browser check stopped at "Create?". Sign in, confirm a paper deposit and post a comment as paper on
+  browser check stopped short of "Sign up". Log in, confirm a paper deposit and post a comment as paper on
   a dev build.

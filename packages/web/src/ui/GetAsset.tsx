@@ -13,7 +13,8 @@ import { destinationGasFor, isGasAsk, AUTO_GAS_SHARE, type GasPref } from '@yiel
 import { loadGasPref, saveGasPref } from '@yieldcircle/app/state/gasPref'
 import { balancesChanged } from '@yieldcircle/app/sdk/liveBalances'
 import { isNativeAddress } from '@yieldcircle/core/model/positions'
-import { Spin, TxTrack, phaseWords, useNow } from './TxTray'
+import { Spin } from './TxTray'
+import { OutcomeCard } from './Outcome'
 import type { ApiEnvelope } from '@yieldcircle/core/vendor/allocator/http'
 import { useApp } from '../state/AppState'
 import { isRemote, openWallet } from '../wallet/deeplink'
@@ -110,11 +111,10 @@ export function GetAsset({ targets, want, sources, onTarget, onClose }: { target
               </>}
               {best && !sent && v.sev === 'unk' && <div className="qnote warn">The value of this {cross ? 'route' : 'swap'} can't be checked: compare what you pay and get yourself.</div>}
               {sent ? (
+                // the swap's or bridge's end, as every action's (`Outcome.tsx`): a step of the ticket, so it hands back to it
                 <div className="qline">
-                  {arrived ? (sentTr!.note ? <span className="warn">{sentTr!.note}</span> : <span className="ok">Received. Your {target.symbol} balance is refreshed; go ahead with the strategy.</span>)
-                    : lost ? <span className="bad">{phaseWords(sentTr!).head}: {sentTr!.err ?? 'it did not go through'}</span>
-                    : <span className="t70">{sentTr ? <><Spin sm /> {phaseWords(sentTr, now).head}{phaseWords(sentTr, now).detail ? <span className="t50"> · {phaseWords(sentTr, now).detail}</span> : null}</> : cross ? 'Bridging…' : 'Swapping…'}</span>}
-                  {sentTr && !lost && <TxTrack t={sentTr} />}
+                  {sentTr ? <OutcomeCard id={sent.hash} compact={{ done: 'Continue with the strategy' }} onDone={onClose} onAgain={() => setSent(null)} />
+                    : <span className="t70"><Spin sm /> {cross ? 'Bridging…' : 'Swapping…'}</span>}
                 </div>
               ) : (
                 <div className="actions" style={{ marginTop: 10 }}>

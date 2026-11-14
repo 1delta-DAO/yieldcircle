@@ -52,6 +52,29 @@ import type { EarnPosition, EarnPositionsResponse } from '@yieldcircle/core/sdk/
 export type Phase = 'pending' | 'included' | 'final' | 'syncing' | 'bridging' | 'settled' | 'reverted' | 'dropped' | 'failed'
 /** What the app must re-read once the transaction is final. */
 export type Moves = 'none' | 'balances' | 'positions'
+/** What the action was, in the words its end screen needs (docs/tx-feedback-plan.md §3.1). */
+export type ReceiptKind = 'deposit' | 'withdraw' | 'open' | 'close' | 'lever' | 'delever' | 'borrow' | 'repay' | 'collateral' | 'roll' | 'swap' | 'bridge'
+/**
+ * Written once, by the ticket that sent it, and kept with the trace — so the success screen still
+ * knows what happened after the ticket remounted (the new position changes its key) or was closed.
+ * The figures are the quote's: a screen shows the synced position's own once it has it.
+ */
+export interface Receipt {
+  kind: ReceiptKind
+  /** what it moved, as the screen leads with it: "$250.00", "0.5 ETH" */
+  amount?: string
+  /** the same in dollars, counted up on the screen */
+  usd?: number
+  /** a swap's or bridge's other side, as quoted: "249.80 USDC" */
+  out?: string
+  /** APR in percent, at the position's leverage */
+  apr?: number
+  leverage?: number
+  venue?: string
+  /** where "See it" goes: the strategy, and the position when it already existed */
+  strategyId?: string
+  holdingKey?: string
+}
 type Hex = `0x${string}`
 type Snap = Record<string, number>
 export interface Trace {
@@ -90,7 +113,9 @@ export interface Trace {
   batch?: { id: string; nonce?: number; block?: number }
   /** a paper op (tickets/0006): nothing was sent, so nothing is watched — recorded at its end, a paper bridge at `bridging` until `arrivesAt` */
   paper?: true
+  /** a bridge's quoted arrival: a paper bridge lands then; a real one is only said to (and called slow well past it) */
   arrivesAt?: number
+  receipt?: Receipt
 }
 export const TERMINAL: Phase[] = ['settled', 'reverted', 'dropped', 'failed']
 export const isDone = (t: Trace) => TERMINAL.includes(t.phase)
@@ -107,6 +132,8 @@ export const hasLanded = (t: Trace | undefined) => !!t && ['included', 'final', 
 const FINAL_CONFIRMATIONS: Record<string, number> = { '1': 2, '56': 2, '137': 3, '143': 2 }
 const SLOW_MS = 3 * 60_000
 const DROP_MS = 60 * 60_000
+/** a real bridge is called slow past twice its quoted time, and never before this */
+const BRIDGE_SLOW_MS = 10 * 60_000
 /** ≈ 60 s of re-reads before giving up on seeing the change (the list refreshes on its own later). */
 const SYNC_WAITS = [0, 2_000, 3_000, 5_000, 8_000, 12_000, 15_000, 15_000]
 /**
@@ -164,11 +191,11 @@ const landPaper = (id: string, at: number) => setTimeout(() => { const t = get(i
  * "Done", the tray and Alerts read alike — but recorded at its end, since there is no block to wait
  * for. A paper bridge sits at `bridging` until the route's quoted time is up, then lands.
  */
-export function tracePaper(t: { id: string; chainId: string; account: string; title: string; label?: string; bridge?: Trace['bridge']; arrivesAt?: number }) {
+export function tracePaper(t: { id: string; chainId: string; account: string; title: string; label?: string; bridge?: Trace['bridge']; arrivesAt?: number; receipt?: Receipt; touches?: (string | undefined)[] }) {
   const id = `paper:${t.id}`
   if (get(id)) return id
   const flying = !!t.arrivesAt && t.arrivesAt > Date.now()
-  traces = [{ id, hash: id, chainId: t.chainId, account: normAddr(t.account), title: t.title, label: t.label ?? t.title, moves: 'none', bridge: t.bridge, phase: flying ? 'bridging' : 'settled', at: Date.now(), doneAt: flying ? undefined : Date.now(), need: 1, paper: true, arrivesAt: t.arrivesAt, note: undefined }, ...traces]
+  traces = [{ id, hash: id, chainId: t.chainId, account: normAddr(t.account), title: t.title, label: t.label ?? t.title, moves: 'none', bridge: t.bridge, phase: flying ? 'bridging' : 'settled', at: Date.now(), doneAt: flying ? undefined : Date.now(), need: 1, paper: true, arrivesAt: t.arrivesAt, note: undefined, receipt: t.receipt, touches: t.touches?.filter((u): u is string => !!u) }, ...traces]
   emit()
   if (flying) landPaper(id, t.arrivesAt!)
   return id
@@ -176,7 +203,7 @@ export function tracePaper(t: { id: string; chainId: string; account: string; ti
 
 /** What a trace compares against: the positions it touches and the balances it watches, as they stood before it. */
 export type Baseline = { snap: Snap | null; watchBase?: Record<string, string> }
-type Follow = { hash: string; chainId: string; account: string; title: string; label?: string; moves: Moves; bridge?: Trace['bridge']; touches?: (string | undefined)[]; watch?: Trace['watch']; lastValidHeight?: number }
+type Follow = { hash: string; chainId: string; account: string; title: string; label?: string; moves: Moves; bridge?: Trace['bridge']; touches?: (string | undefined)[]; watch?: Trace['watch']; lastValidHeight?: number; receipt?: Receipt; arrivesAt?: number }
 
 /**
  * The baseline, read NOW. For a transaction the app only learns the hash of once it has landed —
@@ -209,7 +236,7 @@ export function traceTx(t: Follow, base?: Baseline) {
   const scope = scopeOf(touches)
   const cached = !base && t.moves === 'positions' && qc ? cachedRows(qc, account, t.chainId) : null
   const snap = base ? base.snap : cached ? fingerprint(cached, t.chainId, scope) : null
-  traces = [{ id: t.hash, hash: t.hash, chainId: t.chainId, account, title: t.title, label: t.label ?? t.title, moves: t.moves, bridge: t.bridge, touches, watch: t.watch?.length ? t.watch : undefined, watchBase: base?.watchBase, phase: 'pending', at: Date.now(), need: FINAL_CONFIRMATIONS[t.chainId] ?? 1, snap, lastValidHeight: t.lastValidHeight }, ...traces]
+  traces = [{ id: t.hash, hash: t.hash, chainId: t.chainId, account, title: t.title, label: t.label ?? t.title, moves: t.moves, bridge: t.bridge, touches, watch: t.watch?.length ? t.watch : undefined, watchBase: base?.watchBase, phase: 'pending', at: Date.now(), need: FINAL_CONFIRMATIONS[t.chainId] ?? 1, snap, lastValidHeight: t.lastValidHeight, receipt: t.receipt, arrivesAt: t.arrivesAt }, ...traces]
   emit()
   if (!base && t.moves === 'positions' && !cached) void readScope(account, t.chainId, scope).then((r) => { if (r && get(t.hash)?.snap == null) patch(t.hash, { snap: fingerprint(r.items, t.chainId, scope) }) })
   // the watched balances before anything arrives: a bridge's destination cannot have moved yet
@@ -245,7 +272,7 @@ export function traceBatch(t: Omit<Follow, 'hash' | 'lastValidHeight'> & { walle
   const id = batchTraceId(t.walletId)
   if (get(id)) return id
   const account = normAddr(t.account)
-  traces = [{ id, hash: '', chainId: t.chainId, account, title: t.title, label: t.label ?? t.title, moves: t.moves, bridge: t.bridge, touches: [...new Set(t.touches?.filter((u): u is string => !!u))], watch: t.watch?.length ? t.watch : undefined, watchBase: base?.watchBase, phase: 'pending', at: Date.now(), need: FINAL_CONFIRMATIONS[t.chainId] ?? 1, snap: base?.snap ?? null, batch: { id: t.walletId, nonce: t.mark?.nonce, block: t.mark?.block } }, ...traces]
+  traces = [{ id, hash: '', chainId: t.chainId, account, title: t.title, label: t.label ?? t.title, moves: t.moves, bridge: t.bridge, touches: [...new Set(t.touches?.filter((u): u is string => !!u))], watch: t.watch?.length ? t.watch : undefined, watchBase: base?.watchBase, phase: 'pending', at: Date.now(), need: FINAL_CONFIRMATIONS[t.chainId] ?? 1, snap: base?.snap ?? null, batch: { id: t.walletId, nonce: t.mark?.nonce, block: t.mark?.block }, receipt: t.receipt, arrivesAt: t.arrivesAt }, ...traces]
   emit()
   void run(id)
   return id
@@ -262,6 +289,24 @@ export function batchFailed(id: string) {
 }
 
 export function dismissTrace(id: string) { patch(id, { seen: true }) }
+/**
+ * "Check again" on a trace that settled with the positions or the balance not showing it yet: the
+ * same narrow re-read, once more from the start. A no-op on anything else.
+ */
+export function recheck(id: string) {
+  const t = get(id)
+  if (!t || t.phase !== 'settled' || !t.note || t.paper || t.moves === 'none') return
+  patch(id, { phase: 'syncing', note: undefined, doneAt: undefined, seen: undefined })
+  void run(id)
+}
+/**
+ * Pick up every trace still moving — the phone calls it as the app comes back to the front, where a
+ * watcher may have been paused through a trip to the wallet. `run` is idempotent per trace.
+ */
+export function resumeTraces() {
+  for (const t of traces) if (!isDone(t) && !t.paper) void run(t.id)
+  emit()
+}
 export function clearSettled(account: string) { traces = traces.filter((t) => t.account !== normAddr(account) || !isDone(t)); emit() }
 
 const subscribe = (f: () => void) => { subs.add(f); return () => { subs.delete(f) } }
@@ -287,6 +332,8 @@ export function useTrace(id: string | undefined): Trace | undefined {
 export interface TraceChains {
   /** a viem client for an EVM chain id (wagmi's `config.getClient({ chainId })`) */
   evm: (chainId: number) => Client
+  /** how often a bridge's status is asked (10 s); a test asks faster */
+  bridgePollMs?: number
 }
 let chains: TraceChains | null = null
 export function configureTrace(c: TraceChains) { chains = c }
@@ -477,11 +524,17 @@ async function solStep(id: string) {
   if (t.phase === 'syncing') return t.moves === 'positions' ? sync(id) : balanceSync(id)
 }
 
-/** The cross-chain leg: the bridge's own status until it says so, then the destination's balances. */
+/**
+ * The cross-chain leg: the bridge's own status until it says so, then the destination's balances.
+ * The status may never come — a route the status endpoint does not know answers NOT_FOUND for good,
+ * and a batch that landed with no transaction has nothing to ask it about — so every third look
+ * also reads the destination: the balance moving against the one at send is the transfer landing,
+ * whichever answers first (as a batch is followed). Past twice its quoted time it is said to be slow.
+ */
 async function bridge(id: string) {
-  for (;;) {
+  for (let i = 1; ; i++) {
     const t = get(id)!, b = t.bridge!
-    const r = await bridgeStatus({ bridge: b.name, fromChainId: t.chainId, toChainId: b.toChainId, txHash: t.hash, tokenIn: b.tokenIn, tokenOut: b.tokenOut }).catch(() => null)
+    const r = t.hash ? await bridgeStatus({ bridge: b.name, fromChainId: t.chainId, toChainId: b.toChainId, txHash: t.hash, tokenIn: b.tokenIn, tokenOut: b.tokenOut }).catch(() => null) : null
     // NOT_FOUND right after the source lands is the bridge's indexing lag: keep asking
     if (r && r.status !== b.status) patch(id, { bridge: { ...b, status: r.status } })
     if (r && BRIDGE_TERMINAL.has(r.status)) {
@@ -490,7 +543,13 @@ async function bridge(id: string) {
       else patch(id, { phase: 'failed', doneAt: Date.now(), err: r.status === 'TRANSFER_REFUNDED' ? 'The bridge refunded it on the source chain.' : r.message ?? `The bridge answered ${r.status.toLowerCase()}.` })
       return
     }
-    await sleep(BRIDGE_POLL_MS)
+    if (i % 3 === 0 && t.watch?.length && t.watchBase) {
+      const now = await readWatched(t.account, t.watch)
+      if (now && Object.keys(now).some((k) => now[k].raw !== t.watchBase![k])) { patch(id, { phase: 'syncing' }); return balanceSync(id) }
+    }
+    const quoted = t.arrivesAt ? t.arrivesAt - t.at : 0
+    if (!t.note && Date.now() - t.at > Math.max(2 * quoted, BRIDGE_SLOW_MS)) patch(id, { note: `Taking longer than ${b.name}${quoted ? ' quoted' : ' usually does'}. Your funds are with the bridge, not lost.` })
+    await sleep(chains?.bridgePollMs ?? BRIDGE_POLL_MS)
   }
 }
 

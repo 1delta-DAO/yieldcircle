@@ -1,7 +1,8 @@
 import React from 'react'
 import { useAccount, useCapabilities, useSendTransaction, useWalletClient } from 'wagmi'
 import { useQueryClient } from '@tanstack/react-query'
-import { fromUnits, payRaw, portion, unitsOf, type Amount } from '@yieldcircle/core/model/amount'
+import { payRaw, unitsOf, type Amount } from '@yieldcircle/core/model/amount'
+import { GET_FLOOR_USD, NO_AMOUNT, prefill } from '@yieldcircle/core/model/getAmount'
 import { spotSwapQuote, xchainSwapQuote, ZERO, type DestinationGas, type SwapQuoteActions, type SwapQuoteData, type SwapRouteQuote } from '@yieldcircle/core/sdk/api'
 import { balanceOf, gasTokenOf, knownOf, MAX_TOPUPS, paperId, starterOf, starterRef, tokenKey, TOPUP_UNITS, type PaperOp } from '@yieldcircle/core/model/paper'
 import { destinationGasFor, isGasAsk, type GasPref } from '@yieldcircle/core/model/destGas'
@@ -12,7 +13,7 @@ import { isSvmTx, type AnyTx, type ApiTx } from '@yieldcircle/core/sdk/types'
 import { isRejection } from '@yieldcircle/core/sdk/walletErrors'
 import { num } from '@yieldcircle/core/model/format'
 import { chainLabel, useBalances } from '../sdk/queries'
-import { baselineOf, batchFailed, batchLanded, hasLanded, isDone, isOk, markBatch, traceBatch, tracePaper, traceTx, useTrace } from '../sdk/txTrace'
+import { baselineOf, batchFailed, batchLanded, hasLanded, isDone, isOk, markBatch, traceBatch, tracePaper, traceTx, useTrace, type Receipt } from '../sdk/txTrace'
 import { canBatchOn } from '../ladder'
 import { useNow } from '../sdk/txWords'
 import { balancesChanged } from '../sdk/liveBalances'
@@ -27,7 +28,8 @@ export interface Target { chainId: string; address: string; symbol: string; deci
 export type GetTarget = Target & { have: number }
 
 export const shortErr = (m: string) => (m.length > 140 ? m.slice(0, 140) + '…' : m)
-/** The user said no in the wallet (EIP-1193 4001, or the words wallets use for it). */
+/** The user said no in the wallet (`isRejection`): not a failure, and said the same on every send. */
+export const REJECTED = 'Rejected in the wallet — nothing was sent.'
 /**
  * A route's destination gas as the paper bridge op takes it: what lands (destination gas units) and
  * what it costs in the SOURCE gas coin — nothing extra when it is dropped out of the output itself.
@@ -69,15 +71,14 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
   const [otherOpen, setOtherOpen] = React.useState(false)
   const src = pick ?? opts[0] ?? null
   const choose = (i: Idle | null) => { setPick(i); setSent(null); setPendingApprove(undefined) }
-  // amount in the source token, prefilled with what covers the shortfall (plus 1 % for the route), capped at the balance
-  const [amt, setAmt] = React.useState<Amount>({ text: '0' })
+  // amount in the source token: what covers the shortfall, or empty when there is none (`model/getAmount.ts`)
+  const [amt, setAmt] = React.useState<Amount>(NO_AMOUNT)
   const amount = unitsOf(amt)
   // what is sent: Max is the exact balance, a typed amount its text capped at it (tickets/0014)
   const payR = src ? payRaw(amt, src.decimals, src) : '0'
-  // with no price for either side there is nothing to work backwards from (no oracle for a reverse
-  // quote): the amount starts empty, you say what to spend, and the forward quote says what it buys
-  // (and 5 cents: a small buy — gas for a chain — loses more than 1 % to the route's fixed fees)
-  React.useEffect(() => { if (src) { const want = src.price > 0 && target.price > 0 ? (need * target.price * 1.01 + 0.05) / src.price : 0; setAmt(want >= src.amount ? portion(src, 100, src.decimals) : fromUnits(+want.toFixed(6))) } }, [src?.address, src?.chainId, need])
+  // with nothing asked for in the ticket, or no price for either side, the amount starts empty: you
+  // say what to spend, and the forward quote says what it buys
+  React.useEffect(() => { if (src) setAmt(prefill(need, src, target.price, src.chainId !== target.chainId)) }, [src?.address, src?.chainId, need])
   const [quote, setQuote] = React.useState<ApiEnvelope<SwapQuoteData, SwapQuoteActions> | null>(null)
   const [quoting, setQuoting] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
@@ -128,7 +129,8 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
         if (cross && askGas && !env.data?.quotes?.length) { env = await x(); miss = !!env.data?.quotes?.length }
         if (id !== reqId.current) return
         setGasMiss(miss)
-        setQuote(env); if (!env.data?.quotes?.length) setErr('No route found for this pair. Try another asset to pay with.')
+        // dust is not a pair without a route: a bridge has a minimum, and fixed fees above it
+        setQuote(env); if (!env.data?.quotes?.length) setErr(cross && src.price > 0 && amount * src.price < GET_FLOOR_USD ? `Too small to bridge: routes have fixed fees. Try $${GET_FLOOR_USD} or more.` : 'No route found for this pair. Try another asset to pay with.')
       } catch (e) { if (id === reqId.current) { setQuote(null); setErr(shortErr((e as Error).message)) } } finally { if (id === reqId.current) setQuoting(false) }
     }, 600)
     return () => clearTimeout(t)
@@ -177,7 +179,7 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
       onTarget?.(target)
       const what = `${num(amount, 4)} ${src.symbol} → ${target.symbol}${gas && dstGas ? ` + ${num(gas.units, 4)} ${dstGas.symbol}` : ''}`
       const h = tracePaper({ id, chainId: src.chainId, account: paper.session!.evm, title: cross ? `Paper bridge ${what}` : `Paper swap ${what}`, label: cross ? `${chainLabel(src.chainId)} → ${chainLabel(target.chainId)}` : `on ${chainLabel(src.chainId)}`,
-        bridge: cross ? { name: best.bridge ?? best.aggregator ?? 'bridge', toChainId: target.chainId } : undefined, arrivesAt: cross && eta ? Date.now() + eta : undefined })
+        bridge: cross ? { name: best.bridge ?? best.aggregator ?? 'bridge', toChainId: target.chainId } : undefined, arrivesAt: cross && eta ? Date.now() + eta : undefined, receipt: receiptOf() })
       setSent({ hash: h, bridge: best.bridge })
     } catch (e) { setErr(shortErr((e as Error).message)) } finally { setBusy(false) }
   }
@@ -196,6 +198,8 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
   /** The gas leg that did not go out after the bridge did (rejected in the wallet, or failed). */
   const [gasLegMiss, setGasLegMiss] = React.useState<{ leg: AnyTx; q: SwapRouteQuote; why: string } | null>(null)
   React.useEffect(() => { if (!sent) setGasLegMiss(null) }, [sent])
+  /** What the end screen says it was: what went in, what the route said comes out. */
+  const receiptOf = (): Receipt | undefined => src ? { kind: cross ? 'bridge' : 'swap', amount: `${num(amount, amount < 0.01 ? 6 : 4)} ${src.symbol}`, usd: src.price > 0 ? amount * src.price : undefined, out: best ? `${num(best.tradeOutput ?? 0, (best.tradeOutput ?? 0) > 100 ? 2 : 4)} ${target.symbol}` : undefined } : undefined
   /** What the swap or bridge is traced as, whichever way its transaction comes to be known. */
   const bridgeTrace = () => {
     const signer = srcSvm ? solSigner : address
@@ -207,6 +211,9 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
       bridge: cross && best?.bridge ? { name: best.bridge, toChainId: target.chainId, tokenIn: src.address, tokenOut: target.address } : undefined,
       // "Received" means the target balance MOVED, not that the bridge said DONE
       watch: [{ chainId: target.chainId, address: target.address, account: walletOn(target.chainId) }],
+      receipt: receiptOf(),
+      // the route's own estimate: said as time left, and the bridge is called slow well past it
+      arrivesAt: cross && Number(best?.estimatedDuration) > 0 ? Date.now() + Number(best!.estimatedDuration) * 1000 : undefined,
     }
   }
   const traceBridge = (h: string, lastValidHeight?: number) => {
@@ -264,7 +271,7 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
       const leg = best?.destinationGas?.paidFrom === 'gas-leg' && !best.destinationGas.bundled ? best.destinationGas.transaction : undefined
       if (leg && !isSvmTx(leg) && !isSvmTx(tx) && canBatch && walletClient) {
         const r = await sendBatched([tx as ApiTx, leg as ApiTx])
-        if (r === 'rejected') { setErr('Rejected in the wallet — nothing was sent.'); return }
+        if (r === 'rejected') { setErr(REJECTED); return }
         if (r) {
           onTarget?.(target)
           setSent({ hash: r, bridge: best?.bridge })
@@ -284,7 +291,7 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
       setSent({ hash: h, bridge: best?.bridge })
       // a gas leg (NEAR Intents, Gas.zip) beside the route is a second deposit the wallet sends right after it
       if (leg && dstGas) await sendGasLeg(leg, best!)
-    } catch (e) { setErr(shortErr((e as Error).message)) } finally { setBusy(false) }
+    } catch (e) { setErr(isRejection(e) ? REJECTED : shortErr((e as Error).message)) } finally { setBusy(false) }
   }
   /**
    * The gas leg on its own. A rejection (or a failure) does not undo the bridge, which is already on its

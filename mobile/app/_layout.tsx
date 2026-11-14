@@ -9,7 +9,8 @@ import { Stack } from 'expo-router'
 import { useFonts } from 'expo-font'
 import { FONTS } from '../src/fonts'
 import { StatusBar } from 'expo-status-bar'
-import { View } from 'react-native'
+import React from 'react'
+import { AppState, View } from 'react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import { AppKit, AppKitProvider } from '@reown/appkit-react-native'
@@ -20,7 +21,7 @@ import { PhonePaper } from '../src/paper'
 import { PhonePlatform } from '../src/platform'
 import { PhoneNav } from '../src/nav'
 import { AppTabBar } from '../src/ui/TabBar'
-import { configureTrace, initTxTrace } from '@yieldcircle/app/sdk/txTrace'
+import { configureTrace, initTxTrace, resumeTraces } from '@yieldcircle/app/sdk/txTrace'
 import { C } from '../src/theme'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 60_000, retry: 1 } } })
@@ -33,6 +34,8 @@ const header = { headerStyle: { backgroundColor: C.bg }, headerTintColor: C.tx, 
 export default function RootLayout() {
   // the web's Plex, before the first word is drawn: no flash of the system font
   const [fonts] = useFonts(FONTS)
+  // every signature is a trip to the wallet app: what was on its way is looked at again on the way back
+  React.useEffect(() => { const sub = AppState.addEventListener('change', (s) => { if (s === 'active') resumeTraces() }); return () => sub.remove() }, [])
   if (!fonts) return null
   return (
     <AppKitProvider instance={appKit}>
@@ -53,6 +56,8 @@ export default function RootLayout() {
                 <Stack.Screen name="position" options={{ headerShown: false }} />
                 <Stack.Screen name="made" options={{ headerShown: false }} />
                 <Stack.Screen name="paper-book" options={{ headerShown: false }} />
+                <Stack.Screen name="activity" options={{ headerShown: false }} />
+                <Stack.Screen name="receipt" options={{ presentation: 'fullScreenModal', animation: 'fade', headerShown: false }} />
                 <Stack.Screen name="details" options={{ ...header, headerShown: true, title: 'Details' }} />
                 <Stack.Screen name="probe" options={{ ...header, headerShown: true, title: 'Wallet probe' }} />
               </Stack>

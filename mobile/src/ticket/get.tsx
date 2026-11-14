@@ -11,7 +11,6 @@ import { destinationGasFor, isGasAsk, AUTO_GAS_SHARE, type GasPref } from '@yiel
 import { isSolAddr, normAddr } from '@yieldcircle/core/model/address'
 import { cents, num, pctAbs, usd } from '@yieldcircle/core/model/format'
 import { CHAINS, chainLabel } from '@yieldcircle/app/sdk/queries'
-import { phaseWords } from '@yieldcircle/app/sdk/txWords'
 import { usePlatform } from '@yieldcircle/app/platform'
 import { gasOf, useGetAsset, type GetTarget, type Target } from '@yieldcircle/app/tickets/get'
 import type { ValueCheck } from '@yieldcircle/app/tickets/valueCheck'
@@ -19,6 +18,7 @@ import { C } from '../theme'
 import { Btn, Tok } from '../ui/bits'
 import { Txt } from '../ui/Txt'
 import { AmountBox, LossAck } from './parts'
+import { OutcomeView } from '../ui/outcome/Outcome'
 
 /**
  * "Get <asset>" (the web's `GetAsset`, its bottom sheet on a phone): pay with anything held, on any
@@ -42,7 +42,7 @@ export function GetSheet({ targets, want, sources, onTarget, onClose }: { target
 function Body({ targets, want, sources, onTarget, onClose, bottom }: { targets: GetTarget[]; want: number; sources: Idle[]; onTarget?: (t: Target) => void; onClose: () => void; bottom: number }) {
   const platform = usePlatform()
   const g = useGetAsset(targets, want, sources, onTarget)
-  const { account, solSigner, paper, walletOn, ti, setTi, target, need, opts, custom, setCustom, otherOpen, setOtherOpen, src, choose, amt, setAmt, amount, quoting, err, sent, setSent, setPendingApprove, cross, dstGas, gasHeldUsd, gasPref, setGasPref, gasOn, setGasOn, gasPlan, gasMiss, sel, setSel, quotes, best, tx, needsApprove, pendingApprove, approved, connector, switching, wrongChain, sentTr, now, arrived, lost, busy, setBusy, remote, dollar, topupsLeft, topup, canBatch, gasLegMiss, setGasLegMiss, go, sendGasLeg, out, covers, srcNative, srcNativeDec, extraNative, nativeShort, askGas, v } = g
+  const { account, solSigner, paper, walletOn, ti, setTi, target, need, opts, custom, setCustom, otherOpen, setOtherOpen, src, choose, amt, setAmt, amount, quoting, err, sent, setSent, setPendingApprove, cross, dstGas, gasHeldUsd, gasPref, setGasPref, gasOn, setGasOn, gasPlan, gasMiss, sel, setSel, quotes, best, tx, needsApprove, pendingApprove, approved, connector, switching, wrongChain, sentTr, busy, setBusy, remote, dollar, topupsLeft, topup, canBatch, gasLegMiss, setGasLegMiss, go, sendGasLeg, out, covers, srcNative, srcNativeDec, extraNative, nativeShort, askGas, v } = g
   const [routesOpen, setRoutesOpen] = React.useState(false)
   return (
     <>
@@ -168,14 +168,13 @@ function Body({ targets, want, sources, onTarget, onClose, bottom }: { targets: 
             </>}
             {best && !sent && v.sev === 'unk' && <Txt s={12} c={C.warn} style={{ marginTop: 6 }}>The value of this {cross ? 'route' : 'swap'} can't be checked: compare what you pay and get yourself.</Txt>}
             {sent ? (
+              // the swap's or bridge's end, as every action's ends (`OutcomeView`): a step of the ticket, so it hands back to it
               <View style={{ marginTop: 12 }}>
-                {arrived ? (sentTr!.note ? <Txt s={14} c={C.warn}>{sentTr!.note}</Txt> : <Txt s={14} c={C.ok}>Received. Your {target.symbol} balance is refreshed; go ahead with the strategy.</Txt>)
-                  : lost ? <Txt s={14} c={C.bad}>{phaseWords(sentTr!).head}: {sentTr!.err ?? 'it did not go through'}</Txt>
+                {sentTr ? <OutcomeView id={sent.hash} compact={{ done: 'Continue with the strategy' }} onDone={onClose} onLeave={onClose} onAgain={() => { setSent(null) }} />
                   : <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <ActivityIndicator size="small" color={C.tx50} />
-                      <Txt s={14} c={C.tx70} style={{ flex: 1 }}>{sentTr ? phaseWords(sentTr, now).head : cross ? 'Bridging…' : 'Swapping…'}{sentTr && phaseWords(sentTr, now).detail ? <Txt s={14} c={C.tx50}> · {phaseWords(sentTr, now).detail}</Txt> : null}</Txt>
+                      <Txt s={14} c={C.tx70} style={{ flex: 1 }}>{cross ? 'Bridging…' : 'Swapping…'}</Txt>
                     </View>}
-                {arrived && <View style={{ flexDirection: 'row', marginTop: 10 }}><Btn title="Back to the strategy" onPress={onClose} /></View>}
               </View>
             ) : (
               <View style={st.actions}>

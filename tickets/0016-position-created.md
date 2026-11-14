@@ -1,6 +1,8 @@
 # 0016 — "It's yours": a position-created moment you can't miss
 
-- status: **proposed 2026-10-24**. Nothing built.
+- status: **proposed 2026-10-24; §1, §2 and the tray of §4 built 2026-11-14** with
+  [`docs/tx-feedback-plan.md`](../docs/tx-feedback-plan.md), which replaced §5's tone (confetti, as a
+  trading app ends an order). §3 (yours first, the arrival glow) and the rest of §4 are open.
 - area: `src/ui/Ticket.tsx` (`Action`, `StepRow`), `src/ui/useLadder.ts` (what the ladder
   exposes once `settled`), `src/ui/TxTray.tsx`, `src/ui/lite/LiteEarn.tsx`,
   `src/ui/lite/LiteBits.tsx` (`LiteRowView`, the `yours` pill), the Pro earn list on

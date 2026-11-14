@@ -236,7 +236,7 @@ function BorrowPane({ o, h, idle, alternatives, loop }: { o: BorrowOffer; h: Hol
         </div>
       </div>
       {ladder.finished && take > 0 && <Landed o={o} take={take} what={takeWord} line={mixed ? '' : usdOut ? (liqPx > 0 ? usd(liqPx) : '') : liqRatio > 0 ? `${sig4(liqRatio)} ${o.debt.symbol}` : ''} debtKey={debtKey} />}
-      <Action ladder={ladder} label={label} account={account} isConnected={isConnected} disabled={!!blocked} blockedNote={blocked ?? undefined} risky={zone === 'spicy'} chainId={o.chainId} fee="borrow" />
+      <Action ladder={ladder} label={label} account={account} isConnected={isConnected} disabled={!!blocked} blockedNote={blocked ?? undefined} risky={zone === 'spicy'} chainId={o.chainId} receipt={take > 0 ? { kind: 'borrow', amount: usdOut ? usd(take) : `${sig4(debtUnits)} ${o.debt.symbol}`, usd: take, apr, venue: h?.venue ?? o.venue, holdingKey: h?.key } : { kind: 'collateral', amount: `${num(put, 4)} ${chosen.symbol}`, usd: putUsd, venue: h?.venue ?? o.venue, holdingKey: h?.key }} fee="borrow" />
     </>
   )
 }
@@ -350,7 +350,7 @@ function TopUpPane({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] })
         <div className="c hero"><span className="k">From liquidation after</span><span className="v">{owedUsd > 0 ? pct(dropOf(collAfter, owedUsd, liq) * 100, 1) : '—'}</span><span className="s">{owedUsd > 0 ? `was ${pct(dropOf(heldUsd, owedUsd, liq) * 100, 1)}` : 'nothing owed'}</span></div>
         <div className="c"><span className="k">Leverage after</span><span className="v">×{num(levOf(collAfter), 1)}</span><span className="s">was ×{num(levOf(heldUsd), 1)}</span></div>
       </div></div>
-      <Action ladder={ladder} label={put > 0 ? `Put in ${num(put, 4)} ${chosen.symbol}` : 'Add collateral'} account={account} isConnected={isConnected} disabled={!!blocked} blockedNote={blocked ?? undefined} chainId={o.chainId} fee="deposit" />
+      <Action ladder={ladder} label={put > 0 ? `Put in ${num(put, 4)} ${chosen.symbol}` : 'Add collateral'} account={account} isConnected={isConnected} disabled={!!blocked} blockedNote={blocked ?? undefined} chainId={o.chainId} receipt={{ kind: 'collateral', amount: `${num(put, 4)} ${chosen.symbol}`, usd: put * price, venue: h.venue, holdingKey: h.key }} fee="deposit" />
     </>
   )
 }
@@ -374,7 +374,7 @@ function RepayPane({ o, h, idle, lite, loop }: { o: BorrowOffer; h: Holding; idl
       <div className="tsec"><div className="cells">
         <div className="c hero"><span className="k">{lite === 'all' ? 'Back to you' : 'Owed after'}</span><span className="v">{lite === 'all' ? usd(w * price) : usd(debtAfter)}</span><span className="s">{lite === 'all' ? `${num(w, 4)} ${o.collateral.symbol}` : debtAfter > 0 ? `${pct(dropOf(collAfter, debtAfter, liq) * 100, 0)} from liquidation after` : 'nothing owed'}</span></div>
       </div></div>
-      <Action ladder={ladder} label={lite === 'all' ? `Pay back ${usd(r * debtPrice)} and take it home` : `Pay back ${usd(r * debtPrice)}`} account={account} isConnected={isConnected} disabled={!!liteBlocked} blockedNote={liteBlocked ?? undefined} chainId={o.chainId} fee="repay" />
+      <Action ladder={ladder} label={lite === 'all' ? `Pay back ${usd(r * debtPrice)} and take it home` : `Pay back ${usd(r * debtPrice)}`} account={account} isConnected={isConnected} disabled={!!liteBlocked} blockedNote={liteBlocked ?? undefined} chainId={o.chainId} receipt={{ kind: 'repay', amount: usd(r * debtPrice), usd: r * debtPrice, venue: h.venue, holdingKey: h.key }} fee="repay" />
     </>
   )
   return (
@@ -394,7 +394,7 @@ function RepayPane({ o, h, idle, lite, loop }: { o: BorrowOffer; h: Holding; idl
         <div className="c"><span className="k">Health after</span><span className={`v ${ZONES[zone].cls}`}>{debtAfter > 0 ? hfAfter.toFixed(2) : '—'}</span><span className="s">{debtAfter > 0 ? `${ZONES[zone].word} · −${pct(dropOf(collAfter, debtAfter, liq) * 100, 0)} to liquidation` : 'nothing owed'}</span></div>
         <div className="c"><span className="k">Back to you</span><span className="v">{usd(w * price)}</span><span className="s">{num(w, 4)} {native ? coin : o.collateral.symbol}</span></div>
       </div></div>
-      <Action ladder={ladder} label={r > 0 && w > 0 ? `Pay back ${usd(r * debtPrice)} · ${loop ? 'withdraw' : 'take'} ${num(w, 4)} ${o.collateral.symbol}` : r > 0 ? `Pay back ${usd(r * debtPrice)}` : `${loop ? 'Withdraw' : 'Take out'} ${num(w, 4)} ${o.collateral.symbol}`} account={account} isConnected={isConnected} disabled={!!blocked} blockedNote={blocked ?? undefined} chainId={o.chainId} fee="repay" />
+      <Action ladder={ladder} label={r > 0 && w > 0 ? `Pay back ${usd(r * debtPrice)} · ${loop ? 'withdraw' : 'take'} ${num(w, 4)} ${o.collateral.symbol}` : r > 0 ? `Pay back ${usd(r * debtPrice)}` : `${loop ? 'Withdraw' : 'Take out'} ${num(w, 4)} ${o.collateral.symbol}`} account={account} isConnected={isConnected} disabled={!!blocked} blockedNote={blocked ?? undefined} chainId={o.chainId} receipt={r > 0 ? { kind: 'repay', amount: usd(r * debtPrice), usd: r * debtPrice, venue: h.venue, holdingKey: h.key } : { kind: 'withdraw', amount: `${num(w, 4)} ${o.collateral.symbol}`, usd: w * price, venue: h.venue, holdingKey: h.key }} fee="repay" />
     </>
   )
 }

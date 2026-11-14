@@ -99,9 +99,11 @@ invite goes to the email. `promote` skips these rows (no wallet to whitelist).
 
 **The waitlist bot** (`packages/web/gate/bot.ts`): every new request — from
 the app or the landing — is posted to the admins with an Approve button;
-`/pending`, `/find`, `/approve`, `/invite`, `/all` (CSV), `/stats`. Approve
-whitelists the row's wallet and, with the `ASC_*` secrets, invites its email to
-TestFlight. Its webhook is `POST /gate/telegram` on the app and needs only the
+`/pending`, `/wallets` (the waiting addresses in one block to copy), `/emails`
+(waiting without a wallet), `/find`, `/approve`, `/invite`, `/all` (CSV),
+`/stats`. Approve whitelists the row's wallet; with the `ASC_*` secrets it
+invites the email to TestFlight (Apple mails the invite itself), and with
+`MAIL_FROM` it mails them that they are in (`packages/web/gate/mail.ts`). Its webhook is `POST /gate/telegram` on the app and needs only the
 `WHITELIST` binding. Setup, once:
 
 1. @BotFather → `/newbot` → the token. `openssl rand -hex 32` → the webhook secret.
@@ -112,6 +114,9 @@ TestFlight. Its webhook is `POST /gate/telegram` on the app and needs only the
 5. Optional, TestFlight from the bot: an App Store Connect Team Key with the App Manager role
    (Users and Access → Integrations), its id, the issuer id, the `.p8` file's contents and the
    Alpha group's id (the last part of its URL) as the four `ASC_*` variables on the app.
+6. Optional, the welcome email: verify `yieldcircle.io` in Resend (Domains → Add, then the DNS
+   records it lists in Cloudflare DNS), and set `MAIL_FROM` = `YieldCircle <team@yieldcircle.io>`
+   on the app, next to `RESEND_API_KEY`.
 
 **What the middleware runs on** (tickets/0022): the build writes `dist/_routes.json`
 (`packages/web/vite.config.ts`), which excludes `/assets/*` and every file in `public/`, so

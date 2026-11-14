@@ -10,13 +10,13 @@ import { createPortal } from 'react-dom'
 import { useBook } from '@yieldcircle/app/book'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { dismissTrace, isDone, recheck, useTrace, type Trace } from '@yieldcircle/app/sdk/txTrace'
-import { holdingFor, outcomeOf, type Next, type OutcomeState } from '@yieldcircle/app/sdk/txOutcome'
+import { earnedSince, holdingFor, outcomeOf, receiptRows, rowText, tickerText, trackerOf, type Next, type OutcomeState, type Row } from '@yieldcircle/app/sdk/txOutcome'
+import { useTween } from '@yieldcircle/app/sdk/activity'
 import { reached, stages, useNow } from '@yieldcircle/app/sdk/txWords'
-import { bufferOfHealth, leverTag } from '@yieldcircle/core/model/lite'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import { liteHash } from '@yieldcircle/core/model/liteLinks'
 import { txUrl } from './ChainMark'
-import { pct, usd } from './bits'
+import { usd } from './bits'
 
 const still = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -95,10 +95,10 @@ function useCountUp(to: number, on: boolean, ms = 900) {
   return v
 }
 
-/** The position's page, for "See it": Lite's You with it open, or its group in Pro. */
-export const holdingHref = (h: Holding, lite: boolean) => (lite ? `#/lite/you?h=${encodeURIComponent(h.key)}` : `#/pro/${h.group}?${new URLSearchParams({ k: h.kind, h: h.key })}`)
+/** The position's page, for "See it": Lite's You with it open, or its group in Pro with its row picked (`s`: its strategy, so the row is lit). */
+export const holdingHref = (h: Holding, lite: boolean, s?: string) => (lite ? `#/lite/you?h=${encodeURIComponent(h.key)}` : `#/pro/${h.group}?${new URLSearchParams({ ...(s ? { s } : {}), k: h.kind, h: h.key })}`)
 
-export function OutcomeCard({ id, onDone, onAgain, onFail, partial, links, compact, children }: {
+export function OutcomeCard({ id, onDone, onAgain, onFail, partial, links, compact, steps, children }: {
   id: string
   onDone: () => void
   onAgain?: () => void
@@ -107,6 +107,8 @@ export function OutcomeCard({ id, onDone, onAgain, onFail, partial, links, compa
   /** under the button on a success: See it · Do another */
   links?: (h: Holding | undefined) => { label: string; href?: string; onClick?: () => void }[]
   compact?: { done: string }
+  /** what was signed, behind a fold: the ticket's steps, and whether they went as one transaction */
+  steps?: { labels: string[]; batched: boolean }
   children?: React.ReactNode
 }) {
   const t = useTrace(id)
@@ -127,15 +129,21 @@ export function OutcomeCard({ id, onDone, onAgain, onFail, partial, links, compa
   const r = t?.receipt
   const h = t && o && (o.state === 'won' || o.state === 'soft') && r && !['swap', 'bridge'].includes(r.kind) ? holdingFor(b.holdings, t) : undefined
   const counted = useCountUp(r?.usd ?? 0, !!o && o.state !== 'lost')
+  // what money put to work has made since it landed, by the second
+  const earning = !!t && t.phase === 'settled' && !t.note && ['deposit', 'open', 'collateral'].includes(r?.kind ?? '')
+  const tick = useNow(earning)
   if (!t || !o) return null
+  const earned = earning && o.state === 'won' ? earnedSince(t, h, tick) : null
+  const tracker = o.state !== 'won' ? trackerOf(t) : undefined
   const hero = o.state === 'lost' ? undefined : r?.usd != null && r.usd > 0 ? usd(counted) : r?.amount
-  const rows = o.state === 'lost' ? [] : rowsOf(t, h, !!compact)
+  const rows = o.state === 'lost' ? [] : receiptRows(t, h, { chain: chainLabel, compact: !!compact })
   const url = txUrl(t.chainId, t.hash)
   const btn = (n: Next, k: number) => {
     const cls = `btn wide${k === 0 ? (o.tone === 'bad' ? ' risky pri' : ' pri') : ''}`
     switch (n) {
       case 'again': return onAgain ? <button key={n} className={cls} onClick={onAgain}>{partial ? 'Send it again' : 'Try again'}</button> : null
-      case 'view': return url ? <a key={n} className={cls.replace(' risky', '')} href={url} target="_blank" rel="noreferrer">View transaction ↗</a> : null
+      case 'view': return tracker ? <a key={n} className={cls.replace(' risky', '')} href={tracker.url} target="_blank" rel="noreferrer">Track it on {tracker.name} ↗</a>
+        : url ? <a key={n} className={cls.replace(' risky', '')} href={url} target="_blank" rel="noreferrer">View transaction ↗</a> : null
       case 'check': return <button key={n} className={cls} onClick={() => recheck(id)}>Check again</button>
       case 'done': return <button key={n} className={cls} onClick={onDone}>{compact?.done ?? 'Done'}</button>
     }
@@ -146,20 +154,25 @@ export function OutcomeCard({ id, onDone, onAgain, onFail, partial, links, compa
       <div className="o-mark" ref={ring}><Ring state={o.state} tone={o.tone} size={compact ? 64 : 96} progress={progressOf(t, now)} /></div>
       <div className="o-head"><b>{o.head}</b>{t.paper && <span className="pill paper">paper</span>}</div>
       {hero && <div className="o-amt mono">{hero}</div>}
+      {earned != null && !compact && <div className="o-tick mono" aria-label="earned since it landed">{tickerText(earned)} earned so far</div>}
       {o.state === 'flying' && t.bridge && (
         <div className="o-route"><span>{chainLabel(t.chainId)}</span><span className="o-line"><i style={{ left: `${Math.max(4, Math.min(96, progressOf(t, now) * 100))}%` }} /></span><span>{chainLabel(t.bridge.toChainId)}</span></div>
       )}
+      {o.state === 'flying' && tracker && <a className="o-track" href={tracker.url} target="_blank" rel="noreferrer">Track it on {tracker.name} ↗</a>}
       {o.detail && o.state !== 'lost' && <div className={`o-sub${o.tone === 'warn' ? ' warn' : ''}`}>{o.detail}</div>}
       {o.state === 'lost' && <div className="o-money" data-tone={o.tone}><span className="lbl">Your money</span><b>{o.money}</b>{o.detail && <small>{o.detail}</small>}</div>}
       {rows.length > 0 && (
         <dl className="o-rows">
-          {rows.map(([k, v, tone]) => <div key={k}><dt>{k}</dt><dd className={tone ?? ''}>{v}</dd></div>)}
+          {rows.map((x) => <RowView key={x.k} r={x} />)}
           {url && !compact && <div><dt>Transaction</dt><dd><a className="mono" href={url} target="_blank" rel="noreferrer">{t.hash.slice(0, 6)}…{t.hash.slice(-4)} ↗</a></dd></div>}
         </dl>
       )}
       <div className="o-acts">
         {o.state === 'flying' ? <span className="t40">It keeps going if you close this: the pill in the corner follows it.</span> : nexts.map(btn)}
       </div>
+      {steps && steps.labels.length > 1 && o.state !== 'flying' && (
+        <details className="o-steps"><summary>{steps.labels.length} steps{steps.batched ? ' in one transaction' : ''}</summary><ol>{steps.labels.map((l, i) => <li key={i}>{l}</li>)}</ol></details>
+      )}
       {o.state === 'won' && links && <div className="o-links">{links(h).map((x) => x.href ? <a key={x.label} href={x.href} onClick={x.onClick}>{x.label}</a> : <button key={x.label} className="lnk" onClick={x.onClick}>{x.label}</button>)}</div>}
       {o.state !== 'flying' && o.state !== 'lost' && children}
       {burst && <Confetti at={burst} small={!!compact} onEnd={() => setBurst(null)} />}
@@ -167,36 +180,12 @@ export function OutcomeCard({ id, onDone, onAgain, onFail, partial, links, compa
   )
 }
 
-type Row = [string, string, ('dim' | 'ok')?]
-/** The order, in a few rows: the position's own figures once it has synced, the quote's (greyed) before. */
-function rowsOf(t: Trace, h: Holding | undefined, compact: boolean): Row[] {
-  const r = t.receipt, done = t.phase === 'settled'
-  const rows: Row[] = []
-  const got = t.received?.length ? t.received.map((x) => `+${x.amount} ${x.symbol}`).join(', ') : undefined
-  if (r?.kind === 'swap' || r?.kind === 'bridge') {
-    if (r.amount && !compact) rows.push(['Paid', r.amount])
-    rows.push(['Received', got ?? (r.out ? `≈ ${r.out}` : '—'), got ? 'ok' : 'dim'])
-    if (!compact) {
-      rows.push(t.bridge ? ['Route', `${chainLabel(t.chainId)} → ${chainLabel(t.bridge.toChainId)} · ${t.bridge.name}`] : ['On', chainLabel(t.chainId)])
-      if (t.bridge && done && t.doneAt) { const s = Math.max(1, Math.round((t.doneAt - t.at) / 1000)); rows.push(['Took', s < 90 ? `${s} seconds` : `${Math.round(s / 60)} minutes`]) }
-    }
-    return rows
-  }
-  const venue = h?.venue ?? r?.venue
-  if (venue) rows.push([r?.kind === 'withdraw' || r?.kind === 'close' || r?.kind === 'repay' ? 'From' : 'Into', `${venue.split(' · ')[0]} · ${chainLabel(t.chainId)}`])
-  if (got) rows.push(['Received', got, 'ok'])
-  const apr = done && h?.apr != null ? h.apr : r?.apr
-  const earning = r && ['deposit', 'open', 'lever', 'delever', 'collateral'].includes(r.kind)
-  if (apr != null && Number.isFinite(apr) && earning) {
-    rows.push(['Rate', `${pct(apr)} a year`, done && h ? undefined : 'dim'])
-    const value = done && h ? h.valueUsd : r?.usd
-    if (value && apr > 0) rows.push(['Earns', `≈ ${usd((value * apr) / 100 / 12)} a month`, done && h ? undefined : 'dim'])
-  } else if (apr != null && Number.isFinite(apr) && r?.kind === 'borrow') rows.push(['Costs', `${pct(apr)} a year`])
-  const lev = done && h?.leverage ? h.leverage : r?.leverage
-  const buf = h ? bufferOfHealth(h.health) : null
-  if ((lev && lev > 1.05) || (buf != null && r?.kind !== 'deposit')) rows.push(['Leverage', [lev && lev > 1.05 ? leverTag(lev) : '', buf != null ? `${pct(buf * 100, 1)} from liquidation` : ''].filter(Boolean).join(' · ')])
-  if (done && h && (r?.kind === 'deposit' || r?.kind === 'open' || r?.kind === 'collateral')) rows.push(['Yours now', usd(h.valueUsd)])
-  return rows
+/** One row of the order: a figure moves to its new value as the synced position replaces the quote; a transaction links to its explorer. */
+function RowView({ r }: { r: Row }) {
+  const n = useTween(r.n ?? 0)
+  const url = r.tx ? txUrl(r.tx.chainId, r.tx.hash) : undefined
+  const v = r.n != null && r.f ? rowText(r.f, n) : r.v
+  return <div><dt>{r.k}</dt><dd className={r.tone ?? ''}>{url ? <a className="mono" href={url} target="_blank" rel="noreferrer">{v} ↗</a> : v}</dd></div>
 }
 
 /** One trace's end, over the page: what the tray opens for an action whose ticket was closed. */
@@ -211,7 +200,7 @@ export function ReceiptDialog({ id, onClose }: { id: string; onClose: () => void
     <div className="o-dialog" role="dialog" aria-modal="true" aria-label="Transaction" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="o-card">
         <button className="x" onClick={onClose} aria-label="Close">✕</button>
-        <OutcomeCard id={id} onDone={onClose} onAgain={again} links={(h) => (h ? [{ label: 'See it', href: holdingHref(h, lite), onClick: onClose }] : [])} />
+        <OutcomeCard id={id} onDone={onClose} onAgain={again} links={(h) => (h ? [{ label: 'See it', href: holdingHref(h, lite, t?.receipt?.strategyId), onClick: onClose }] : [])} />
       </div>
     </div>,
     document.body,

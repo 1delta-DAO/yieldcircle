@@ -3,7 +3,7 @@ import { Animated, Pressable, StyleSheet, View } from 'react-native'
 import { router } from 'expo-router'
 import { useActivity } from '@yieldcircle/app/sdk/activity'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
-import { outcomeOf } from '@yieldcircle/app/sdk/txOutcome'
+import { outcomeOf, pillLine } from '@yieldcircle/app/sdk/txOutcome'
 import { dismissTrace, isDone } from '@yieldcircle/app/sdk/txTrace'
 import { C } from '../theme'
 import { Txt } from './Txt'
@@ -35,7 +35,8 @@ export function ActivityPill({ bottom }: { bottom: number }) {
   if (!lead || !o) return null
   const more = a.shown.length - 1
   const open = () => (more > 0 ? router.push('/activity') : router.push({ pathname: '/receipt', params: { id: lead.id } }))
-  const words = o.state === 'flying' ? (o.detail ?? '') : o.state === 'lost' ? o.head : `${o.head} ›`
+  // as it ends, what it is now ("Your loop is open · $10 at 15.3%"), the same words as the web's tray
+  const words = o.state === 'flying' ? (o.detail ?? '') : o.state === 'lost' ? o.head : `${pillLine(lead, o)} ›`
   const border = o.tone === 'bad' ? 'rgba(229,83,75,.7)' : o.tone === 'warn' ? 'rgba(226,163,58,.6)' : o.state === 'won' ? 'rgba(63,191,127,.6)' : C.line2
   return (
     <View pointerEvents="box-none" style={[st.slot, { bottom }]}>

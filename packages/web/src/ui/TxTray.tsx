@@ -14,7 +14,7 @@ import React from 'react'
 import { useAccount } from 'wagmi'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { useActivity } from '@yieldcircle/app/sdk/activity'
-import { outcomeOf } from '@yieldcircle/app/sdk/txOutcome'
+import { outcomeOf, pillLine } from '@yieldcircle/app/sdk/txOutcome'
 import { dismissTrace, isDone, isOk, useTraces, type Trace } from '@yieldcircle/app/sdk/txTrace'
 import { useSolWallet } from '../wallet/solana'
 import { TxLink } from './bits'
@@ -116,7 +116,7 @@ export function TxTray() {
         </div>
       )}
       <button ref={pill} className={`txpill ${w.tone}${won ? ' won' : ''}`} onClick={tap} aria-expanded={open} aria-live="polite">
-        <Mark tone={w.tone} /><b>{lead.title}</b><span className="ph">{isDone(lead) ? `${o.head}${isOk(lead) ? ' ›' : ''}` : w.detail && lead.bridge ? w.detail : w.head}</span>{more > 0 && <span className="txmore">+{more}</span>}
+        <Mark tone={w.tone} /><b>{lead.title}</b><span className="ph">{isDone(lead) ? `${pillLine(lead, o)}${isOk(lead) ? ' ›' : ''}` : w.detail && lead.bridge ? w.detail : w.head}</span>{more > 0 && <span className="txmore">+{more}</span>}
       </button>
       {burst && <Confetti small at={burst} onEnd={() => setBurst(null)} />}
       {dialog}

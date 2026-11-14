@@ -21,6 +21,8 @@ import { C } from '../theme'
 import { Txt } from '../ui/Txt'
 import { Action, AmountBox, AmtLine, AmtSub, Cells, Choices, GetLine, Lbl, Lines, LossAck, MoreNote, MoreSheet, Numbers, Plain, Presets, Sec } from './parts'
 import { GetSheet } from './get'
+import { beforeOf } from '@yieldcircle/app/sdk/txOutcome'
+import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
 
 /**
  * Lite's ticket bodies, the web's `lite` branches of `SimpleTicket`, `LoopTicket`, `ManageTicket`
@@ -137,6 +139,8 @@ export function LoopBody({ s, idle, allIdle, holding, copyLev }: { s: LoopStrate
 /** Taking money out of a deposit: how much (all of it to start), what comes back and when. */
 export function WithdrawBody({ s, h }: { s: SimpleStrategy | null; h: Holding }) {
   const t = useWithdrawTicket(s, h, 'reduce', { lite: true })
+  // what it made since it was opened: the end screen says it on the way out
+  const made = useHoldingPnl(h)?.pnlUsd ?? undefined
   const wdp = shownDp(h.group === 'USD')
   return (
     <>
@@ -148,7 +152,7 @@ export function WithdrawBody({ s, h }: { s: SimpleStrategy | null; h: Holding })
       </Sec>}
       <Lines l={withdrawLines({ backUsd: t.eff * t.price, back: `${num(t.eff, wdp)} ${t.outSym}`, exitWord: t.exit?.word, exitWhen: t.exit?.when, leftUsd: Math.max(0, h.amount - t.eff) * t.price, rate: t.rate ?? null })} />
       <Action ladder={t.ladder} label={t.fullExit ? `Withdraw all · ${usd(t.eff * t.price)}` : `Withdraw ${usd(t.eff * t.price)}`} account={t.account} isConnected={t.isConnected} disabled={!(t.eff > 0) || !!t.paperRefuse} blockedNote={t.paperRefuse ?? undefined} chainId={h.chainId}
-        receipt={{ kind: 'withdraw', amount: usd(t.eff * t.price), usd: t.eff * t.price, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} />
+        receipt={{ kind: 'withdraw', amount: usd(t.eff * t.price), usd: t.eff * t.price, venue: h.venue, strategyId: s?.id, holdingKey: h.key, made, all: t.fullExit, before: beforeOf(h) }} />
       <MoreSheet>
         {t.canNative && <Choices<'token' | 'coin'> label="Paid out as" on={t.native ? 'coin' : 'token'} onPick={(x) => t.setAsNative(x === 'coin')}
           note={t.maxRounds ? `This venue’s ${t.coin} exit fails on a full withdrawal: take ${h.symbol}, or leave a little in.` : undefined}
@@ -170,6 +174,7 @@ export function WithdrawBody({ s, h }: { s: SimpleStrategy | null; h: Holding })
 /** A held loop: "Lower risk" — one of three targets by distance from liquidation — or Close. */
 export function ManageLoopBody({ s, h, close }: { s: LoopStrategy | null; h: Holding; close: boolean }) {
   const t = useManageLoop(s, h, close, { lite: true })
+  const made = useHoldingPnl(h)?.pnlUsd ?? undefined
   // what the loop holds, in Lite's words (never a PT's ticker)
   const holdsWord = s ? s.holds : moneyWord(h.asset, h.group)
   if (!t.closing) {
@@ -202,7 +207,7 @@ export function ManageLoopBody({ s, h, close }: { s: LoopStrategy | null; h: Hol
         </Sec>
         <Lines l={saferLines({ net: s && !t.loan ? t.net ?? null : null, netBefore: s && !t.loan ? netAprAtLeverage(s.depSpot, s.borSpot, t.Lnow) : null, buffer: t.drop ?? null, bufferBefore: bufNow ?? null, equityUsd: t.E })} />
         <Action ladder={t.ladder} label={t.same ? (t.safer.length ? 'Pick how much safer' : 'Pick a leverage') : `${t.down ? 'Lower' : 'Raise'} to ${leverTag(t.L)}`} account={t.account} isConnected={t.isConnected} disabled={t.same || !!t.closeBlock} chainId={h.chainId}
-          receipt={{ kind: t.down ? 'delever' : 'lever', amount: leverTag(t.L), apr: t.net ?? undefined, leverage: t.L, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} />
+          receipt={{ kind: t.down ? 'delever' : 'lever', amount: leverTag(t.L), apr: t.net ?? undefined, leverage: t.L, venue: h.venue, strategyId: s?.id, holdingKey: h.key, before: beforeOf(h) }} />
         <MoreSheet>
           {t.loans.length > 1 && <Choices label="Which loan" note="Each fixed-rate loan is paid back on its own." items={t.loans.map((x) => ({ id: x.id, word: `Loan ${x.id}`, line: `${usdShort(x.debtUsd)} owed` }))} on={t.loan?.id ?? null} onPick={(id) => { t.setLoanId(id); t.setL(t.Lnow) }} />}
           {t.targets.length
@@ -237,7 +242,7 @@ export function ManageLoopBody({ s, h, close }: { s: LoopStrategy | null; h: Hol
       </Sec>
       <Lines l={closeLines({ backUsd: t.cq.isPending ? null : t.backUsd ?? null, back: t.cq.isPending ? 'pricing the sale…' : t.closeBlock ? '' : t.backDebt != null && !t.keep ? `≈ ${num(t.backDebt, 4)} ${t.debt}` : t.keep && t.backColl != null ? `≈ ${num(t.backColl, 4)} ${t.holds}` : '', costUsd: t.sale?.exitCostUsd ?? null, short: t.closeBlock === 'short' })} />
       <Action ladder={t.ladder} label="Close and withdraw" account={t.account} isConnected={t.isConnected} disabled={t.same || !!t.closeBlock || t.vc.blocked} risky={t.vc.severe} blockedNote={t.vc.blocked ? `Confirm the ${cents(-t.vc.diff)} loss above to continue` : undefined} chainId={h.chainId}
-        receipt={{ kind: 'close', amount: usd(h.valueUsd), usd: h.valueUsd, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} />
+        receipt={{ kind: 'close', amount: usd(h.valueUsd), usd: h.valueUsd, venue: h.venue, strategyId: s?.id, holdingKey: h.key, made, all: true, before: beforeOf(h) }} />
       <MoreSheet>
         {t.sameToken ? null : t.venueKeeps
           ? <MoreNote label="What you get it back in">{h.venue.split(' · ')[0]} always hands back what the loop holds: only what repays the {t.debt} is sold.</MoreNote>
@@ -315,7 +320,7 @@ function RepayBody({ o, h, idle, lite }: { o: BorrowOffer; h: Holding; idle: Idl
         ? { k: 'Back to you', v: usd(t.w * t.price), s: `${num(t.w, 4)} ${o.collateral.symbol}` }
         : { k: 'Owed after', v: usd(t.debtAfter), s: t.debtAfter > 0 ? `${pct(dropOf(t.collAfter, t.debtAfter, t.liq) * 100, 0)} from liquidation after` : 'nothing owed' }} cells={[]} />
       <Action ladder={t.ladder} label={lite === 'all' ? `Pay back ${usd(t.r * t.debtPrice)} and take it home` : `Pay back ${usd(t.r * t.debtPrice)}`} account={t.account} isConnected={t.isConnected} disabled={!!t.liteBlocked} blockedNote={t.liteBlocked ?? undefined} chainId={o.chainId}
-        receipt={{ kind: 'repay', amount: usd(t.r * t.debtPrice), usd: t.r * t.debtPrice, venue: h.venue, holdingKey: h.key }} />
+        receipt={{ kind: 'repay', amount: usd(t.r * t.debtPrice), usd: t.r * t.debtPrice, venue: h.venue, holdingKey: h.key, all: t.repayAll, before: beforeOf(h) }} />
     </>
   )
 }
@@ -403,7 +408,7 @@ function DepositBorrowBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: I
         )}
       </Sec>
       <Action ladder={t.ladder} label={t.label} account={t.account} isConnected={t.isConnected} disabled={!!t.blocked} blockedNote={t.blocked ?? undefined} risky={t.zone === 'spicy'} chainId={o.chainId}
-        receipt={{ kind: t.take > 0 ? 'borrow' : 'collateral', amount: t.take > 0 ? (t.usdOut ? usd(t.take) : `${sig4(t.debtUnits)} ${o.debt.symbol}`) : `${num(t.put, 4)} ${t.chosen.symbol}`, usd: t.take > 0 ? t.take : t.putUsd, apr: t.take > 0 ? t.apr : undefined, venue: h.venue, holdingKey: h.key }} />
+        receipt={{ kind: t.take > 0 ? 'borrow' : 'collateral', amount: t.take > 0 ? (t.usdOut ? usd(t.take) : `${sig4(t.debtUnits)} ${o.debt.symbol}`) : `${num(t.put, 4)} ${t.chosen.symbol}`, usd: t.take > 0 ? t.take : t.putUsd, apr: t.take > 0 ? t.apr : undefined, venue: h.venue, holdingKey: h.key, before: beforeOf(h) }} />
     </>
   )
 }
@@ -421,7 +426,7 @@ function CollateralInBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Id
       <Cells hero={{ k: 'From liquidation after', v: t.owedUsd > 0 ? pct(dropOf(t.collAfter, t.owedUsd, t.liq) * 100, 1) : '—', s: t.owedUsd > 0 ? `was ${pct(dropOf(t.heldUsd, t.owedUsd, t.liq) * 100, 1)}` : 'nothing owed' }}
         cells={[{ k: 'Leverage after', v: `×${num(t.levOf(t.collAfter), 1)}`, s: `was ×${num(t.levOf(t.heldUsd), 1)}` }]} />
       <Action ladder={t.ladder} label={t.put > 0 ? `Put in ${num(t.put, 4)} ${t.chosen.symbol}` : 'Add collateral'} account={t.account} isConnected={t.isConnected} disabled={!!t.blocked} blockedNote={t.blocked ?? undefined} chainId={o.chainId}
-        receipt={{ kind: 'collateral', amount: `${num(t.put, 4)} ${t.chosen.symbol}`, usd: t.put * t.price, venue: h.venue, holdingKey: h.key }} />
+        receipt={{ kind: 'collateral', amount: `${num(t.put, 4)} ${t.chosen.symbol}`, usd: t.put * t.price, venue: h.venue, holdingKey: h.key, before: beforeOf(h) }} />
     </>
   )
 }
@@ -449,7 +454,7 @@ function RepayWithdrawBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: I
       <Cells hero={{ k: 'Owed after', v: usd(t.debtAfter), s: t.debtAfter > 0 ? `${pct(dropOf(t.collAfter, t.debtAfter, t.liq) * 100, 0)} from liquidation after` : 'the loan is paid off' }}
         cells={[{ k: 'Back to you', v: usd(t.w * t.price), s: `${num(t.w, 4)} ${o.collateral.symbol}` }]} />
       <Action ladder={t.ladder} label={t.r > 0 && t.w > 0 ? `Repay ${usd(t.r * t.debtPrice)} · withdraw ${num(t.w, 4)} ${o.collateral.symbol}` : t.r > 0 ? `Repay ${usd(t.r * t.debtPrice)}` : `Withdraw ${num(t.w, 4)} ${o.collateral.symbol}`} account={t.account} isConnected={t.isConnected} disabled={!!t.blocked} blockedNote={t.blocked ?? undefined} chainId={o.chainId}
-        receipt={t.r > 0 ? { kind: 'repay', amount: usd(t.r * t.debtPrice), usd: t.r * t.debtPrice, venue: h.venue, holdingKey: h.key } : { kind: 'withdraw', amount: `${num(t.w, 4)} ${o.collateral.symbol}`, usd: t.w * t.price, venue: h.venue, holdingKey: h.key }} />
+        receipt={t.r > 0 ? { kind: 'repay', amount: usd(t.r * t.debtPrice), usd: t.r * t.debtPrice, venue: h.venue, holdingKey: h.key, all: t.repayAll, before: beforeOf(h) } : { kind: 'withdraw', amount: `${num(t.w, 4)} ${o.collateral.symbol}`, usd: t.w * t.price, venue: h.venue, holdingKey: h.key, before: beforeOf(h) }} />
     </>
   )
 }

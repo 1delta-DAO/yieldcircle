@@ -359,6 +359,17 @@ work is settled.
   held rows first (the web's Pro already lists your positions apart). A swap's or bridge's result
   remembers the ticket it was opened from (`useGetAsset`'s `from`), so "Try again" from the pill or
   the tray goes back there.
+- **The rest of §4.3** (same day): the order's rows are one shared function (`receiptRows` in
+  `sdk/txOutcome.ts`, both apps draw it) — the way out says what the position made since it was
+  opened (`Receipt.made`, the index's figure at send), a change says before → after (leverage and
+  distance to liquidation, `beforeOf`), a repay what is still owed or that the loan is closed, a
+  bridge the gas it brought and its arrival transaction (`bridge.toHash`). A figure moves to the
+  synced position's value instead of swapping (`Row.n`, `useTween`); a deposit's screen counts what
+  it has earned since it landed (`earnedSince`); the steps signed sit behind a fold ("4 steps in one
+  transaction"); a bridge that is on its way or failed links its own tracker where it keys one on the
+  source hash (`core/model/bridgeLinks.ts`); the pill ends on "Your loop is open · $10.00 at 15.3%"
+  (`pillLine`); Pro's "See it" names the strategy, so the row is lit and its ticket open.
+  `pnpm shots --only end-` draws the four end states (won, soft, refunded, bridging).
 - **Slice 6, native** (`mobile/src/feel.tsx`): `expo-haptics` (success pattern, error knock, a light
   tap as the pill lands) and `expo-notifications` (a reminder at a bridge's quoted arrival while the
   app is in the background, cancelled on return, a tap opens its receipt). Needs `pnpm mobile

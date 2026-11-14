@@ -74,6 +74,14 @@ export interface Receipt {
   /** where "See it" goes: the strategy, and the position when it already existed */
   strategyId?: string
   holdingKey?: string
+  /** the position as it stood before (a change, a repay, a way out): what the screen compares with (`beforeOf`) */
+  before?: { leverage?: number; buffer?: number | null; owedUsd?: number; valueUsd?: number }
+  /** what the position made since it was opened, at send (the index's figure): said on the way out */
+  made?: number
+  /** all of it: a full exit, a loan paid off */
+  all?: boolean
+  /** a bridge's gas for the destination, as quoted: "0.0004 ETH" */
+  gas?: string
 }
 type Hex = `0x${string}`
 type Snap = Record<string, number>
@@ -83,7 +91,8 @@ export interface Trace {
   /** The action (`Deposit · 100 USDC`) and this transaction's part of it (`Approve USDC`). */
   title: string; label: string
   moves: Moves
-  bridge?: { name: string; toChainId: string; tokenIn?: string; tokenOut?: string; status?: string }
+  /** `toHash`: the destination leg's transaction, once the bridge reports it */
+  bridge?: { name: string; toChainId: string; tokenIn?: string; tokenOut?: string; status?: string; toHash?: string }
   /** The market / earn uids it acts on (`AAVE_V3:1:0x…`, `vault.morpho:8453:0x…`) — what the re-read is narrowed to. */
   touches?: string[]
   /**
@@ -536,7 +545,7 @@ async function bridge(id: string) {
     const t = get(id)!, b = t.bridge!
     const r = t.hash ? await bridgeStatus({ bridge: b.name, fromChainId: t.chainId, toChainId: b.toChainId, txHash: t.hash, tokenIn: b.tokenIn, tokenOut: b.tokenOut }).catch(() => null) : null
     // NOT_FOUND right after the source lands is the bridge's indexing lag: keep asking
-    if (r && r.status !== b.status) patch(id, { bridge: { ...b, status: r.status } })
+    if (r && (r.status !== b.status || (r.toHash && r.toHash !== b.toHash))) patch(id, { bridge: { ...b, status: r.status, ...(r.toHash ? { toHash: r.toHash } : {}) } })
     if (r && BRIDGE_TERMINAL.has(r.status)) {
       // DONE is the bridge's word, not the destination's balance: read that until it moves
       if (r.status === 'DONE') { if (t.watch) { patch(id, { phase: 'syncing' }); return balanceSync(id) } if (qc) balancesChanged(qc, t.chainId, b.toChainId); patch(id, { phase: 'settled', doneAt: Date.now() }) }

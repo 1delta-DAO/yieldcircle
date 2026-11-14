@@ -40,6 +40,8 @@ const BASE = arg('--url', 'http://localhost:3200')
 /** A wallet with positions on several chains, so the "yours" surfaces are not empty. */
 const AS = arg('--as', '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045')
 const TAP = 44
+/** `--only end-`: the routes whose id starts so (a quick look at one surface) */
+const ONLY = arg('--only', '')
 const HAR = path.join(OUT, 'api.har')
 /** Pinned so "3h ago" is the same string on every run. Arbitrary, and only has
  *  to sit AFTER the recorded data, or every age renders as a future date. */
@@ -64,7 +66,18 @@ const ROUTES = [
   { id: 'money', hash: '#/board', open: async (p) => p.locator('button.moneychip').click() },
   { id: 'search', hash: '#/', open: async (p) => p.locator('.search input').fill('usd') },
   { id: 'wallet', hash: `#/w/${AS.toLowerCase()}` },
+  // an action's end (docs/tx-feedback-plan.md, ticket 0016): a trace seeded into the store, then its
+  // receipt opened from the tray — landed, landed but not shown yet, refunded, and still bridging
+  { id: 'end-won', hash: '#/lite/', seed: [trace('settled', { receipt: { kind: 'open', amount: '$250.00', usd: 250, apr: 15.34, leverage: 7.7, venue: 'Maple · Aave V3' } })], open: (p) => p.locator('.txpill').click() },
+  { id: 'end-soft', hash: '#/lite/', seed: [trace('settled', { note: 'Final on chain, but the positions have not picked it up yet. They will on the next refresh.', receipt: { kind: 'deposit', amount: '$250.00', usd: 250, apr: 6.2, venue: 'Spark' } })], open: (p) => p.locator('.txpill').click() },
+  { id: 'end-lost', hash: '#/lite/', seed: [trace('failed', { chainId: '42161', moves: 'balances', title: 'Bridge 250 USDC', err: 'The bridge refunded it on the source chain.', bridge: { name: 'relay', toChainId: '8453', status: 'TRANSFER_REFUNDED' }, receipt: { kind: 'bridge', amount: '250 USDC' } })], open: (p) => p.locator('.txpill').click() },
+  { id: 'end-flying', hash: '#/lite/', seed: [trace('bridging', { id: 'paper:fly', hash: 'paper:fly', paper: true, moves: 'none', chainId: '42161', title: 'Bridge 250 USDC', doneAt: undefined, arrivesAt: CLOCK + 100_000, bridge: { name: 'relay', toChainId: '8453' }, receipt: { kind: 'bridge', amount: '250 USDC', out: '249.80 USDC' } })], open: (p) => p.locator('.txpill').click() },
 ]
+/** A trace as the store keeps it (`@yieldcircle/app/sdk/txTrace`), timed against the pinned clock. */
+function trace(phase, p) {
+  const hash = '0x' + 'a1'.repeat(32)
+  return { id: hash, hash, chainId: '8453', account: AS.toLowerCase(), title: 'Put $250 to work', label: 'Deposit', moves: 'positions', phase, at: CLOCK - 60_000, doneAt: CLOCK - 1_000, need: 1, block: 123, ...p }
+}
 
 /** Phone → desk. The three at the end are the ones that must not move. */
 const WIDTHS = [320, 360, 390, 430, 600, 768, 900, 1080, 1280, 1440]
@@ -155,17 +168,20 @@ async function run() {
     if (!record && existsSync(HAR)) await ctx.routeFromHAR(HAR, { url: REMOTE, notFound: 'fallback' })
     const p = await ctx.newPage()
     await p.clock.setFixedTime(CLOCK)
-    for (const r of ROUTES) {
+    for (const r of ROUTES.filter((x) => !ONLY || x.id.startsWith(ONLY))) {
       const key = `${r.id}@${w}`
       try {
         await p.goto(`${BASE}/?as=${AS}${r.hash}`, { waitUntil: 'commit', timeout: 45_000 })
         await settle(p)
+        // the trace store reads localStorage once, at start: seed it, then load again
+        if (r.seed) { await p.evaluate((t) => localStorage.setItem('yieldcircle.txs', JSON.stringify(t)), r.seed); await p.reload({ waitUntil: 'commit' }); await settle(p) }
         await p.addStyleTag({ content: '.pulse .p-body{visibility:hidden}' }).catch(() => {})
         if (r.open) { await r.open(p); await p.waitForTimeout(2500) }
         const m = await p.evaluate(probe, TAP)
         // `animations: disabled` rewinds every CSS animation to its first frame —
         // without it the pulse's breathing live-dot alone makes two runs differ
         const png = await p.screenshot({ fullPage: true, animations: 'disabled', caret: 'hide' })
+        if (r.seed) await p.evaluate(() => localStorage.removeItem('yieldcircle.txs'))
         await writeFile(path.join(dir, 'png', `${key}.png`), png)
         results[key] = { ...m, hash: createHash('sha256').update(png).digest('hex').slice(0, 16) }
       } catch (e) {

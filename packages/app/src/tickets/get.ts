@@ -199,7 +199,8 @@ export function useGetAsset(targets: GetTarget[], want: number, sources: Idle[],
   const [gasLegMiss, setGasLegMiss] = React.useState<{ leg: AnyTx; q: SwapRouteQuote; why: string } | null>(null)
   React.useEffect(() => { if (!sent) setGasLegMiss(null) }, [sent])
   /** What the end screen says it was: what went in, what the route said comes out. */
-  const receiptOf = (): Receipt | undefined => src ? { kind: cross ? 'bridge' : 'swap', strategyId: from, amount: `${num(amount, amount < 0.01 ? 6 : 4)} ${src.symbol}`, usd: src.price > 0 ? amount * src.price : undefined, out: best ? `${num(best.tradeOutput ?? 0, (best.tradeOutput ?? 0) > 100 ? 2 : 4)} ${target.symbol}` : undefined } : undefined
+  const receiptOf = (): Receipt | undefined => src ? { kind: cross ? 'bridge' : 'swap', strategyId: from, amount: `${num(amount, amount < 0.01 ? 6 : 4)} ${src.symbol}`, usd: src.price > 0 ? amount * src.price : undefined, out: best ? `${num(best.tradeOutput ?? 0, (best.tradeOutput ?? 0) > 100 ? 2 : 4)} ${target.symbol}` : undefined,
+    gas: cross && best?.destinationGas && dstGas ? `${num(Number(best.destinationGas.amount) / 10 ** best.destinationGas.decimals, 5)} ${dstGas.symbol}` : undefined } : undefined
   /** What the swap or bridge is traced as, whichever way its transaction comes to be known. */
   const bridgeTrace = () => {
     const signer = srcSvm ? solSigner : address

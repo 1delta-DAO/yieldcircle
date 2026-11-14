@@ -102,14 +102,17 @@ export function useChipNews(ms = 8_000): string | null {
   return t ? chipNews(t) : null
 }
 
-/** A number that moves to its new value instead of jumping (the chip's total), over `ms`; at once the first time. */
+/**
+ * A number that moves to its new value instead of jumping (the chip's total), over `ms`. At once the
+ * first time and from nothing — a total arriving after its read is not a change to show.
+ */
 export function useTween(to: number, ms = 800): number {
   const [v, setV] = React.useState(to)
   const from = React.useRef(to)
   React.useEffect(() => {
     const a = from.current
     from.current = to
-    if (!Number.isFinite(a) || Math.abs(to - a) < 0.5) { setV(to); return }
+    if (!Number.isFinite(a) || !a || !to || Math.abs(to - a) < 0.5) { setV(to); return }
     // a timer, not a frame callback: this file runs on both apps (`platform.test.ts`)
     const t0 = Date.now()
     const timer = setInterval(() => { const k = Math.min(1, (Date.now() - t0) / ms); setV(a + (to - a) * (1 - Math.pow(1 - k, 3))); if (k >= 1) clearInterval(timer) }, 16)

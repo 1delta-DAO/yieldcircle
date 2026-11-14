@@ -4,10 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useBook } from '@yieldcircle/app/book'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { dismissTrace, isDone, recheck, useTrace, type Trace } from '@yieldcircle/app/sdk/txTrace'
-import { holdingFor, outcomeOf, type Next } from '@yieldcircle/app/sdk/txOutcome'
+import { earnedSince, holdingFor, outcomeOf, receiptRows, rowText, tickerText, trackerOf, type Next, type Row } from '@yieldcircle/app/sdk/txOutcome'
+import { useTween } from '@yieldcircle/app/sdk/activity'
 import { reached, stages, useNow } from '@yieldcircle/app/sdk/txWords'
-import { bufferOfHealth, leverTag } from '@yieldcircle/core/model/lite'
-import { pct, usd } from '@yieldcircle/core/model/format'
+import { usd } from '@yieldcircle/core/model/format'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import { C } from '../../theme'
 import { txUrl } from '../../explorer'
@@ -34,7 +34,7 @@ export function progressOf(t: Trace, now: number) {
  * Driven by the trace alone, so the ticket, the pill's receipt and *Get* draw the same screen, and it
  * survives the ticket remounting under it. `compact`: *Get*'s, inside its sheet — a step, not the end.
  */
-export function OutcomeView({ id, onDone, onAgain, onLeave, onFail, partial, links, compact, children }: {
+export function OutcomeView({ id, onDone, onAgain, onLeave, onFail, partial, links, compact, steps, children }: {
   id: string
   onDone: () => void
   /** "Try again": the ticket rebuilds; absent where nothing can be rebuilt from here */
@@ -46,6 +46,8 @@ export function OutcomeView({ id, onDone, onAgain, onLeave, onFail, partial, lin
   /** under the button on a success: See it · Share */
   links?: (h: Holding | undefined) => { label: string; onPress: () => void }[]
   compact?: { done: string }
+  /** what was signed, behind a fold: the ticket's steps, and whether they went as one transaction */
+  steps?: { labels: string[]; batched: boolean }
   children?: React.ReactNode
 }) {
   const t = useTrace(id)
@@ -67,16 +69,23 @@ export function OutcomeView({ id, onDone, onAgain, onLeave, onFail, partial, lin
   const r = t?.receipt
   const h = t && o && (o.state === 'won' || o.state === 'soft') && r && !['swap', 'bridge'].includes(r.kind) ? holdingFor(b.holdings, t) : undefined
   const counted = useCountUp(r?.usd ?? 0, !!o && o.state !== 'lost', still)
+  // what money put to work has made since it landed, by the second
+  const earning = !!t && t.phase === 'settled' && !t.note && ['deposit', 'open', 'collateral'].includes(r?.kind ?? '')
+  const tick = useNow(earning)
+  const [stepsOpen, setStepsOpen] = React.useState(false)
   if (!t || !o) return null
+  const earned = earning && o.state === 'won' ? earnedSince(t, h, tick) : null
+  const tracker = o.state !== 'won' ? trackerOf(t) : undefined
   const ringSize = compact ? 76 : 116
   const hero = o.state === 'lost' ? undefined : r?.usd != null && r.usd > 0 ? usd(counted) : r?.amount
-  const rows = o.state === 'lost' ? [] : rowsOf(t, h, compact)
+  const rows = o.state === 'lost' ? [] : receiptRows(t, h, { chain: chainLabel, compact: !!compact })
   const url = txUrl(t.chainId, t.hash)
   const btn = (n: Next, k: number) => {
     const kind = k === 0 ? (o.tone === 'bad' ? 'risky' : 'pri') : 'plain'
     switch (n) {
       case 'again': return onAgain ? <Btn key={n} wide kind={kind} title={partial ? 'Send it again' : 'Try again'} onPress={onAgain} /> : null
-      case 'view': return url ? <Btn key={n} wide kind={kind === 'risky' ? 'plain' : kind} title="View transaction" onPress={() => void Linking.openURL(url)} /> : null
+      case 'view': return tracker ? <Btn key={n} wide kind={kind === 'risky' ? 'plain' : kind} title={`Track it on ${tracker.name}`} onPress={() => void Linking.openURL(tracker.url)} />
+        : url ? <Btn key={n} wide kind={kind === 'risky' ? 'plain' : kind} title="View transaction" onPress={() => void Linking.openURL(url)} /> : null
       case 'check': return <Btn key={n} wide kind={kind} title="Check again" onPress={() => recheck(id)} />
       case 'done': return <Btn key={n} wide kind={kind} title={compact?.done ?? 'Done'} onPress={onDone} />
     }
@@ -95,7 +104,9 @@ export function OutcomeView({ id, onDone, onAgain, onLeave, onFail, partial, lin
             {t.paper && <Pill tone="warn">paper</Pill>}
           </View>
           {!!hero && <Txt s={compact ? 26 : 44} w={600} mono lh={compact ? 32 : 52} c={o.state === 'flying' ? C.tx70 : C.tx} style={{ fontVariant: ['tabular-nums'] }}>{hero}</Txt>}
+          {earned != null && !compact && <Txt s={13} mono c={C.ok} style={{ fontVariant: ['tabular-nums'] }} accessibilityLabel="earned since it landed">{tickerText(earned)} earned so far</Txt>}
           {o.state === 'flying' && t.bridge && <View style={{ alignSelf: 'stretch', marginTop: 8 }}><Route from={chainLabel(t.chainId)} to={chainLabel(t.bridge.toChainId)} progress={progressOf(t, now)} still={still} /></View>}
+          {o.state === 'flying' && tracker && <Pressable onPress={() => void Linking.openURL(tracker.url)} hitSlop={8} accessibilityRole="link"><Txt s={12.5} c={C.primary}>Track it on {tracker.name} ↗</Txt></Pressable>}
           {!!o.detail && o.state !== 'lost' && <Txt s={13.5} c={o.tone === 'warn' ? C.warn : C.tx50} lh={19} style={{ textAlign: 'center', marginTop: 2 }}>{o.detail}</Txt>}
         </View>
         {o.state === 'lost' && (
@@ -107,12 +118,7 @@ export function OutcomeView({ id, onDone, onAgain, onLeave, onFail, partial, lin
         )}
         {rows.length > 0 && (
           <View style={[st.rows, compact && { marginTop: 12 }]}>
-            {rows.map(([k, v, tone], i) => (
-              <View key={k} style={[st.row, i > 0 && { borderTopWidth: 1, borderTopColor: C.line }]}>
-                <Txt s={13} c={C.tx50}>{k}</Txt>
-                <Txt s={13.5} w={500} c={tone === 'dim' ? C.tx50 : tone === 'ok' ? C.ok : C.tx} style={{ flex: 1, textAlign: 'right' }} numberOfLines={2}>{v}</Txt>
-              </View>
-            ))}
+            {rows.map((x, i) => <RowView key={x.k} r={x} first={i === 0} />)}
             {url && !compact && (
               <Pressable onPress={() => void Linking.openURL(url)} style={[st.row, { borderTopWidth: 1, borderTopColor: C.line }]} accessibilityRole="link">
                 <Txt s={13} c={C.tx50}>Transaction</Txt>
@@ -129,6 +135,12 @@ export function OutcomeView({ id, onDone, onAgain, onLeave, onFail, partial, lin
               <Txt s={12} c={C.tx40} lh={17} style={{ textAlign: 'center' }}>It keeps going if you close this. Your transactions are on the pill above the tabs.</Txt>
             </>
           : shown}
+        {steps && steps.labels.length > 1 && o.state !== 'flying' && (
+          <Pressable onPress={() => setStepsOpen((x) => !x)} style={st.fold} accessibilityRole="button" accessibilityState={{ expanded: stepsOpen }}>
+            <Txt s={12.5} c={C.tx50} style={{ textAlign: 'center' }}>{steps.labels.length} steps{steps.batched ? ' in one transaction' : ''} {stepsOpen ? '▴' : '▾'}</Txt>
+            {stepsOpen && steps.labels.map((l, i) => <Txt key={i} s={12.5} c={C.tx70} style={{ textAlign: 'center' }}>{i + 1}. {l}</Txt>)}
+          </Pressable>
+        )}
         {o.state === 'won' && links && (
           <View style={st.links}>
             {links(h).map((x) => <Pressable key={x.label} onPress={x.onPress} hitSlop={8} style={{ minHeight: 44, justifyContent: 'center' }} accessibilityRole="button"><Txt s={13.5} w={600} c={C.primary}>{x.label}</Txt></Pressable>)}
@@ -141,38 +153,23 @@ export function OutcomeView({ id, onDone, onAgain, onLeave, onFail, partial, lin
   )
 }
 
-type Row = [string, string, ('dim' | 'ok')?]
-/** The order, in a few rows: where, the rate, what it earns, the leverage — the position's own once it has synced. */
-function rowsOf(t: Trace, h: Holding | undefined, compact?: unknown): Row[] {
-  const r = t.receipt, done = t.phase === 'settled'
-  const rows: Row[] = []
-  const got = t.received?.length ? t.received.map((x) => `+${x.amount} ${x.symbol}`).join(', ') : undefined
-  if (r?.kind === 'swap' || r?.kind === 'bridge') {
-    if (r.amount && !compact) rows.push(['Paid', r.amount])
-    rows.push(['Received', got ?? (r.out ? `≈ ${r.out}` : '—'), got ? 'ok' : 'dim'])
-    if (!compact) {
-      rows.push(t.bridge ? ['Route', `${chainLabel(t.chainId)} → ${chainLabel(t.bridge.toChainId)} · ${t.bridge.name}`] : ['On', chainLabel(t.chainId)])
-      if (t.bridge && done && t.doneAt) rows.push(['Took', took(t.doneAt - t.at)])
-    }
-    return rows
-  }
-  const venue = h?.venue ?? r?.venue
-  if (venue) rows.push([r?.kind === 'withdraw' || r?.kind === 'close' || r?.kind === 'repay' ? 'From' : 'Into', `${venue.split(' · ')[0]} · ${chainLabel(t.chainId)}`])
-  if (got) rows.push(['Received', got, 'ok'])
-  const apr = done && h?.apr != null ? h.apr : r?.apr
-  const earning = r && ['deposit', 'open', 'lever', 'delever', 'collateral'].includes(r.kind)
-  if (apr != null && Number.isFinite(apr) && earning) {
-    rows.push(['Rate', `${pct(apr)} a year`, done && h ? undefined : 'dim'])
-    const value = done && h ? h.valueUsd : r?.usd
-    if (value && apr > 0) rows.push(['Earns', `≈ ${usd((value * apr) / 100 / 12)} a month`, done && h ? undefined : 'dim'])
-  } else if (apr != null && Number.isFinite(apr) && r?.kind === 'borrow') rows.push(['Costs', `${pct(apr)} a year`])
-  const lev = done && h?.leverage ? h.leverage : r?.leverage
-  const buf = h ? bufferOfHealth(h.health) : null
-  if ((lev && lev > 1.05) || (buf != null && r?.kind !== 'deposit')) rows.push(['Leverage', [lev && lev > 1.05 ? leverTag(lev) : '', buf != null ? `${pct(buf * 100, 1)} from liquidation` : ''].filter(Boolean).join(' · ')])
-  if (done && h && (r?.kind === 'deposit' || r?.kind === 'open' || r?.kind === 'collateral')) rows.push(['Yours now', usd(h.valueUsd)])
-  return rows
+/**
+ * One row of the order. A figure moves to its new value as the synced position replaces the quote
+ * (greyed → white), rather than swapping its text; a transaction opens on its explorer.
+ */
+function RowView({ r, first }: { r: Row; first: boolean }) {
+  const n = useTween(r.n ?? 0)
+  const url = r.tx ? txUrl(r.tx.chainId, r.tx.hash) : undefined
+  const v = r.n != null && r.f ? rowText(r.f, n) : r.v
+  const body = (
+    <>
+      <Txt s={13} c={C.tx50}>{r.k}</Txt>
+      <Txt s={13.5} w={500} mono={!!url} c={url ? C.primary : r.tone === 'dim' ? C.tx50 : r.tone === 'ok' ? C.ok : r.tone === 'bad' ? C.bad : C.tx} style={{ flex: 1, textAlign: 'right' }} numberOfLines={2}>{v}{url ? ' ↗' : ''}</Txt>
+    </>
+  )
+  const style = [st.row, !first && { borderTopWidth: 1, borderTopColor: C.line }]
+  return url ? <Pressable onPress={() => void Linking.openURL(url)} style={style} accessibilityRole="link">{body}</Pressable> : <View style={style}>{body}</View>
 }
-const took = (ms: number) => { const s = Math.max(1, Math.round(ms / 1000)); return s < 90 ? `${s} seconds` : `${Math.round(s / 60)} minutes` }
 
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 20 },
@@ -184,4 +181,5 @@ const st = StyleSheet.create({
   rows: { alignSelf: 'stretch', marginTop: 26, borderRadius: 16, backgroundColor: C.b200, borderWidth: 1, borderColor: C.line, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 46, paddingVertical: 10, paddingHorizontal: 14 },
   links: { flexDirection: 'row', justifyContent: 'center', gap: 22 },
+  fold: { minHeight: 36, justifyContent: 'center', gap: 2, paddingVertical: 4 },
 })

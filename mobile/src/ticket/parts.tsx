@@ -278,6 +278,7 @@ function TicketEnd({ l, label, receipt }: { l: Ladder; label: string; receipt?: 
       <OutcomeView id={id} onDone={() => leave(() => { l.reset(); router.back() })} onLeave={() => leave(() => router.back())}
         onAgain={l.failed ? (l.done > 0 ? l.dismissFailed : () => { l.reset(); void l.start(label, receipt) }) : undefined}
         onFail={l.failedStep?.onFail} partial={!!l.failed && l.done > 0}
+        steps={l.bundle ? { labels: l.bundle.steps.map((x) => x.label), batched: new Set(l.bundle.steps.map((x) => x.hash)).size === 1 && !!l.bundle.steps[0]?.hash } : undefined}
         links={(h) => [
           { label: 'See it', onPress: () => leave(() => { l.reset(); h ? router.replace({ pathname: '/strategy/[id]', params: { id: s?.id ?? receipt?.strategyId ?? '_', h: h.key } }) : (router.dismissAll(), router.push('/you')) }) },
           ...(sharePosition(s, h ?? null, account) ? [{ label: 'Share', onPress: sharePosition(s, h ?? null, account)! }] : []),

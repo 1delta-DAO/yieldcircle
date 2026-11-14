@@ -1528,6 +1528,13 @@ i.ic.gic{border:1px solid;font-family:var(--mono);font-weight:600;line-height:1;
 .outcome.compact .o-amt{font-size:24px}
 .outcome.flying .o-amt{color:var(--tx70)}
 .o-sub{font-size:13px;color:var(--tx50);line-height:1.45;margin-top:6px;max-width:42ch}
+.o-tick{font-size:13px;color:var(--success);margin-top:2px;font-variant-numeric:tabular-nums}
+.o-track{font-size:12.5px;color:var(--primary);margin-top:8px}
+.o-steps{align-self:stretch;margin-top:12px;font-size:12.5px;color:var(--tx50)}
+.o-steps summary{cursor:pointer;list-style:none;text-align:center}.o-steps summary::-webkit-details-marker{display:none}
+.o-steps summary::after{content:" ▾"}.o-steps[open] summary::after{content:" ▴"}
+.o-steps ol{margin:6px 0 0;padding-left:20px;text-align:left;color:var(--tx70);line-height:1.6}
+.o-rows dd.bad{color:var(--error)}
 .o-sub.warn{color:var(--warning)}
 .o-route{display:flex;align-items:center;gap:10px;align-self:stretch;margin-top:12px;font-size:12.5px;font-weight:600;color:var(--tx70)}
 .o-route>span:not(.o-line){padding:4px 10px;border-radius:999px;background:var(--b300)}

@@ -27,6 +27,7 @@ import { openGate, realTradingGated } from '../wallet/gate'
 import { depositPlan, leverPlan, loopPlan, reducePlan, withdrawPlan } from '@yieldcircle/app/tickets/paperPlans'
 import { isDone, useTrace, type Receipt } from '@yieldcircle/app/sdk/txTrace'
 import { OutcomeCard, holdingHref } from './Outcome'
+import { beforeOf } from '@yieldcircle/app/sdk/txOutcome'
 import { Spin, TxNote } from './TxTray'
 import { GetAsset, type Target } from './GetAsset'
 import { FundingLock } from './FundingLock'
@@ -841,6 +842,8 @@ function LoopTicket({ s: s0, idle, allIdle, holding }: { s: LoopStrategy; idle: 
 /** Withdraw from a deposit the wallet already holds. `s` is null for a position the menu has no row for. */
 function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mode: Mode }) {
   const { lite } = React.useContext(TicketCtx)
+  // what it made since it was opened: the end screen says it on the way out
+  const made = useHoldingPnl(h)?.pnlUsd ?? undefined
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/withdraw`)
   const { account, isConnected, actor, all, amt, setAmt, amount, eff, share, venueKey, canNative, fullExit, maxRounds, coin, asNative, setAsNative, native, outSym, rate, booked, st, slip, sendRaw, key, paper, px, instant, queueSecs, queueWord, paperRefuse, ladder, price, exit } = useWithdrawTicket(s, h, mode as Exclude<Mode, 'roll' | 'loan'> /* the Roll and Loan tabs never render this panel */, { lite })
   const wdp = shownDp(h.group === 'USD')
@@ -854,7 +857,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
       </div>}
       <LiteLines l={withdrawLines({ backUsd: eff * price, back: `${num(eff, wdp)} ${outSym}`, exitWord: exit?.word, exitWhen: exit?.when, leftUsd: Math.max(0, h.amount - eff) * price, rate: rate ?? null })} />
       {paper.active && queueSecs > 0 && <div className="tsec plain t70" style={{ fontSize: 12.5 }}><span className="pill paper">paper</span> This exit is queued: the {h.symbol} lands in your bank after the venue's wait.</div>}
-      <Action ladder={ladder} label={fullExit ? `Withdraw all · ${usd(eff * price)}` : `Withdraw ${usd(eff * price)}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} receipt={{ kind: 'withdraw', amount: usd(eff * price), usd: eff * price, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} fee="withdraw" />
+      <Action ladder={ladder} label={fullExit ? `Withdraw all · ${usd(eff * price)}` : `Withdraw ${usd(eff * price)}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} receipt={{ kind: 'withdraw', amount: usd(eff * price), usd: eff * price, venue: h.venue, strategyId: s?.id, holdingKey: h.key, made, all: fullExit, before: beforeOf(h) }} fee="withdraw" />
       <LiteMoreSheet>
         {canNative && <LiteChoices<'token' | 'coin'> label="Paid out as" on={native ? 'coin' : 'token'} onPick={(x) => setAsNative(x === 'coin')}
           note={maxRounds ? `This venue’s ${coin} exit fails on a full withdrawal: take ${h.symbol}, or leave a little in.` : undefined}
@@ -890,7 +893,7 @@ function ManageTicket({ s, h, mode }: { s: SimpleStrategy | null; h: Holding; mo
       </div></div>
       {booked && <BookedSlippage pegged={s ? isSavings(s.nature) : true} what={h.symbol} sell />}
       {paper.active && queueSecs > 0 && <div className="tsec plain t70" style={{ fontSize: 12.5 }}><span className="pill paper">paper</span> This exit is queued: on paper the {h.symbol} lands in your bank {s?.exitSecs ? `after the venue's ${exit ? exit.word.toLowerCase() : 'wait'}` : 'after a week (the venue publishes no wait time)'}, and the tray shows it on its way.</div>}
-      <Action ladder={ladder} label={`Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} receipt={{ kind: 'withdraw', amount: `${num(eff, 4)} ${h.symbol}`, usd: eff * price, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} fee="withdraw" />
+      <Action ladder={ladder} label={`Withdraw · ${num(eff, 4)} ${h.symbol}`} account={account} isConnected={isConnected} disabled={!(eff > 0) || !!paperRefuse} blockedNote={paperRefuse ?? undefined} chainId={h.chainId} receipt={{ kind: 'withdraw', amount: `${num(eff, 4)} ${h.symbol}`, usd: eff * price, venue: h.venue, strategyId: s?.id, holdingKey: h.key, made, before: beforeOf(h) }} fee="withdraw" />
     </>
   )
 }
@@ -920,6 +923,7 @@ function CannotManage({ h }: { h: Holding }) {
  */
 function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; closeFirst?: boolean }) {
   const { lite } = React.useContext(TicketCtx)
+  const made = useHoldingPnl(h)?.pnlUsd ?? undefined
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/manageLoop`)
   const { account, isConnected, slip, actor, holds, debt, E, putUp, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, targets, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, signTypedDataAsync, paperSign, paperPlan, ladder } = useManageLoop(s, h, closeFirst, { lite })
   // what the loop holds, in Lite's words (never a PT's ticker), and the numbers both Lite sheets end on
@@ -947,7 +951,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
             : <div className="plain" style={{ marginTop: 10 }}>Borrows about <b>{usd(borrowUsd)}</b> more {debt} to buy more {holdsWord}. Nothing comes out of your wallet, and it moves closer to liquidation.</div>)}
         </div>
         <LiteLines l={saferLines({ net: s && !loan ? net ?? null : null, netBefore: s && !loan ? netAprAtLeverage(s.depSpot, s.borSpot, Lnow) : null, buffer: drop ?? null, bufferBefore: bufNow ?? null, equityUsd: E })} />
-        <Action ladder={ladder} label={same ? (safer.length ? 'Pick how much safer' : 'Pick a leverage') : `${down ? 'Lower' : 'Raise'} to ${leverTag(L)}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock} chainId={h.chainId} receipt={{ kind: down ? 'delever' : 'lever', amount: leverTag(L), apr: net ?? undefined, leverage: L, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} fee="reduce" />
+        <Action ladder={ladder} label={same ? (safer.length ? 'Pick how much safer' : 'Pick a leverage') : `${down ? 'Lower' : 'Raise'} to ${leverTag(L)}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock} chainId={h.chainId} receipt={{ kind: down ? 'delever' : 'lever', amount: leverTag(L), apr: net ?? undefined, leverage: L, venue: h.venue, strategyId: s?.id, holdingKey: h.key, before: beforeOf(h) }} fee="reduce" />
         <LiteMoreSheet>
           {loans.length > 1 && <LiteChoices label="Which loan" note="Each fixed-rate loan is paid back on its own." items={loans.map((x) => ({ id: x.id, word: `Loan ${x.id}`, line: `${usdShort(x.debtUsd)} owed` }))} on={loan?.id ?? null} onPick={(id) => { setLoanId(id); setL(Lnow) }} />}
           {targets.length
@@ -980,7 +984,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
         {valued && <LossAck v={vc} what="Closing now" advice={`It can be worth waiting for ${holds} to trade closer to its price on the venue.`} />}
       </div>
       <LiteLines l={closeLines({ backUsd: cq.isPending ? null : backUsd ?? null, back: cq.isPending ? 'pricing the sale…' : closeBlock ? '' : backDebt != null && !keep ? `≈ ${num(backDebt, 4)} ${debt}` : keep && backColl != null ? `≈ ${num(backColl, 4)} ${holds}` : '', costUsd: sale?.exitCostUsd ?? null, short: closeBlock === 'short' })} />
-      <Action ladder={ladder} label="Close and withdraw" account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} receipt={{ kind: 'close', amount: usd(h.valueUsd), usd: h.valueUsd, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} fee="reduce" />
+      <Action ladder={ladder} label="Close and withdraw" account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} receipt={{ kind: 'close', amount: usd(h.valueUsd), usd: h.valueUsd, venue: h.venue, strategyId: s?.id, holdingKey: h.key, made, all: true, before: beforeOf(h) }} fee="reduce" />
       <LiteMoreSheet>
         {sameToken ? null : venueKeeps
           ? <section className="lite-more-s"><h3>What you get it back in</h3><p className="plain">{h.venue.split(' · ')[0]} always hands back what the loop holds: only what repays the {debt} is sold.</p></section>
@@ -1044,7 +1048,7 @@ function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; 
           <div className="c"><span className="k">Buffer after</span><span className={`v ${drop == null ? '' : drop < 0.05 ? 'bad' : drop < 0.1 ? 'warn' : ''}`}>{drop == null ? '—' : `−${pct(drop * 100, 1)}`}</span><span className="s">{drop == null ? '' : `${holds} fall that liquidates`}</span></div>
         </>}
       </div></div>
-      <Action ladder={ladder} label={same ? 'Nothing to change' : closing ? (keep ? `Close · sell ≈ ${num(sellKeep ?? 0, 4)} ${holds}, keep the rest` : `Close · sell all ${holds} for ${debt}`) : down ? `Deleverage to ${num(L, 2)}× · sell ${num(sellTok, 4)} ${holds}` : `${putUp ? 'Lever' : 'Increase'} to ${num(L, 2)}× · borrow ${num(borrowTok, 4)} ${debt}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} receipt={closing ? { kind: 'close', amount: usd(h.valueUsd), usd: h.valueUsd, venue: h.venue, strategyId: s?.id, holdingKey: h.key } : { kind: down ? 'delever' : 'lever', amount: leverTag(L), apr: net ?? undefined, leverage: L, venue: h.venue, strategyId: s?.id, holdingKey: h.key }} fee={closing || down ? 'reduce' : 'lever'} />
+      <Action ladder={ladder} label={same ? 'Nothing to change' : closing ? (keep ? `Close · sell ≈ ${num(sellKeep ?? 0, 4)} ${holds}, keep the rest` : `Close · sell all ${holds} for ${debt}`) : down ? `Deleverage to ${num(L, 2)}× · sell ${num(sellTok, 4)} ${holds}` : `${putUp ? 'Lever' : 'Increase'} to ${num(L, 2)}× · borrow ${num(borrowTok, 4)} ${debt}`} account={account} isConnected={isConnected} disabled={same || !!closeBlock || vc.blocked} risky={vc.severe} blockedNote={vc.blocked ? `Confirm the ${cents(-vc.diff)} loss above to continue` : undefined} chainId={h.chainId} receipt={closing ? { kind: 'close', amount: usd(h.valueUsd), usd: h.valueUsd, venue: h.venue, strategyId: s?.id, holdingKey: h.key, made, all: true, before: beforeOf(h) } : { kind: down ? 'delever' : 'lever', amount: leverTag(L), apr: net ?? undefined, leverage: L, venue: h.venue, strategyId: s?.id, holdingKey: h.key, before: beforeOf(h) }} fee={closing || down ? 'reduce' : 'lever'} />
     </>
   )
 }
@@ -1139,7 +1143,8 @@ export function Action({ ladder: l, label, account, isConnected, disabled, risky
       <OutcomeCard id={endId} onDone={l.reset}
         onAgain={l.failed ? (l.done > 0 ? l.dismissFailed : () => { l.reset(); void l.start(label, receipt) }) : undefined}
         onFail={l.failedStep?.onFail} partial={!!l.failed && l.done > 0}
-        links={(h) => [...(h ? [{ label: 'See it', href: holdingHref(h, !!lite) }] : []), { label: 'Do another', onClick: l.reset }]}>
+        steps={l.bundle ? { labels: l.bundle.steps.map((x) => x.label), batched: new Set(l.bundle.steps.map((x) => x.hash)).size === 1 && !!l.bundle.steps[0]?.hash } : undefined}
+        links={(h) => [...(h ? [{ label: 'See it', href: holdingHref(h, !!lite, receipt?.strategyId) }] : []), { label: 'Do another', onClick: l.reset }]}>
         {!l.paper && <SayWhy on={thread ?? null} done />}
       </OutcomeCard>
     </div>

@@ -61,17 +61,21 @@ export function LiteRowView({ r, get, proof, on, yoursUsd, yoursApr, arrived, fo
   const who = heldBy(proof)
   const friend = followed && proof?.best ? proof.best.account : null
   const spike = spikeOf(s, get)
+  const yours = yoursUsd != null && yoursUsd > 0
   const ref = React.useRef<HTMLButtonElement>(null)
   React.useEffect(() => { if (arrived) ref.current?.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }) }, [arrived])
   return (
     <button ref={ref} type="button" className={`lrow${on ? ' on' : ''}${arrived ? ' arrive' : ''}`} aria-pressed={on} onClick={() => openRow(s)}>
-      <LiteFace s={s} />
+      <span className="lrow-f"><LiteFace s={s} /></span>
       <span className="lrow-n">
         <LiteTitle r={r} />
-        <small>{r.sub}{spike && <> · <span className="warn">higher than usual</span></>}{friend ? <> · <span className="lite-friend"><Face account={friend} size={14} /> you follow{proof!.wallets > 1 ? ` + ${proof!.wallets - 1}` : ''}</span></> : who ? <> · <span className="t70">{who}</span></> : null}</small>
+        {/* one span a part: the line breaks between parts, never inside one, and no dot is left at an edge (`.lsub`) */}
+        <small className="lsub">{r.sub.split(' · ').map((x, i) => <span key={i}>{x}</span>)}{spike && <span className="warn">higher than usual</span>}{friend ? <span className="lite-friend"><Face account={friend} size={14} /> you follow{proof!.wallets > 1 ? ` + ${proof!.wallets - 1}` : ''}</span> : who ? <span className="t70">{who}</span> : null}</small>
       </span>
-      {yoursUsd != null && yoursUsd > 0 && <span className="pill run">yours {usdShort(yoursUsd)}{yoursApr != null && yoursApr > 0 ? ` · ${pct(yoursApr, 1)}` : ''}</span>}
-      {s.kind === 'loop' && <span className="pill lever">{leverTag(s.tiers.balanced)}</span>}
+      {(yours || s.kind === 'loop') && <span className="lrow-p">
+        {yours && <span className="pill run">yours {usdShort(yoursUsd!)}{yoursApr != null && yoursApr > 0 ? ` · ${pct(yoursApr, 1)}` : ''}</span>}
+        {s.kind === 'loop' && <span className="pill lever">{leverTag(s.tiers.balanced)}</span>}
+      </span>}
       <span className="lrow-r"><LiteRate s={s} /><RiskTag s={s} /></span>
     </button>
   )

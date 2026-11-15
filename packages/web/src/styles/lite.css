@@ -99,6 +99,12 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .lrow.on{background:var(--b300);box-shadow:inset 3px 0 0 var(--primary)}
 .lrow.sk{cursor:default}
 .lrow-n{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+/* the face's slot: a loop's pair (38px) and a deposit's one token start the name at the same x */
+.lrow-f{flex:none;width:40px;display:flex;align-items:center;justify-content:center}
+/* the reader's own stake and the lever: in line on a desk, a line of their own on a phone (below) */
+.lrow-p{display:contents}
+/* the sub's parts (`Borrows dollars`, `on Morpho`, `8+ people run this`), a dot between them */
+.lsub > span + span::before{content:' · '}
 .lrow-n b{font-size:var(--fs-body);font-weight:600}
 .lrow-n small{font-size:var(--fs-sm);color:var(--tx70);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lrow-v{display:flex;flex-direction:column;align-items:flex-end;gap:1px;font-variant-numeric:tabular-nums}
@@ -462,8 +468,17 @@ body[data-mode=lite] .ticket .x{width:var(--tap);height:var(--tap);margin:-8px -
 /* a phone: subs take two lines instead of an ellipsis */
 @media (max-width:640px){
   .lrow-n small,.lcard-n small,.ls-row .ls-n small,.lb-pn small,.lite-sr .wn small,.lite-move .wn small{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-  .lrow{gap:10px;padding:10px 12px}
+  .lrow{gap:10px;padding:10px 12px;flex-wrap:wrap}
   .lrow .lite-rate{min-width:0}
+  /* the name never gives its room away: with `yours`, the lever and the rate beside it the column fell to
+     zero and the title broke one letter a line. The stake takes the line under the name instead */
+  .lrow-n{min-width:80px}
+  .lrow-p{display:flex;gap:6px;order:9;flex:0 0 100%;padding-left:50px;margin-top:-2px}
+  /* the sub wraps part by part, two lines at most: a part that does not fit goes whole, and the dot of a
+     line's first part falls in the strip the clip cuts off — none is left hanging at either edge */
+  .lrow-n small.lsub{display:flex;flex-wrap:wrap;white-space:nowrap;line-height:1.4;max-height:2.8em;margin-left:-.9em;clip-path:inset(0 0 0 .9em)}
+  .lsub > span{position:relative;padding-left:.9em;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .lsub > span + span::before{content:'·';position:absolute;left:0;width:.9em;text-align:center}
 }
 
 /* the board: one row of controls, scrolling sideways on a phone */

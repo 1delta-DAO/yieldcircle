@@ -1,7 +1,8 @@
 // Copy token-lists' asset notes (`asset-notes.json`, built by `npm run notes` there from
 // scripts/notes/notes.json + derived lines) into src/data, where the asset page lazy-loads it.
 // ONE source for "what is this token": a note is written in token-lists, never here.
-// Also writes src/data/mechanisms.json, the notes' `mechanism` field alone (group → id).
+// Also writes src/data/mechanisms.json, the notes' `mechanism` field alone (group → id), and
+// src/data/mechanism-of.json, their `mechanismOf` (group → the ticker that pays it).
 //
 // Usage: node scripts/notes.mjs [/path/to/token-lists]   (or TOKEN_LISTS_DIR=…)
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -21,3 +22,8 @@ console.log(`${n} asset notes written (${curated} curated)`)
 const mechanisms = Object.fromEntries(Object.entries(notes).filter(([, x]) => x.mechanism).map(([g, x]) => [g, x.mechanism]))
 writeFileSync(new URL('../packages/core/src/data/mechanisms.json', import.meta.url), JSON.stringify(mechanisms) + '\n')
 console.log(`${Object.keys(mechanisms).length} mechanisms written`)
+// What pays it, where that is ONE named thing (`mechanismOf`: `STRC` on Saturn's sUSDat) — the
+// word in front of the mechanism's (`STRC dividends`). Its own small map: mechanisms.json stays ids only.
+const paidBy = Object.fromEntries(Object.entries(notes).filter(([, x]) => x.mechanism && x.mechanismOf).map(([g, x]) => [g, x.mechanismOf]))
+writeFileSync(new URL('../packages/core/src/data/mechanism-of.json', import.meta.url), JSON.stringify(paidBy) + '\n')
+console.log(`${Object.keys(paidBy).length} mechanismOf written`)

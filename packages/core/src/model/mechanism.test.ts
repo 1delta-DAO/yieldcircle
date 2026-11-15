@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import MECHANISMS from '../data/mechanisms.json'
-import { isLendingVault, mechanismOfDesk, mechanismOfGroup, MECHANISM_IDS, MECHANISM_WORDS } from './mechanism'
+import { isLendingVault, mechanismOfDesk, mechanismOfGroup, mechanismSubjectOfGroup, mechanismWords, MECHANISM_IDS, MECHANISM_WORDS } from './mechanism'
 
 describe('mechanisms', () => {
   it('every id token-lists ships has a word here', () => {
@@ -18,6 +18,14 @@ describe('mechanisms', () => {
     // a coin that earns nothing itself has none
     expect(mechanismOfGroup('USDC')).toBeUndefined()
     expect(mechanismOfGroup(undefined)).toBeUndefined()
+  })
+  it('says what pays it only where the token names one thing', () => {
+    expect(mechanismSubjectOfGroup('Saturn sUSDat::SUSDAT')).toBe('STRC')
+    expect(mechanismWords('dividends', 'STRC')).toEqual({ word: 'STRC dividends', mid: 'STRC dividends' })
+    // Apyx's dividends come from a basket of preferred shares: no one name
+    expect(mechanismOfGroup('apyUSD::APYUSD')).toBe('dividends')
+    expect(mechanismSubjectOfGroup('apyUSD::APYUSD')).toBeUndefined()
+    expect(mechanismWords('dividends')).toEqual({ word: 'Dividends', mid: 'dividends' })
   })
   it('an issuer answers only where it has one line of business', () => {
     expect(mechanismOfDesk('USD', 'ethena')).toBe('basis-trade')

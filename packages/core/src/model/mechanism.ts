@@ -12,6 +12,7 @@
  * PT), and only for an issuer with ONE line of business. Nothing is inferred from a ticker.
  */
 import MECHANISMS from '../data/mechanisms.json'
+import MECHANISM_OF from '../data/mechanism-of.json'
 import { canonGroup } from './assetGroup'
 import type { GroupId } from './assets'
 
@@ -42,6 +43,17 @@ const known = (m: string | undefined): Mechanism | undefined => (m && m in MECHA
 /** The mechanism of an asset group, or undefined: an id this build has no word for is no answer. */
 export const mechanismOfGroup = (group: string | null | undefined): Mechanism | undefined =>
   group ? known(TABLE[group] ?? TABLE[canonGroup(group)]) : undefined
+
+const PAID_BY = MECHANISM_OF as Record<string, string>
+/**
+ * What pays a token's mechanism, where token-lists names ONE thing (`mechanismOf`): `STRC` for
+ * Saturn's sUSDat, whose dividends are Strategy's preferred stock's. A basket (Apyx) has none.
+ */
+export const mechanismSubjectOfGroup = (group: string | null | undefined): string | undefined =>
+  group ? PAID_BY[group] ?? PAID_BY[canonGroup(group)] : undefined
+/** A mechanism's words with what pays it in front: `STRC dividends`, in a name's opening and inside it alike. */
+export const mechanismWords = (m: Mechanism, subject?: string): { word: string; mid: string } =>
+  subject ? { word: `${subject} ${MECHANISM_WORDS[m].mid}`, mid: `${subject} ${MECHANISM_WORDS[m].mid}` } : MECHANISM_WORDS[m]
 
 /** Issuers with one line of business, by the money and the desk id (`model/desk.ts`). */
 const DESK_DEFAULT: Partial<Record<GroupId, Record<string, Mechanism>>> = {

@@ -6,7 +6,7 @@
  */
 import { deskOf, groupOf, nameOf, type GroupId } from './assets'
 import { isSavings } from './nature'
-import { isLendingVault, mechanismOfDesk, mechanismOfGroup, MECHANISM_WORDS, type Mechanism } from './mechanism'
+import { isLendingVault, mechanismOfDesk, mechanismOfGroup, mechanismSubjectOfGroup, mechanismWords, MECHANISM_WORDS, type Mechanism } from './mechanism'
 import { customRange, liqBuffer } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import type { Holding } from './positions'
@@ -141,8 +141,19 @@ export function mechanismOf(s: Strategy): Mechanism | null {
   }
   return mechanismOfGroup(s.assetGroup) ?? ((s.intrinsicLong ?? 0) > 0 ? mechanismOfDesk(s.group, deskOf(s.asset)?.id) : undefined) ?? null
 }
+/**
+ * A row's mechanism in words, with what pays it where its token names one thing (`STRC dividends`):
+ * the token `mechanismOf` read — the share, else the token put in — and only while that token's own
+ * mechanism is the row's (a sUSDat lending market lends; it is not "STRC lending").
+ */
+export function mechanismWordsOf(s: Strategy): { word: string; mid: string } | null {
+  const m = mechanismOf(s)
+  if (!m) return null
+  const g = s.kind === 'simple' && mechanismOfGroup(s.shareGroup) ? s.shareGroup : s.assetGroup
+  return mechanismWords(m, mechanismOfGroup(g) === m ? mechanismSubjectOfGroup(g) : undefined)
+}
 /** The mechanism in words, for a row's search text: `Basis trade`, or '' where nothing says. */
-export const mechanismWord = (s: Strategy): string => { const m = mechanismOf(s); return m ? MECHANISM_WORDS[m].word : '' }
+export const mechanismWord = (s: Strategy): string => mechanismWordsOf(s)?.word ?? ''
 
 /**
  * A row's two lines: what it is, and how it earns — never a chain. Where it sits is the shown
@@ -210,8 +221,8 @@ export function liteName(s: Strategy, title = plainName(s).title): string {
 /** The name, and where the row sits when the name had no room for it — the sub says that (`plainName`). */
 function named(s: Strategy, title: string): { name: string; on?: string } {
   const { short, via } = splitTitle(title)
-  const m = mechanismOf(s)
-  const mid = m ? MECHANISM_WORDS[m].mid : ''
+  const m = mechanismWordsOf(s)
+  const mid = m?.mid ?? ''
   if (s.kind === 'loop') {
     const v = venueOf(s)
     if (!mid) return { name: `${short} ${howOf(s)}` }
@@ -228,7 +239,7 @@ function named(s: Strategy, title: string): { name: string; on?: string } {
   // a ticker's product is whoever runs it (`USDC lending via Spark`); `HYPE` is not `Hyperbeat` said short
   if (!via) return { name: `${short} ${mid || 'savings'}${place && place.toLowerCase() !== short.toLowerCase() ? ` via ${place}` : ''}` }
   // an issuer's own product: the word leads (`Basis trade via Ethena`), and someone else's wrapper of it is said under it
-  if (m) return { name: `${MECHANISM_WORDS[m].word} via ${short}`, on: apart ? place : undefined }
+  if (m) return { name: `${m.word} via ${short}`, on: apart ? place : undefined }
   return { name: apart ? `${short} via ${place}` : `Savings via ${short}` }
 }
 export const rowName = (r: Pick<LiteRow, 's' | 'title'>): string => liteName(r.s, r.title)

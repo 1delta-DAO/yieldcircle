@@ -6,6 +6,7 @@
  */
 import { deskOf, groupOf, nameOf, type GroupId } from './assets'
 import { isSavings } from './nature'
+import { isLendingVault, mechanismOfDesk, mechanismOfGroup, MECHANISM_WORDS, type Mechanism } from './mechanism'
 import { customRange, liqBuffer } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import type { Holding } from './positions'
@@ -116,9 +117,36 @@ const DAY_MONTH = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'sho
 const dayMonth = (t: number) => DAY_MONTH.format(new Date(t * 1000))
 
 /**
+ * How a row earns, as one of a closed list (`model/mechanism.ts`, docs/lite-descriptors.md), or
+ * null where nothing says. A lending market, and a vault on a lending platform, lend — whatever
+ * the token. Anything else earns what the token it leaves you holding earns: that token's own
+ * entry (a vault's share, a loop's collateral; a PT's is its underlying's), else its issuer's one
+ * line of business — for a loop only where the collateral itself yields, so a USDe loop that is
+ * paid by the market it sits in is never called a basis trade.
+ */
+export function mechanismOf(s: Strategy): Mechanism | null {
+  if (s.kind === 'simple') {
+    if (s.source === 'lending' || (s.source === 'vault' && isLendingVault(s.protocolKey))) return 'lending'
+    if (s.source === 'vault') return null
+    // without a share of its own the token put in is the token held (staking wstETH's own row)
+    const own = !s.shareGroup && s.source !== 'fixed' && s.holds.toUpperCase() === (s.assetSymbol ?? '').toUpperCase()
+    const token = mechanismOfGroup(s.shareGroup) ?? (own ? mechanismOfGroup(s.assetGroup) : undefined)
+    if (token) return token
+    // the issuer's line of business answers for the issuer's own product only: someone else's vault over stETH is not staking
+    const d = deskOf(s.asset)
+    const theirs = s.source === 'fixed' || (!!d && sameName(d.name, placeOf(s)))
+    return (theirs ? mechanismOfDesk(s.group, d?.id) : undefined) ?? (s.source === 'staking' ? 'staking' : null)
+  }
+  return mechanismOfGroup(s.assetGroup) ?? ((s.intrinsicLong ?? 0) > 0 ? mechanismOfDesk(s.group, deskOf(s.asset)?.id) : undefined) ?? null
+}
+/** The mechanism in words, for a row's search text: `Basis trade`, or '' where nothing says. */
+export const mechanismWord = (s: Strategy): string => { const m = mechanismOf(s); return m ? MECHANISM_WORDS[m].word : '' }
+
+/**
  * A row's two lines: what it is, and how it earns — never a chain. Where it sits is the shown
- * name's (`liteName`); a vault's sub says who curates it: "a vault lends it for you" told the
- * reader nothing to trust or doubt.
+ * name's (`liteName`), or the sub's when the name spends its room on HOW it earns (`Looped basis
+ * trade via Ethena` · `Borrows dollars · on Aave`); a vault's sub says who curates it: "a vault
+ * lends it for you" told the reader nothing to trust or doubt.
  */
 export function plainName(s: Strategy): { title: string; sub: string } {
   let title = moneyWord(s.asset, s.group)
@@ -129,10 +157,13 @@ export function plainName(s: Strategy): { title: string; sub: string } {
     const product = !!d && !!fam && d.kind === 'issued' && s.holds.toUpperCase() !== d.sym.toUpperCase()
     if (product) title = `${fam} via ${d.name}`
     const end = s.expiry ? ` · until ${dayMonth(s.expiry)}` : ''
+    const on = named(s, title).on
     // the lever is the row's pill (×5.6): said once, so the sub keeps its room for what tells rows apart
-    return { title, sub: `${product ? `Holds ${s.holds} · borrows` : 'Borrows'} ${debtWord(s)}${end}` }
+    return { title, sub: `${product ? `Holds ${s.holds} · borrows` : 'Borrows'} ${debtWord(s)}${end}${on ? ` · on ${on}` : ''}` }
   }
-  return { title, sub: SIMPLE_SUB[s.source]?.(s) ?? 'Earns interest' }
+  const sub = SIMPLE_SUB[s.source]?.(s) ?? 'Earns interest'
+  const on = named(s, title).on
+  return { title, sub: on ? `${sub} · on ${on}` : sub }
 }
 /** `Aave V3` → Aave, `Morpho Blue` → Morpho: the family is enough on a row */
 const family = (b: string) => b.replace(/\s+(V\d+|Blue)$/i, '')
@@ -143,32 +174,75 @@ const sameName = (a: string, b: string) => {
 }
 /** Where a deposit sits: the platform a vault runs on (Morpho, Lagoon), else the market's or issuer's own name. */
 const placeOf = (s: SimpleStrategy) => family(s.source === 'vault' ? (s.venue.split(' · ')[1] ?? s.venue) : s.brand)
+/** `Morpho · Steakhouse` → Morpho, `Aave V3` → Aave: the market a loop sits in */
+const venueOf = (s: LoopStrategy) => family(s.venue.split(' · ')[0])
+/** `Fixed on Pendle · 17 Dec` → Pendle: whose principal token a fixed row is */
+const fixedOn = (s: SimpleStrategy) => /^Fixed on ([^·]+)/.exec(s.via)?.[1]?.trim() ?? ''
 /**
- * How a row earns, as a short tail to its name, so two rows of one money tell apart at a glance:
- * a PT is `via Pendle`, a loop `loop via Morpho`, a deposit where it sits (`via Aave`, `via Lagoon`).
+ * Where a row sits, as a short tail to whose money it is: a PT is `via Pendle`, a loop `loop via
+ * Morpho`, a deposit where it sits (`via Aave`, `via Lagoon`). The name of a row nothing says the
+ * mechanism of (`liteName`).
  */
 export function howOf(s: Strategy): string {
-  // `Morpho · Steakhouse` → Morpho, `Aave V3` → Aave: the family is enough on a row
-  if (s.kind === 'loop') { const v = family(s.venue.split(' · ')[0]); return v ? `loop via ${v}` : 'loop' }
-  if (s.source === 'fixed') { const v = /^Fixed on ([^·]+)/.exec(s.via)?.[1]?.trim(); return v ? `via ${v}` : 'fixed' }
+  if (s.kind === 'loop') { const v = venueOf(s); return v ? `loop via ${v}` : 'loop' }
+  if (s.source === 'fixed') { const v = fixedOn(s); return v ? `via ${v}` : 'fixed' }
   const v = placeOf(s)
   return v ? `via ${v}` : ''
 }
 /**
- * The name a row shows, everywhere — list, card, ticket head: whose money it is, then where it
- * sits (`Hastra via Lagoon`, `USDC via Aave`, `3Jane loop via Morpho`). Never `Dollars via …`: the
- * money's mark beside it says the family. An issuer's own savings or staking is just its name
- * (`Hastra`, `Lido`): `Lido via Lido` says nothing twice.
+ * The name a row shows, everywhere — list, card, ticket head: HOW it earns, then whose it is
+ * (`Basis trade via Ethena`, `Fixed basis trade via Ethena`, `Looped basis trade via Ethena`,
+ * `Staking via Lido`). Never `Dollars via …`: the money's mark beside it says the family.
+ *
+ * A money known by its ticker, or lent out in a market, keeps its name in front — a dozen coins
+ * lend on Aave, and `Lending via Aave` twelve times tells none apart: `USDC lending via Aave`,
+ * `Ethena lending via Aave`, `HYPE staking via Kinetiq`, `Looped SOL staking via Kamino`.
+ *
+ * Where nothing says how a row earns, the words fall back in steps, never to nothing: an issuer's
+ * savings is `Savings via Usual`, a PT `Fixed rate via Tori`, and a loop or a managed vault keeps
+ * whose it is and where it sits (`Agora loop via Aave`, `Tori via Upshift`).
  */
 export function liteName(s: Strategy, title = plainName(s).title): string {
-  const { short } = splitTitle(title)
-  const how = howOf(s)
-  return how && !(s.kind === 'simple' && s.source !== 'fixed' && sameName(short, placeOf(s))) ? `${short} ${how}` : short
+  return named(s, title).name
+}
+/** The name, and where the row sits when the name had no room for it — the sub says that (`plainName`). */
+function named(s: Strategy, title: string): { name: string; on?: string } {
+  const { short, via } = splitTitle(title)
+  const m = mechanismOf(s)
+  const mid = m ? MECHANISM_WORDS[m].mid : ''
+  if (s.kind === 'loop') {
+    const v = venueOf(s)
+    if (!mid) return { name: `${short} ${howOf(s)}` }
+    return via ? { name: `Looped ${mid} via ${short}`, on: v } : { name: `Looped ${short} ${mid}${v ? ` via ${v}` : ''}` }
+  }
+  if (s.source === 'fixed') {
+    const v = fixedOn(s)
+    return via ? { name: `Fixed ${mid || 'rate'} via ${short}`, on: v } : { name: `${short} fixed ${mid || 'rate'}${v ? ` via ${v}` : ''}` }
+  }
+  const place = placeOf(s)
+  const apart = !!place && !sameName(short, place)
+  // lent out, the money keeps its name in front; `Aave lending via Aave` says the place once
+  if (s.source === 'lending' || s.source === 'vault') return { name: mid ? `${short} ${mid}${apart ? ` via ${place}` : ''}` : place ? `${short} via ${place}` : short }
+  // a ticker's product is whoever runs it (`USDC lending via Spark`); `HYPE` is not `Hyperbeat` said short
+  if (!via) return { name: `${short} ${mid || 'savings'}${place && place.toLowerCase() !== short.toLowerCase() ? ` via ${place}` : ''}` }
+  // an issuer's own product: the word leads (`Basis trade via Ethena`), and someone else's wrapper of it is said under it
+  if (m) return { name: `${MECHANISM_WORDS[m].word} via ${short}`, on: apart ? place : undefined }
+  return { name: apart ? `${short} via ${place}` : `Savings via ${short}` }
 }
 export const rowName = (r: Pick<LiteRow, 's' | 'title'>): string => liteName(r.s, r.title)
+/**
+ * The name where there is one small line and no second (the phone's feed, under a wallet's name):
+ * whose money it is and where it sits, without how it earns — `Ethena loop via Aave`, `USDC via Aave`.
+ */
+export function rowShort(r: Pick<LiteRow, 's' | 'title'>): string {
+  const { short } = splitTitle(r.title)
+  const s = r.s, how = howOf(s)
+  return how && !(s.kind === 'simple' && s.source !== 'fixed' && sameName(short, placeOf(s))) ? `${short} ${how}` : short
+}
 const SIMPLE_SUB: Record<string, (s: SimpleStrategy) => string> = {
-  // where it sits is the name's (`USDC via Aave`); the sub says what happens there
-  lending: () => 'Lent to borrowers',
+  // where it sits is the name's (`USDC lending via Aave`); the sub says what happens there, and
+  // what the coin lent earns by itself on top (wstETH, a credit fund's share)
+  lending: (s) => { const own = mechanismOfGroup(s.assetGroup); return own && own !== 'lending' ? `Lent to borrowers · on top of its ${MECHANISM_WORDS[own].mid}` : 'Lent to borrowers' },
   // venue is `Curator · Protocol`, or the one name when the platform runs it itself (a Kamino kvault)
   vault: (s) => { const [who, on] = s.venue.split(' · '); return on ? `Vault curated by ${who}` : 'A vault' },
   savings: () => 'Savings rate',
@@ -262,7 +336,8 @@ export function liteMenu(all: Strategy[], rank: (s: Strategy) => number, held: S
     if (held.has(s.id)) { mine.push({ s, title, sub, yours: true, also: 0 }); continue }
     // a savings or staking row is its issuer's product: Mezzanine's tranches over Hastra's wYLDS are
     // "Dollars via Hastra" too, and folded under Hastra's own PRIME they vanished from Lite
-    const who = s.kind === 'simple' && (s.source === 'savings' || s.source === 'staking') ? sub : ''
+    // (the source's own words, not the row's sub: that also says where a wrapper sits, and the fold is by issuer)
+    const who = s.kind === 'simple' && (s.source === 'savings' || s.source === 'staking') ? SIMPLE_SUB[s.source](s) : ''
     const k = `${s.group}|${title}|${s.kind}|${who}|${s.kind === 'simple' && s.maturity ? 'dated' : s.kind === 'loop' && s.expiry ? 'dated' : ''}`
     const cur = best.get(k)
     if (!cur) best.set(k, { s, title, sub, yours: false, also: 0 })
@@ -881,7 +956,7 @@ export function liteFind(q: string, rows: LiteRow[], limit = 6): LiteRow[] {
 function wordsOf(r: LiteRow): string[] {
   const s = r.s
   const fam = familyOf(s.group) ?? LITE_NAME[s.group]?.name ?? ''
-  const raw = [r.title, howOf(s), r.sub, s.asset, nameOf(s.asset), s.holds, fam, s.group, ...(s.kind === 'loop' ? [s.debt, 'loop levered'] : [])]
+  const raw = [r.title, rowName(r), howOf(s), r.sub, s.asset, nameOf(s.asset), s.holds, fam, s.group, ...(s.kind === 'loop' ? [s.debt, 'loop levered'] : [])]
   return raw.join(' ').toLowerCase().split(/[\s/·,()×]+/).filter(Boolean)
 }
 

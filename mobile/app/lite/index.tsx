@@ -7,7 +7,7 @@ import { useIsFocused, useLocalSearchParams } from 'expo-router'
 import { useArrivals } from '@yieldcircle/app/sdk/activity'
 import { useLiteMenu } from '@yieldcircle/app/lite'
 import { GROUPS, type Group, type GroupId } from '@yieldcircle/core/model/assets'
-import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, safestFirst, tileRates } from '@yieldcircle/core/model/lite'
+import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, rowName, safestFirst, tileRates } from '@yieldcircle/core/model/lite'
 import { applyEarn } from '@yieldcircle/core/model/earnFilter'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { useEarnFilter } from '@yieldcircle/app/earnFilter'
@@ -46,7 +46,7 @@ export default function LiteEarn() {
   const everything = React.useMemo(() => [...L.rows].sort(safestFirst(L.rank)), [L.rows, L.rank])
   const ef = useEarnFilter('lite')
   const base = group ? L.rows.filter((r) => r.s.group === group) : ef.active ? everything : top
-  const rows = ef.active ? applyEarn(base, ef.f, (r) => r.s, { extra: (r) => [r.title, r.sub, chainLabel(r.s.chainId)], rank: L.rank }) : base
+  const rows = ef.active ? applyEarn(base, ef.f, (r) => r.s, { extra: (r) => [r.title, rowName(r), r.sub, chainLabel(r.s.chainId)], rank: L.rank }) : base
   const shown = group && !all && !ef.active ? rows.slice(0, LITE_LIST_ROWS) : rows
   const f = useMyFollows(b.account)
   const isFollowed = (s: (typeof rows)[number]['s']) => { const a = L.proof(s)?.best?.account; return !!a && f.isFollowing('wallet', a) }
@@ -120,20 +120,22 @@ export default function LiteEarn() {
 /**
  * A money tile (`.ltile`): its colour bleeding in from the corner, the best deposit rate large and
  * the levered one beside it (`tileRates`) — a loop's alone only when there is nothing else; the
- * picked one ringed, the rest dimmed.
+ * picked one ringed, the rest dimmed. Every tile is the same height whatever it has to say: each
+ * line has its own fixed slot (the icon's at its picked size, the levered line's kept when empty),
+ * and no line wraps.
  */
 function Tile({ g, on, dim, rates: { best, bestLoop }, n, mine, loading, onPress }: { g: Group; on: boolean; dim: boolean; rates: { best: number; bestLoop: number }; n: number; mine: number; loading: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={[st.tileWrap, dim && { opacity: 0.55 }]}>
       {on && <View pointerEvents="none" style={[st.ring, { borderColor: alpha(g.color, 0.18) }]} />}
       <LinearGradient colors={[mix(g.color, on ? 0.28 : 0.16), C.b200]} locations={[0, on ? 0.8 : 0.72]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[st.tile, { borderColor: on ? alpha(g.color, 0.6) : 'transparent' }]}>
-        <GroupIcon id={g.id} color={g.color} size={on ? 40 : 36} />
-        <Txt s={16} w={700} style={{ marginTop: 4 }}>{LITE_NAME[g.id].name}</Txt>
-        {loading ? <Sk w={90} h={22} /> : (
-          <Txt s={13} c={C.tx70} lh={29}>{best > 0 ? <>up to <Txt s={20} w={700} c={C.ok} lh={29}>{pct(best)}</Txt></> : bestLoop > 0 ? <>up to <Txt s={20} w={700} c={C.warn} lh={29}>{pct(bestLoop)}</Txt></> : '—'}</Txt>
+        <View style={st.tileIcon}><GroupIcon id={g.id} color={g.color} size={on ? 40 : 36} /></View>
+        <Txt s={16} w={700} numberOfLines={1} style={{ marginTop: 4 }}>{LITE_NAME[g.id].name}</Txt>
+        {loading ? <View style={st.tileRate}><Sk w={90} h={22} /></View> : (
+          <Txt s={13} c={C.tx70} lh={29} numberOfLines={1}>{best > 0 ? <>up to <Txt s={20} w={700} c={C.ok} lh={29}>{pct(best)}</Txt></> : bestLoop > 0 ? <>up to <Txt s={20} w={700} c={C.warn} lh={29}>{pct(bestLoop)}</Txt></> : '—'}</Txt>
         )}
-        {best > 0 && bestLoop > best && <Txt s={12} c={C.tx70}>or {pct(bestLoop, 0)} levered</Txt>}
-        <Txt s={12} c={C.tx50}>{mine >= 1 ? `you have ${usdShort(mine)}` : `${n} way${n === 1 ? '' : 's'} to earn`}</Txt>
+        <Txt s={12} c={C.tx70} numberOfLines={1}>{!loading && best > 0 && bestLoop > best ? `or ${pct(bestLoop, 0)} levered` : ' '}</Txt>
+        <Txt s={12} c={C.tx50} numberOfLines={1}>{mine >= 1 ? `you have ${usdShort(mine)}` : `${n} way${n === 1 ? '' : 's'} to earn`}</Txt>
       </LinearGradient>
     </Pressable>
   )
@@ -145,7 +147,9 @@ const st = StyleSheet.create({
   h1: { letterSpacing: -0.36, marginTop: 2, marginBottom: 16 },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tileWrap: { width: '48.3%', flexGrow: 1 },
-  tile: { borderRadius: 18, borderWidth: 1, paddingTop: 18, paddingHorizontal: 18, paddingBottom: 16, gap: 6 },
+  tileIcon: { height: 40, justifyContent: 'center' },
+  tileRate: { height: 29, justifyContent: 'center' },
+  tile: { flexGrow: 1, borderRadius: 18, borderWidth: 1, paddingTop: 18, paddingHorizontal: 18, paddingBottom: 16, gap: 6 },
   ring: { position: 'absolute', top: -3, left: -3, right: -3, bottom: -3, borderRadius: 21, borderWidth: 3 },
   secH: { marginTop: 26, marginBottom: 10, gap: 10 },
   note: { borderWidth: 1, borderStyle: 'dashed', borderColor: C.line2, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 10 },

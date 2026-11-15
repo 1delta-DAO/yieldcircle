@@ -1,6 +1,6 @@
 import React from 'react'
 import { GROUPS, type Group } from '@yieldcircle/core/model/assets'
-import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, liteEligible, safestFirst, tileRates } from '@yieldcircle/core/model/lite'
+import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, liteEligible, rowName, safestFirst, tileRates } from '@yieldcircle/core/model/lite'
 import { go, liteHref, proHref, type Route } from '../../state/AppState'
 import { useSticky } from '../../state/sticky'
 import { ChainChip } from '../ChainPicker'
@@ -53,7 +53,7 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   const ef = useEarnFilter('lite')
   const everything = React.useMemo(() => [...L.rows].sort(safestFirst(L.rank)), [L.rows, L.rank])
   const base = group ? inGroup : ef.active ? everything : top
-  const rows = ef.active ? applyEarn(base, ef.f, (r) => r.s, { extra: (r) => [r.title, r.sub, chainLabel(r.s.chainId)], rank: L.rank }) : base
+  const rows = ef.active ? applyEarn(base, ef.f, (r) => r.s, { extra: (r) => [r.title, rowName(r), r.sub, chainLabel(r.s.chainId)], rank: L.rank }) : base
   const shown = group && !allRows && !ef.active ? rows.slice(0, LITE_LIST_ROWS) : rows
   const valueOf = (id: string) => b.holdings.filter((h) => L.runs(h)?.id === id).reduce((a, h) => a + h.valueUsd, 0)
   // what the reader's own positions on a row earn, weighted by what is in each

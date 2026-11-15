@@ -6,7 +6,7 @@ import { parseLoopKey } from '@yieldcircle/core/model/uid'
 import { describeBundle, headlineUsd } from '@yieldcircle/core/model/moves'
 import { ago, usdShort } from '@yieldcircle/core/model/format'
 import { subjectOf, type TxBundle } from '@yieldcircle/core/index/types'
-import type { LiteRow } from '@yieldcircle/core/model/lite'
+import { rowShort, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { Follow, Profile } from '@yieldcircle/core/social/types'
 import { useSession } from '@yieldcircle/app/session'
 import { useAccountEntity } from '@yieldcircle/app/index/queries'
@@ -80,7 +80,8 @@ export function Moves({ txs, hideWho, showFollow }: { txs: { t: TxBundle; r: Lit
         const who = subjectOf(t).account
         const why = r ? said(r.s, who) : null
         const follow = showFollow && !!who && !f.isFollowing('wallet', who)
-        const what = r ? r.title : t.legs[0]?.symbol ?? ''
+        // one 10.5px line under a wallet's name: the short name, the long one lost its end here
+        const what = r ? rowShort(r) : t.legs[0]?.symbol ?? ''
         const usd = headlineUsd(t).usd
         const tone = d.cls === 'k-in' ? C.ok : d.cls === 'k-out' || d.cls === 'k-liq' ? C.bad : d.cls === 'k-borrow' ? C.warn : C.tx70
         const line = <Txt s={13} c={C.tx70} numberOfLines={1}><Txt s={13} w={600} c={tone}>{d.verb}</Txt> {what}</Txt>

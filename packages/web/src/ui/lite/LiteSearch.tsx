@@ -3,7 +3,7 @@ import { liteHref, liteWalletHref, proHref, useApp } from '../../state/AppState'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { NAME_CLAIM as CLAIM, shortAddr } from '@yieldcircle/core/identity/name'
 import { GROUPS } from '@yieldcircle/core/model/assets'
-import { LITE_GROUPS, LITE_NAME, boardWallets, liteFind, type LiteRow } from '@yieldcircle/core/model/lite'
+import { LITE_GROUPS, LITE_NAME, boardWallets, liteFind, rowName, type LiteRow } from '@yieldcircle/core/model/lite'
 import type { FindHit } from '@yieldcircle/core/index/api'
 import { usePeopleFind, useRateLeaders } from '@yieldcircle/app/index/queries'
 import { useLiteMenu, useRecentPicks } from '@yieldcircle/app/lite'
@@ -44,7 +44,7 @@ export function LiteSearch({ q0 }: { q0?: string }) {
   const leaders = React.useMemo(() => boardWallets(board.data?.rows ?? [], 'apr').filter((r) => normAddr(r.account) !== normAddr(account ?? '')).slice(0, 5), [board.data, account])
   const { profile } = useProfiles([...people.hits.map((h) => h.key), ...f.wallets.slice(0, 8), ...leaders.map((r) => r.account)])
 
-  const pickRow = (r: LiteRow) => remember({ id: `r:${r.s.id}`, title: r.title, href: liteHref(`${r.s.group}?s=${encodeURIComponent(r.s.id)}&k=${r.s.kind}`) })
+  const pickRow = (r: LiteRow) => remember({ id: `r:${r.s.id}`, title: rowName(r), href: liteHref(`${r.s.group}?s=${encodeURIComponent(r.s.id)}&k=${r.s.kind}`) })
   const openWallet = (h: FindHit) => remember({ id: `w:${h.key}`, title: h.title, href: liteWalletHref(h.key), addr: h.key })
 
   return (

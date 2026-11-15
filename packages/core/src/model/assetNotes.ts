@@ -22,6 +22,8 @@ export interface AssetNote {
   yieldSource?: string | null
   redemption?: string | null
   issuer?: string | null
+  /** how the token earns, as an id (`model/mechanism.ts`); absent where it earns nothing itself or nobody has checked */
+  mechanism?: string
   links?: string[]
   /** ISO day the facts were last checked */
   updated?: string

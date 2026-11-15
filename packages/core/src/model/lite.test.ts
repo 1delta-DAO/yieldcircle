@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, howOf, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, heldPositions, rateNowOf, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, madeRows, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, riskTag, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
+import { followedFirst, howOf, mechanismOf, mechanismWord, rowShort, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, heldPositions, rateNowOf, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, madeRows, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, riskTag, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
 import { borrowCapLtv, healthAt, healthAtLtv, liqBuffer, liqBufferAtLtv } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
@@ -69,21 +69,67 @@ describe('names in words', () => {
     expect(splitTitle('Dollars via 3Jane')).toEqual({ short: '3Jane', via: true })
     expect(splitTitle('USDC')).toEqual({ short: 'USDC', via: false })
   })
-  it('a name says whose it is and where it sits — never "Dollars via"', () => {
-    const pt = dep('pt', { asset: 'USDe', source: 'fixed', via: 'Fixed on Pendle · 17 Dec', maturity: 1_800_000_000 })
-    expect(rowName({ s: pt, title: 'Dollars via 3Jane' })).toBe('3Jane via Pendle')
-    expect(rowName({ s: loop('l', { venue: 'Morpho · Steakhouse' }), title: 'Dollars via 3Jane' })).toBe('3Jane loop via Morpho')
+  it('a name says how it earns, then whose it is — never "Dollars via"', () => {
+    // an issuer's own product: the token's mechanism leads
+    const sUSDe = dep('e', { asset: 'USDe', source: 'savings', brand: 'Ethena', holds: 'sUSDe', shareGroup: 'SUSDE' })
+    expect(mechanismOf(sUSDe)).toBe('basis-trade')
+    expect(rowName({ s: sUSDe, title: 'Dollars via Ethena' })).toBe('Basis trade via Ethena')
+    expect(mechanismWord(sUSDe)).toBe('Basis trade')
+    expect(rowName({ s: dep('w', { group: 'ETH', asset: 'wstETH', source: 'staking', brand: 'Lido', holds: 'wstETH', shareGroup: 'WSTETH' }), title: 'Ether via Lido' })).toBe('Staking via Lido')
+    // per token, not per issuer: the same desk, two ways to earn
+    const maple = dep('m', { asset: 'syrupUSDC', source: 'savings', brand: 'Maple', holds: 'syrupUSDC', shareGroup: 'SYRUPUSDC' })
+    expect(rowName({ s: maple, title: 'Dollars via Maple' })).toBe('Private credit via Maple')
+    // a PT earns what its underlying earns, fixed; where it trades is the sub's
+    const pt = dep('pt', { asset: 'USDe', source: 'fixed', via: 'Fixed on Pendle · 17 Dec', maturity: 1_800_000_000, holds: 'PT sUSDe', shareGroup: 'PT-sUSDE-X' })
+    expect(rowName({ s: pt, title: 'Dollars via Ethena' })).toBe('Fixed basis trade via Ethena')
+    expect(plainName(pt).sub).toMatch(/^Fixed rate until .+ · on Pendle$/)
+    // a loop: looped, and the market it sits in moves to the sub
+    const l = loop('l', { venue: 'Aave V3', assetGroup: 'SUSDE' })
+    expect(rowName({ s: l, title: 'Dollars via Ethena' })).toBe('Looped basis trade via Ethena')
+    expect(plainName(l).sub).toBe('Borrows dollars · on Aave')
     expect(howOf(loop('a'))).toBe('loop via Aave')
-    expect(rowName({ s: dep('d'), title: 'Dollars via 3Jane' })).toBe('3Jane via Aave')
-    expect(rowName({ s: dep('m', { brand: 'Morpho Blue' }), title: 'USDC' })).toBe('USDC via Morpho')
-    // a vault: the platform it runs on; the curator is the sub's
-    const v = dep('v', { source: 'vault', brand: 'Gami', venue: 'Gami · Lagoon' })
+    // one small line: whose it is and where it sits, without how it earns
+    expect(rowShort({ s: l, title: 'Dollars via Ethena' })).toBe('Ethena loop via Aave')
+    expect(rowShort({ s: sUSDe, title: 'Dollars via Ethena' })).toBe('Ethena')
+    expect(rowShort({ s: dep('d'), title: 'USDC' })).toBe('USDC via Aave')
+  })
+  it('lent out, the money keeps its name in front', () => {
+    expect(rowName({ s: dep('d'), title: 'USDC' })).toBe('USDC lending via Aave')
+    expect(rowName({ s: dep('d2'), title: 'Dollars via 3Jane' })).toBe('3Jane lending via Aave')
+    expect(rowName({ s: dep('g', { asset: 'GHO' }), title: 'Dollars via Aave' })).toBe('Aave lending')
+    // a vault on a lending platform lends; the curator is the sub's
+    const v = dep('v', { source: 'vault', brand: 'Steakhouse', venue: 'Steakhouse · Morpho', protocolKey: 'vault.morpho' })
+    expect(rowName({ s: v, title: 'USDC' })).toBe('USDC lending via Morpho')
+    expect(plainName(v).sub).toBe('Vault curated by Steakhouse')
+    // a ticker's savings product is whoever runs it
+    expect(rowName({ s: dep('s', { source: 'savings', brand: 'Spark', holds: 'spUSDT', shareGroup: 'Spark Savings USDT::SPUSDT' }), title: 'USDT' })).toBe('USDT lending via Spark')
+    // the coin lent earns by itself too: said under the name
+    expect(plainName(dep('ws', { group: 'ETH', asset: 'wstETH', assetGroup: 'WSTETH' })).sub).toBe('Lent to borrowers · on top of its staking')
+  })
+  it('where nothing says how a row earns, the name falls back in steps — never to nothing', () => {
+    // a managed vault: whose money, where it sits
+    const v = dep('v', { source: 'vault', brand: 'Gami', venue: 'Gami · Lagoon', protocolKey: 'vault.lagoon' })
+    expect(mechanismOf(v)).toBeNull()
     expect(rowName({ s: v, title: 'Dollars via Hastra' })).toBe('Hastra via Lagoon')
     expect(plainName(v).sub).toBe('Vault curated by Gami')
-    // an issuer's own savings or staking is just its name; someone else's says whose
-    expect(rowName({ s: dep('h', { source: 'savings', brand: 'Hastra' }), title: 'Dollars via Hastra' })).toBe('Hastra')
-    expect(rowName({ s: dep('e', { source: 'staking', brand: 'EtherFi' }), title: 'Ether via ether.fi' })).toBe('ether.fi')
-    expect(rowName({ s: dep('s', { source: 'savings', brand: 'Spark' }), title: 'USDC' })).toBe('USDC via Spark')
+    // an issuer's savings nobody has classified, and a ticker's
+    expect(rowName({ s: dep('h', { source: 'savings', brand: 'Hastra', holds: 'PRIME' }), title: 'Dollars via Hastra' })).toBe('Savings via Hastra')
+    expect(rowName({ s: dep('s', { source: 'savings', brand: 'Spark', holds: 'spUSDC' }), title: 'USDC' })).toBe('USDC savings via Spark')
+    // someone else's wrapper of an issuer's coin keeps both names, and is not the issuer's business
+    const wrap = dep('f', { group: 'ETH', asset: 'wstETH', source: 'savings', brand: 'Fluid', holds: 'iETHv2' })
+    expect(mechanismOf(wrap)).toBeNull()
+    expect(rowName({ s: wrap, title: 'Ether via Lido' })).toBe('Lido via Fluid')
+    // staking is staking, whoever's token it is
+    expect(rowName({ s: dep('e', { group: 'ETH', asset: 'weETH', source: 'staking', brand: 'EtherFi', holds: 'weETH-new' }), title: 'Ether via ether.fi' })).toBe('Restaking via ether.fi')
+    expect(rowName({ s: dep('k', { group: 'MORE', asset: 'HYPE', source: 'staking', brand: 'Hyperbeat', holds: 'beHYPE' }), title: 'HYPE' })).toBe('HYPE staking via Hyperbeat')
+    // a PT and a loop on a token nothing is known of
+    const pt = dep('pt', { asset: 'USDC', source: 'fixed', via: 'Fixed on Pendle · 17 Dec', maturity: 1_800_000_000, holds: 'PT trUSD' })
+    expect(rowName({ s: pt, title: 'Dollars via Tori' })).toBe('Fixed rate via Tori')
+    expect(rowName({ s: loop('l', { asset: 'USDC', venue: 'Morpho · Steakhouse' }), title: 'Dollars via Tori' })).toBe('Tori loop via Morpho')
+    expect(plainName(loop('l2', { asset: 'USDC', holds: 'USDC', venue: 'Morpho · Steakhouse' })).sub).toBe('Borrows dollars')
+    // a loop paid by its market, not by its collateral, is not its issuer's business
+    expect(mechanismOf(loop('u', { asset: 'USDe', holds: 'USDe' }))).toBeNull()
+    expect(mechanismOf(loop('u2', { asset: 'USDe', intrinsicLong: 5 }))).toBe('basis-trade')
   })
   it('a row never names a chain', () => {
     const n = plainName(loop('x'))

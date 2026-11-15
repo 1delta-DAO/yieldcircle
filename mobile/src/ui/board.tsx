@@ -154,7 +154,7 @@ function Strategies({ sort, held, liteByKey }: { sort: BoardSort; held: Held; li
           <Rank n={i + 2} />
           <View style={{ minWidth: 40 }}><Marks s={s} size={26} /></View>
           <View style={{ flex: 1, gap: 2 }}>
-            <Txt s={14.5} w={700} numberOfLines={1}>{s.title}</Txt>
+            <Txt s={14.5} w={700} numberOfLines={2}>{s.title}</Txt>
             <Txt s={12} c={C.tx50} numberOfLines={1}>{s.sub} · {s.wallets} {s.wallets === 1 ? 'person' : 'people'} · {usdShort(s.equityUsd)}</Txt>
           </View>
           <View style={{ alignItems: 'flex-end', gap: 4 }}>
@@ -279,7 +279,7 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
                 : <Tok sym={held.symbol} logo={held.logo} size={28} />}
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Txt w={700} numberOfLines={1} style={{ flexShrink: 1 }}>{p.title}</Txt>
+                  <Txt w={700} numberOfLines={2} style={{ flexShrink: 1 }}>{p.title}</Txt>
                   {p.kind === 'loop' && s?.kind === 'loop' && <LeverPill text={leverTag(s.tiers.balanced)} />}
                   {p.closed && <Pill>closed</Pill>}
                 </View>

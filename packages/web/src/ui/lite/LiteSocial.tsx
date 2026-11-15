@@ -6,7 +6,7 @@
  */
 import React from 'react'
 import { liteWalletHref, useApp } from '../../state/AppState'
-import type { LiteRow } from '@yieldcircle/core/model/lite'
+import { rowName, type LiteRow } from '@yieldcircle/core/model/lite'
 import { normAddr } from '@yieldcircle/core/model/address'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import type { ThreadRef } from '@yieldcircle/core/model/uid'
@@ -77,7 +77,7 @@ export function Moves({ txs, showFollow, hideWho }: { txs: { t: TxBundle; r: Lit
 function MoveRow({ t, r, account, said, profile, follows, showFollow, hideWho }: { t: TxBundle; r: LiteRow | null; account: string | undefined; said: ReturnType<typeof useMoveReasons>; profile: ReturnType<typeof useProfiles>['profile']; follows: (who: string) => boolean; showFollow?: boolean; hideWho?: boolean }) {
   const l = primaryLeg(t), d = describeBundle(t), who = subjectOf(t).account
   const why = r ? said(r.s, who) : null
-  const what = r ? r.title : l?.symbol ?? ''
+  const what = r ? rowName(r) : l?.symbol ?? ''
   const follow = showFollow && who && !follows(who)
   return (
     <div className="lite-move-w">

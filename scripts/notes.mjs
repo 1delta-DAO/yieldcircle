@@ -1,6 +1,7 @@
 // Copy token-lists' asset notes (`asset-notes.json`, built by `npm run notes` there from
 // scripts/notes/notes.json + derived lines) into src/data, where the asset page lazy-loads it.
 // ONE source for "what is this token": a note is written in token-lists, never here.
+// Also writes src/data/mechanisms.json, the notes' `mechanism` field alone (group → id).
 //
 // Usage: node scripts/notes.mjs [/path/to/token-lists]   (or TOKEN_LISTS_DIR=…)
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -14,3 +15,9 @@ if (n < 1000) { console.error(`only ${n} notes in ${root}/asset-notes.json — r
 writeFileSync(new URL('../packages/core/src/data/asset-notes.json', import.meta.url), JSON.stringify(notes) + '\n')
 const curated = Object.values(notes).filter((x) => x.source === 'curated').length
 console.log(`${n} asset notes written (${curated} curated)`)
+
+// How each token earns (`mechanism`: `basis-trade`, `lending`, …), as a map small enough for a
+// list to load: the notes are a lazy chunk, and Lite names every row by this word (model/mechanism.ts).
+const mechanisms = Object.fromEntries(Object.entries(notes).filter(([, x]) => x.mechanism).map(([g, x]) => [g, x.mechanism]))
+writeFileSync(new URL('../packages/core/src/data/mechanisms.json', import.meta.url), JSON.stringify(mechanisms) + '\n')
+console.log(`${Object.keys(mechanisms).length} mechanisms written`)

@@ -425,7 +425,7 @@ function ClosedRow({ p, account, logo }: { p: BoardPosition; account: string; lo
     <Pressable onPress={() => router.push(`/position?${new URLSearchParams({ a: account, k: p.key, t: p.title })}` as Href)} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]} accessibilityHint="What this position made, day by day">
       <View style={{ opacity: 0.6 }}><Tok sym={p.held[0] ?? '?'} logo={logo} size={28} /></View>
       <View style={{ flex: 1, gap: 2 }}>
-        <Txt s={14.5} w={600} c={C.tx70} numberOfLines={1}>{p.title}</Txt>
+        <Txt s={14.5} w={600} c={C.tx70} numberOfLines={2}>{p.title}</Txt>
         <Txt s={12} c={C.tx50} numberOfLines={1}>{p.closed ? `Closed ${dayOf(p.closed.at)}` : p.sub}{p.closed?.avgUsd != null ? ` · ${usdShort(p.closed.avgUsd)} at work on average` : ''}</Txt>
       </View>
       <View style={{ alignItems: 'flex-end', gap: 1 }}>

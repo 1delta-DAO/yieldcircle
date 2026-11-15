@@ -39,6 +39,18 @@ the headline is incentives. The convention is shared by credx, allocator, the fr
 and worker-api's own `loopEconomics`, so it is not the backend's to change. A held
 position's share comes from the positions route's `aprBreakdown`, at its own leverage.
 
+**A pair row can say its oracle is down.** `oracleStatus: 'unusable'` (worker-api
+`data/routes/oracleStatus.ts`, with `debtTerms.canOpen: false` / `blockedBy:
+'oracle-unusable'`) marks a market whose oracle reverts: no borrow, no collateral
+withdrawal against debt, no liquidation, while the row keeps its rates and its rank —
+Saturn's feed breaker left the sUSDat/USDC loop on top of every list at 436 % on
+2026-11-14. `classifyPair` keeps the row as `LoopStrategy.oracleDown`, and `softHide` holds
+it back as `oracle-down` — a FLOOR (`Settings.showOracleDown`, off by default; never in
+Lite), so the hidden bar counts it, the switch lists it with its chip, and a holder's ticket
+still finds the row and says why. Absent is not "healthy": only Morpho Blue on the chains
+priced from Morpho's API is checked. The ticket warns but does not block the build, and the
+sUSDat vault row still says `canDeposit`.
+
 ## The layering (keep it)
 
 ```

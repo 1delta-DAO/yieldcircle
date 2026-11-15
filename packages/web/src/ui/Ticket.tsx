@@ -1,4 +1,5 @@
 import React from 'react'
+import { HIDES } from '@yieldcircle/core/model/visibility'
 import { nameOf, unitOf } from '@yieldcircle/core/model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, curveRateNow, customRange, healthAt, liqBuffer, netAprAtLeverage, capRaw, toRaw, type TierId } from '@yieldcircle/core/model/leverage'
 import { fromUnits, heldRaw, payRaw, portion, unitsOf, type Amount } from '@yieldcircle/core/model/amount'
@@ -122,6 +123,11 @@ export function Ticket({ s, idle, holdings, beside, pick, mode: mode0, copy, cop
       {offMenu && (
         <div className="tsec offmenu" role="note">
           <b>Not in the menu.</b> {offMenu} Check the liquidity, rate and risk yourself before you size it.
+        </div>
+      )}
+      {s.kind === 'loop' && s.oracleDown && (
+        <div className="tsec offmenu" role="note">
+          <b>Oracle down.</b> {HIDES['oracle-down'].why}
         </div>
       )}
       {holding && mode !== 'add' && mode !== 'roll' && mode !== 'loan' && rolls && <div className="tsec plain t50" style={{ fontSize: 12.5 }}>{rollDue ? <b style={{ color: 'var(--warning)' }}>Its date is close. </b> : null}{s.kind === 'loop' ? 'Keeping the loan?' : 'Keeping the money in?'} <button type="button" className="linkish" onClick={() => setMode('roll')}>Roll it to a later {s.kind === 'loop' && s.terms ? 'term' : 'date'} ›</button></div>}

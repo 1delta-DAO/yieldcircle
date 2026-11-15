@@ -60,6 +60,8 @@ export const LITE_LIST_ROWS = 12
  */
 export function liteEligible(s: Strategy, f: LiteFloors = LITE_FLOORS): boolean {
   if (!LITE_GROUPS.includes(s.group) || s.hide) return false
+  // no switch in Lite brings back a loop nobody can open
+  if (s.kind === 'loop' && s.oracleDown) return false
   if (!isSavings(s.nature) || (!s.rated && f.maxRisk < 5) || s.riskScore > f.maxRisk) return false
   if (!(s.tvlUsd >= f.minTvlUsd) || !(s.rate > 0 || f.showNegative)) return false
   if (!liteCarries(s)) return false

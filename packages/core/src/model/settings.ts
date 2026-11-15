@@ -32,6 +32,8 @@ export interface Settings {
   showRateBets: boolean
   /** loops that cost more than they pay */
   showNegative: boolean
+  /** loops on a market whose oracle is failing: listed with their rate, which nobody can open until it answers */
+  showOracleDown: boolean
   /** ask the optimizer with the DEBT tag only, so untagged collateral is found too */
   wideNet: boolean
   /**
@@ -80,6 +82,7 @@ export const DEFAULTS: Settings = {
   maxRate: 50,
   showRateBets: false,
   showNegative: false,
+  showOracleDown: false,
   wideNet: false,
   showCollateral: false,
   slippageBp: null,
@@ -87,7 +90,7 @@ export const DEFAULTS: Settings = {
 
 /** The keys that decide what the menu SHOWS — what `widened` / `isCurated` count. */
 export const FILTER_KEYS = (Object.keys({
-  minTvlUsd: 0, minBorrowLiquidityUsd: 0, maxRisk: 0, minRate: 0, maxRate: 0, showRateBets: 0, showNegative: 0, wideNet: 0, showCollateral: 0,
+  minTvlUsd: 0, minBorrowLiquidityUsd: 0, maxRisk: 0, minRate: 0, maxRate: 0, showRateBets: 0, showNegative: 0, showOracleDown: 0, wideNet: 0, showCollateral: 0,
 }) as (keyof Settings)[])
 
 /** Everything the API will serve, with only the structural gates left standing. */
@@ -99,6 +102,7 @@ export const WIDE_OPEN: Settings = {
   maxRate: NO_CAP,
   showRateBets: true,
   showNegative: true,
+  showOracleDown: true,
   wideNet: true,
   showCollateral: true,
   slippageBp: DEFAULTS.slippageBp,
@@ -118,6 +122,7 @@ export function sanitizeSettings(p: Partial<Settings>): Settings {
     maxRate: p.maxRate === 25 ? DEFAULTS.maxRate : numOr(p.maxRate, DEFAULTS.maxRate),
     showRateBets: boolOr(p.showRateBets, DEFAULTS.showRateBets),
     showNegative: boolOr(p.showNegative, DEFAULTS.showNegative),
+    showOracleDown: boolOr(p.showOracleDown, DEFAULTS.showOracleDown),
     wideNet: boolOr(p.wideNet, DEFAULTS.wideNet),
     showCollateral: boolOr(p.showCollateral, DEFAULTS.showCollateral),
     // the old `loopSlippageBp` (a fixed 10 persisted with every other switch) is dropped: everyone starts on auto
@@ -137,7 +142,7 @@ export type FilterControl =
 const sizeWord = (x: number) => (x === 0 ? 'Any' : x >= 1e6 ? `$${x / 1e6}m+` : `$${x / 1e3}k+`)
 export const SIZE_OPTS = [2_000_000, 250_000, 0].map((v) => ({ v, word: sizeWord(v) }))
 export const RISK_OPTS = [{ v: 2, word: 'Careful' }, { v: 4, word: 'Standard' }, { v: 5, word: 'Any' }]
-const flag = (k: 'showRateBets' | 'showNegative' | 'wideNet' | 'showCollateral', label: string, sub: string): FilterControl =>
+const flag = (k: 'showRateBets' | 'showNegative' | 'showOracleDown' | 'wideNet' | 'showCollateral', label: string, sub: string): FilterControl =>
   ({ kind: 'check', id: k, label, sub, on: (st) => st[k], to: (on) => ({ [k]: on }) })
 
 /** Pro's whole panel: every key in {@link FILTER_KEYS}. */
@@ -147,6 +152,7 @@ export const FILTER_CONTROLS: FilterControl[] = [
   { kind: 'seg', key: 'maxRisk', label: 'Risk cap', note: "the API's 1-5 score", opts: RISK_OPTS },
   flag('showRateBets', 'Rate bets', 'loops whose collateral earns nothing by itself'),
   flag('showNegative', 'Negative carry', 'loops that cost more than they pay'),
+  flag('showOracleDown', 'Oracle down', 'loops on a market whose price oracle is failing — listed, not openable'),
   { kind: 'check', id: 'extremeRates', label: 'Extreme rates', sub: 'under 0.01 % and over 50 % — idle markets and spikes',
     on: (st) => st.minRate === 0 && st.maxRate === NO_CAP, to: (on) => (on ? { minRate: 0, maxRate: NO_CAP } : { minRate: DEFAULTS.minRate, maxRate: DEFAULTS.maxRate }) },
   flag('showCollateral', 'Collateral-only deposits', 'markets that pay nothing of their own — the token as collateral, earning only its own yield; one more request'),

@@ -165,6 +165,13 @@ export interface OptimizerRowRaw {
    * allowlists every contract caller, so `/loop/leverage` refuses it; absent on an API without it.
    */
   capabilities?: { action: string; endpoint?: string; route?: string }[]
+  /**
+   * `unusable` while the market's oracle cannot be read: the lender refuses every borrow, every
+   * collateral withdrawal against debt and every liquidation, whatever the row's rates say (Saturn's
+   * feed breaker on the sUSDat markets, 2026-11-14 — the 436 % loop at the top of every list). Absent
+   * = not flagged, NOT verified healthy: worker-api checks Morpho Blue on the API-priced chains only.
+   */
+  oracleStatus?: string | null
 }
 export interface OptimizerResponse { start: number; count: number; total: number; hasMore: boolean; nextStart?: number; items: OptimizerRowRaw[] }
 

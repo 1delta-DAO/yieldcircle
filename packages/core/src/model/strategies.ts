@@ -234,6 +234,12 @@ export interface LoopStrategy extends Base {
   borrowLiquidityUsd: number
   /** the collateral earns on its own (staking, savings, a PT, a fund) — false makes the loop a pure rate bet */
   collateralYields: boolean
+  /**
+   * the market's oracle is failing (`oracleStatus: 'unusable'`): the lender refuses every borrow and every
+   * collateral withdrawal against debt, so the rate cannot be opened — a FLOOR (`Settings.showOracleDown`), so
+   * a holder's ticket still finds the row and the list can say how many it holds back
+   */
+  oracleDown?: boolean
   /** that own yield, % APR — part of `dep` / `depSpot` (the paper ledger keeps it apart: tickets/0006) */
   intrinsicLong?: number
   /** whose CONTRACT the collateral is when that is not whose credit (`Pendle` on a PT over sUSDe) */
@@ -775,6 +781,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     tokenRisk: { long: assetRiskOf(p.risk), short: assetRiskOf(S.props?.risk) },
     dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: rL, rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields, intrinsicLong: num(r.intrinsicYieldLong) || undefined,
     expiry, instrument,
+    ...(r.oracleStatus === 'unusable' ? { oracleDown: true } : {}),
     ...(terms.length ? { terms, borSpot: bor } : {}),
     ...(r.fixedTerm?.model === 'loopscale' ? { tenors: loopscaleTenors(r) } : {}),
     ...(dueAt ? { dueAt } : {}),

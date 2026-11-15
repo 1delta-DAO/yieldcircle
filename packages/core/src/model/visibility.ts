@@ -19,7 +19,7 @@ export type HideCode =
   // structural — no setting brings these back
   | 'unmapped' | 'cross-denom' | 'brokered' | 'basket' | 'no-leverage' | 'thin-ltv' | 'no-route' | 'closed'
   // soft — a floor in Settings
-  | 'small' | 'collateral' | 'thin-borrow' | 'risky' | 'unrated' | 'negative' | 'rate-bet' | 'dust' | 'outlier'
+  | 'oracle-down' | 'small' | 'collateral' | 'thin-borrow' | 'risky' | 'unrated' | 'negative' | 'rate-bet' | 'dust' | 'outlier'
 
 export interface HideMeta {
   /** the chip's word */
@@ -43,6 +43,7 @@ export const HIDES: Record<HideCode, HideMeta> = {
   'no-route': { word: 'no loop route', soft: false, kind: 'loop', why: 'The API cannot build a loop on this lender: the venue only lets you borrow from your own wallet, one step at a time (Inverse FiRM allowlists every contract that could do it for you). The rates are real, but there is no button that would open the position.' },
   closed: { word: 'closed', soft: false, kind: 'simple', why: 'The venue is not accepting deposits through the API right now (paused, capped or permissioned).' },
 
+  'oracle-down': { word: 'oracle down', soft: true, kind: 'loop', why: 'The market’s price oracle is failing right now, so the lender refuses every new borrow and every collateral withdrawal against debt. The rate shown cannot be opened, and a position cannot be reduced, until the oracle answers again.' },
   small: { word: 'small', soft: true, kind: 'simple', refetch: true, why: 'Below the size floor. A market with little in it can be emptied by one depositor and its rate is often a promotion.' },
   collateral: { word: 'collateral only', soft: true, kind: 'simple', refetch: true, why: 'The market pays nothing of its own: the token sits there as collateral and earns only what it earns in your wallet, with the market’s risk on top. Worth it when that is the only way to hold the token.' },
   'thin-borrow': { word: 'thin borrow', soft: true, kind: 'loop', why: 'Less of the debt asset is borrowable than the floor asks for. A loop that cannot be opened at size, or unwound, is a trap however good the rate looks.' },
@@ -56,7 +57,7 @@ export const HIDES: Record<HideCode, HideMeta> = {
 
 export const isSoft = (c: HideCode) => HIDES[c].soft
 /** the order a bar lists them in: the ones a switch can fix first */
-export const HIDE_ORDER: HideCode[] = ['thin-borrow', 'small', 'collateral', 'rate-bet', 'negative', 'risky', 'unrated', 'dust', 'outlier', 'cross-denom', 'unmapped', 'brokered', 'basket', 'no-leverage', 'thin-ltv', 'no-route', 'closed']
+export const HIDE_ORDER: HideCode[] = ['oracle-down', 'thin-borrow', 'small', 'collateral', 'rate-bet', 'negative', 'risky', 'unrated', 'dust', 'outlier', 'cross-denom', 'unmapped', 'brokered', 'basket', 'no-leverage', 'thin-ltv', 'no-route', 'closed']
 
 /**
  * The soft gate a built row fails under the current settings, or null when it
@@ -74,6 +75,8 @@ export const HIDE_ORDER: HideCode[] = ['thin-borrow', 'small', 'collateral', 'ra
 export const capOf = (st: Settings) => (st.maxRisk >= 5 ? Infinity : st.maxRisk)
 export function softHide(s: Strategy, st: Settings): HideCode | null {
   if (s.kind === 'loop') {
+    // before what the loop IS or pays: none of it can be had while the oracle is down
+    if (s.oracleDown && !st.showOracleDown) return 'oracle-down'
     if (!s.collateralYields && !st.showRateBets) return 'rate-bet'
     if (s.borrowLiquidityUsd < st.minBorrowLiquidityUsd) return 'thin-borrow'
     if (s.riskScore > capOf(st)) return s.rated ? 'risky' : 'unrated'
@@ -94,6 +97,7 @@ export function softHide(s: Strategy, st: Settings): HideCode | null {
 export function hideDetail(s: Strategy, code: HideCode): string {
   const money = (x: number) => (x >= 1e9 ? `$${(x / 1e9).toFixed(1)}b` : x >= 1e6 ? `$${(x / 1e6).toFixed(1)}m` : x >= 1e3 ? `$${Math.round(x / 1e3)}k` : `$${Math.round(x)}`)
   switch (code) {
+    case 'oracle-down': return 'cannot be opened right now'
     case 'small': return `${money(s.tvlUsd)} in it`
     case 'thin-borrow': return s.kind === 'loop' ? `${money(s.borrowLiquidityUsd)} borrowable` : ''
     case 'risky': return `risk ${s.riskScore}/5`
@@ -108,6 +112,7 @@ export function hideDetail(s: Strategy, code: HideCode): string {
 /** What `+` on this bucket does: move exactly that floor, nothing else. */
 export function relaxFor(code: HideCode): Partial<Settings> {
   switch (code) {
+    case 'oracle-down': return { showOracleDown: true }
     case 'small': return { minTvlUsd: 0 }
     case 'collateral': return { showCollateral: true }
     case 'thin-borrow': return { minBorrowLiquidityUsd: 0 }
@@ -123,6 +128,7 @@ export function relaxFor(code: HideCode): Partial<Settings> {
 /** What `−` does: the default back, and only for this bucket. */
 export function restoreFor(code: HideCode): Partial<Settings> {
   switch (code) {
+    case 'oracle-down': return { showOracleDown: false }
     case 'small': return { minTvlUsd: 2_000_000 }
     case 'collateral': return { showCollateral: false }
     case 'thin-borrow': return { minBorrowLiquidityUsd: 100_000 }

@@ -17,7 +17,7 @@ import { exposureOf, FIAT_FLOOR, isFiat } from './assets'
 
 export type HideCode =
   // structural — no setting brings these back
-  | 'unmapped' | 'cross-denom' | 'brokered' | 'basket' | 'no-leverage' | 'thin-ltv' | 'no-route' | 'closed'
+  | 'unmapped' | 'cross-denom' | 'brokered' | 'basket' | 'no-leverage' | 'thin-ltv' | 'no-route' | 'closed' | 'compromised'
   // soft — a floor in Settings
   | 'oracle-down' | 'small' | 'collateral' | 'thin-borrow' | 'risky' | 'unrated' | 'negative' | 'rate-bet' | 'dust' | 'outlier'
 
@@ -42,6 +42,7 @@ export const HIDES: Record<HideCode, HideMeta> = {
   'thin-ltv': { word: 'ltv too low', soft: false, kind: 'loop', why: 'The collateral is worth less than 30 % of a borrow here — a loop would liquidate on noise.' },
   'no-route': { word: 'no loop route', soft: false, kind: 'loop', why: 'The API cannot build a loop on this lender: the venue only lets you borrow from your own wallet, one step at a time (Inverse FiRM allowlists every contract that could do it for you). The rates are real, but there is no button that would open the position.' },
   closed: { word: 'closed', soft: false, kind: 'simple', why: 'The venue is not accepting deposits through the API right now (paused, capped or permissioned).' },
+  compromised: { word: 'compromised', soft: false, why: 'Scored 6 by the API: the market, its lender or one of its tokens is drained or has lost its backing. It is never offered, at any risk cap — a position already in it can still be taken out.' },
 
   'oracle-down': { word: 'oracle down', soft: true, kind: 'loop', why: 'The market’s price oracle is failing right now, so the lender refuses every new borrow and every collateral withdrawal against debt. The rate shown cannot be opened, and a position cannot be reduced, until the oracle answers again.' },
   small: { word: 'small', soft: true, kind: 'simple', refetch: true, why: 'Below the size floor. A market with little in it can be emptied by one depositor and its rate is often a promotion.' },
@@ -57,7 +58,7 @@ export const HIDES: Record<HideCode, HideMeta> = {
 
 export const isSoft = (c: HideCode) => HIDES[c].soft
 /** the order a bar lists them in: the ones a switch can fix first */
-export const HIDE_ORDER: HideCode[] = ['oracle-down', 'thin-borrow', 'small', 'collateral', 'rate-bet', 'negative', 'risky', 'unrated', 'dust', 'outlier', 'cross-denom', 'unmapped', 'brokered', 'basket', 'no-leverage', 'thin-ltv', 'no-route', 'closed']
+export const HIDE_ORDER: HideCode[] = ['oracle-down', 'thin-borrow', 'small', 'collateral', 'rate-bet', 'negative', 'risky', 'unrated', 'dust', 'outlier', 'cross-denom', 'unmapped', 'brokered', 'basket', 'no-leverage', 'thin-ltv', 'no-route', 'closed', 'compromised']
 
 /**
  * The soft gate a built row fails under the current settings, or null when it
@@ -69,8 +70,8 @@ export const HIDE_ORDER: HideCode[] = ['oracle-down', 'thin-borrow', 'small', 'c
  * comes before whether it is big enough, which comes before what it pays.
  */
 /**
- * The cap a row's score is held to. `Any` (5, the top of the 1–5 scale) is no cap at all: it
- * lets in 6 too, risk-data's `compromised`, which the row then wears as its label (`riskOf`).
+ * The cap a row's score is held to. `Any` (5, the top of the 1–5 scale) is no cap at all. A 6,
+ * risk-data's `compromised`, never gets here: the classifiers refuse it (`isCompromised`).
  */
 export const capOf = (st: Settings) => (st.maxRisk >= 5 ? Infinity : st.maxRisk)
 export function softHide(s: Strategy, st: Settings): HideCode | null {

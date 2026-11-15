@@ -330,8 +330,10 @@ const num = (v: string | number | null | undefined): number => { if (v == null |
  * label, is read, because the earn listing mixes in colour words that disagree
  * with it (`2 yellow`, `4 red`). An unrated row wears the medium dot, never low.
  * 6 is risk-data's `compromised` (drained, backing gone): the listings ask for
- * everything up to 6 (`API_RISK_CEILING`), `Any` shows it, and it says so.
+ * everything up to 6 (`API_RISK_CEILING`, the pre-warmed request), and the classifiers refuse
+ * it (`isCompromised`) — no cap shows it, the pages count it under `compromised`.
  */
+export const isCompromised = (score: number | null | undefined) => (score ?? 0) >= 6
 export const riskOf = (score: number | undefined, _label?: string): { risk: Risk; riskLabel: string } => {
   if (!score) return { risk: 2, riskLabel: 'Unrated' }
   if (score >= 6) return { risk: 3, riskLabel: 'Compromised' }
@@ -547,6 +549,7 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   // the issuer (EURC is Circle's euro, EURCV SG-Forge's)
   const own = coin && !isFiat(coin) ? coin : m.asset.symbol
   if (m.basket) return no('basket')
+  if (isCompromised(m.risk?.score)) return no('compromised')
   // the structural gates only: a row nobody can deposit into is not a strategy
   // at any floor. Size, rate and risk are floors and live in `softHide`.
   if (!m.availability?.canDeposit) return no('closed')
@@ -756,6 +759,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const queueCap = isUserSetRow(r) ? Math.max(0, ...(userSetOfRow(r)?.picks ?? []).map((p) => p.capacity ?? 0)) : 0
   const liq = Math.max(num(r.borrowLiquidityUsdShort), queueCap * (r.underlyingInfoShort.prices?.priceUsd ?? 0))
   const worst = Math.max(0, ...r.risk.breakdown.map((b) => b.score ?? 0), r.risk.maxTokenScore ?? 0)
+  if (isCompromised(worst)) return no('compromised')
   const liqLtv = num(r.collateralFactorLong) || num(r.ltv)
   if (!(liqLtv > 0.3)) return no('thin-ltv')
   const tiers = tierLeverages(maxLev)

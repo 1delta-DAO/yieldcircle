@@ -23,7 +23,7 @@ import { isUserSetRow, userSetOfRow, type UserSetRate } from './userSetRate'
 import { baseOfSymbol, groupOf, noteStock, stockInfo, type GroupId } from './assets'
 import { assetClassOf, type AssetClass } from './assetClass'
 import { keyOfToken, moneyOf } from './desk'
-import { riskOf, venueLabel, type Risk } from './strategies'
+import { isCompromised, riskOf, venueLabel, type Risk } from './strategies'
 
 export interface BorrowLeg { uid: string; symbol: string; address: string; decimals: number; logo?: string; price?: number; group?: string }
 /**
@@ -122,6 +122,8 @@ export function offerFromRow(r: OptimizerRowRaw): BorrowOffer | null {
   const liqLtv = (num(r.collateralFactorLong) || num(r.ltv)) / bf
   if (!(maxLtv > 0) || !(liqLtv > 0) || liqLtv >= 1.2) return null
   const worst = Math.max(0, ...r.risk.breakdown.map((b) => b.score ?? 0), r.risk.maxTokenScore ?? 0)
+  // a drained market or a token with its backing gone is no loan to offer (`compromised`, 6)
+  if (isCompromised(worst)) return null
   const { risk, riskLabel } = riskOf(worst)
   const cls = (r.collateralAssetClass as AssetClass | null | undefined) ?? assetClassOf(L.props?.rwa)
   const model = r.fixedTerm?.model ?? ''

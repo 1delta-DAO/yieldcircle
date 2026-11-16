@@ -39,6 +39,7 @@ export function LiteRowView({ r, get, proof, yoursUsd, yoursApr, arrived, onArri
   const friend = followed && proof?.best ? proof.wallets : 0
   const who = friend ? `you follow${friend > 1 ? ` + ${friend - 1}` : ''}` : heldBy(proof)
   const spike = spikeOf(s, get)
+  const yours = yoursUsd != null && yoursUsd > 0
   const glow = React.useRef(new Animated.Value(0)).current
   React.useEffect(() => {
     if (!arrived) return
@@ -49,12 +50,17 @@ export function LiteRowView({ r, get, proof, yoursUsd, yoursApr, arrived, onArri
     <Pressable onPress={() => { onOpen?.(); openStrategy(s) }} onLayout={arrived && onArrivedAt ? (e) => onArrivedAt(e.nativeEvent.layout.y) : undefined} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]}>
       <Animated.View pointerEvents="none" style={[st.glow, { opacity: glow }]} />
       <Face s={s} />
-      <View style={{ flex: 1, gap: 2 }}>
+      <View style={{ flex: 1, minWidth: 80, gap: 2 }}>
         <LiteTitle r={r} />
         <Txt s={12} c={C.tx70} numberOfLines={2}>{r.sub}{spike ? <Txt s={12} c={C.warn}> · higher than usual</Txt> : ''}{who ? <Txt s={12} c={friend ? C.ok : C.tx70}> · {who}</Txt> : ''}</Txt>
+        {/* the pills have a line of their own (the web's `.lrow-p` on a phone): beside the name they took its width — `Loop ed…` */}
+        {(yours || s.kind === 'loop') && (
+          <View style={st.pills}>
+            {yours && <View style={st.run}><Txt s={11} w={600} c={C.ok} lh={16.5}>yours {usdShort(yoursUsd!)}{yoursApr != null && yoursApr > 0 ? ` · ${pct(yoursApr, 1)}` : ''}</Txt></View>}
+            {s.kind === 'loop' && <LeverPill text={leverTag(s.tiers.balanced)} />}
+          </View>
+        )}
       </View>
-      {yoursUsd != null && yoursUsd > 0 && <View style={st.run}><Txt s={11} w={600} c={C.ok} lh={16.5}>yours {usdShort(yoursUsd)}{yoursApr != null && yoursApr > 0 ? ` · ${pct(yoursApr, 1)}` : ''}</Txt></View>}
-      {s.kind === 'loop' && <LeverPill text={leverTag(s.tiers.balanced)} />}
       <View style={{ alignItems: 'flex-end', gap: 2 }}><Rate s={s} /><Txt s={11} w={500} c={RISK[s.risk]} style={{ opacity: 0.85 }}>{riskScoreText(s) ? `risk ${riskScoreText(s)}` : riskTag(s)}</Txt></View>
     </Pressable>
   )
@@ -77,6 +83,7 @@ export const rowStyles = StyleSheet.create({
 
 const st = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: C.b200, borderRadius: 12 },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 3 },
   run: { backgroundColor: alpha(C.ok, 0.13), borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   glow: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 12, borderWidth: 2, borderColor: C.primary, backgroundColor: C.priBg },
 })

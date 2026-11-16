@@ -15,12 +15,17 @@ export function ProRow({ s, get, yoursUsd }: { s: Strategy; get: HistoryGet; /**
   return (
     <Pressable onPress={() => openStrategy(s)} style={({ pressed }) => [st.row, pressed && { backgroundColor: C.b300 }]}>
       <Face s={s} />
-      <View style={{ flex: 1, gap: 2 }}>
+      <View style={{ flex: 1, minWidth: 80, gap: 2 }}>
         <Text style={{ color: C.tx, fontWeight: '700' }} numberOfLines={1}>{s.kind === 'loop' ? `${s.holds} / ${s.debt}` : s.assetSymbol}</Text>
         <Text style={[T.dim, { fontSize: 12 }]} numberOfLines={1}>{s.venue} · {chainLabel(s.chainId)} · {usdShort(s.tvlUsd)}</Text>
+        {/* the pills under the text, as in Lite's row: beside it they took the name's width */}
+        {((!!yoursUsd && yoursUsd > 0) || s.kind === 'loop') && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 3 }}>
+            {!!yoursUsd && yoursUsd > 0 && <Pill tone="ok">yours {usdShort(yoursUsd)}</Pill>}
+            {s.kind === 'loop' && <Pill tone="pri">{leverTag(s.tiers.balanced)}</Pill>}
+          </View>
+        )}
       </View>
-      {!!yoursUsd && yoursUsd > 0 && <Pill tone="ok">yours {usdShort(yoursUsd)}</Pill>}
-      {s.kind === 'loop' && <Pill tone="pri">{leverTag(s.tiers.balanced)}</Pill>}
       <RiskDot r={s.risk} />
       <Rate s={s} get={get} style={{ minWidth: 58, textAlign: 'right' }} />
     </Pressable>

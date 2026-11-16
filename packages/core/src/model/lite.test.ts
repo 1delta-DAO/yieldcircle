@@ -126,6 +126,8 @@ describe('names in words', () => {
     const pt = dep('pt', { asset: 'USDC', source: 'fixed', via: 'Fixed on Pendle · 17 Dec', maturity: 1_800_000_000, holds: 'PT trUSD' })
     expect(rowName({ s: pt, title: 'Dollars via Tori' })).toBe('Fixed rate via Tori')
     expect(rowName({ s: loop('l', { asset: 'USDC', venue: 'Morpho · Steakhouse' }), title: 'Dollars via Tori' })).toBe('Tori loop via Morpho')
+    // the issuer's own market: its lending side is named, not the issuer twice
+    expect(rowName({ s: loop('l', { asset: 'USDC', venue: 'Alchemix' }), title: 'Dollars via Alchemix' })).toBe('Alchemix loop via Alchemix Lend')
     expect(plainName(loop('l2', { asset: 'USDC', holds: 'USDC', venue: 'Morpho · Steakhouse' })).sub).toBe('Borrows dollars')
     // a loop paid by its market, not by its collateral, is not its issuer's business
     expect(mechanismOf(loop('u', { asset: 'USDe', holds: 'USDe' }))).toBeNull()

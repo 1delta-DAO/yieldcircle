@@ -196,8 +196,10 @@ const fixedOn = (s: SimpleStrategy) => /^Fixed on ([^·]+)/.exec(s.via)?.[1]?.tr
  * Morpho`, a deposit where it sits (`via Aave`, `via Lagoon`). The name of a row nothing says the
  * mechanism of (`liteName`).
  */
-export function howOf(s: Strategy): string {
-  if (s.kind === 'loop') { const v = venueOf(s); return v ? `loop via ${v}` : 'loop' }
+export function howOf(s: Strategy, whose = ''): string {
+  // an issuer's coin looped in its own market (Alchemix's yield token against Alchemix's loan): the
+  // second `Alchemix` is its lending side, said so — never `Alchemix loop via Alchemix`
+  if (s.kind === 'loop') { const v = venueOf(s); return v ? `loop via ${sameName(whose, v) ? `${v} Lend` : v}` : 'loop' }
   if (s.source === 'fixed') { const v = fixedOn(s); return v ? `via ${v}` : 'fixed' }
   const v = placeOf(s)
   return v ? `via ${v}` : ''
@@ -225,7 +227,7 @@ function named(s: Strategy, title: string): { name: string; on?: string } {
   const mid = m?.mid ?? ''
   if (s.kind === 'loop') {
     const v = venueOf(s)
-    if (!mid) return { name: `${short} ${howOf(s)}` }
+    if (!mid) return { name: `${short} ${howOf(s, short)}` }
     return via ? { name: `Looped ${mid} via ${short}`, on: v } : { name: `Looped ${short} ${mid}${v ? ` via ${v}` : ''}` }
   }
   if (s.source === 'fixed') {
@@ -249,7 +251,7 @@ export const rowName = (r: Pick<LiteRow, 's' | 'title'>): string => liteName(r.s
  */
 export function rowShort(r: Pick<LiteRow, 's' | 'title'>): string {
   const { short } = splitTitle(r.title)
-  const s = r.s, how = howOf(s)
+  const s = r.s, how = howOf(s, short)
   return how && !(s.kind === 'simple' && s.source !== 'fixed' && sameName(short, placeOf(s))) ? `${short} ${how}` : short
 }
 const SIMPLE_SUB: Record<string, (s: SimpleStrategy) => string> = {

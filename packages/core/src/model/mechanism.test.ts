@@ -22,9 +22,11 @@ describe('mechanisms', () => {
   it('says what pays it only where the token names one thing', () => {
     expect(mechanismSubjectOfGroup('Saturn sUSDat::SUSDAT')).toBe('STRC')
     expect(mechanismWords('dividends', 'STRC')).toEqual({ word: 'STRC dividends', mid: 'STRC dividends' })
-    // Apyx's dividends come from a basket of preferred shares: no one name
-    expect(mechanismOfGroup('apyUSD::APYUSD')).toBe('dividends')
-    expect(mechanismSubjectOfGroup('apyUSD::APYUSD')).toBeUndefined()
+    // Apyx's basket is mostly STRC (the rest SATA), and its peg follows STRC: named for it too
+    expect(mechanismSubjectOfGroup('apyUSD::APYUSD')).toBe('STRC')
+    // a token with a mechanism and no one payer keeps the bare word
+    expect(mechanismOfGroup('Astherus Staked USDF::asUSDF')).toBeDefined()
+    expect(mechanismSubjectOfGroup('Astherus Staked USDF::asUSDF')).toBeUndefined()
     expect(mechanismWords('dividends')).toEqual({ word: 'Dividends', mid: 'dividends' })
   })
   it('an issuer answers only where it has one line of business', () => {

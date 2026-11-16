@@ -69,7 +69,8 @@ about 60 % longer than the old ones and lost their ending on every one-line surf
 - Three words are short: `Mixed`, `Dividends`, `Hedged` (were "Mixed strategies", "Stock
   dividends", "Hedged trading"). Since 2026-11-15 a token whose note names what pays it
   (token-lists `mechanismOf`, copied to `data/mechanism-of.json`) puts that in front: Saturn's
-  sUSDat and Strata's srUSDat read `STRC dividends`, Apyx's basket stays `Dividends`
+  sUSDat, Strata's srUSDat and (since 2026-11-16) Apyx's apyUSD, whose basket is mostly STRC, read
+  `STRC dividends`
   (`mechanismWordsOf`; not re-measured). The Earn list then cuts no name at 393 dp, 2 at 375, 19 at 360.
 - The phone's board rows and position rows (board, You) take two lines for the title.
 - The phone's feed line under a wallet keeps the short name (`rowShort`: "Ethena loop via Aave"):

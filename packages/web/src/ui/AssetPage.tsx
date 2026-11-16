@@ -16,7 +16,7 @@ import { useCounts, useThreadOf } from '../social/queries'
 import { Comments } from './social-bits'
 import { HiddenBar } from './Hidden'
 import { HIDES, hideDetail, letIn, softHide } from '@yieldcircle/core/model/visibility'
-import { offMenuWhy, useOffMenu, useRateHistory, type OffMenuRef } from '@yieldcircle/app/sdk/queries'
+import { offMenuWhy, refOfHolding, useOffMenu, useRateHistory, type OffMenuRef } from '@yieldcircle/app/sdk/queries'
 import { useSettings } from '@yieldcircle/app/state/Settings'
 import { isSpike, seriesFor, steadyRate } from '@yieldcircle/core/model/rateHistory'
 import { RateTrend, useSparkRewards } from './Spark'
@@ -376,12 +376,6 @@ function FixedNote({ n, idle, risky }: { n: number; idle: number; risky: number 
       {(idle > 0 || risky > 0) && <> {n ? 'Not shown' : 'Not listed'}: {[idle > 0 && `${idle} book${idle === 1 ? '' : 's'} with no offer right now`, risky > 0 && `${risky} above your risk cap`].filter(Boolean).join(', ')}.</>}
     </div>
   )
-}
-
-/** how to ask for a held position's row on its own (`useOffMenu`); none for a shape the ticket cannot build */
-function refOfHolding(h: Holding): OffMenuRef | null {
-  if (h.kind === 'loop') return h.collateralUid && h.debtUid && h.assetAddress ? { id: `l:${h.collateralUid}|${h.debtUid}`, by: h.assetAddress } : null
-  return h.earnUid ? { id: `s:${h.earnUid}`, by: h.symbol } : null
 }
 
 /**

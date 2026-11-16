@@ -51,6 +51,15 @@ slider — or debt paid and collateral out. The logic is shared with the web's p
 `useRepayTicket`). Before this the two tabs fell through to Lower risk's body. Add is offered on any
 held position the ticket can carry, as on the web.
 
+**A row the menu does not hold** (2026-11-16): the sheet (`app/strategy/[id].tsx`) asks for it on
+its own (`useOffMenu`, the web Pro's lookup) once the catalogue has answered without it — by the
+link's id (a loop's carries its collateral's address; a deposit needs `oa`, its token's symbol,
+which the share link and a remembered search now carry) or by a held position's legs
+(`refOfHolding`). It opens with "Not in the menu" and the floor it fails (`offMenuWhy`); a shape the
+ticket cannot build says which gate. Before this it was a dead end ("Not in the catalogue right
+now"), and a held position off the menu had no Add. The lists are unchanged: Copy on the board is
+still only where Lite carries the strategy.
+
 **The rest of Lite** (2026-11-02), so Lite is whole on the phone:
 
 - **A position's record** (`app/position.tsx`, the web's `PnlDrawer`): a tap on any position on the

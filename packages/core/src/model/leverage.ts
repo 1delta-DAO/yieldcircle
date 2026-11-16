@@ -9,7 +9,7 @@ export const netAprAtLeverage = (dep: number, bor: number, L: number) => dep * L
  * fees) is kept. Without a curve the $10k quote is the honest fallback — it is
  * what the list ranked on. `null` curve fields read as "no curve".
  */
-type Curve = { points: { utilization: number; borrowRate: number }[]; currentUtilization: number; totalDepositsUsd?: string; totalDebtUsd?: string; totalLiquidityUsd?: string }
+type Curve = { points: { utilization: number; borrowRate: number; depositRate?: number }[]; currentUtilization: number; totalDepositsUsd?: string; totalDebtUsd?: string; totalLiquidityUsd?: string }
 export function borrowAtSize(spot: number, atTenK: number, extraDebtUsd: number, curve: Curve | null | undefined): number {
   if (!curve || !(curve.points.length >= 2)) return atTenK
   // the pool the curve's utilisation is measured on. On Aave V4 the market's deposits are only its
@@ -22,13 +22,29 @@ export function borrowAtSize(spot: number, atTenK: number, extraDebtUsd: number,
   if (!(pool > 0) || !Number.isFinite(u0)) return atTenK
   return spot + curveAt(curve, u0 + extraDebtUsd / pool) - curveAt(curve, u0)
 }
-const curveAt = (curve: Curve, u: number) => {
-  const ps = curve.points, x = Math.min(1, Math.max(0, u))
+/**
+ * The rate a lending deposit earns once it is in the market itself: the same debt over a bigger
+ * pool is a lower utilisation, and the lenders' side of the curve is read there. As
+ * {@link borrowAtSize}, the curve only MOVES the spot rate, so what the headline carries on top of
+ * the model (the token's own yield, rewards — themselves undiluted here) is kept, and it never
+ * reads below that part. Without a curve, or one with no lenders' side (a vault, a savings rate),
+ * the spot rate stands. `extraDepositUsd` is negative for a withdrawal.
+ */
+export function depositAtSize(spot: number, extraDepositUsd: number, curve: Curve | null | undefined): number {
+  if (!curve || !(curve.points.length >= 2) || !curve.points.every((p) => typeof p.depositRate === 'number')) return spot
+  const u0 = curve.currentUtilization, free = parseFloat(curve.totalLiquidityUsd ?? ''), dep = parseFloat(curve.totalDepositsUsd ?? '')
+  const pool = Math.max(dep > 0 ? dep : 0, free > 0 && u0 < 1 ? free / (1 - u0) : 0)
+  if (!(pool > 0) || !Number.isFinite(u0) || !(pool + extraDepositUsd > 0)) return spot
+  const now = curveAt(curve, u0, 'depositRate')
+  return Math.max(spot - now, spot + curveAt(curve, u0 * pool / (pool + extraDepositUsd), 'depositRate') - now)
+}
+const curveAt = (curve: Curve, u: number, side: 'borrowRate' | 'depositRate' = 'borrowRate') => {
+  const ps = curve.points, x = Math.min(1, Math.max(0, u)), y = (p: Curve['points'][number]) => p[side] ?? 0
   for (let i = 1; i < ps.length; i++) if (x <= ps[i].utilization) {
     const a = ps[i - 1], b = ps[i], du = b.utilization - a.utilization
-    return du > 0 ? a.borrowRate + (b.borrowRate - a.borrowRate) * (x - a.utilization) / du : b.borrowRate
+    return du > 0 ? y(a) + (y(b) - y(a)) * (x - a.utilization) / du : y(b)
   }
-  return ps[ps.length - 1].borrowRate
+  return y(ps[ps.length - 1])
 }
 /**
  * The variable rate the market charges right now, read off its curve at today's utilisation. On a

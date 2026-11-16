@@ -48,7 +48,7 @@ export default function Search() {
   const leaders = React.useMemo(() => boardWallets(board.data?.rows ?? [], 'apr').filter((r) => normAddr(r.account) !== normAddr(account ?? '')).slice(0, 5), [board.data, account])
   const { profile } = useProfiles([...people.hits.map((h) => h.key), ...f.wallets.slice(0, 8), ...leaders.map((r) => r.account)])
   // a pick is kept as the web's Lite address (core's `liteHash`), so the list reads the same on both apps
-  const pickRow = (r: LiteRow) => remember({ id: `r:${r.s.id}`, title: rowName(r), href: liteHash({ to: 'strategy', s: r.s }) })
+  const pickRow = (r: LiteRow) => remember({ id: `r:${r.s.id}`, title: rowName(r), href: liteHash({ to: 'strategy', s: r.s, oa: r.s.kind === 'loop' ? undefined : r.s.assetSymbol }) })
   const pickWallet = (h: FindHit) => { remember({ id: `w:${h.key}`, title: h.title, href: liteHash({ to: 'wallet', account: h.key }), addr: h.key }); openWallet(h.key) }
   const openPick = (href: string) => { const to = pathOfLink(href); if (to) router.push(to as Href) }
   return (

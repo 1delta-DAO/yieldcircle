@@ -18,7 +18,7 @@ export function pathOf(d: LiteDest): string {
     // the phone has no Home: Earn is the first page, and a link home opens it
     case 'home': return '/lite'
     case 'earn': return `/lite${qs({ g: d.group })}`
-    case 'strategy': return `/strategy/${encodeURIComponent(d.s.id)}${qs({ copy: d.copy, lev: d.lev, h: d.h, m: d.m })}`
+    case 'strategy': return `/strategy/${encodeURIComponent(d.s.id)}${qs({ copy: d.copy, lev: d.lev, h: d.h, m: d.m, oa: d.oa })}`
     case 'you': return d.h ? `/strategy/_${qs({ h: d.h, m: d.m })}` : '/you'
     case 'board': return `/lite/board${qs({ by: d.by, t: d.t, x: d.x })}`
     case 'search': return `/search${qs({ q: d.q })}`

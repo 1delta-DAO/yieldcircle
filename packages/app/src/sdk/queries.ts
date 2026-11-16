@@ -5,6 +5,7 @@ import { fetchBorosHedge, fetchChains, fetchEarn, fetchEarnPositions, fetchIrm, 
 import { bookOpen, capPerAsset, classifyEarn, classifyPair, dedupe, FIXED_BOOK_PROTOCOLS, foldBookDates, foldDates, rowKey, type Candidate, type LoopStrategy, type LoopTenor, type SimpleStrategy, type Strategy } from '@yieldcircle/core/model/strategies'
 import { capOf, HIDES, hideDetail, softHide, type HideCode } from '@yieldcircle/core/model/visibility'
 import { parseUid } from '@yieldcircle/core/model/uid'
+import type { Holding } from '@yieldcircle/core/model/positions'
 import { EXPOSURE_ASSETS, FIAT_FLOOR, FIAT_REQUESTS, fiatOf } from '@yieldcircle/core/model/assets'
 import { useSettings, type Settings } from '../state/Settings'
 import type { BorosHedgeData, EarnPositionsResponse, LendingBook, OptimizerResponse, TokenBalance } from '@yieldcircle/core/sdk/types'
@@ -1001,6 +1002,19 @@ export async function fetchOffMenu({ id, by }: OffMenuRef): Promise<OffMenuRow> 
 export const offMenuQuery = (ref: OffMenuRef) => ({ queryKey: ['off-menu', ref.id, ref.by], queryFn: () => fetchOffMenu(ref), staleTime: 10 * 60_000, retry: false })
 export function useOffMenu(ref: OffMenuRef | null) {
   return useQuery({ ...offMenuQuery(ref ?? { id: '', by: '' }), enabled: !!ref })
+}
+/**
+ * How to ask for a row named only by its id (a link, a remembered search): a loop's id carries its
+ * collateral's address; a deposit's does not carry its token's symbol, so the link must (`oa`).
+ */
+export function offMenuRefOf(id: string, by?: string): OffMenuRef | null {
+  if (id.startsWith('l:')) { const a = by || parseUid(id.slice(2).split('|')[0])?.ref; return a ? { id, by: a } : null }
+  return id.startsWith('s:') && by ? { id, by } : null
+}
+/** how to ask for a held position's row on its own (`useOffMenu`); none for a shape the ticket cannot build */
+export function refOfHolding(h: Holding): OffMenuRef | null {
+  if (h.kind === 'loop') return h.collateralUid && h.debtUid && h.assetAddress ? { id: `l:${h.collateralUid}|${h.debtUid}`, by: h.assetAddress } : null
+  return h.earnUid ? { id: `s:${h.earnUid}`, by: h.symbol } : null
 }
 /**
  * Why an off-menu row is off the menu, in one sentence for its ticket: the

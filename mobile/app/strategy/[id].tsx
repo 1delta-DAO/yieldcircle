@@ -20,7 +20,9 @@ import { useThreadOf } from '@yieldcircle/app/social/queries'
 import { uidOf } from '@yieldcircle/core/model/uid'
 import { bufferOfHealth } from '@yieldcircle/core/model/lite'
 import { pct } from '@yieldcircle/core/model/format'
-import { chainLabel } from '@yieldcircle/app/sdk/queries'
+import { chainLabel, offMenuRefOf, offMenuWhy, refOfHolding, useOffMenu } from '@yieldcircle/app/sdk/queries'
+import { useSettings } from '@yieldcircle/app/state/Settings'
+import { HIDES } from '@yieldcircle/core/model/visibility'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import { plainLoan, type Strategy } from '@yieldcircle/core/model/strategies'
 import { DepositBody, LoanBody, LoopBody, LoopLoanBody, ManageLoopBody, WithdrawBody } from '../../src/ticket/bodies'
@@ -30,16 +32,22 @@ import { DepositBody, LoanBody, LoopBody, LoopLoanBody, ManageLoopBody, Withdraw
  * of a few plain actions — never a tier, a slider, a route or a sub-account. What those decide is
  * offered back in Lite's words in "More choices" (`MoreSheet`, drawn by each body). Opened on a row
  * (`id`), or on a position (`h`, its holding key) whether or not Lite would offer it today; `copy`
- * and `lev` when it copies a wallet, `m` the action a link asked for.
+ * and `lev` when it copies a wallet, `m` the action a link asked for. A row the menu does not hold
+ * (below a floor, cut by the menu's own request, on a link from before it left) is asked for on its
+ * own (`useOffMenu`, as the web's Pro does) and opens with a note saying why it is not listed.
  */
 export default function TicketScreen() {
-  const p = useLocalSearchParams<{ id: string; h?: string; copy?: string; lev?: string; m?: string }>()
+  const p = useLocalSearchParams<{ id: string; h?: string; copy?: string; lev?: string; m?: string; /** what to ask for the row by, off the menu */ oa?: string }>()
   const insets = useSafeAreaInsets()
   const L = useLiteMenu()
   const { b } = L
   const byKey = p.h ? b.holdings.find((x) => x.key === p.h) ?? null : null
   // a position opened by its key (You) runs whatever strategy the catalogue holds for it, or none
-  const s = b.all.find((x) => x.id === p.id) ?? b.hidden.find((x) => x.id === p.id) ?? b.overflow.find((x) => x.id === p.id) ?? (byKey ? L.runs(byKey) ?? null : null)
+  const listed = b.all.find((x) => x.id === p.id) ?? b.hidden.find((x) => x.id === p.id) ?? b.overflow.find((x) => x.id === p.id) ?? (byKey ? L.runs(byKey) ?? null : null)
+  // not in the catalogue once it has answered: the row asked for on its own, by the link's id or the position's legs
+  const off = useOffMenu(listed || b.isLoading || byKey?.kind === 'borrow' ? null : offMenuRefOf(p.id, p.oa) ?? (byKey ? refOfHolding(byKey) : null))
+  const s = listed ?? off.data?.s ?? null
+  const { st: settings } = useSettings()
   const holdings = s ? L.holdingsOf(s) : byKey ? [byKey] : []
   // more than one position on it (sub-accounts): the one picked in "More choices", else the one the link named
   const [hk, setHk] = React.useState<string | undefined>(p.h)
@@ -64,8 +72,10 @@ export default function TicketScreen() {
   if (!s && !holding) {
     return (
       <Frame insets={insets}>
-        <TicketHead face={<Sk w={26} h={26} r={13} />} title={b.isLoading ? '' : 'Not in the catalogue right now'} onClose={close} />
-        <Sec plain>{b.isLoading ? <Sk w={200} /> : <Txt s={13} c={C.tx50}>This strategy is not on the menu on these chains at the moment.</Txt>}</Sec>
+        <TicketHead face={<Sk w={26} h={26} r={13} />} title={b.isLoading || off.isLoading ? '' : 'Not in the catalogue right now'} onClose={close} />
+        <Sec plain>{b.isLoading || off.isLoading ? <Sk w={200} />
+          // the API has the market, and the ticket cannot build it: say which gate (a price bet, a basket, closed)
+          : <Txt s={13} c={C.tx50} lh={19}>{off.data?.hide ? HIDES[off.data.hide].why : 'The API has no row for this strategy right now, so there is no ticket to build from.'}</Txt>}</Sec>
       </Frame>
     )
   }
@@ -122,6 +132,8 @@ export default function TicketScreen() {
           <Txt s={12.5} c={C.tx70} style={{ flexBasis: '100%' }}>is in this {s.kind === 'loop' ? 'loop' : 'strategy'}. You are opening the same one{s.kind === 'loop' && copyLev ? ` at their ${copyLev.toFixed(2)}×` : ''} — your own size.</Txt>
         </View>
       )}
+      {s && !listed && mode === 'add' && <Sec><Txt s={12.5} c={C.warn} lh={18}><Txt s={12.5} w={700} c={C.warn}>Not in the menu.</Txt> {offMenuWhy(s, settings)} Check the liquidity, rate and risk yourself before you size it.</Txt></Sec>}
+      {s?.kind === 'loop' && s.oracleDown && <Sec><Txt s={12.5} c={C.warn} lh={18}><Txt s={12.5} w={700} c={C.warn}>Oracle down.</Txt> {HIDES['oracle-down'].why}</Txt></Sec>}
       {h && mode !== 'add'
         ? (h.subAccount?.unsupported
           ? <><Sec><Txt s={13} c={C.tx70}>YieldCircle cannot build for this account yet: manage it on {h.venue.split(' · ')[0]}.</Txt></Sec><MoreSheet><HeldNumbers h={h} s={s} /></MoreSheet></>

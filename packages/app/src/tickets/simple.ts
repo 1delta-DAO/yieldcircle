@@ -8,12 +8,27 @@ import { earnDeposit } from '@yieldcircle/core/sdk/api'
 import { isSvmChain } from '@yieldcircle/core/model/address'
 import { isSavings } from '@yieldcircle/core/model/nature'
 import { payOptions, paysNative, sameToken, type PayRole } from '@yieldcircle/core/model/ticket'
+import { depositAtSize } from '@yieldcircle/core/model/leverage'
 import { slippageFor, useSettings } from '../state/Settings'
+import { useIrm } from '../sdk/queries'
 import { useSticky, useStickyAmount } from '../sticky'
 import { stepsFrom, useTicketLadder } from '../ladder'
 import { useSession } from '../session'
 import { depositPlan } from './paperPlans'
 import { usePaperView } from './paper'
+
+/**
+ * The rate a deposit earns at THIS size (the lender's half of the loop ticket's `useBorrowAt`): a
+ * plain lending market pays its lenders off utilisation, and a deposit that is a real share of the
+ * pool lowers it — $100k into a $300k market does not earn the listed rate. Only `source:
+ * 'lending'`: a vault, a savings rate, staking and a PT do not price off a curve the deposit moves.
+ * While the curve loads, and where the market has none, the listed rate stands.
+ */
+export function useDepositAt(s: SimpleStrategy) {
+  const curved = s.source === 'lending' && !!s.marketUid
+  const irm = useIrm(s.marketUid, curved)
+  return (extraUsd: number) => (curved && irm.data ? depositAtSize(s.rate, extraUsd, irm.data) : s.rate)
+}
 
 /**
  * A plain deposit's ticket, everything but the screen (the web's `SimpleTicket`, the phone's
@@ -57,7 +72,10 @@ export function useSimpleTicket(s: SimpleStrategy, chainIdle: Idle[], allIdle: I
   // what is sent: Max resolved on the exact balance, a typed amount parsed from its text and capped at it
   const sendRaw = payRaw(amt, chosen.decimals, idle)
   const amtUsd = amount * price
-  const yearly = amtUsd * s.rate / 100
+  // what it earns with this deposit in the market; `sized` once that is visibly less than the listed rate
+  const rate = useDepositAt(s)(amtUsd)
+  const sized = s.rate - rate >= 0.01
+  const yearly = amtUsd * rate / 100
   // a PT is bought on its AMM: the API wants a bound on the fill, and a PT against its underlying is one money
   const st = useSettings().st
   const slip = s.booked ? slippageFor(st, isSavings(s.nature)) : undefined
@@ -76,5 +94,5 @@ export function useSimpleTicket(s: SimpleStrategy, chainIdle: Idle[], allIdle: I
   // sentence describes, and the figure to check it against is right there
   const tight = s.utilization != null && s.utilization >= 0.9
   const exit = exitTerms(s)
-  return { account, isConnected, actor, getOpen, setGetOpen, opts, balOf, role, setRole, chosen, idle, unit, dollar, price, amt, setAmt, amount, sendRaw, amtUsd, yearly, slip, key, ladder, more, tight, exit }
+  return { account, isConnected, actor, getOpen, setGetOpen, opts, balOf, role, setRole, chosen, idle, unit, dollar, price, amt, setAmt, amount, sendRaw, amtUsd, rate, sized, yearly, slip, key, ladder, more, tight, exit }
 }

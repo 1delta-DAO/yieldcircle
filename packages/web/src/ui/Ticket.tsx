@@ -348,7 +348,7 @@ import { useManageLoop } from '@yieldcircle/app/tickets/manageLoop'
 function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy; idle: Idle[]; allIdle: Idle[]; into?: Holding | null }) {
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/simple`)
   const { lite } = React.useContext(TicketCtx)
-  const { account, isConnected, getOpen, setGetOpen, opts, balOf, setRole, chosen, idle, unit, dollar, price, amt, setAmt, amount, amtUsd, yearly, ladder, more, tight, exit } = useSimpleTicket(s, chainIdle, allIdle, into, { lite })
+  const { account, isConnected, getOpen, setGetOpen, opts, balOf, setRole, chosen, idle, unit, dollar, price, amt, setAmt, amount, amtUsd, rate, sized, yearly, ladder, more, tight, exit } = useSimpleTicket(s, chainIdle, allIdle, into, { lite })
   const dp = shownDp(dollar)
   if (lite) return (
     <>
@@ -361,12 +361,13 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
         {getOpen && <GetAsset targets={opts.map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price, logo: o.role === 'token' ? s.logo : undefined, have: balOf(o.address)?.amount ?? 0 }))} want={amount} sources={allIdle}
           onTarget={(t) => setRole(opts.find((o) => o.address === t.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}
       </div>
-      <LiteLines l={depositLines({ rate: s.rate, amountUsd: amtUsd, exitWord: exit.word, exitWhen: exit.when, tight, maturity: s.maturity, booked: !!s.booked, rewards: s.rewards })} />
-      <Action ladder={ladder} label={`Put ${dollar ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`} to work`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} receipt={{ kind: 'deposit', amount: dollar ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`, usd: amtUsd, apr: s.rate, venue: s.venue, strategyId: s.id, holdingKey: into?.key ?? undefined }} fee="deposit" />
+      <LiteLines l={depositLines({ rate, amountUsd: amtUsd, exitWord: exit.word, exitWhen: exit.when, tight, maturity: s.maturity, booked: !!s.booked, rewards: s.rewards })} />
+      <Action ladder={ladder} label={`Put ${dollar ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`} to work`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} receipt={{ kind: 'deposit', amount: dollar ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`, usd: amtUsd, apr: rate, venue: s.venue, strategyId: s.id, holdingKey: into?.key ?? undefined }} fee="deposit" />
       <LiteMoreSheet>
         {opts.length > 1 && <LiteChoices label="Pay with" items={opts.map((o) => ({ id: o.role, word: o.symbol, line: o.role === 'native' ? `wrapped into ${s.assetSymbol} for you` : 'as it is', side: account ? `you have ${num(balOf(o.address)?.amount ?? 0, dp)}` : undefined }))} on={chosen.role} onPick={(r) => setRole(r)} />}
         <LiteNumbers rows={[
           ['Rate now', `${pct(s.rate)} a year`],
+          ...(sized ? [['With yours in it', `${pct(rate)} · a deposit this size lowers the market’s rate`] as [string, string]] : []),
           ...(s.rewards > 0.05 ? [['Of which rewards', `${pct(s.rewards)} · can stop without notice`] as [string, string]] : []),
           ['Way out', `${exit.word} · ${exit.when}`],
           ['In it', usdShort(s.tvlUsd)],
@@ -402,7 +403,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
         {getOpen && <GetAsset targets={opts.map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price, logo: o.role === 'token' ? s.logo : undefined, have: balOf(o.address)?.amount ?? 0 }))} want={amount} sources={allIdle}
           onTarget={(t) => setRole(opts.find((o) => o.address === t.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}</div>
       <div className="tsec"><div className="cells">
-        <div className="c hero"><span className="k">You earn</span><span className={`v ${s.rate >= 3 ? 'ok' : ''}`}>{pct(s.rate)}</span><span className="s">{s.maturity ? `fixed to ${dateOf(s.maturity)}` : 'variable'}{s.rewards > 0.05 ? ` · incl. ${pct(s.rewards)} rewards` : ''}</span>
+        <div className="c hero"><span className="k">You earn</span><span className={`v ${rate >= 3 ? 'ok' : ''}`}>{pct(rate)}</span><span className="s">{sized ? `${pct(s.rate)} before your deposit · ` : ''}{s.maturity ? `fixed to ${dateOf(s.maturity)}` : 'variable'}{s.rewards > 0.05 ? ` · incl. ${pct(s.rewards)} rewards` : ''}</span>
           {/* what MOVES the headline: absent on a vault and on the families that do not price off utilisation, which is exactly when there is nothing to open */}
           <IrmLink uid={s.marketUid} side="supply" rewards={s.rewards} /></div>
         <div className="c"><span className="k">Per year</span><span className="v">{usd(yearly)}</span><span className="s">≈ {usd(yearly / 12)} / month</span></div>
@@ -421,7 +422,7 @@ function SimpleTicket({ s, idle: chainIdle, allIdle, into }: { s: SimpleStrategy
       <HistorySec s={s} now={s.rate} />
       <div className="tsec"><span className="lbl">What can go wrong</span><ul className="risks">{risks.map((t, i) => <li key={i} className={(i === 0 && s.risk >= 2) || (!isSavings(s.nature) && i === 0) ? 'w' : ''}><i /><span>{t}</span></li>)}</ul></div>
       {s.booked && <BookedSlippage pegged={isSavings(s.nature)} what={s.holds} />}
-      <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} receipt={{ kind: 'deposit', amount: unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`, usd: amtUsd, apr: s.rate, venue: s.venue, strategyId: s.id, holdingKey: into?.key ?? undefined }} fee="deposit" />
+      <Action ladder={ladder} label={`${s.source === 'lending' ? 'Deposit' : s.source === 'staking' ? 'Stake' : s.source === 'fixed' ? 'Buy' : 'Deposit'} · ${unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`}`} account={account} isConnected={isConnected} disabled={!(amount > 0)} chainId={s.chainId} receipt={{ kind: 'deposit', amount: unit === '$' ? usd(amtUsd) : `${num(amount, 4)} ${chosen.symbol}`, usd: amtUsd, apr: rate, venue: s.venue, strategyId: s.id, holdingKey: into?.key ?? undefined }} fee="deposit" />
     </>
   )
 }

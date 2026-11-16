@@ -14,8 +14,11 @@ export type LiteDest =
   | { to: 'home' }
   /** a category's list, or every category */
   | { to: 'earn'; group?: string }
-  /** a strategy's ticket: `copy` the wallet copied, `lev` its leverage, `h` a held position's key, `m` the action asked for */
-  | { to: 'strategy'; s: { id: string; kind: string; group: string }; copy?: string; lev?: string; h?: string; m?: string }
+  /**
+   * a strategy's ticket: `copy` the wallet copied, `lev` its leverage, `h` a held position's key, `m` the action asked for,
+   * `oa` what to ask the API by should the menu not hold the row (a deposit's token symbol; the web's `oa`)
+   */
+  | { to: 'strategy'; s: { id: string; kind: string; group: string }; copy?: string; lev?: string; h?: string; m?: string; oa?: string }
   /** You, or one of its positions opened (`h`) on an action (`m`) */
   | { to: 'you'; h?: string; m?: string }
   | { to: 'board'; by?: 'wallet' | 'strategy'; t?: string; x?: string }
@@ -34,7 +37,7 @@ export function liteHash(d: LiteDest): string {
   switch (d.to) {
     case 'home': return '#/lite/'
     case 'earn': return `#/lite/${d.group ?? 'earn'}`
-    case 'strategy': return `#/lite/${d.s.group}${qs({ s: d.s.id, k: d.s.kind === 'simple' ? undefined : d.s.kind, copy: d.copy, lev: d.lev, h: d.h, m: d.m })}`
+    case 'strategy': return `#/lite/${d.s.group}${qs({ s: d.s.id, k: d.s.kind === 'simple' ? undefined : d.s.kind, copy: d.copy, lev: d.lev, h: d.h, m: d.m, oa: d.oa })}`
     case 'you': return `#/lite/you${qs({ h: d.h, m: d.m })}`
     case 'board': return `#/lite/board${qs({ by: d.by, t: d.t, x: d.x })}`
     case 'search': return `#/lite/search${qs({ q: d.q })}`
@@ -69,7 +72,7 @@ export function parseLiteHash(link: string): LiteDest | null {
   // a category Lite lists: its list, or one strategy on it
   if ((LITE_GROUPS as string[]).includes(head) && seg.length === 1) {
     const id = g('s')
-    return id ? { to: 'strategy', s: { id, kind: g('k') ?? 'simple', group: head }, copy: g('copy'), lev: g('lev'), h: g('h'), m: g('m') } : { to: 'earn', group: head }
+    return id ? { to: 'strategy', s: { id, kind: g('k') ?? 'simple', group: head }, copy: g('copy'), lev: g('lev'), h: g('h'), m: g('m'), oa: g('oa') } : { to: 'earn', group: head }
   }
   return null
 }

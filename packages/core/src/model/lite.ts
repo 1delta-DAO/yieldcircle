@@ -459,7 +459,8 @@ export const shownDp = (dollar: boolean) => (dollar ? 2 : 4)
  */
 export function shareOf(s: Strategy, h: Pick<Holding, 'asset' | 'group' | 'apr'>, account: string, origin = APP_ORIGIN): { text: string; url: string } {
   const word = moneyWord(h.asset, h.group)
-  const url = liteUrl({ to: 'strategy', s, copy: account }, origin)
+  // a deposit's link says what to ask for it by, so it still opens once the menu has dropped the row
+  const url = liteUrl({ to: 'strategy', s, copy: account, oa: s.kind === 'loop' ? undefined : s.assetSymbol }, origin)
   return { text: `Earning ${pct(h.apr ?? s.rate)} on ${word.startsWith('Dollars') ? 'dollars' : word} with YieldCircle`, url }
 }
 /** Whether a position can be shared: a Lite strategy held as itself — not a loan, a price bet or paper. */

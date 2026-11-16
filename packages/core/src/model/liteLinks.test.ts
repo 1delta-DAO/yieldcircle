@@ -11,6 +11,7 @@ describe('the Lite route map', () => {
     expect(liteHash({ to: 'strategy', s: { id: 'a:b', kind: 'simple', group: 'USD' } })).toBe('#/lite/USD?s=a%3Ab')
     expect(liteHash({ to: 'strategy', s: { id: 'x', kind: 'loop', group: 'USD' }, copy: A, lev: '4.50' })).toBe(`#/lite/USD?s=x&k=loop&copy=${A}&lev=4.50`)
     expect(liteHash({ to: 'board', by: 'strategy', x: 'eth' })).toBe('#/lite/board?by=strategy&x=eth')
+    expect(parseLiteHash(liteHash({ to: 'strategy', s: { id: 's:a:1:b', kind: 'simple', group: 'USD' }, oa: 'USDat' }))).toMatchObject({ to: 'strategy', s: { id: 's:a:1:b' }, oa: 'USDat' })
     expect(liteHash({ to: 'wallet', account: A.toUpperCase().replace('0X', '0x') })).toBe(`#/lite/w/${A}`)
     expect(liteUrl({ to: 'search', q: 'eth' })).toBe('https://app.yieldcircle.io/#/lite/search?q=eth')
     expect(proUrl('#/lite/USD?s=x')).toBe('https://app.yieldcircle.io/#/pro/USD?s=x')

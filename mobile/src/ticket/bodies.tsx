@@ -46,13 +46,14 @@ export function DepositBody({ s, idle, allIdle, into }: { s: SimpleStrategy; idl
         {t.getOpen && <GetSheet targets={t.opts.map((o) => ({ chainId: s.chainId, address: o.address, symbol: o.symbol, decimals: o.decimals, price: t.price, logo: o.role === 'token' ? s.logo : undefined, have: t.balOf(o.address)?.amount ?? 0 }))} want={t.amount} sources={allIdle}
           onTarget={(x) => t.setRole(t.opts.find((o) => o.address === x.address)?.role ?? null)} onClose={() => t.setGetOpen(false)} />}
       </Sec>
-      <Lines l={depositLines({ rate: s.rate, amountUsd: t.amtUsd, exitWord: t.exit.word, exitWhen: t.exit.when, tight: t.tight, maturity: s.maturity, booked: !!s.booked, rewards: s.rewards })} />
+      <Lines l={depositLines({ rate: t.rate, amountUsd: t.amtUsd, exitWord: t.exit.word, exitWhen: t.exit.when, tight: t.tight, maturity: s.maturity, booked: !!s.booked, rewards: s.rewards })} />
       <Action ladder={t.ladder} label={`Put ${t.dollar ? usd(t.amtUsd) : `${num(t.amount, 4)} ${t.chosen.symbol}`} to work`} account={t.account} isConnected={t.isConnected} disabled={!(t.amount > 0)} chainId={s.chainId}
-        receipt={{ kind: 'deposit', amount: t.dollar ? usd(t.amtUsd) : `${num(t.amount, 4)} ${t.chosen.symbol}`, usd: t.amtUsd, apr: s.rate, venue: s.venue, strategyId: s.id, holdingKey: into?.key }} />
+        receipt={{ kind: 'deposit', amount: t.dollar ? usd(t.amtUsd) : `${num(t.amount, 4)} ${t.chosen.symbol}`, usd: t.amtUsd, apr: t.rate, venue: s.venue, strategyId: s.id, holdingKey: into?.key }} />
       <MoreSheet>
         {t.opts.length > 1 && <Choices label="Pay with" items={t.opts.map((o) => ({ id: o.role, word: o.symbol, line: o.role === 'native' ? `wrapped into ${s.assetSymbol} for you` : 'as it is', side: t.account ? `you have ${num(t.balOf(o.address)?.amount ?? 0, dp)}` : undefined }))} on={t.chosen.role} onPick={(r) => t.setRole(r)} />}
         <Numbers rows={[
           ['Rate now', `${pct(s.rate)} a year`],
+          ...(t.sized ? [['With yours in it', `${pct(t.rate)} · a deposit this size lowers the market’s rate`] as [string, string]] : []),
           ...(s.rewards > 0.05 ? [['Of which rewards', `${pct(s.rewards)} · can stop without notice`] as [string, string]] : []),
           ['Way out', `${t.exit.word} · ${t.exit.when}`],
           ['In it', usdShort(s.tvlUsd)],

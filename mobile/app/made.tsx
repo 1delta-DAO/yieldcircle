@@ -31,11 +31,14 @@ export default function Made() {
   const insets = useSafeAreaInsets()
   const nav = useNav()
   const { a, s: sol } = useLocalSearchParams<{ a: string; s?: string }>()
-  const q = useAccountsPnlBook({ evm: isEvmAddr(a) ? a : undefined, sol: sol ?? (isSolAddr(a) ? a : undefined) }, { own: true })
+  const { holdings, accounts } = useLiteMenu().b
+  // your own book follows the session, not the link: a wallet that connects (or is restored) after this opened is read too
+  const linked = { evm: isEvmAddr(a) ? a : undefined, sol: sol ?? (isSolAddr(a) ? a : undefined) }
+  const own = [accounts.evm, accounts.sol].some((x) => !!x && (x === linked.evm || x === linked.sol))
+  const q = useAccountsPnlBook(own ? accounts : linked, { own: true })
   const names = useBoardNames()
   const b = q.data
   const s = b ? pnlSummary(b) : null
-  const { holdings } = useLiteMenu().b
   const rows = React.useMemo(() => (b ? madeRows(b, (k) => names.get(k.toLowerCase())?.title ?? null, liveByRecord(b.positions, holdings)) : []), [b, names, holdings])
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -52,6 +55,7 @@ export default function Made() {
               <Txt s={13} c={C.tx50}>{s.aprPct != null ? `${pct(s.aprPct, 1)} a year on what was in` : ''}{s.on < s.of ? ` · on ${s.on} of ${s.of} positions` : ''}</Txt>
               <Txt s={13.5} c={C.tx70} lh={20}>Farming <Txt s={13.5} w={700} c={(s.yield ?? 0) >= 0 ? C.ok : C.bad}>{s.yield != null ? signedMoney(s.yield) : '–'}</Txt> · price <Txt s={13.5} w={700} c={(s.price ?? 0) >= 0 ? C.ok : C.bad}>{s.price != null ? signedMoney(s.price) : '–'}</Txt></Txt>
             </View>
+            {q.failed.length > 0 && <Txt s={13} c={C.tx50} lh={19} style={{ marginTop: 8 }}>Not in this: {q.failed.map((w) => `your ${isSolAddr(w) ? 'Solana' : 'EVM'} wallet’s record (the index did not answer just now)`).join(' · ')}.</Txt>}
             {b.series.length > 1 && <Lines pts={b.series} />}
 
             {rows.length > 0 && <>

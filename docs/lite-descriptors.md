@@ -45,6 +45,24 @@ Two departures from the scoping below, both forced by the live menu:
   "USDC" row hides the other USDC rows, as it always did). Folding by mechanism as well was
   tried: it is more honest and adds about 28 rows. Not done; it is a menu decision.
 
+## The words spelled out
+
+Added 2026-11-17: "Hedged via Avant" named a row and explained nothing. `MECHANISM_DETAIL`
+(`model/mechanism.ts`) maps each id to its full name, one sentence on what pays the rate (`how`)
+and one on what can take it away (`risk`). `mechanismDetailOf(s)` (`model/lite.ts`) adds what
+`Looped` or `Fixed` means for that row. The phone's ticket shows it as "How it earns" above the
+trust line; the full name is also search text (`hedged trading` finds the row). The web's Lite
+ticket does not show it yet.
+
+The full table, with every token under each word, is the review sheet
+[`mechanism-review.md`](mechanism-review.md).
+
+Since 2026-11-18 `hedged-trading` reads `Market-neutral` on a row (the id is unchanged), there
+is an eleventh id, `perp-lp` (`Perp LP`: JLP, hwHLP, WHLP, sUSDu), and savUSD is Mixed.
+
+The sentences describe the mechanism, not one issuer, and are a draft like the ids they hang on.
+A new id needs an entry (a test fails otherwise).
+
 ## Fallback, as built
 
 1. The held token's `mechanism` (a vault's share, a loop's collateral, a PT's underlying).

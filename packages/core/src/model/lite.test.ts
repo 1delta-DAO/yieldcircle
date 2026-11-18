@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { followedFirst, howOf, mechanismOf, mechanismWord, rowShort, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, heldPositions, rateNowOf, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, madeRows, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, riskTag, liteTiers, withdrawLines, closeLines, LITE_MIN_BUFFER, liteLeverTargets, liteLevRange, overLtv } from './lite'
+import { followedFirst, howOf, mechanismOf, mechanismDetailOf, mechanismWord, rowShort, safestFirst, tileRates, rowName, liteFind, pnlSummary, signedMoney, splitTitle, boardPositions, heldPositions, rateNowOf, boardStrategies, closedPosition, boardWallets, bufferOfHealth, holdingLine, holdingRow, madeRows, saferTargets, dayKey, depositLines, liteEligible, liteMenu, liteModes, loopLines, moneyWord, noteDay, plainName, pointsOf, streakOf, type DayMark, riskWord, riskTag, liteTiers, withdrawLines, closeLines, liteLeverTargets, overLtv } from './lite'
 import { borrowCapLtv, healthAt, healthAtLtv, liqBuffer, liqBufferAtLtv } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
@@ -35,9 +35,9 @@ describe('liteEligible', () => {
     expect(liteEligible(loop('due', { dueAt: 1_800_000_000 }))).toBe(false)
     expect(liteEligible(loop('bet', { collateralYields: false }))).toBe(false)
   })
-  it('leaves out a loop whose Balanced tier sits within 3% of liquidation', () => {
-    // 22× at a 96.5 % threshold: (21/22) / 0.965 → about 1 % to the line
-    expect(liteEligible(loop('emode', { tiers: { defensive: 12, balanced: 22, aggressive: 26 }, liqLtv: 0.965 }))).toBe(false)
+  it('keeps a loop however near its Balanced tier sits to liquidation', () => {
+    // 22× at a 96.5 % threshold: (21/22) / 0.965 → about 1 % to the line; the distance is no criterion
+    expect(liteEligible(loop('emode', { tiers: { defensive: 12, balanced: 22, aggressive: 26 }, liqLtv: 0.965 }))).toBe(true)
   })
 })
 
@@ -75,6 +75,7 @@ describe('names in words', () => {
     expect(mechanismOf(sUSDe)).toBe('basis-trade')
     expect(rowName({ s: sUSDe, title: 'Dollars via Ethena' })).toBe('Basis trade via Ethena')
     expect(mechanismWord(sUSDe)).toBe('Basis trade')
+    expect(mechanismDetailOf(sUSDe)).toMatchObject({ name: 'Basis trade', shape: undefined })
     expect(rowName({ s: dep('w', { group: 'ETH', asset: 'wstETH', source: 'staking', brand: 'Lido', holds: 'wstETH', shareGroup: 'WSTETH' }), title: 'Ether via Lido' })).toBe('Staking via Lido')
     // per token, not per issuer: the same desk, two ways to earn
     const maple = dep('m', { asset: 'syrupUSDC', source: 'savings', brand: 'Maple', holds: 'syrupUSDC', shareGroup: 'SYRUPUSDC' })
@@ -132,6 +133,9 @@ describe('names in words', () => {
     // a loop paid by its market, not by its collateral, is not its issuer's business
     expect(mechanismOf(loop('u', { asset: 'USDe', holds: 'USDe' }))).toBeNull()
     expect(mechanismOf(loop('u2', { asset: 'USDe', intrinsicLong: 5 }))).toBe('basis-trade')
+    // a loop's detail also says what `Looped` means; a row with no word has none
+    expect(mechanismDetailOf(loop('u2', { asset: 'USDe', intrinsicLong: 5 }))?.shape).toMatch(/^Looped: /)
+    expect(mechanismDetailOf(loop('u', { asset: 'USDe', holds: 'USDe' }))).toBeNull()
   })
   it('a row never names a chain', () => {
     const n = plainName(loop('x'))
@@ -269,9 +273,8 @@ describe('managing a position', () => {
   })
   it('offers a running loop the safer steps and the tiers inside the venue’s range', () => {
     const t = liteLeverTargets({ Lnow: 5, liqLtv: 0.95, maxL: 10, tiers: { defensive: 4, balanced: 7, aggressive: 12 } })
-    // Bold's 12× is capped at the venue's 10×, and still clears Lite's floor there
+    // Bold's 12× is capped at the venue's 10×
     expect(t.map((x) => [x.word, x.L, x.up])).toEqual([['Bold', 10, true], ['Balanced', 7, true], ['Much safer', 4.16, false], ['Careful', 4, false]])
-    expect(t.every((x) => x.buffer >= LITE_MIN_BUFFER)).toBe(true)
     // off the menu (no tiers) or on a fixed-rate loan (maxL = today): only down
     expect(liteLeverTargets({ Lnow: 5, liqLtv: 0.95, maxL: 5 }).map((x) => x.up)).toEqual([false])
     expect(liteLeverTargets({ Lnow: 5, liqLtv: 0.95, maxL: 5, tiers: { defensive: 4, balanced: 7, aggressive: 12 } }).map((x) => x.L)).toEqual([4.16, 4])
@@ -443,10 +446,10 @@ describe('Lite polish (docs/lite-design-review.md)', () => {
     expect(riskWord(1)).toBe('Low risk')
     expect(riskWord(2)).toBe('Medium risk')
   })
-  it('offers only the tiers that clear the buffer floor', () => {
-    const t = liteTiers({ defensive: 3, balanced: 5, aggressive: 12 }, 0.9, (l) => l)
-    expect(t.map((x) => x.word)).toEqual(['Careful', 'Balanced'])
-    expect(t.every((x) => x.buffer >= LITE_MIN_BUFFER)).toBe(true)
+  it('offers every tier that levers, however near the line', () => {
+    const t = liteTiers({ defensive: 1, balanced: 5, aggressive: 9 }, 0.915, (l) => l)
+    expect(t.map((x) => x.word)).toEqual(['Balanced', 'Bold'])
+    expect(t[1].buffer).toBeCloseTo(liqBuffer(0.915, 9), 10)
   })
   it('words a withdrawal and a close', () => {
     const w = withdrawLines({ backUsd: 921.29, back: '921.29 USDC', exitWord: 'Instant', exitWhen: 'any time', leftUsd: 0, rate: 4 })
@@ -487,16 +490,7 @@ describe('liteWidened', () => {
   })
 })
 
-describe('liteLevRange / overLtv', () => {
-  it('holds the top where the loop still clears Lite’s floor', () => {
-    const [lo, hi] = liteLevRange(10, 0.9)
-    expect(lo).toBe(1.1)
-    expect(liqBuffer(0.9, hi)).toBeGreaterThanOrEqual(LITE_MIN_BUFFER)
-    expect(liqBuffer(0.9, hi + 0.02)).toBeLessThan(LITE_MIN_BUFFER)
-  })
-  it('keeps the venue’s own range when the floor is further out', () => {
-    expect(liteLevRange(2.8, 0.8)).toEqual([1.1, 2.76])
-  })
+describe('overLtv', () => {
   it('reads a max-LTV refusal', () => {
     expect(overLtv('Alchemix open: 79 alUSD of debt against collateral worth 87 exceeds the 90% max LTV (with a 0.5% buffer). Borrow less or add margin.')).toBe(true)
     expect(overLtv('No route')).toBe(false)

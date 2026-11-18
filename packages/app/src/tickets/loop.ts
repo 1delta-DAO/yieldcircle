@@ -2,7 +2,7 @@ import React from 'react'
 import { unitOf } from '@yieldcircle/core/model/assets'
 import { DEFAULT_TIER, TIERS, borrowAtSize, borrowCapLtv, curveRateNow, customRange, healthAt, healthAtLtv, liqBuffer, liqBufferAtLtv, netAprAtLeverage, toRaw, type TierId } from '@yieldcircle/core/model/leverage'
 import { fromUnits, payRaw, portion, unitsOf } from '@yieldcircle/core/model/amount'
-import { liteLevRange, shownDp } from '@yieldcircle/core/model/lite'
+import { shownDp } from '@yieldcircle/core/model/lite'
 import { loopRewards, type LoopStrategy, type LoopTerm } from '@yieldcircle/core/model/strategies'
 import type { LoopPayAsset } from '@yieldcircle/core/sdk/types'
 import type { Holding, Idle } from '@yieldcircle/core/model/positions'
@@ -117,8 +117,8 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   // Lite's "More choices": a tier the reader picked there, in Lite's words (`liteTiers`); none = Lite's own pick
   const [liteTier, setLiteTier] = React.useState<TierId | null>(null)
   // …or a number of the reader's own, off the Earn line's Edit: a venue whose open refuses a tier
-  // (Alchemix's max LTV with its buffer) is fixed by pushing less. Held inside Lite's floor; a tier clears it
-  const [liteLo, liteHi] = liteLevRange(s.maxLev, s.liqLtv, slip)
+  // (Alchemix's max LTV with its buffer) is fixed by pushing less. The venue's own range, as Pro's
+  const [liteLo, liteHi] = [lo, hi]
   const [liteLev, setLiteLev0] = React.useState<number | null>(null)
   const setLiteLev = (l: number | null) => setLiteLev0(l == null ? null : Math.round(Math.min(liteHi, Math.max(liteLo, l)) * 100) / 100)
   const pickLiteTier = (t: TierId | null) => { setLiteLev0(null); setLiteTier(t); setTier(t ?? DEFAULT_TIER) }

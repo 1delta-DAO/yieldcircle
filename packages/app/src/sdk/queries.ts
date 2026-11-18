@@ -370,8 +370,16 @@ const BOOK_FRESHNESS = {
 }
 const loopBook = async (client: QueryClient, q: OptimizerQuery) => { const r = await optimizerPages(client, q); return sortOut(r.map(classifyPair), 'loop', r.partial) }
 /** The catalogue's loop requests, as asked (worker-api pre-warms these: `prewarmBooks`). */
-const loopQuery = (r: ReturnType<typeof loopRequests>[number]): OptimizerQuery => ({ chainIds: r.chainIds, ...r.q, collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })
-const exposureLoopQuery = (e: (typeof EXPOSURE_ASSETS)[number]): OptimizerQuery => ({ chainIds: [e.chainId], collaterals: [e.address], debtTags: ['stablecoin'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })
+/**
+ * `illiquid`: the pairs with too little left to borrow for the $10k the request sizes on, which the
+ * API otherwise leaves out as un-openable (a Jupiter Lend vault borrowed out to $0). Asked for only
+ * once the reader has taken the borrow-liquidity floor down to Any (`wantsIlliquid`): at the
+ * defaults `thin-borrow` would hide every one of them, and the request stays the pre-warmed one.
+ */
+const illiquidToo = (on: boolean) => (on ? { includeIlliquid: true } : {})
+const wantsIlliquid = (st: Pick<Settings, 'minBorrowLiquidityUsd'>) => st.minBorrowLiquidityUsd === 0
+const loopQuery = (r: ReturnType<typeof loopRequests>[number], illiquid = false): OptimizerQuery => ({ chainIds: r.chainIds, ...r.q, collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, ...illiquidToo(illiquid) })
+const exposureLoopQuery = (e: (typeof EXPOSURE_ASSETS)[number], illiquid = false): OptimizerQuery => ({ chainIds: [e.chainId], collaterals: [e.address], debtTags: ['stablecoin'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, ...illiquidToo(illiquid) })
 /**
  * Every pair-book request a first visit makes at the defaults (all chains,
  * wide net off), with its page cap: the catalogue's loops, the exposure
@@ -422,10 +430,11 @@ export function useCatalog(chainIds: string[]) {
     })),
   })
   const loopReqs = loopRequests(chainIds, st.wideNet)
+  const illiquid = wantsIlliquid(st)
   const loops = useQueries({
     queries: loopReqs.map((r) => ({
-      queryKey: ['loops', r.chainIds.join(','), r.key],
-      queryFn: ({ client }: QueryFunctionContext) => loopBook(client, loopQuery(r)),
+      queryKey: ['loops', r.chainIds.join(','), r.key, illiquid],
+      queryFn: ({ client }: QueryFunctionContext) => loopBook(client, loopQuery(r, illiquid)),
       ...BOOK_FRESHNESS,
     })),
   })
@@ -444,8 +453,8 @@ export function useCatalog(chainIds: string[]) {
         staleTime: 10 * 60_000,
       },
       {
-        queryKey: ['exposure-loops', e.chainId, e.sym],
-        queryFn: async ({ client }: QueryFunctionContext) => (await loopBook(client, exposureLoopQuery(e))) as Sorted<Strategy>,
+        queryKey: ['exposure-loops', e.chainId, e.sym, illiquid],
+        queryFn: async ({ client }: QueryFunctionContext) => (await loopBook(client, exposureLoopQuery(e, illiquid))) as Sorted<Strategy>,
         ...BOOK_FRESHNESS,
       },
     ]),
@@ -467,8 +476,8 @@ export function useCatalog(chainIds: string[]) {
   }, [earnStamp])
   const ptLoops = useQueries({
     queries: ptMints.map(({ chainId, refs }) => ({
-      queryKey: ['pt-loops', chainId, refs.join(',')],
-      queryFn: async ({ client }: QueryFunctionContext) => (await loopBook(client, { chainIds: [chainId], collaterals: refs, debtTags: ['stablecoin', 'wnative'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0 })) as Sorted<Strategy>,
+      queryKey: ['pt-loops', chainId, refs.join(','), illiquid],
+      queryFn: async ({ client }: QueryFunctionContext) => (await loopBook(client, { chainIds: [chainId], collaterals: refs, debtTags: ['stablecoin', 'wnative'], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, ...illiquidToo(illiquid) })) as Sorted<Strategy>,
       ...BOOK_FRESHNESS,
     })),
   })

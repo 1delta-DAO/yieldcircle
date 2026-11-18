@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLiteMenu } from '@yieldcircle/app/lite'
-import { brandOf, heldBy, holdingLine, leverTag, liteEligible, liteModes, liteName, moneyWord, plainName, riskWord, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
+import { brandOf, heldBy, holdingLine, leverTag, liteEligible, liteModes, liteName, mechanismDetailOf, moneyWord, plainName, riskWord, trustKind, type LiteMode } from '@yieldcircle/core/model/lite'
 import { usd, usdShort } from '@yieldcircle/core/model/format'
 import { owedOf } from '@yieldcircle/core/model/borrow'
 import { pnlLine } from '@yieldcircle/core/model/holdingPnl'
@@ -94,6 +94,8 @@ export default function TicketScreen() {
     )
   }
   const n = s ? plainName(s) : null
+  // the name's short word (`Market-neutral via Tori`) spelled out: what pays the rate, and what can take it away
+  const how = s ? mechanismDetailOf(s) : null
   const title = s ? liteName(s, n!.title) : h ? moneyWord(h.asset, h.group) : ''
   const line = h ? holdingLine(h) : null
   const chainIdle = s ? b.idlePerChain.filter((i) => i.chainId === s.chainId) : []
@@ -144,6 +146,7 @@ export default function TicketScreen() {
         : s?.kind === 'simple' ? <DepositBody key={into?.key} s={s} idle={chainIdle} allIdle={b.idlePerChain} into={into} />
         : s?.kind === 'loop' ? <LoopBody key={into?.key} s={s} idle={chainIdle} allIdle={b.idlePerChain} holding={into} copyLev={copyLev} />
         : null}
+      {how && <How d={how} />}
       {s && <Trust left={`${trustKind(s)} · ${usdShort(s.tvlUsd)} in it`} right={brandOf(s)} />}
       {s && mode === 'add' && <WhoIsIn s={s} uid={uidOf(s)} thread={talk} heldBy={heldBy(L.proof(s))} />}
       {s && h && !liteEligible(s) && <Trust left={`Lite does not offer this one new, but it is yours: ${isLoop ? 'add to it, make it safer or close it here' : 'add to it or take it out here'}.`} />}
@@ -151,6 +154,18 @@ export default function TicketScreen() {
     </Frame>
     </ThreadCtx.Provider>
     </MoreCtx.Provider>
+  )
+}
+
+/** How the row earns, in full sentences: the words its name had no room for (`MECHANISM_DETAIL`). */
+function How({ d }: { d: NonNullable<ReturnType<typeof mechanismDetailOf>> }) {
+  return (
+    <Sec>
+      <Txt s={12} w={600} c={C.tx50} style={{ marginBottom: 4 }}>How it earns · {d.name}</Txt>
+      <Txt s={13} c={C.tx70} lh={19}>{d.how}</Txt>
+      {!!d.shape && <Txt s={13} c={C.tx70} lh={19} style={{ marginTop: 4 }}>{d.shape}</Txt>}
+      <Txt s={12.5} c={C.tx50} lh={18} style={{ marginTop: 4 }}>{d.risk}</Txt>
+    </Sec>
   )
 }
 

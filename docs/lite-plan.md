@@ -317,9 +317,10 @@ Changes against the plan above, and why:
    date is one fact the ticket states, not a choice it asks for, and those rows
    carry many of the steady high rates. Fixed-rate books, maturity pickers,
    fixed-term and dated debt are still out.
-5. **A Lite loop must leave at least 3 % to liquidation at its Balanced tier**
-   (`LITE_MIN_BUFFER`). The first browser run showed a ×22 loop about 1 % from
-   the line. Pro keeps those rows.
+5. ~~A Lite loop must leave at least 3 % to liquidation at its Balanced tier.~~
+   Removed 2026-11-18 (owner's call): the distance to liquidation is not a
+   listing criterion. It hid every Morpho market at 91.5 % LLTV or higher
+   (sUSDe/USDtb at 2.76 %); the ticket's lose line still says the distance.
 6. **A list shows 12 rows, then "Show all".** One row per thing in words still
    left 98 dollar rows, because there are that many distinct dollar issuers.
 7. **The ticket's Lite bodies are branches inside the existing tickets**, after

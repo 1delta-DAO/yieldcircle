@@ -113,7 +113,6 @@ below; widened, Lite lets the same rows in as Pro. The rest stays fixed.
 | **TVL floor $2M**, the top of Pro's settings. | The strict floor; the simple user does not know what a thin pool is. |
 | **Risk cap: the API's 1–4**, never unrated. | Lite has no "unrated" word. |
 | **Loops only when the collateral and debt are the same money** (already how `strategies.ts` builds a loop). Fixed-term debt loops (Term, Loopscale, TermMax) are out. | A term, a due date and a roll are three concepts the three-line ticket cannot hold. |
-| **A loop leaves at least 3 % to liquidation at its Balanced tier.** | An e-mode venue's Balanced tier can sit about 1 % from the line. |
 | **One row per (asset-in-words, kind)**, the best by `steadyRate`. | "USDC on Aave" and "USDC on Morpho" are not two choices for this user; the better one is the row and the other is in Details. |
 | **Chains: the same global scope as Pro**, picked in the profile sheet (top-left), never on a page. | A chain is mostly a Pro concept, so Lite has no chip on its lists; but a user who only wants one chain needs a way to say so. The ticket says "on Base" in the Costs line only when the user has to bridge. |
 

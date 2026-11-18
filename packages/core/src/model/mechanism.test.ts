@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import MECHANISMS from '../data/mechanisms.json'
-import { isLendingVault, mechanismOfDesk, mechanismOfGroup, mechanismSubjectOfGroup, mechanismWords, MECHANISM_IDS, MECHANISM_WORDS } from './mechanism'
+import { isLendingVault, mechanismOfDesk, mechanismOfGroup, mechanismSubjectOfGroup, mechanismDetail, mechanismWords, MECHANISM_DETAIL, MECHANISM_IDS, MECHANISM_WORDS } from './mechanism'
 
 describe('mechanisms', () => {
   it('every id token-lists ships has a word here', () => {
     const unknown = [...new Set(Object.values(MECHANISMS as Record<string, string>))].filter((m) => !(m in MECHANISM_WORDS))
     expect(unknown).toEqual([])
     expect(Object.keys(MECHANISM_WORDS).sort()).toEqual([...MECHANISM_IDS].sort())
+  })
+  it('spells every word out', () => {
+    expect(Object.keys(MECHANISM_DETAIL).sort()).toEqual([...MECHANISM_IDS].sort())
+    for (const d of Object.values(MECHANISM_DETAIL)) for (const t of [d.name, d.how, d.risk]) expect(t.length).toBeGreaterThan(5)
+    expect(mechanismDetail('hedged-trading').name).toBe('Market-neutral trading')
+    expect(mechanismOfGroup('Jupiter Perps::JLP::solana')).toBe('perp-lp')
+    expect(mechanismOfGroup('Staked avUSD::savUSD')).toBe('mixed')
+    expect(mechanismDetail('dividends', 'STRC').name).toBe('STRC dividends')
   })
   it('is per token, not per issuer', () => {
     expect(mechanismOfGroup('SUSDE')).toBe('basis-trade')

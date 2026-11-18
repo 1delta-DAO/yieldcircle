@@ -6,8 +6,8 @@
  */
 import { deskOf, groupOf, nameOf, type GroupId } from './assets'
 import { isSavings } from './nature'
-import { isLendingVault, mechanismOfDesk, mechanismOfGroup, mechanismSubjectOfGroup, mechanismWords, MECHANISM_WORDS, type Mechanism } from './mechanism'
-import { customRange, liqBuffer } from './leverage'
+import { isLendingVault, mechanismDetail, mechanismOfDesk, mechanismOfGroup, mechanismSubjectOfGroup, mechanismWords, MECHANISM_WORDS, type Mechanism } from './mechanism'
+import { liqBuffer } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import type { Holding } from './positions'
 import { usdShort } from './format'
@@ -42,12 +42,6 @@ export const LITE_CONTROLS: FilterControl[] = [
 const LITE_KEYS = Object.keys(LITE_FLOORS) as (keyof LiteFloors)[]
 /** How many of Lite's four filters are off Lite's floors: the profile's "2 widened". */
 export const liteWidened = (st: Settings): number => LITE_KEYS.filter((k) => st[k] !== LITE_FLOORS[k]).length
-/**
- * The least a Lite loop may leave between its price and liquidation at the leverage Lite opens it
- * at (the Balanced tier). An e-mode venue's range runs to 25×, whose Balanced tier is ~1 % from
- * the line: a number someone who never chose a leverage must not be handed. Pro still has them.
- */
-export const LITE_MIN_BUFFER = 0.03
 /** How many rows a Lite list shows before "Show all": the best of a category fits one screen. */
 export const LITE_LIST_ROWS = 12
 
@@ -65,7 +59,7 @@ export function liteEligible(s: Strategy, f: LiteFloors = LITE_FLOORS): boolean 
   if (!isSavings(s.nature) || (!s.rated && f.maxRisk < 5) || s.riskScore > f.maxRisk) return false
   if (!(s.tvlUsd >= f.minTvlUsd) || !(s.rate > 0 || f.showNegative)) return false
   if (!liteCarries(s)) return false
-  return s.kind === 'simple' || ((s.collateralYields || f.showRateBets) && s.tiers.balanced > 1 && liqBuffer(s.liqLtv, s.tiers.balanced) >= LITE_MIN_BUFFER)
+  return s.kind === 'simple' || ((s.collateralYields || f.showRateBets) && s.tiers.balanced > 1)
 }
 /** What Lite's three-line ticket can build into at all, whatever its floors: nothing to pick a date, term or book for. */
 export function liteCarries(s: Strategy): boolean {
@@ -148,9 +142,23 @@ export function mechanismOf(s: Strategy): Mechanism | null {
  */
 export function mechanismWordsOf(s: Strategy): { word: string; mid: string } | null {
   const m = mechanismOf(s)
-  if (!m) return null
+  return m ? mechanismWords(m, subjectOf(s, m)) : null
+}
+const subjectOf = (s: Strategy, m: Mechanism): string | undefined => {
   const g = s.kind === 'simple' && mechanismOfGroup(s.shareGroup) ? s.shareGroup : s.assetGroup
-  return mechanismWords(m, mechanismOfGroup(g) === m ? mechanismSubjectOfGroup(g) : undefined)
+  return mechanismOfGroup(g) === m ? mechanismSubjectOfGroup(g) : undefined
+}
+/**
+ * The row's name spelled out, for the ticket: the mechanism in full (`MECHANISM_DETAIL`), and what
+ * the row does with it where its name says `Looped` or `Fixed`. Null where nothing says how it earns.
+ */
+export function mechanismDetailOf(s: Strategy): { name: string; how: string; risk: string; shape?: string } | null {
+  const m = mechanismOf(s)
+  if (!m) return null
+  const shape = s.kind === 'loop' ? 'Looped: it borrows against what it holds to hold more, so the rate counts several times over, and so does a fall.'
+    : s.source === 'fixed' ? 'Fixed: bought under what it pays out on its date, which locks the rate for whoever holds it until then.'
+    : undefined
+  return { ...mechanismDetail(m, subjectOf(s, m)), shape }
 }
 /** The mechanism in words, for a row's search text: `Basis trade`, or '' where nothing says. */
 export const mechanismWord = (s: Strategy): string => mechanismWordsOf(s)?.word ?? ''
@@ -284,27 +292,16 @@ export function riskTag(s: Pick<Strategy, 'risk' | 'riskScore' | 'rated'>): stri
 
 /**
  * The leverages Lite offers on its "More choices" sheet: the venue's tiers in Lite's words, each
- * with what it earns and how far it sits from liquidation — only those that leave at least
- * `LITE_MIN_BUFFER`, the same floor a Lite loop must clear at Balanced.
+ * with what it earns and how far it sits from liquidation.
  */
 export const LITE_TIER_WORDS = { defensive: 'Careful', balanced: 'Balanced', aggressive: 'Bold' } as const
 export type LiteTierId = keyof typeof LITE_TIER_WORDS
 export function liteTiers(tiers: Record<LiteTierId, number>, liqLtv: number | null | undefined, net: (lev: number) => number): { id: LiteTierId; word: string; lev: number; net: number; buffer: number }[] {
   return (Object.keys(LITE_TIER_WORDS) as LiteTierId[])
     .map((id) => ({ id, word: LITE_TIER_WORDS[id], lev: tiers[id], net: net(tiers[id]), buffer: liqLtv != null ? liqBuffer(liqLtv, tiers[id]) : 0 }))
-    .filter((t) => t.lev > 1 && t.buffer >= LITE_MIN_BUFFER)
+    .filter((t) => t.lev > 1)
 }
 
-/**
- * The range a Lite loop's own leverage moves in (the Earn line's Edit): the venue's custom range,
- * held to where the loop still sits `LITE_MIN_BUFFER` from liquidation — the floor every Lite tier
- * clears. Solved from `liqBuffer`: b ≥ m ⇔ L ≤ 1 / (1 − liqLtv · (1 − m)).
- */
-export function liteLevRange(maxLev: number, liqLtv: number | null | undefined, slipBp?: number): [number, number] {
-  const [lo, hi] = customRange(maxLev, slipBp)
-  const cap = liqLtv != null && liqLtv > 0 && liqLtv < 1 ? Math.floor(100 / (1 - liqLtv * (1 - LITE_MIN_BUFFER))) / 100 : hi
-  return [lo, Math.max(lo, Math.min(hi, cap))]
-}
 /** A venue refusing the open for its size against the collateral (Alchemix: "exceeds the 90% max LTV"): lower leverage fixes it. */
 export const overLtv = (msg: string | null | undefined) => !!msg && /max(imum)?\s*LTV|loan[- ]to[- ]value|health ?factor|leverage too high|borrow less/i.test(msg)
 
@@ -559,7 +556,7 @@ export function saferTargets(Lnow: number, liqLtv: number | null | undefined, mi
 
 /**
  * Every leverage Lite offers a RUNNING loop in its "More choices" (docs/lite-design-review.md §3.3):
- * the safer steps, and — with the catalogue row — the three tiers that clear Lite's floor, inside
+ * the safer steps, and — with the catalogue row — the three tiers, inside
  * what the venue allows (`minL`…`maxL`). One per 0.05×, none at today's, the most leverage first (as
  * the ticket lists its safer steps). `up` marks a
  * target above today's: it borrows more.
@@ -972,7 +969,7 @@ export function liteFind(q: string, rows: LiteRow[], limit = 6): LiteRow[] {
 function wordsOf(r: LiteRow): string[] {
   const s = r.s
   const fam = familyOf(s.group) ?? LITE_NAME[s.group]?.name ?? ''
-  const raw = [r.title, rowName(r), howOf(s), r.sub, s.asset, nameOf(s.asset), s.holds, fam, s.group, ...(s.kind === 'loop' ? [s.debt, 'loop levered'] : [])]
+  const raw = [r.title, rowName(r), mechanismDetailOf(s)?.name, howOf(s), r.sub, s.asset, nameOf(s.asset), s.holds, fam, s.group, ...(s.kind === 'loop' ? [s.debt, 'loop levered'] : [])]
   return raw.join(' ').toLowerCase().split(/[\s/·,()×]+/).filter(Boolean)
 }
 

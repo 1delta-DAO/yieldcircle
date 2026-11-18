@@ -37,13 +37,18 @@ export function bookKeysOfHolding(h: Holding): string[] {
  * Paper positions are never in the index.
  */
 export function pnlOfHolding<P extends PnlRecord>(positions: readonly P[] | undefined, h: Holding): P | null {
+  const p = recordOfHolding(positions, h)
+  return p && p.status === 'ok' && p.pnlUsd != null && Number.isFinite(p.pnlUsd) ? p : null
+}
+
+/** The same match, drawn or not: a record with no figure still says why (`status`). */
+export function recordOfHolding<P extends PnlRecord>(positions: readonly P[] | undefined, h: Holding): P | null {
   if (!positions?.length || h.key.startsWith('paper:')) return null
   const keys = new Set(bookKeysOfHolding(h).map((k) => k.toLowerCase()))
   const cands = positions.filter((p) => p.chainId === h.chainId && keys.has(p.strategyKey.toLowerCase()))
   const sub = h.accountId ?? ''
   const exact = cands.filter((p) => { const [, , s = '', lender = ''] = p.key.split('|'); return (!h.lender || lender === h.lender) && (s === sub || (s === '0' && !sub)) })
-  const p = (exact.length ? exact : cands.length === 1 ? cands : [])[0]
-  return p && p.status === 'ok' && p.pnlUsd != null && Number.isFinite(p.pnlUsd) ? p : null
+  return (exact.length ? exact : cands.length === 1 ? cands : [])[0] ?? null
 }
 
 /**

@@ -4,8 +4,8 @@ import { router, useLocalSearchParams, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Line, Path } from 'react-native-svg'
 import type { PnlBookPoint } from '@yieldcircle/core/index/types'
-import { madeRows, pnlSummary, signedMoney, type MadeRow } from '@yieldcircle/core/model/lite'
-import { liveByRecord } from '@yieldcircle/core/model/holdingPnl'
+import { holdingRow, holdingTitle, madeRows, pnlSummary, signedMoney, type MadeRow } from '@yieldcircle/core/model/lite'
+import { liveByRecord, recordOfHolding } from '@yieldcircle/core/model/holdingPnl'
 import { venueOf } from '@yieldcircle/core/model/positionRecord'
 import { day } from '@yieldcircle/core/model/positionRecord'
 import { pct, usd } from '@yieldcircle/core/model/format'
@@ -40,6 +40,14 @@ export default function Made() {
   const b = q.data
   const s = b ? pnlSummary(b) : null
   const rows = React.useMemo(() => (b ? madeRows(b, (k) => names.get(k.toLowerCase())?.title ?? null, liveByRecord(b.positions, holdings)) : []), [b, names, holdings])
+  // what you hold that the index has no figure for: listed with why, never left out without a word
+  const bare = React.useMemo(() => (b ? holdings.filter((h) => !h.putUp && !h.key.startsWith('paper:')).flatMap((h) => {
+    const p = recordOfHolding(b.positions, h)
+    if (p && p.status === 'ok' && p.pnlUsd != null) return []
+    const title = holdingTitle(h)
+    const why = !p ? 'the index has not read it yet' : p.status === 'pending' ? (p.queuePosition != null ? 'drawing now' : 'waiting to be drawn') : `no figure (${p.status})`
+    return [{ key: h.key, title, what: holdingRow(h, title).what, valueUsd: h.valueUsd, why }]
+  }) : []), [b, holdings])
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <View style={[st.bar, { paddingTop: insets.top, height: 60 + insets.top }]}>
@@ -62,6 +70,20 @@ export default function Made() {
               <Txt s={16} w={600} style={st.h}>Each position</Txt>
               <View style={st.card}>
                 {rows.map((r, i) => <Row key={r.key} r={r} a={a} first={i === 0} />)}
+              </View>
+            </>}
+            {bare.length > 0 && <>
+              <Txt s={16} w={600} style={st.h}>No figure yet</Txt>
+              <View style={st.card}>
+                {bare.map((r, i) => (
+                  <View key={r.key} style={[st.row, i > 0 && st.line]}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Txt s={14} w={700} numberOfLines={1}>{r.title}</Txt>
+                      <Txt s={12} c={C.tx50} numberOfLines={1}>{r.what}</Txt>
+                      <Txt s={12} c={C.tx50} numberOfLines={1}>{usd(r.valueUsd)} now · {r.why}</Txt>
+                    </View>
+                  </View>
+                ))}
               </View>
             </>}
           </>}

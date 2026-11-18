@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, View, type StyleProp, type TextStyle, typ
 import { SvgAst, fetchText, parse, type JsxAST } from 'react-native-svg'
 import { assetLogo, colorOf, short, subscribeWideLogos, wideLogosReady } from '@yieldcircle/core/model/assets'
 import { liveLogo, pct } from '@yieldcircle/core/model/format'
-import { isSpike, seriesFor, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
+import { usualRate, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
 import type { Risk, Strategy } from '@yieldcircle/core/model/strategies'
 import { riskWord } from '@yieldcircle/core/model/lite'
 import { C, RISK, alpha, mix } from '../theme'
@@ -109,8 +109,8 @@ export function RiskDot({ r, size = 9 }: { r: Risk; size?: number }) {
 export function Rate({ s, size = 17, w = 600, style }: { s: Strategy; get?: HistoryGet; size?: number; w?: 600 | 700; style?: StyleProp<TextStyle> }) {
   return <Txt s={size} w={w} c={RISK[s.risk]} style={[{ fontVariant: ['tabular-nums'] }, style]} accessibilityLabel={`${pct(s.rate)} a year, ${riskWord(s.risk).toLowerCase()}`}>{pct(s.rate)}</Txt>
 }
-/** Tonight's rate well above its own month: said in words on the row (the web's `spikeOf`). */
-export const spikeOf = (s: Strategy, get: HistoryGet) => isSpike(s.rate, seriesFor(s, get, true))
+/** Tonight's rate well above its own month: the row says what the month paid (the web's `usualWords`). */
+export const usualWords = (s: Strategy, get: HistoryGet) => { const u = usualRate(s, get); return u == null ? null : `30-day average ${pct(u)}` }
 /** The risk in a word (`.lite-risk`): a dot and "Medium risk", in the risk's colour. */
 export function RiskWord({ r }: { r: Risk }) {
   return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: RISK[r] }} /><Txt s={12} w={600} c={RISK[r]}>{riskWord(r)}</Txt></View>

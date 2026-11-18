@@ -148,13 +148,29 @@ export function isSpike(now: number, ser: RateSeries | null): boolean {
   return now - ser.avg >= 1.5 * Math.max(1, ser.leverage ?? 1) && now >= ser.avg * 1.5
 }
 
+/** How many of the latest daily points a new level must have held before a list ranks on it. */
+export const HELD_DAYS = 2
 /**
  * The rate to RANK by: today's, unless today's is a spike, in which case the
  * 30-day mean. Lists, the digest's "best rates" and "up to" headlines sort on
  * this, so a month of steady yield is not outranked by one hot night; the row
- * still SHOWS today's rate, with the mean beside it.
+ * still SHOWS today's rate, with the mean beside it (`usualRate`).
+ *
+ * A spike that has HELD is a turn, not a night: when each of the last
+ * `HELD_DAYS` daily points is itself that far over the month, the row ranks on
+ * the lowest of them and today's. The mean takes weeks to follow a market whose
+ * borrow rate fell for good (Morpho sUSDe/USDtb, 2026-11-18: 33 % for two days
+ * against a −26 % month, ranked last of its desk), and by then the rate is gone.
  */
 export function steadyRate(s: Strategy, get: HistoryGet | undefined, withRewards = true): number {
   const ser = seriesFor(s, get, withRewards)
-  return isSpike(s.rate, ser) && ser?.avg != null ? ser.avg : s.rate
+  if (!isSpike(s.rate, ser) || ser?.avg == null) return s.rate
+  const last = ser.points.slice(-HELD_DAYS)
+  const held = last.length === HELD_DAYS && last.every((p): p is number => p !== null && isSpike(p, ser))
+  return held ? Math.min(s.rate, ...(last as number[])) : ser.avg
+}
+/** The 30-day mean to say beside a rate that is a spike against it — whether or not it has held — else null. */
+export function usualRate(s: Strategy, get: HistoryGet | undefined, withRewards = true): number | null {
+  const ser = seriesFor(s, get, withRewards)
+  return isSpike(s.rate, ser) ? ser!.avg : null
 }

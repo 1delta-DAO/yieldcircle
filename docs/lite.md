@@ -132,7 +132,8 @@ is a savings-nature, same-money, high-TVL loop and stays in.
 | "our pick" tag, `Yours` column | `Yours` stays (the one thing the user owns); the pick tag is replaced by **"n people run this"** from the strategy proofs, which is the social proof the FOMO pattern runs on |
 | venue badge, chain mark | neither on the row. Both on the ticket's trust line |
 
-**Sorting:** by `steadyRate` within a risk tier, low-risk tier first; a loop
+**Sorting:** by `steadyRate` within a risk tier, low-risk tier first (a spike ranks
+on the 30-day mean until it has held two days, and its row says that mean); a loop
 shows in the position its *Balanced* net rate earns. The mixed list is safe
 because the risk word and the tag are on every row and the rate shown is a
 steady one, which answers the objection recorded in `simplify.md` against a

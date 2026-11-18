@@ -29,7 +29,10 @@ Three rules fall out of that:
    position's yield on equity at the Balanced tier, netted per day from its
    two legs (`model/rateHistory.ts`), never either leg's rate. Lists and the
    Earn digest RANK by `steadyRate` — today's rate, or the 30-day mean when
-   today's is a spike — while still showing today's number.
+   today's is a spike — while still showing today's number. A spike that has
+   held for two daily points is a turn, not a night: it ranks on the level it
+   held (2026-11-18), and a Lite row says the month's mean as a number
+   ("30-day average −25.82%") instead of "higher than usual".
 2. **Progressive disclosure, not parallel sections.** No one shows two tables
    at once. The split (deposit vs loop, simple vs pro) is a toggle, and one
    side is the default.

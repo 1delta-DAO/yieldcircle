@@ -1,6 +1,6 @@
 import React from 'react'
 import { liteHash } from '@yieldcircle/core/model/liteLinks'
-import { isSpike, seriesFor, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
+import { usualRate, type HistoryGet } from '@yieldcircle/core/model/rateHistory'
 import { heldBy, leverTag, riskScoreText, riskTag, riskWord, rowName, type LiteRow } from '@yieldcircle/core/model/lite'
 export { heldBy }
 import { GROUPS } from '@yieldcircle/core/model/assets'
@@ -52,15 +52,15 @@ function RiskTag({ s }: { s: Strategy }) {
   const score = riskScoreText(s)
   return <small className={`lite-risk r${s.risk}`} title={riskTag(s)}>{score ? <><span className="wide">{riskTag(s)}</span><span className="narrow">risk {score}</span></> : riskTag(s)}</small>
 }
-/** Tonight's rate well above its own month: the list ranks by the steady one, and says so. */
-export const spikeOf = (s: Strategy, get: HistoryGet) => isSpike(s.rate, seriesFor(s, get, true))
+/** Tonight's rate well above its own month: the row says what the month paid, as a number (`usualRate`). */
+export const usualWords = (s: Strategy, get: HistoryGet) => { const u = usualRate(s, get); return u == null ? null : `30-day average ${pct(u)}` }
 
 /** One list row: face · what it is · held by · yours · lever · rate over its risk. The whole row is the button. */
 export function LiteRowView({ r, get, proof, on, yoursUsd, yoursApr, arrived, followed }: { r: LiteRow; get: HistoryGet; proof: Proof | null; on?: boolean; yoursUsd?: number; /** what the reader's own position here earns, beside its value */ yoursApr?: number; /** an action just landed in it: glows once, scrolled to (ticket 0016 §3) */ arrived?: boolean; /** the proof's face is someone the reader follows: said first (docs/lite-social-search.md §4.6) */ followed?: boolean }) {
   const s = r.s
   const who = heldBy(proof)
   const friend = followed && proof?.best ? proof.best.account : null
-  const spike = spikeOf(s, get)
+  const usual = usualWords(s, get)
   const yours = yoursUsd != null && yoursUsd > 0
   const ref = React.useRef<HTMLButtonElement>(null)
   React.useEffect(() => { if (arrived) ref.current?.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }) }, [arrived])
@@ -70,7 +70,7 @@ export function LiteRowView({ r, get, proof, on, yoursUsd, yoursApr, arrived, fo
       <span className="lrow-n">
         <LiteTitle r={r} />
         {/* one span a part: the line breaks between parts, never inside one, and no dot is left at an edge (`.lsub`) */}
-        <small className="lsub">{r.sub.split(' · ').map((x, i) => <span key={i}>{x}</span>)}{spike && <span className="warn">higher than usual</span>}{friend ? <span className="lite-friend"><Face account={friend} size={14} /> you follow{proof!.wallets > 1 ? ` + ${proof!.wallets - 1}` : ''}</span> : who ? <span className="t70">{who}</span> : null}</small>
+        <small className="lsub">{r.sub.split(' · ').map((x, i) => <span key={i}>{x}</span>)}{usual && <span className="warn">{usual}</span>}{friend ? <span className="lite-friend"><Face account={friend} size={14} /> you follow{proof!.wallets > 1 ? ` + ${proof!.wallets - 1}` : ''}</span> : who ? <span className="t70">{who}</span> : null}</small>
       </span>
       {(yours || s.kind === 'loop') && <span className="lrow-p">
         {yours && <span className="pill run">yours {usdShort(yoursUsd!)}{yoursApr != null && yoursApr > 0 ? ` · ${pct(yoursApr, 1)}` : ''}</span>}
@@ -88,12 +88,12 @@ export function LiteRowView({ r, get, proof, on, yoursUsd, yoursApr, arrived, fo
 export function LiteCard({ r, get, proof, profile, followed }: { r: LiteRow; get: HistoryGet; proof: Proof | null; profile: ReturnType<typeof useProfiles>['profile']; /** the reader follows the face on the card */ followed?: boolean }) {
   const s = r.s
   const best = proof?.best
-  const spike = spikeOf(s, get)
+  const usual = usualWords(s, get)
   return (
     <div className="lcard" role="button" tabIndex={0} onClick={() => openRow(s)} onKeyDown={(e) => { if (e.key === 'Enter') openRow(s) }}>
       <div className="lcard-h"><LiteFace s={s} size={30} /><span className={`lite-risk r${s.risk}`}>{riskWord(s.risk)}</span>{s.kind === 'loop' && <span className="pill lever">{leverTag(s.tiers.balanced)}</span>}</div>
       <div className="lcard-n"><LiteTitle r={r} size={15} /><small className="t70">{r.sub}</small></div>
-      <div className="lcard-rate"><LiteRate s={s} /><span className="t70">a year{spike ? ' · higher than usual' : ''}</span></div>
+      <div className="lcard-rate"><LiteRate s={s} /><span className="t70">a year{usual ? <span className="warn"> · {usual}</span> : ''}</span></div>
       {best ? (
         <div className="lcard-proof">
           <Who account={best.account} profile={profile(best.account)} size={20} plain sub={followed ? `you follow · ${heldBy(proof)}` : heldBy(proof)} />

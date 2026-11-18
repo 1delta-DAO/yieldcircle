@@ -9,7 +9,7 @@ import type { Proof } from '@yieldcircle/core/model/activity'
 import type { HistoryGet } from '@yieldcircle/core/model/rateHistory'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import { C, RISK, alpha } from '../theme'
-import { Face, GroupIcon, LeverPill, Rate, Sk, spikeOf } from './bits'
+import { Face, GroupIcon, LeverPill, Rate, Sk, usualWords } from './bits'
 import { Txt } from './Txt'
 import { pathOf } from '../nav'
 
@@ -38,7 +38,7 @@ export function LiteRowView({ r, get, proof, yoursUsd, yoursApr, arrived, onArri
   const s = r.s
   const friend = followed && proof?.best ? proof.wallets : 0
   const who = friend ? `you follow${friend > 1 ? ` + ${friend - 1}` : ''}` : heldBy(proof)
-  const spike = spikeOf(s, get)
+  const usual = usualWords(s, get)
   const yours = yoursUsd != null && yoursUsd > 0
   const glow = React.useRef(new Animated.Value(0)).current
   React.useEffect(() => {
@@ -52,7 +52,7 @@ export function LiteRowView({ r, get, proof, yoursUsd, yoursApr, arrived, onArri
       <Face s={s} />
       <View style={{ flex: 1, minWidth: 80, gap: 2 }}>
         <LiteTitle r={r} />
-        <Txt s={12} c={C.tx70} numberOfLines={2}>{r.sub}{spike ? <Txt s={12} c={C.warn}> · higher than usual</Txt> : ''}{who ? <Txt s={12} c={friend ? C.ok : C.tx70}> · {who}</Txt> : ''}</Txt>
+        <Txt s={12} c={C.tx70} numberOfLines={2}>{r.sub}{usual ? <Txt s={12} c={C.warn}> · {usual}</Txt> : ''}{who ? <Txt s={12} c={friend ? C.ok : C.tx70}> · {who}</Txt> : ''}</Txt>
         {/* the pills have a line of their own (the web's `.lrow-p` on a phone): beside the name they took its width — `Loop ed…` */}
         {(yours || s.kind === 'loop') && (
           <View style={st.pills}>

@@ -1,6 +1,7 @@
 import type { Holding } from './positions'
+import type { Strategy } from './strategies'
 import { canonUid } from './uid'
-import { holdingRow, holdingTitle, signedMoney } from './lite'
+import { holdingName, holdingRow, signedMoney } from './lite'
 import { pct } from './format'
 
 /** The index's figure for one position (`/accounts/:a/pnl` → `positions[]`), the fields read here. */
@@ -54,14 +55,14 @@ export function recordOfHolding<P extends PnlRecord>(positions: readonly P[] | u
 /**
  * Each drawn record's live position, by the record's key: the name and the value You shows for it,
  * so "Every number" says the same (`madeRows`). A record two live positions share adds them up;
- * a holding put up behind a loan is not a position of its own.
+ * a holding put up behind a loan is not a position of its own. `strategyOf` names it as Earn does (`holdingName`).
  */
-export function liveByRecord<P extends PnlRecord>(positions: readonly P[] | undefined, holdings: readonly Holding[]) {
+export function liveByRecord<P extends PnlRecord>(positions: readonly P[] | undefined, holdings: readonly Holding[], strategyOf?: (h: Holding) => Strategy | null | undefined) {
   const m = new Map<string, { valueUsd: number; title: string; what: string }>()
   for (const h of holdings) {
     const p = h.putUp ? null : pnlOfHolding(positions, h)
     if (!p) continue
-    const title = holdingTitle(h)
+    const title = holdingName(h, strategyOf?.(h))
     m.set(p.key, { valueUsd: (m.get(p.key)?.valueUsd ?? 0) + h.valueUsd, title, what: holdingRow(h, title).what })
   }
   return m

@@ -4,9 +4,10 @@ import { router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MAX_TOPUPS, type PaperBook } from '@yieldcircle/core/model/paper'
 import { metaKey, paperHoldings, paperPnlBook } from '@yieldcircle/core/model/paperView'
-import { signedMoney } from '@yieldcircle/core/model/lite'
+import { holdingName, signedMoney } from '@yieldcircle/core/model/lite'
 import { num, pct, usd, usdShort } from '@yieldcircle/core/model/format'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
+import { useLiteMenu } from '@yieldcircle/app/lite'
 import { usePaper } from '../src/paper'
 import { PaperPnlChart } from '../src/ui/PaperPnlChart'
 import { C } from '../src/theme'
@@ -25,6 +26,7 @@ const DAYS = ['0', '7', '30', '90'] as const
 export default function PaperBookScreen() {
   const insets = useSafeAreaInsets()
   const paper = usePaper()
+  const { runs } = useLiteMenu()
   const [bank, setBank] = React.useState(false)
   React.useEffect(() => { if (paper.active) void paper.sync() }, [paper.active]) // eslint-disable-line react-hooks/exhaustive-deps
   const l = paper.ledger, b = paper.book
@@ -60,7 +62,7 @@ export default function PaperBookScreen() {
             return (
               <View key={h.key} style={st.row}>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Txt s={14} w={700} numberOfLines={1}>{h.label}</Txt>
+                  <Txt s={14} w={700} numberOfLines={2}>{holdingName(h, runs(h))}</Txt>
                   <Txt s={12} c={C.tx50} numberOfLines={1}>{h.venue} · {chainLabel(h.chainId)}{h.health != null ? ` · health ${h.health.toFixed(2)}` : ''}</Txt>
                   {h.health != null && h.health < 1 && <Txt s={12} c={C.bad}>Would have been liquidated. On paper it stays open — close it to see what is left.</Txt>}
                 </View>

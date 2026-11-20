@@ -14,7 +14,7 @@ import { useAccountSync } from '@yieldcircle/app/index/queries'
 import { isSolAddr, normAddr } from '@yieldcircle/core/model/address'
 import { totalsOf, type Holding, type Idle } from '@yieldcircle/core/model/positions'
 import { groupOf } from '@yieldcircle/core/model/assets'
-import { LITE_GROUPS, holdingRow, holdingTitle, pnlSummary, signedMoney, streakWord, type BoardPosition, type PnlSummary } from '@yieldcircle/core/model/lite'
+import { LITE_GROUPS, holdingName, holdingRow, pnlSummary, signedMoney, streakWord, type BoardPosition, type PnlSummary } from '@yieldcircle/core/model/lite'
 import { owedOf } from '@yieldcircle/core/model/borrow'
 import type { Strategy } from '@yieldcircle/core/model/strategies'
 import type { Accounts } from '@yieldcircle/app/book'
@@ -288,13 +288,13 @@ function PnlLine({ pts, up }: { pts: number[]; up: boolean }) {
 const TONE = { bad: C.bad, warn: C.warn, ok: C.ok, '': C.tx50 } as Record<string, string>
 
 /**
- * A position, once (the web's You `Position`; docs/you-unified.md): its name in Lite's words, its
+ * A position, once (the web's You `Position`; docs/you-unified.md): its name as Earn says it, its
  * token and how it is held, how far from the line on a line of its own; its value, what it MADE —
  * a fact, so it wears the colour — and what it earns a day, a forecast, in grey. Its ticket
  * (manage, share) is a tap away. No figure from the index is no line, never a zero.
  */
 function Position({ h, s, made, isNew }: { h: Holding; s: Strategy | null; /** a paper position's figure, off the paper ledger */ made?: number; /** opened from this phone in the last day */ isNew?: boolean }) {
-  const title = holdingTitle(h)
+  const title = holdingName(h, s)
   const row = holdingRow(h, title)
   // what it made since it was opened, the index's figure for it
   const pnl = useHoldingPnl(h)
@@ -313,7 +313,7 @@ function Position({ h, s, made, isNew }: { h: Holding; s: Strategy | null; /** a
       <Tok sym={h.symbol} logo={h.logo} size={28} />
       <View style={{ flex: 1, gap: 2 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Txt s={14.5} w={600} numberOfLines={1} style={{ flexShrink: 1 }}>{title}</Txt>
+          <Txt s={14.5} w={600} numberOfLines={2} style={{ flexShrink: 1 }}>{title}</Txt>
           {isNew && <Pill tone="pri">new</Pill>}
         </View>
         <Txt s={12} c={C.tx50} numberOfLines={1}>{h.kind === 'borrow' ? row.what.replace(/A loan$/, `owes ${usd(owedOf(h))}`) : row.what}{h.directional ? ' · managed in Pro' : ''}</Txt>

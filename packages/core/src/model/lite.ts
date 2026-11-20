@@ -587,6 +587,8 @@ export function holdingLine(h: Pick<Holding, 'kind' | 'leverage' | 'health' | 'd
 
 /** A live position's one name, wherever it is shown (docs/you-unified.md). */
 export const holdingTitle = (h: Pick<Holding, 'asset' | 'group' | 'kind'>) => `${moneyWord(h.asset, h.group)}${h.kind === 'borrow' ? ' loan' : ''}`
+/** A live position's name as Earn says it (`liteName`) where its strategy is known — `USDY savings via Kamino`, not `Dollars`; else its money (`holdingTitle`). */
+export const holdingName = (h: Pick<Holding, 'asset' | 'group' | 'kind'>, s?: Strategy | null) => (s ? liteName(s) : holdingTitle(h))
 
 /**
  * A position's row on You, as two lines (docs/you-unified.md): what it is — its token and how it

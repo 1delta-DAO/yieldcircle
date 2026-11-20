@@ -42,7 +42,7 @@ export function Ring({ state, tone, progress = 0, size = 96, mini }: { state: Ou
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle className="trk" cx={c} cy={c} r={r} strokeWidth={sw} />
         <circle className="arc" cx={c} cy={c} r={r} strokeWidth={sw} strokeDasharray={`${circ} ${circ}`} strokeDashoffset={circ * (1 - drawn)} transform={`rotate(-90 ${c} ${c})`} />
-        {state === 'flying' && <circle className="comet" cx={c} cy={c} r={r} strokeWidth={sw} strokeDasharray={`${circ * 0.06} ${circ}`} transform={`rotate(-90 ${c} ${c})`} />}
+        {state === 'flying' && <circle className="comet" cx={c} cy={c} r={r} strokeWidth={sw} strokeDasharray={`${circ * 0.06} ${circ}`} />}
         {state !== 'flying' && (state === 'lost'
           ? <><path className="mk" d={`M${c} ${c - size * 0.18} L${c} ${c + size * 0.05}`} strokeWidth={mini ? 2 : sw * 1.1} style={{ ['--len' as string]: size * 0.23 }} />
               {!mini && <circle className="dot" cx={c} cy={c + size * 0.16} r={sw * 0.62} />}

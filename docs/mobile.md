@@ -51,6 +51,26 @@ slider — or debt paid and collateral out. The logic is shared with the web's p
 `useRepayTicket`). Before this the two tabs fell through to Lower risk's body. Add is offered on any
 held position the ticket can carry, as on the web.
 
+**Borrow, a tab in both shells** (2026-11-22): Lite's bar is Earn · Borrow · Board · Search, Pro's
+keeps its Borrow tab; both draw one page (`src/ui/borrow.tsx`, the web's `BorrowPage`). Your loans
+first; then "What you hold" — one card per asset the wallet could put up, with the most it could
+take held to Safe, opening on the app's pick (`bestOfferFor`) — or "Every place", the offer list by
+group with a search. The sheet is `app/borrow/[id].tsx` (the web's `BorrowTicket`): `BorrowBody`
+(`src/ticket/bodies.tsx`, the loop loan's body made to take a fresh loan) opens with the balance put
+up and the Safe sum taken, so the short way is one tap; a running loan has Borrow · Pay back
+(`RepayWithdrawBody`); the other places are in "More choices". All of it on the shared
+`useBorrowOffers` / `useBorrowTicket` / `useRepayTicket`. A rate the borrower sets, or a band
+count, is `ChoicePicker` (`src/ticket/choice.tsx`, the web's, on `useTicketChoices`' pickers):
+the API's presets with the suggested one picked, and a value of one's own typed (a rate) or stepped
+(a count), there being no slider. The body nudges to a market at least half a point cheaper for the
+same pair on the same chain; the sheet's foot has the proof line ("n wallets borrow against X
+here") and the market's thread, folded, and "Say why" under the button. Links: `#/borrow`,
+`#/pro/borrow` and the asset page's `?k=borrow` open the sheet on `s` (an offer), `u` (an asset: the
+app's pick for it) or `h` (a loan), else the tab (`borrowPathOfLink` in `src/nav.tsx` — the page is
+not in core's Lite map, the web's Lite having none). You's loan rows keep Lite's pay-back sheet,
+with "Borrow more, or take collateral out" under it opening the borrow sheet. This puts opening a
+loan in Lite on the phone, which docs/lite-plan.md rules out for the web's Lite. Untested on a phone.
+
 **A row the menu does not hold** (2026-11-16): the sheet (`app/strategy/[id].tsx`) asks for it on
 its own (`useOffMenu`, the web Pro's lookup) once the catalogue has answered without it — by the
 link's id (a loop's carries its collateral's address; a deposit needs `oa`, its token's symbol,
@@ -89,7 +109,7 @@ still only where Lite carries the strategy.
   book through the share sheet, Sign out); You's paper figure has the farming / price bar, the
   server's daily line and **Every number** (`app/paper-book.tsx`: earned · at work · put in ·
   friction, each position with what it made, the bank and what is bridging, the paper clock).
-| Feed · Borrow | — | "comes next" (the feed needs the social layer; borrowing comes with the ticket) |
+| Feed | — | "comes next" (the feed needs the social layer) |
 
 A row opens the **strategy screen**: what it is in words, the rate (amber on a
 spike), risk, kind, who runs it, chain, size, who holds it, yours. It is

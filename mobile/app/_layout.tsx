@@ -59,6 +59,7 @@ export default function RootLayout() {
               <AppTabBar>
               <Stack screenOptions={{ ...header, headerShown: false }}>
                 <Stack.Screen name="strategy/[id]" options={{ presentation: 'modal', headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
+                <Stack.Screen name="borrow/[id]" options={{ presentation: 'modal', headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
                 <Stack.Screen name="you" options={{ headerShown: false }} />
                 <Stack.Screen name="profile" options={{ headerShown: false }} />
                 <Stack.Screen name="position" options={{ headerShown: false }} />

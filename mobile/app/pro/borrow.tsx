@@ -1,5 +1,6 @@
-import { NotYet } from '../../src/ui/pro'
+import { BorrowPage } from '../../src/ui/borrow'
 
+/** Pro's Borrow tab: the one page both shells share (`src/ui/borrow.tsx`). */
 export default function ProBorrow() {
-  return <NotYet what="Borrowing" why="Taking dollars out against what you hold — it goes in with the phone's ticket, since a loan is opened the same way a position is." />
+  return <BorrowPage />
 }

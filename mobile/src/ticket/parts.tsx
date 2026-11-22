@@ -1,5 +1,5 @@
 import React from 'react'
-import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useGoPaper } from '../ui/paper'
@@ -29,6 +29,19 @@ import type { ThreadRef } from '@yieldcircle/core/model/uid'
  * The ticket's pieces, as the web draws them (app.css / lite.css `.ticket`, `.lite-ticket`): the
  * head, sections, the amount box, the three lines, the cells, the one button and its ladder.
  */
+
+/** The sheet a ticket sits in: rounded at the top over a dimmed page, its grab handle, scrolling under the keyboard. */
+export function Frame({ insets, children }: { insets: { top: number; bottom: number }; children: React.ReactNode }) {
+  return (
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+      <Pressable style={{ height: Math.max(insets.top, 24) + 36 }} onPress={() => router.back()} accessibilityLabel="Close" />
+      <View style={st.sheet}>
+        <View style={st.grab} />
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}>{children}</ScrollView>
+      </View>
+    </KeyboardAvoidingView>
+  )
+}
 
 /** The ticket's head (`.th`): the face, what it is, a lever tag, close. */
 export function TicketHead({ face, title, sub, subTone, pnl, lever, onShare, onClose }: { face: React.ReactNode; title: string; sub?: string; subTone?: string; /** what the position made since it was opened (`pnlLine`) */ pnl?: { text: string; tone: 'ok' | 'bad' } | null; lever?: string; /** a held position's Copy link (`sharePosition`) */ onShare?: (() => void) | null; onClose: () => void }) {
@@ -415,6 +428,8 @@ export function Numbers({ rows }: { rows: [string, string][] }) {
 export const Plain = ({ children, tone }: { children: React.ReactNode; tone?: 'warn' | 'dim' }) => <Txt s={13} c={tone === 'warn' ? C.warn : tone === 'dim' ? C.tx50 : C.tx70} lh={19}>{children}</Txt>
 
 const st = StyleSheet.create({
+  sheet: { flex: 1, backgroundColor: C.b200, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderWidth: 1, borderColor: C.line, overflow: 'hidden' },
+  grab: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: C.line2, marginTop: 8 },
   th: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingTop: 14, paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.line, backgroundColor: C.b200 },
   share: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 30, paddingHorizontal: 10, borderRadius: 999, backgroundColor: C.b300, marginTop: -3 },
   x: { width: 32, height: 32, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: -4, marginRight: -6 },

@@ -3,6 +3,7 @@ import { Linking } from 'react-native'
 import { router, type Href } from 'expo-router'
 import { NavProvider, type Nav } from '@yieldcircle/app/nav'
 import { parseLiteHash, proUrl, type LiteDest } from '@yieldcircle/core/model/liteLinks'
+import { readMode } from './mode'
 
 const qs = (p: Record<string, string | undefined>) => {
   const q = Object.entries(p).filter(([, v]) => v != null && v !== '').map(([k, v]) => `${k}=${encodeURIComponent(v!)}`).join('&')
@@ -26,8 +27,27 @@ export function pathOf(d: LiteDest): string {
   }
 }
 
-/** An incoming link — a shared Copy link or the app's own scheme — as the path to open, or null when Lite has no such page. */
-export const pathOfLink = (link: string): string | null => { const d = parseLiteHash(link); return d ? pathOf(d) : null }
+/**
+ * A link to Borrow, the one page the phone has that the web's Lite does not (so core's Lite map does
+ * not carry it): `#/borrow` or `#/pro/borrow` with `s` an offer, `u` an asset, `h` a running loan,
+ * `m` and `out` — and the asset page's `#/<group>?k=borrow&…`. An offer, an asset or a loan opens
+ * the sheet (`app/borrow/[id].tsx`); none of them, the tab of the shell the reader is in.
+ */
+function borrowPathOfLink(link: string): string | null {
+  const at = link.indexOf('#')
+  const hash = at >= 0 ? link.slice(at + 1) : link.replace(/^[a-z][a-z0-9+.-]*:\/\/(?:[^/?#]*\.[^/?#]*)?/i, '') // the scheme, and a domain: `yieldcircle://borrow` has none
+  const [path, query = ''] = hash.replace(/^\/+/, '').split('?')
+  const seg = path.split('/').filter(Boolean)
+  if (seg[0] === 'lite' || seg[0] === 'pro') seg.shift()
+  const q = new URLSearchParams(query)
+  if (seg[0] !== 'borrow' && !(seg.length === 1 && q.get('k') === 'borrow')) return null
+  const g = (k: string) => q.get(k) ?? undefined
+  if (!g('s') && !g('u') && !g('h')) return `/${readMode()}/borrow`
+  return `/borrow/${encodeURIComponent(g('s') ?? '_')}${qs({ u: g('u'), h: g('h'), m: g('m'), out: g('out') })}`
+}
+
+/** An incoming link — a shared Copy link or the app's own scheme — as the path to open, or null when the phone has no such page. */
+export const pathOfLink = (link: string): string | null => { const d = borrowPathOfLink(link) ?? parseLiteHash(link); return typeof d === 'string' ? d : d ? pathOf(d) : null }
 
 const PHONE_NAV: Nav = {
   go: (d) => router.push(pathOf(d) as Href),

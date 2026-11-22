@@ -49,13 +49,24 @@ export function BorrowList({ offers, loading, groupId, u, selId, held, mine, out
   }, [offers])
   // a token the list does not lend (any more, or not in this family) is no filter
   const debt = debt0 && debts.some(([sym, d]) => sym === debt0 && d.out === out) ? debt0 : 'all'
-  const list = offers.filter((o) => o.out === out && (debt === 'all' || o.debt.symbol === debt) && (!mine?.on || mine.yours.has(o.id)))
+  // what is put up, searched: `nvidia`, `nvda`, `spy kamino` — every word must hit the row
+  const [q, setQ] = React.useState('')
+  const terms = q.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const hit = (o: BorrowOffer) => { const hay = [o.collateral.symbol, o.collateral.name, o.collateral.group, o.asset, nameOf(o.asset), o.issuer, o.debt.symbol, o.venue, chainLabel(o.chainId)].join(' ').toLowerCase(); return terms.every((t) => hay.includes(t)) }
+  const list = offers.filter((o) => o.out === out && (debt === 'all' || o.debt.symbol === debt) && (!mine?.on || mine.yours.has(o.id)) && (!terms.length || hit(o)))
   const [shown, setShown] = React.useState(PAGE)
   const rows = list.slice(0, shown)
   const fam = OUTS.find((f) => f.id === out)!
   const word = out === 'USD' ? 'dollars' : fam.name.toLowerCase()
   return (
     <>
+      <div className="etools"><div className="etools-row">
+        <span className="etools-q">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M10.5 10.5 14 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={groupId === 'STOCKS' ? 'Search a stock, e.g. Nvidia or NVDA' : 'Search what you put up, a venue or a chain'} aria-label="Search what you put up" />
+        </span>
+        {terms.length > 0 && <span className="t50">{list.length} match{list.length === 1 ? '' : 'es'}</span>}
+      </div></div>
       <div className="dpick">
         <span className="t50">Take out</span>
         {/* the family's "any" first, then its tokens by how many markets lend them, the other
@@ -73,7 +84,9 @@ export function BorrowList({ offers, loading, groupId, u, selId, held, mine, out
       {loading && !list.length ? (
         <div className="card"><table className="tbl strat-t"><tbody>{[0, 1, 2, 3].map((i) => <tr key={i}><td><Sk w={200} /></td><td className="r"><Sk w={60} /></td><td /></tr>)}</tbody></table></div>
       ) : !list.length ? (
-        <div className="empty">{mine?.on
+        <div className="empty">{terms.length
+          ? <>Nothing here matches “{q.trim()}”. <button type="button" className="lnk" onClick={() => setQ('')}>Clear the search ›</button></>
+          : mine?.on
           ? <>Nothing you hold {u !== 'all' ? `as ${nameOf(u)} ` : ''}can be put up for {debt !== 'all' ? debt : word} here, on the chains you picked. <button type="button" className="lnk" onClick={() => mine.set(false)}>Show every place ›</button></>
           : <>Nothing lends {debt !== 'all' ? debt : word} against {u === 'all' ? (groupId === 'all' ? 'anything' : 'this group') : nameOf(u)} on the chains you picked.</>}</div>
       ) : phone ? (

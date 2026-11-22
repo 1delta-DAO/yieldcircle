@@ -14,6 +14,7 @@ type Tab = { href: string; label: string; Icon: typeof IconEarn }
 const TABS: Record<Mode, Tab[]> = {
   lite: [
     { href: '/lite', label: 'Earn', Icon: IconEarn },
+    { href: '/lite/borrow', label: 'Borrow', Icon: IconBorrow },
     { href: '/lite/board', label: 'Board', Icon: IconBoard },
     // a page pushed over the tabs, not one of the navigator's: it opens over where you are (`go`)
     { href: SEARCH, label: 'Search', Icon: ({ color }) => <IconSearch color={color} size={20} /> },
@@ -32,7 +33,7 @@ const TABS: Record<Mode, Tab[]> = {
  * the ticket natively over the whole window, bar included, so there it stays put underneath and
  * the page behind the sheet does not jump.
  */
-const sheet = (path: string) => path.startsWith('/strategy')
+const sheet = (path: string) => path.startsWith('/strategy') || path.startsWith('/borrow/')
 // the receipt is an end screen over everything, like the ticket's own
 const flow = (path: string) => path === '/paper' || path === '/receipt' || (Platform.OS !== 'ios' && sheet(path))
 

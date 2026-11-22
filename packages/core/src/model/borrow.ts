@@ -25,7 +25,7 @@ import { assetClassOf, type AssetClass } from './assetClass'
 import { keyOfToken, moneyOf } from './desk'
 import { isCompromised, riskOf, venueLabel, type Risk } from './strategies'
 
-export interface BorrowLeg { uid: string; symbol: string; address: string; decimals: number; logo?: string; price?: number; group?: string }
+export interface BorrowLeg { uid: string; symbol: string; /** the token's own name (`NVIDIA (Dinari Tokenized Stock)`): what the list's search reads */ name?: string; address: string; decimals: number; logo?: string; price?: number; group?: string }
 /**
  * What a loan pays out, as a family the "Take out" picker groups by: dollars (any issuer's), ether
  * (ETH and its staked forms), bitcoin, or another chain's native coin (SOL, BNB, AVAX…) — `MORE`,
@@ -140,7 +140,7 @@ export function offerFromRow(r: OptimizerRowRaw): BorrowOffer | null {
     ...(hasChoices(r) ? { hasChoices: true } : {}),
     id: `b:${r.marketLongUid}|${r.marketShortUid}`, chainId: r.chainId, lender: r.lender, venue: venueLabel(r.lender, r.curatorNameLong, r.marketNameLong),
     asset, group: groupOf(asset),
-    collateral: { uid: r.marketLongUid, symbol: L.symbol, address: L.address, decimals: L.decimals ?? 18, logo: L.logoURI || undefined, price: r.underlyingInfoLong.prices?.priceUsd ?? undefined, group: L.assetGroup },
+    collateral: { uid: r.marketLongUid, symbol: L.symbol, name: L.name || undefined, address: L.address, decimals: L.decimals ?? 18, logo: L.logoURI || undefined, price: r.underlyingInfoLong.prices?.priceUsd ?? undefined, group: L.assetGroup },
     debt: { uid: r.marketShortUid, symbol: S.symbol, address: S.address, decimals: S.decimals ?? 18, logo: S.logoURI || undefined, price: r.underlyingInfoShort.prices?.priceUsd ?? undefined, group: S.assetGroup },
     out,
     maxLtv, liqLtv, borrowApr: num(r.borrowAprShort), rewards: num(r.rewardAprShort), liquidityUsd: num(r.borrowLiquidityUsdShort), collateralUsd: num(r.totalDepositsUsdLong),

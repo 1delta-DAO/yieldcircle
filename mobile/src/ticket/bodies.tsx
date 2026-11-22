@@ -1,7 +1,7 @@
 import React from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { fromUnits, heldRaw, portion, unitsOf, type Amount } from '@yieldcircle/core/model/amount'
-import { ZONES, collateralOf, dropOf, offerFromHolding, owedOf, type BorrowOffer } from '@yieldcircle/core/model/borrow'
+import { MIN_HEALTH, ZONES, collateralOf, dropOf, offerFromHolding, owedOf, usMarket, type BorrowOffer } from '@yieldcircle/core/model/borrow'
 import { brandOf, closeLines, debtWord, depositLines, leverTag, liteTiers, loopLines, moneyWord, overLtv, bufferOfHealth, plainName, riskWord, saferLines, shownDp, withdrawLines } from '@yieldcircle/core/model/lite'
 import { DEFAULT_TIER, liqBuffer, netAprAtLeverage, type TierId } from '@yieldcircle/core/model/leverage'
 import { num, pct, usd, usdShort, cents } from '@yieldcircle/core/model/format'
@@ -21,6 +21,7 @@ import { C } from '../theme'
 import { Txt } from '../ui/Txt'
 import { Action, AmountBox, AmtLine, AmtSub, Cells, Choices, GetLine, Lbl, Lines, LossAck, MoreNote, MoreSheet, Numbers, Plain, Presets, Sec } from './parts'
 import { GetSheet } from './get'
+import { ChoicePicker } from './choice'
 import { beforeOf } from '@yieldcircle/app/sdk/txOutcome'
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
 
@@ -263,9 +264,10 @@ export function ManageLoopBody({ s, h, close }: { s: LoopStrategy | null; h: Hol
 }
 
 /**
- * A loan (the web's `LiteLoanTicket`): Lite opens none, but a reader who holds one can end it — pay
- * it all back and take the collateral home, or pay part of it back to move away from liquidation.
- * Short of the coin it owes, the Get sheet buys it in place.
+ * A loan opened from You (the web's `LiteLoanTicket`): the two plain ways to end it — pay it all
+ * back and take the collateral home, or pay part of it back to move away from liquidation. Short of
+ * the coin it owes, the Get sheet buys it in place. Borrowing more, or collateral out on its own, is
+ * the borrow sheet's (`app/borrow/[id].tsx`), a tap away on the strategy screen.
  */
 export function LoanBody({ h, idle }: { h: Holding; idle: Idle[] }) {
   const o = React.useMemo(() => offerFromHolding(h), [h])
@@ -273,7 +275,6 @@ export function LoanBody({ h, idle }: { h: Holding; idle: Idle[] }) {
   const b = bufferOfHealth(h.health)
   const more = (
     <MoreSheet>
-      <MoreNote label="Borrow more, or take collateral out">Lite only ends loans. Both are in Pro, from the link below.</MoreNote>
       <Numbers rows={[
         ['Owes', usd(owedOf(h))],
         ['Put up', `${usd(collateralOf(h))} · ${num(h.amount, 4)} ${h.symbol}`],
@@ -344,15 +345,27 @@ export function LoopLoanBody({ s, h, idle, canBorrow, pane }: { s: LoopStrategy 
         : borrows ? 'Put more collateral in to make it safer and, if you like, borrow against it to your wallet. No swap: nothing is bought, whatever the market pays.'
         : 'Put more collateral in from your wallet to move it away from liquidation. No swap: nothing is bought, whatever the market pays.'}</Txt></Sec>
       {pane === 'repay' ? <RepayWithdrawBody key={h.key + ':repay'} o={o} h={h} idle={idle} />
-        : borrows ? <DepositBorrowBody key={h.key + ':borrow'} o={o} h={h} idle={idle} />
+        : borrows ? <BorrowBody key={h.key + ':borrow'} o={o} h={h} idle={idle} loop />
         : <CollateralInBody key={h.key + ':topup'} o={o} h={h} idle={idle} />}
     </>
   )
 }
 
 const ZTONE = { ok: C.ok, warn: C.warn, bad: C.bad } as const
-function DepositBorrowBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] }) {
-  const t = useBorrowTicket(o, h, idle, { loop: true })
+/**
+ * Putting up and borrowing (the web's `BorrowPane`): a fresh loan, more on a running one (`h`), or a
+ * held loop's own account (`loop`: nothing is borrowed unless asked for, and the strategy's sheet
+ * draws "More choices"). A fresh loan opens with the wallet's balance put up and the Safe sum taken,
+ * so the short way through is one tap. `more`: what leads its "More choices" (where else to borrow).
+ * `alternatives`: the other offers for the same pair on the same chain — the "cheaper elsewhere"
+ * nudge, which `onPick` follows. A rate the borrower sets, or a band count, is one `ChoicePicker` each.
+ */
+export function BorrowBody({ o, h, idle, loop, more, alternatives, onPick }: { o: BorrowOffer; h: Holding | null; idle: Idle[]; loop?: boolean; more?: React.ReactNode; alternatives?: BorrowOffer[]; onPick?: (id: string) => void }) {
+  const t = useBorrowTicket(o, h, idle, { loop })
+  // (not on collateral already in: a cheaper market elsewhere is a new loan there, not a switch)
+  const cheaper = h || !onPick ? undefined : (alternatives ?? []).filter((a) => a.id !== o.id && a.liquidityUsd >= Math.max(t.take, 1000) && a.borrowApr <= t.apr - 0.5 && a.maxLtv > 0).sort((a, b) => a.borrowApr - b.borrowApr)[0]
+  // a stock does not trade at night or at weekends: Monday's open can jump past the line
+  const mkt = o.assetClass ? usMarket() : null
   const [getOpen, setGetOpen] = React.useState(false)
   // the borrow box keeps what was typed ("1." stays "1."); a chip shows its own sum
   const [typedAmt, setTypedAmt] = React.useState<Amount | null>(null)
@@ -366,15 +379,16 @@ function DepositBorrowBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: I
           <Pressable key={x.role} onPress={() => t.setRole(x.role)} style={[st.mode, t.chosen.role === x.role && st.modeOn]}>
             <Txt s={13} c={t.chosen.role === x.role ? C.primary : C.tx50}>{x.symbol}{t.account ? ` · ${num(t.balOf(x.address)?.amount ?? 0, 3)}` : ''}</Txt>
           </Pressable>))}</View>}
-        <Lbl>Add collateral · {t.chosen.symbol} · optional</Lbl>
+        <Lbl>{h ? `Add collateral · ${t.chosen.symbol} · optional` : `Put up · ${t.chosen.symbol}`}</Lbl>
         <AmountBox unit={t.chosen.symbol} value={t.putAmt} onChange={t.setPut} onMax={t.bal ? () => t.setPut(portion(t.bal!, 100, t.chosen.decimals)) : undefined} />
-        <AmtSub left={t.price > 0 ? `≈ ${usd(t.putUsd)} · ${num(t.heldUnits, 4)} in already` : 'no price for it right now'} right={t.account ? `You have ${num(t.bal?.amount ?? 0, 4)} ${t.chosen.symbol}` : undefined} warn={t.short ? 'not enough' : undefined} />
+        {!h && t.bal && t.bal.amount > 0 && <Presets onPick={(p) => t.setPut(portion(t.bal!, p, t.chosen.decimals))} />}
+        <AmtSub left={t.price > 0 ? `≈ ${usd(t.putUsd)}${h ? ` · ${num(t.heldUnits, 4)} in already` : ''}` : 'no price for it right now'} right={t.account ? `You have ${num(t.bal?.amount ?? 0, 4)} ${t.chosen.symbol}` : undefined} warn={t.short ? 'not enough' : undefined} />
         <GetLine account={t.account} short={t.short} symbol={t.chosen.symbol} onOpen={() => setGetOpen(true)} />
         {getOpen && <GetSheet targets={t.opts.map((x) => ({ chainId: o.chainId, address: x.address, symbol: x.symbol, decimals: x.decimals, price: t.price, logo: x.role === 'token' ? o.collateral.logo : undefined, have: t.balOf(x.address)?.amount ?? 0 }))} want={t.put} sources={idle}
           onTarget={(x) => t.setRole(t.opts.find((y) => y.address === x.address)?.role ?? null)} onClose={() => setGetOpen(false)} />}
       </Sec>
       <Sec>
-        <Lbl>Borrow · {o.debt.symbol} · optional</Lbl>
+        <Lbl>{loop ? `Borrow · ${o.debt.symbol} · optional` : `Take out · ${o.debt.symbol}`}</Lbl>
         <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
           {ZONE_ORDER.map((k) => {
             const v = t.z[k], on = v != null && Math.abs(t.take - v) < 0.01
@@ -394,6 +408,7 @@ function DepositBorrowBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: I
         </View>
         {t.over && t.take > 0 && <Txt s={12} c={C.warn} style={{ marginTop: 4 }}>{t.cap > 0 ? `most here: ${t.usdOut ? usd(t.cap) : `${sig4(t.cap / t.debtPrice)} ${o.debt.symbol}`}` : 'put something up first'}</Txt>}
       </Sec>
+      {t.pickers.map((p) => <ChoicePicker key={p.choice.id} {...p} debtSymbol={o.debt.symbol} price={t.debtPrice} />)}
       <Sec>
         <Txt s={13} c={C.tx70} lh={19}><Txt s={13} w={600} c={ZTONE[zt.cls]}>{zt.word}</Txt> · {t.owedUsd > 0.005 ? 'the whole loan costs' : 'costs'} about <Txt s={13} w={600} c={C.tx}>{usd(t.monthly)}</Txt> a month ({pct(t.apr)} APR)</Txt>
         {owesSomething && <Txt s={13} c={C.tx70} lh={19} style={{ marginTop: 6 }}>{o.pegged
@@ -401,6 +416,8 @@ function DepositBorrowBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: I
           : t.mixed ? `If what you have put up loses ${pct(t.drop * 100, 0)} of its value, the lender sells some of it to repay.`
           : !t.usdOut ? `If ${o.collateral.symbol} falls below ${sig4(t.liqRatio)} ${o.debt.symbol} (−${pct(t.drop * 100, 0)}), the lender sells it to repay.`
           : `If ${o.collateral.symbol} falls below ${usd(t.liqPx)} (−${pct(t.drop * 100, 0)}), the lender sells it to repay.`}</Txt>}
+        {mkt && !mkt.open && owesSomething && <Txt s={12.5} c={C.warn} lh={18} style={{ marginTop: 6 }}>{o.ticker ?? o.collateral.symbol} trades again {mkt.next} — until then its price holds still, and the open can jump past your line in one step.</Txt>}
+        {cheaper && <Pressable onPress={() => onPick!(cheaper.id)} hitSlop={6} style={{ marginTop: 8 }} accessibilityRole="button"><Txt s={13} c={C.primary} lh={19}><Txt s={13} w={700} c={C.primary}>{pct(cheaper.borrowApr)}</Txt> at {cheaper.venue} — {pct(t.apr - cheaper.borrowApr, 1).replace('%', '')} points cheaper ›</Txt></Pressable>}
         {t.zone === 'spicy' && t.take > 0 && (
           <Pressable onPress={() => t.setAck(!t.ack)} style={{ flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'flex-start' }}>
             <View style={[st.box, t.ack && { backgroundColor: C.warn, borderColor: C.warn }]} />
@@ -409,7 +426,20 @@ function DepositBorrowBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: I
         )}
       </Sec>
       <Action ladder={t.ladder} label={t.label} account={t.account} isConnected={t.isConnected} disabled={!!t.blocked} blockedNote={t.blocked ?? undefined} risky={t.zone === 'spicy'} chainId={o.chainId}
-        receipt={{ kind: t.take > 0 ? 'borrow' : 'collateral', amount: t.take > 0 ? (t.usdOut ? usd(t.take) : `${sig4(t.debtUnits)} ${o.debt.symbol}`) : `${num(t.put, 4)} ${t.chosen.symbol}`, usd: t.take > 0 ? t.take : t.putUsd, apr: t.take > 0 ? t.apr : undefined, venue: h.venue, holdingKey: h.key, before: beforeOf(h) }} />
+        receipt={{ kind: t.take > 0 ? 'borrow' : 'collateral', amount: t.take > 0 ? (t.usdOut ? usd(t.take) : `${sig4(t.debtUnits)} ${o.debt.symbol}`) : `${num(t.put, 4)} ${t.chosen.symbol}`, usd: t.take > 0 ? t.take : t.putUsd, apr: t.take > 0 ? t.apr : undefined, venue: h?.venue ?? o.venue, holdingKey: h?.key, before: beforeOf(h) }} />
+      {!loop && <MoreSheet>
+        {more}
+        <Numbers rows={[
+          ['You owe after', `${usd(t.totalDebt)} · ${sig4(t.owedUnits + t.debtUnits)} ${o.debt.symbol}`],
+          ['Put up after', `${usd(t.collUsd)} · ${num(t.collUnits, 4)} ${o.collateral.symbol}`],
+          ['Most you can take', `${usd(t.cap)} · ${pct(o.maxLtv * 100, 0)} limit, never under health ${MIN_HEALTH.toFixed(2)}`],
+          ['Liquidates at', `${pct(o.liqLtv * 100, 0)} of what is put up`],
+          ['Health after', `${Number.isFinite(t.effHf) ? t.effHf.toFixed(2) : '∞'}${t.simHf != null ? ' · simulated by the venue' : ''}`],
+          ['Free to borrow', o.liquidityUsd > 0 ? `${usdShort(o.liquidityUsd)}${o.utilization != null ? ` · ${Math.round(o.utilization * 100)}% lent out` : ''}` : '—'],
+          ['Risk', o.rated ? riskWord(o.risk) : 'Unrated'],
+          whereOf(o.venue, o.chainId),
+        ]} />
+      </MoreSheet>}
     </>
   )
 }
@@ -433,7 +463,7 @@ function CollateralInBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Id
 }
 
 /** Both legs (the web's `RepayPane` on a loop): debt paid from the wallet, and collateral out if you like. */
-function RepayWithdrawBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] }) {
+export function RepayWithdrawBody({ o, h, idle }: { o: BorrowOffer; h: Holding; idle: Idle[] }) {
   const t = useRepayTicket(o, h, idle)
   const [getOpen, setGetOpen] = React.useState(false)
   return (

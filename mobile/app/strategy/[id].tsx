@@ -1,5 +1,5 @@
 import React from 'react'
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLiteMenu } from '@yieldcircle/app/lite'
@@ -10,11 +10,12 @@ import { pnlLine } from '@yieldcircle/core/model/holdingPnl'
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { useSession } from '@yieldcircle/app/session'
 import { sharePosition } from '../../src/ui/lite'
+import { borrowPath } from '../../src/ui/borrow'
 import { C } from '../../src/theme'
 import { Sk, Tok, Toks } from '../../src/ui/bits'
 import { Who } from '../../src/ui/Character'
 import { Txt } from '../../src/ui/Txt'
-import { Choices, Details, MoreCtx, MoreSheet, Numbers, Sec, ThreadCtx, TicketHead, Trust } from '../../src/ticket/parts'
+import { Choices, Details, Frame, MoreCtx, MoreSheet, Numbers, Sec, ThreadCtx, TicketHead, Trust } from '../../src/ticket/parts'
 import { WhoIsIn } from '../../src/ui/thread'
 import { useThreadOf } from '@yieldcircle/app/social/queries'
 import { uidOf } from '@yieldcircle/core/model/uid'
@@ -80,7 +81,7 @@ export default function TicketScreen() {
     )
   }
   const h = holding
-  // a loan (from You): Lite opens none, but pays one back
+  // a loan (from You): the plain ways to end it; borrowing more is the borrow sheet's, one tap on
   if (byKey?.kind === 'borrow') {
     const ln = holdingLine(byKey)
     return (
@@ -88,7 +89,10 @@ export default function TicketScreen() {
       <Frame insets={insets}>
         <TicketHead face={<Toks a={byKey.symbol} b={byKey.debtSymbol ?? 'USD'} logoA={byKey.logo} />} title={`${moneyWord(byKey.asset, byKey.group)} loan`} sub={`owes ${usd(owedOf(byKey))} · ${ln.text.replace(/^A loan · /, '')}`} subTone={ln.tone} pnl={pnl ? pnlLine(pnl, { loan: true }) : null} onClose={close} />
         <LoanBody h={byKey} idle={b.idlePerChain} />
-        <Details what="Every number · borrowing more is in Pro" onOpen={() => setMore(true)} />
+        <Pressable onPress={() => router.replace(borrowPath(null, byKey, 'add'))} style={({ pressed }) => [{ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.line }, pressed && { backgroundColor: C.b300 }]} accessibilityRole="button">
+          <Txt s={13.5} w={600} style={{ flex: 1 }}>Borrow more, or take collateral out</Txt><Txt c={C.tx50}>›</Txt>
+        </Pressable>
+        <Details what="Every number" onOpen={() => setMore(true)} />
       </Frame>
       </MoreCtx.Provider>
     )
@@ -184,22 +188,7 @@ function HeldNumbers({ h, s }: { h: Holding; s: Strategy | null }) {
   )
 }
 
-/** The sheet: rounded at the top over a dimmed page, its grab handle, scrolling under the keyboard. */
-function Frame({ insets, children }: { insets: { top: number; bottom: number }; children: React.ReactNode }) {
-  return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }}>
-      <Pressable style={{ height: Math.max(insets.top, 24) + 36 }} onPress={() => router.back()} accessibilityLabel="Close" />
-      <View style={st.sheet}>
-        <View style={st.grab} />
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}>{children}</ScrollView>
-      </View>
-    </KeyboardAvoidingView>
-  )
-}
-
 const st = StyleSheet.create({
-  sheet: { flex: 1, backgroundColor: C.b200, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderWidth: 1, borderColor: C.line, overflow: 'hidden' },
-  grab: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: C.line2, marginTop: 8 },
   modes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, rowGap: 6 },
   mode: { minHeight: 32, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: 'transparent', justifyContent: 'center' },
   modeOn: { borderColor: C.primary, backgroundColor: '#062830' },

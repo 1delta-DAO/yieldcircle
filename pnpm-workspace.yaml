@@ -2,7 +2,8 @@ packages:
   - packages/*
   - mobile
 
-# here, not package.json's "pnpm" field: pnpm 11 (EAS's default) no longer reads that, and a
-# frozen install then fails on the lockfile's overrides
+# Kept in sync with package.json's "pnpm.overrides": pnpm 11 (EAS's default) reads only this
+# file, pnpm 9 (Cloudflare's build image, picked from lockfileVersion 9.0) only package.json.
+# A frozen install fails on the lockfile's overrides when the one it reads is missing.
 overrides:
   '@walletconnect/logger': 3.0.2

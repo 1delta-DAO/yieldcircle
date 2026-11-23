@@ -147,11 +147,14 @@ export function Wallet({ addr }: { addr: string }) {
   const txsQ = useAccountTxs(paperEvm ? undefined : addr, one, cut ? 200 : 40)
   const rows = React.useMemo(() => (pos.data?.positions ?? []).filter((r) => inScope(r.chainId)), [pos.data, inScope])
   const groups = React.useMemo(() => pos.data?.groups?.filter((g) => inScope(g.chainId)), [pos.data, inScope])
-  const nav = !cut
-    ? pos.data?.totals.navUsd
-    : groups
-      ? groups.reduce((t, g) => t + g.supplyUsd - g.debtUsd, 0)
+  // each position floored at 0 (non-recourse: an underwater loop is walked
+  // away from, not owed) — the index's `totals.navUsd` rule, over the same groups
+  const nav = groups
+    ? groups.reduce((t, g) => t + Math.max(0, g.supplyUsd - g.debtUsd), 0)
+    : !cut
+      ? pos.data?.totals.navUsd
       : rows.reduce((t, r) => t + (r.amountUsd ?? 0) * (r.side === 'borrow' ? -1 : 1), 0)
+  const nUnderwater = groups ? groups.filter((g) => g.supplyUsd - g.debtUsd < 0).length : 0
   // positions in markets that cannot pay them (tickets/0037): out of `nav`, named here
   const nImpaired = rows.filter((r) => r.valueStatus === 'impaired').length
   /**
@@ -293,7 +296,7 @@ export function Wallet({ addr }: { addr: string }) {
       </div>
       </> : <>
       <div className="wstats hero">
-        <Stat k="Net value" v={liveHere ? <span title={usd(live.tot)}>{usdBig(live.tot)}</span> : hidden ? '—' : <span title={usd(nav)}>{usdBig(nav)}</span>} s={liveHere ? `${usd(live.work)} at work · read live` : hidden ? '' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}`} loading={liveLoading || syncing || waiting || (!hidden && pos.isLoading)} />
+        <Stat k="Net value" v={liveHere ? <span title={usd(live.tot)}>{usdBig(live.tot)}</span> : hidden ? '—' : <span title={usd(nav)}>{usdBig(nav)}</span>} s={liveHere ? `${usd(live.work)} at work · read live` : hidden ? '' : `${rows.length} position${rows.length === 1 ? '' : 's'}${nImpaired ? ` · ${nImpaired} impaired left out` : ''}${nUnderwater ? ` · ${nUnderwater} under water at $0` : ''}`} loading={liveLoading || syncing || waiting || (!hidden && pos.isLoading)} />
         <Stat k="Net APR" v={liveHere ? (live.work >= 1 ? <span className="ok">{pct(live.yearly / live.work * 100)}</span> : '—') : hidden ? '—' : carry.netAprPct == null ? '—' : <span className={carry.netAprPct >= 0 ? 'ok' : 'warn'}>{carry.exact ? '' : '≈ '}{pct(carry.netAprPct)}</span>}
           s={liveHere ? (live.yearly >= 1 ? `about ${usd(live.yearly)} a year, on what is at work` : 'nothing earning yet') : hidden ? '' : <AccountAprNote c={carry} />} loading={liveLoading || syncing || waiting || (!hidden && pos.isLoading)} />
       </div>

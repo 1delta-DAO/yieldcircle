@@ -13,8 +13,16 @@
 import type { PositionGroup } from '../index/types'
 
 export interface AccountCarry {
-  /** Σ equity — signed: an underwater position lowers it, as it lowers net value */
+  /**
+   * Σ equity, each position FLOORED at zero: lending is non-recourse, so an
+   * underwater position is walked away from and its shortfall is the
+   * lender's bad debt, not a claim on the account. Never negative.
+   */
   navUsd: number
+  /** positions under water (equity < 0), left out of NAV and carry */
+  underwater: number
+  /** Σ their shortfall (debt − collateral) */
+  underwaterUsd: number
   /** Σ annual carry over the positions that carry a rate; null when none does */
   annualUsd: number | null
   /** annual / nav × 100; null when NAV is not positive */
@@ -30,7 +38,15 @@ export function accountCarry(groups: Pick<PositionGroup, 'equityUsd' | 'annualUs
   let rated = 0
   let annual: number | null = null
   let exact = true
+  let underwater = 0
+  let underwaterUsd = 0
   for (const g of groups) {
+    // non-recourse: an underwater position is worth 0, and its debt's carry is nobody's here
+    if (g.equityUsd < 0) {
+      underwater++
+      underwaterUsd -= g.equityUsd
+      continue
+    }
     nav += g.equityUsd
     if (!g.exact) exact = false
     if (g.annualUsd == null) {
@@ -42,6 +58,8 @@ export function accountCarry(groups: Pick<PositionGroup, 'equityUsd' | 'annualUs
   }
   return {
     navUsd: nav,
+    underwater,
+    underwaterUsd,
     annualUsd: annual,
     netAprPct: annual !== null && nav > 0 ? (annual / nav) * 100 : null,
     ratedShare: nav > 0 ? Math.max(0, Math.min(1, rated / nav)) : 0,

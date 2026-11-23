@@ -266,6 +266,8 @@ export interface PositionsResponse {
   sync?: { state: 'complete' | 'syncing' | 'gaps'; inFlight: number } | null
   totals: {
     depositsUsd: number; debtUsd: number; navUsd: number; impaired?: number; impairedFaceUsd?: number
+    /** positions whose debt exceeds their collateral: counted 0 in navUsd (non-recourse), their shortfall here */
+    underwater?: number; underwaterUsd?: number
     /** the ACCOUNT's net APR: Σ annual / Σ equity over `groups` (pos-indexer tickets/0057 §E); absent on an older index */
     annualUsd?: number | null
     netAprPct?: number | null

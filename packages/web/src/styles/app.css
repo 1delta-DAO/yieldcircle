@@ -18,6 +18,24 @@
 .sec-h{display:flex;align-items:baseline;gap:6px 12px;margin-bottom:12px;flex-wrap:wrap}
 .sec-h h2{white-space:nowrap}
 .sec-h .sub{color:var(--tx50);font-size:13px}
+/* a section folded to its heading (ui/Fold.tsx): the body slides shut and stays mounted */
+.secfold{display:inline-flex;align-items:center;gap:7px;padding:0;background:none;border:0;font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.secfold .chev{flex:none;color:var(--tx40);transition:transform .32s cubic-bezier(.4,0,.2,1),color .15s}
+.secfold:hover .chev{color:var(--tx70)}
+.secfold[aria-expanded="false"] .chev{transform:rotate(-90deg)}
+.sfold-x{display:grid;grid-template-rows:1fr;transition:grid-template-rows .32s cubic-bezier(.4,0,.2,1)}
+.sfold-xi{min-height:0;min-width:0;transition:opacity .22s ease .06s,transform .32s cubic-bezier(.4,0,.2,1)}
+.sec.sfold > .sec-h{transition:margin-bottom .32s cubic-bezier(.4,0,.2,1)}
+.sec.sfold > .sec-h > :not(h2){transition:opacity .2s ease,display .2s allow-discrete}
+.sec.sfolded > .sfold-x{grid-template-rows:0fr}
+.sec.sfolded > .sfold-x > .sfold-xi{opacity:0;transform:translateY(-8px);transition-delay:0s}
+.sec.sfolded > .sfold-x > .sfold-xi,.sec.smoving > .sfold-x > .sfold-xi{overflow:hidden}
+/* shut and at rest: out of the tab order too */
+.sec.sfolded:not(.smoving) > .sfold-x > .sfold-xi{visibility:hidden}
+.sec.sfolded > .sec-h{margin-bottom:0}
+.sec.sfolded > .sec-h > :not(h2){opacity:0;display:none}
+@starting-style{.sec.sfold:not(.sfolded) > .sec-h > :not(h2){opacity:0}}
+@media (prefers-reduced-motion:reduce){.sfold-x,.sfold-xi,.secfold .chev,.sec.sfold > .sec-h,.sec.sfold > .sec-h > :not(h2){transition:none}}
 .crumb{display:inline-flex;align-items:center;gap:6px;color:var(--tx50);font-size:13px;min-height:36px;margin-left:-4px;padding:0 4px;border-radius:var(--r)}
 .crumb:hover{color:var(--tx)}
 /* ---------- category tiles ---------- */

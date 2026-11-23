@@ -22,6 +22,7 @@ import { WalletPnl, strategyHues, type PnlBy } from './WalletPnl'
 import { useAccountPnlBook, useAddressesPnlBook, type PnlBookPosition } from '@yieldcircle/app/index/pnl'
 import { bookKey, cardPnlState, joinBook, showableApr } from '@yieldcircle/core/model/bookJoin'
 import { WalletClosed } from './WalletClosed'
+import { FoldSec } from './Fold'
 import type { AccountSyncReport } from '@yieldcircle/core/index/api'
 import { useAccountEntity, useAccountFlows, useAccountSync, useAccountTxs, useCuratorsByAccount, useIndexPositions, useVaultsAt } from '@yieldcircle/app/index/queries'
 import { useFollowers, useProfile, useProfiles, useWalletLinks } from '../social/queries'
@@ -311,14 +312,14 @@ export function Wallet({ addr }: { addr: string }) {
         book={groupOn ? groupBook : undefined}
         scope={entity && groupAddrs.length > 1 ? { name: entity.name, n: groupAddrs.length, all: groupAll, onAll: setGroupAll } : undefined} />}
 
-      <section className="sec">
-        {paperEvm ? <><div className="sec-h"><h2>Paper positions</h2><span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span></div><PaperWalletBook account={paperEvm} inScope={inScope} chart /></> : <>
-        <div className="sec-h"><h2>Positions</h2>{cardPnl && cardPnl.byKey.size > 1 && (
+      {paperEvm ? <FoldSec id="positions" title="Paper positions" head={<span className="sub"><span className="pill paper">paper</span> play money on real rates — kept by the paper ledger, never on chain</span>}>
+        <PaperWalletBook account={paperEvm} inScope={inScope} chart />
+      </FoldSec> : <FoldSec id="positions" title="Positions" head={<>{cardPnl && cardPnl.byKey.size > 1 && (
           <div className="seg sm book-order" role="group" aria-label="order the positions by">
             <button aria-pressed={order === 'value'} onClick={() => setOrder('value')}>Value</button>
             <button aria-pressed={order === 'pnl'} onClick={() => setOrder('pnl')}>PnL</button>
           </div>
-        )}<span className="sub">{liveHere ? 'read live from the chain' : hidden ? '' : syncing ? 'syncing your positions with the chain…' : isMe && sync.data ? <SyncNote s={sync.data} /> : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago{checking ? ' · checking the chain for positions it has not read…' : ''}</> : checking ? 'checking the chain for positions the index has not read…' : 'from the index'}</span></div>
+        )}<span className="sub">{liveHere ? 'read live from the chain' : hidden ? '' : syncing ? 'syncing your positions with the chain…' : isMe && sync.data ? <SyncNote s={sync.data} /> : pos.data?.asOf ? <>read at the index’s cursor · oldest anchor <Ago ts={pos.data.asOf.oldest} /> ago{checking ? ' · checking the chain for positions it has not read…' : ''}</> : checking ? 'checking the chain for positions the index has not read…' : 'from the index'}</span></>}>
         {hidden ? (
           liveHere ? <Positions b={book} /> : <div className="note">This wallet’s positions are in the balance top right.</div>
         ) : (
@@ -329,18 +330,15 @@ export function Wallet({ addr }: { addr: string }) {
             {cardPnl && cardPnl.orphans.length > 0 && !syncing && !waiting && !pos.isLoading && <Orphans ps={cardPnl.orphans} allChains={allChains} />}
           </div>
         )}
-        </>}
-        <PnlDrawer account={addr} posKey={route.pos} onClose={closePnl} />
-      </section>
+      </FoldSec>}
+      <PnlDrawer account={addr} posKey={route.pos} onClose={closePnl} />
 
       {/* what it made on the positions it has closed (pos-indexer docs/pnl-series.md "Closed positions") */}
       {!paperEvm && isAddr(addr) && !hidden && !syncing && <WalletClosed addr={addr} />}
 
-      {paperEvm ? <section className="sec">
-        <div className="sec-h"><h2>Moves</h2><span className="sub"><span className="pill paper">paper</span> every action this paper account signed, as the paper ledger applied it — nothing on chain</span></div>
+      {paperEvm ? <FoldSec id="moves" title="Moves" head={<span className="sub"><span className="pill paper">paper</span> every action this paper account signed, as the paper ledger applied it — nothing on chain</span>}>
         <PaperMovesList rows={ph.rows} loading={ph.loading} error={ph.error} unavailable={ph.unavailable} />
-      </section> : <section className="sec">
-        <div className="sec-h"><h2>Moves</h2><span className="sub">every transaction the index decoded, folded per transaction</span></div>
+      </FoldSec> : <FoldSec id="moves" title="Moves" head={<span className="sub">every transaction the index decoded, folded per transaction</span>}>
         <div className="card">
           {txsQ.isLoading && <div className="empty"><Sk w={200} /></div>}
           {!txsQ.isLoading && !txList.length && <div className="empty">Nothing on {allChains ? 'the chains the index follows' : chainLabelFor()}.</div>}
@@ -359,7 +357,7 @@ export function Wallet({ addr }: { addr: string }) {
             )
           })}</div>
         </div>
-      </section>}
+      </FoldSec>}
 
       <Said account={addr} menu={menu.all} />
 

@@ -1,4 +1,5 @@
 import React from 'react'
+import { FoldSec } from '../Fold'
 import type * as idx from '@yieldcircle/core/index/api'
 import { boardWallets, rateNowOf } from '@yieldcircle/core/model/lite'
 import { liteHref, proHref, useApp, walletHref } from '../../state/AppState'
@@ -74,10 +75,9 @@ export function LiteProfile({ addr }: { addr: string }) {
   const runsNothing = !held.isLoading && !held.open.length
   const nothingYet = runsNothing && !row && !byRate.isLoading && !byDay.isLoading && !moves.length && !msgs.length
   const lately = moves.length > 0 && (
-    <section className="sec lite-sec">
-      <div className="sec-h"><h2>Lately</h2></div>
+    <FoldSec id="lite.lately" title="Lately" className="lite-sec">
       <div className="card"><Moves txs={moves} hideWho /></div>
-    </section>
+    </FoldSec>
   )
   return (
     <div className="lite-page lite-profile">
@@ -104,10 +104,9 @@ export function LiteProfile({ addr }: { addr: string }) {
       </header>
 
       {paperBook ? (
-        <section className="sec lite-sec">
-          <div className="sec-h"><h2>On paper</h2><span className="sub">play money on real rates, never on chain</span></div>
+        <FoldSec id="lite.paper" title="On paper" className="lite-sec" head={<span className="sub">play money on real rates, never on chain</span>}>
           <PaperWalletBook account={addr} inScope={() => true} chart />
-        </section>
+        </FoldSec>
       ) : nothingYet ? (
         <div className="card lite-prof-empty">
           <b>Nothing on record for this wallet yet</b>
@@ -130,19 +129,17 @@ export function LiteProfile({ addr }: { addr: string }) {
       </div>
 
       {runsNothing && lately}
-      <section className="sec lite-sec">
-        <div className="sec-h"><h2>What it runs</h2></div>
+      <FoldSec id="lite.runs" title="What it runs" className="lite-sec">
         <div className="card lb-item open"><WalletPositions account={addr} liteByKey={liteByKey} me={false} foot={false} /></div>
-      </section>
+      </FoldSec>
       </>}
 
       {msgs.length > 0 && (
-        <section className="sec lite-sec">
-          <div className="sec-h"><h2>What it said</h2></div>
+        <FoldSec id="lite.said" title="What it said" className="lite-sec">
           <div className="card lite-said">
             {msgs.map((m) => <div key={m.id} className="lite-said-r"><q>{m.body}</q><small className="t50"><Ago ts={m.signedAt} /></small></div>)}
           </div>
-        </section>
+        </FoldSec>
       )}
 
       {!runsNothing && lately}

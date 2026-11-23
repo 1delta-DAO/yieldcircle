@@ -15,6 +15,7 @@ import { indexChainLabel } from '@yieldcircle/core/index/types'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { usePositionSeries } from '@yieldcircle/app/index/queries'
 import { go } from '../state/AppState'
+import { FoldSec } from './Fold'
 import { ProtocolLogo, Sk, pct, protocolIconUrls, usd, usdShort } from './bits'
 import { prettyProtocol } from './ProtocolFilter'
 
@@ -66,7 +67,7 @@ export function WalletPnl({ addr, own = false, cards, book, scope }: {
       <button aria-pressed={scope.all} onClick={() => scope.onAll(true)} title={`${scope.name}: every wallet in the group, as one book`}>All {scope.n} wallets</button>
     </div>
   )
-  if (q.isLoading) return <section className="sec"><div className="sec-h"><h2>What it made</h2>{seg}</div><div className="card"><div className="empty"><Sk w={260} /></div></div></section>
+  if (q.isLoading) return <FoldSec id="made" title="What it made" head={seg}><div className="card"><div className="empty"><Sk w={260} /></div></div></FoldSec>
   // an older index (no route), an error, or a wallet with nothing on the board: say nothing here
   // — unless the group switch is up, which must stay reachable to switch back
   if (!b || !b.coverage.positions) return scope ? (
@@ -75,12 +76,10 @@ export function WalletPnl({ addr, own = false, cards, book, scope }: {
     </section>
   ) : null
   return (
-    <section className="sec">
-      <div className="sec-h">
-        <h2>What it made</h2>
-        <span className="sub">{scope?.all && <><b>{scope.name}</b>, {scope.n} wallets as one · </>}<Coverage b={b} /></span>
-        {seg}
-      </div>
+    <FoldSec id="made" title="What it made" head={<>
+      <span className="sub">{scope?.all && <><b>{scope.name}</b>, {scope.n} wallets as one · </>}<Coverage b={b} /></span>
+      {seg}
+    </>}>
       {b.coverage.withPnl === 0 ? (
         <div className="card"><div className="empty">
           No lifetime record yet. The index draws one per position in the background
@@ -88,7 +87,7 @@ export function WalletPnl({ addr, own = false, cards, book, scope }: {
           {unsupportedLine(b) ? ` ${unsupportedLine(b)}.` : ''}
         </div></div>
       ) : <Book b={b} addr={addr} cards={cards} />}
-    </section>
+    </FoldSec>
   )
 }
 

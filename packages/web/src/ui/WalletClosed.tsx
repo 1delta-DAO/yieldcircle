@@ -10,6 +10,7 @@
  * says how many, never shows them as zero.
  */
 import React from 'react'
+import { FoldSec } from './Fold'
 import { useQueries } from '@tanstack/react-query'
 import * as api from '@yieldcircle/core/index/api'
 import { useClosedPositions } from '@yieldcircle/app/index/queries'
@@ -64,14 +65,12 @@ export function WalletClosed({ addr }: { addr: string }) {
   const totalYield = drawn.every((x) => x.r.data!.summary.yield != null) ? drawn.reduce((s, x) => s + (x.r.data!.summary.yield ?? 0), 0) : null
   if (!loading && !drawn.length && keys.length <= n) return null
   return (
-    <section className="sec">
-      <div className="sec-h">
-        <h2>Closed positions</h2>
+    <FoldSec id="closed" title="Closed positions" head={<>
         <span className="sub" title="drawn from the ledger alone: a position whose history starts before the index’s has no record here">
           {drawn.length ? <>{signed(total)} on {drawn.length} closed position{drawn.length === 1 ? '' : 's'}{totalYield != null ? ` · yield ${signed(totalYield)}` : ''}</> : 'drawing the records…'}
           {refused ? ` · ${refused} opened before the index’s history, no record` : ''}
         </span>
-      </div>
+    </>}>
       <div className="card wpnl">
         <div className="wpnl-strats">
           <div className="wpnl-sh t50"><span>Position</span><span>Held</span><span className="num">PnL</span><span className="num">Yield</span><span className="num">APR</span></div>
@@ -103,6 +102,6 @@ export function WalletClosed({ addr }: { addr: string }) {
           {keys.length > n && <button className="linklike wpnl-more" onClick={() => setN(n + PAGE)}>more ({keys.length - n} older)</button>}
         </div>
       </div>
-    </section>
+    </FoldSec>
   )
 }

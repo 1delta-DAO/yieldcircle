@@ -19,6 +19,7 @@ import { Sk } from '../../src/ui/bits'
 import { Character } from '../../src/ui/Character'
 import { IconBack } from '../../src/ui/icons'
 import { useLiteByKey, WalletPositions } from '../../src/ui/board'
+import { FoldSec } from '../../src/ui/Fold'
 import { FollowButton, Moves, ProfileWallets } from '../../src/ui/social'
 import { Txt } from '../../src/ui/Txt'
 
@@ -67,7 +68,7 @@ export default function WalletPage() {
   // a wallet the index has drawn nothing for (docs/lite-design-review.md §3.7): one plain line, not two empty boxes
   const runsNothing = !held.isLoading && !held.open.length
   const nothingYet = runsNothing && !row && !byRate.isLoading && !byDay.isLoading && !moves.length && !msgs.length
-  const lately = moves.length > 0 && <Sec title="Lately"><View style={st.card}><Moves txs={moves} hideWho /></View></Sec>
+  const lately = moves.length > 0 && <FoldSec id="lite.lately" title="Lately"><View style={st.card}><Moves txs={moves} hideWho /></View></FoldSec>
   const mutualWords = mutual.length === 1 ? labelFor(mutual[0], profile(mutual[0])).label : `${labelFor(mutual[0] ?? '', profile(mutual[0] ?? '')).label} and ${mutual.length - 1} more`
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
@@ -117,13 +118,13 @@ export default function WalletPage() {
             </> : <View style={st.stat}><Txt s={14} c={C.tx50}>Not in the board’s top 100 today.</Txt></View>}
           </View>
           {runsNothing && lately}
-          <Sec title="What it runs">
+          <FoldSec id="lite.runs" title="What it runs">
             <View style={st.card}><WalletPositions account={addr} liteByKey={liteByKey} me={false} foot={false} /></View>
-          </Sec>
+          </FoldSec>
         </>}
 
         {msgs.length > 0 && (
-          <Sec title="What it said">
+          <FoldSec id="lite.said" title="What it said">
             <View style={st.card}>
               {msgs.map((m, i) => (
                 <View key={m.id} style={[st.said, i > 0 && { borderTopWidth: 1, borderTopColor: '#1a1a1f' }]}>
@@ -132,7 +133,7 @@ export default function WalletPage() {
                 </View>
               ))}
             </View>
-          </Sec>
+          </FoldSec>
         )}
 
         {!runsNothing && lately}
@@ -141,10 +142,6 @@ export default function WalletPage() {
       </ScrollView>
     </View>
   )
-}
-
-function Sec({ title, children }: { title: string; children: React.ReactNode }) {
-  return <View style={{ marginTop: 26 }}><Txt s={16} w={600} style={{ letterSpacing: -0.16, marginBottom: 10 }}>{title}</Txt>{children}</View>
 }
 
 /** One cell of the board's numbers (`.lite-prof-stats`). */

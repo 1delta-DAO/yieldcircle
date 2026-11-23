@@ -306,8 +306,9 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
                   {/* incentives are paid in another token: said apart, though in the rate */}
                   {p.rewardAprPct != null && <Txt s={11} c={C.tx40}>incl. {pct(p.rewardAprPct, 1)} rewards</Txt>}
                 </>}
+                {/* Copy sits under the figures, as on the web's phone layout: beside them it took the name's room */}
+                {row && !me ? <View style={{ marginTop: 6 }}><Btn sm title="Copy" onPress={() => openStrategy(row.s, { copy: account })} /></View> : null}
               </View>
-              {row && !me ? <Btn sm title="Copy" onPress={() => openStrategy(row.s, { copy: account })} /> : null}
               <Txt c={C.tx40}>›</Txt>
             </Pressable>
           )

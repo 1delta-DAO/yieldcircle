@@ -651,6 +651,8 @@ export interface BoardPosition {
   /** a position it HAD: when it closed, and the dollars that were at work on average */
   closed?: { at: string; avgUsd: number | null }
 }
+/** `USDT + USDC`, and past two `USDT + 5 more`: a cross-margin basket named by its biggest, never as if it were a pair */
+const symsWord = (syms: string[]) => (syms.length > 2 ? `${syms[0]} + ${syms.length - 1} more` : syms.join(' + '))
 /**
  * One wallet's positions with what each MADE (the index's PnL book), best first. Named in Lite's
  * words when Lite carries the strategy (`liteTitle`), else by what it holds; a position the index
@@ -666,13 +668,13 @@ export function boardPositions(
   return drawn
     .map((p) => {
       const s = strat.get(p.strategyKey)
-      const held = s?.protocol?.startsWith('vault.') && s.market && !s.debt.length ? s.market : (s?.held ?? []).slice(0, 2).join(' + ') || 'A position'
+      const held = s?.protocol?.startsWith('vault.') && s.market && !s.debt.length ? s.market : symsWord(s?.held ?? []) || 'A position'
       const loop = !!s?.debt.length
       return {
         key: p.key, strategyKey: p.strategyKey,
         kind: (s?.kind === 'loop' || s?.kind === 'deposit' ? s.kind : loop ? 'loop' : 'position') as BoardPosition['kind'],
         title: liteTitle(p.strategyKey) ?? held,
-        sub: loop ? `Levered · borrows ${s!.debt.slice(0, 2).join(' + ')}` : 'Deposit',
+        sub: loop ? `Levered · borrows ${symsWord(s!.debt)}` : 'Deposit',
         held: (s?.held ?? []).slice(0, 2), debt: (s?.debt ?? []).slice(0, 2),
         pnlUsd: p.pnlUsd!, aprPct: p.pnlAprPct, equityUsd: p.equityUsd, since: p.since,
         share: total > 0 && p.equityUsd != null ? Math.max(0, p.equityUsd) / total : null,
@@ -715,14 +717,14 @@ export function heldPositions(
         equityUsd: (r.side === 'borrow' ? -1 : 1) * (r.amountUsd ?? 0), netAprPct: r.aprEffective ?? r.aprNow, rewardAprPct: null, netAprWithRewardsPct: null, unpriced: r.amountUsd == null ? 1 : 0,
         legs: [{ marketUid: r.marketUid, side: r.side, posId: r.posId }],
       }))
-  const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))].slice(0, 2)
+  const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))]
   const held: HeldPosition[] = groups
     // dust and a debt worth more than what holds it are no position to show; an unpriced one is
     .filter((g) => g.equityUsd >= 1 || (g.unpriced > 0 && g.equityUsd >= 0) || drawn.has(fold(g.key)))
     .map((g) => {
       const rows = g.legs.map((l) => legs.find((r) => r.chainId === g.chainId && r.marketUid === l.marketUid && r.side === l.side && r.posId === l.posId))
       const long = g.legs.filter((l) => l.side !== 'borrow'), short = g.legs.filter((l) => l.side === 'borrow')
-      const sym = (side: (s: string) => boolean) => uniq(rows.filter((r) => r && side(r.side)).map((r) => r!.symbol))
+      const sym = (side: (s: string) => boolean) => uniq(rows.filter((r) => r && side(r.side)).sort((x, y) => (y!.amountUsd ?? 0) - (x!.amountUsd ?? 0)).map((r) => r!.symbol))
       const a = long[0] && canonUid(long[0].marketUid), b = short[0] && canonUid(short[0].marketUid)
       const strategyKey = short.length ? (a && b ? `loop:${a}|${b}` : '') : a ? `dep:${a}` : ''
       const d = drawn.get(fold(g.key))
@@ -736,9 +738,9 @@ export function heldPositions(
         ? { ...d, equityUsd: g.equityUsd, ...rate }
         : {
             key: g.key, strategyKey, kind: loop ? 'loop' : 'deposit',
-            title: (strategyKey && liteTitle(strategyKey)) || heldSyms.join(' + ') || 'A position',
-            sub: loop ? `Levered · borrows ${debt.join(' + ') || 'against it'}` : 'Deposit',
-            held: heldSyms, debt, pnlUsd: null, aprPct: null, equityUsd: g.equityUsd, since: null, share: null, ...rate,
+            title: (strategyKey && liteTitle(strategyKey)) || symsWord(heldSyms) || 'A position',
+            sub: loop ? `Levered · borrows ${symsWord(debt) || 'against it'}` : 'Deposit',
+            held: heldSyms.slice(0, 2), debt: debt.slice(0, 2), pnlUsd: null, aprPct: null, equityUsd: g.equityUsd, since: null, share: null, ...rate,
           }
     })
   const all = [...held, ...drawn.values()]

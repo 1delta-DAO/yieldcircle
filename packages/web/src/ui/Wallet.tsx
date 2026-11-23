@@ -597,7 +597,7 @@ function Book({ rows, groups, navUsd, copyOf, who, pnl, order = 'value' }: {
             meta={<><LegNote r={r} maturity={st?.kind === 'simple' ? st.maturity : undefined} book={st?.kind === 'simple' && !!st.book} />{navShare(g.equityUsd, navUsd)}</>}
             value={r.valueStatus === 'impaired' ? <Impaired x={r} /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}
             valueSub={r.amount ? `${tokens(r.amount)} ${r.symbol ?? ''}` : ''}
-            rate={<LegRate r={r} />} />
+            rate={rewardNote(g) ? <NetRate g={g} /> : <LegRate r={r} />} rateSub={rewardNote(g)} />
         }
         const s = sides(found), legs = [...s.coll, ...s.debt], lead = s.coll[0] ?? legs[0]
         // the debt's own fixed term, the earliest when several loans share the group
@@ -605,11 +605,12 @@ function Book({ rows, groups, navUsd, copyOf, who, pnl, order = 'value' }: {
         const term = termLeg ? termClock(termLeg.termEndsAt!, termLeg.termDays) : null
         return <PosCard key={g.key} lead={lead} onOpen={open} pnl={pnlCell} swatch={swatch} action={c && <CopyCell c={c} who={who} lev={g.leverage} />}
           name={<span title={s.basket ? composition(s) : undefined}>{groupLabel(s)}</span>}
+          rateSub={rewardNote(g)}
           venue={<Lender r={lead} />}
           pills={<>{g.leverage != null && g.leverage > 1.05 && <span className="pill loop">{g.leverage.toFixed(2)}×</span>}{s.basket && <span className="pill" title="several assets share this account's one health factor">cross-margin</span>}</>}
           meta={<>
-            {indexChainLabel(lead.chainId, chainLabel)} · {usdShort(g.supplyUsd)} {s.debt.length ? 'collateral' : 'supplied'}{s.collSyms.length > 1 ? ` in ${s.collSyms.join(', ')}` : ''}
-            {s.debt.length > 0 && <> over {usdShort(g.debtUsd)} of debt{s.debtSyms.length > 1 ? ` in ${s.debtSyms.join(', ')}` : ''}</>}
+            {indexChainLabel(lead.chainId, chainLabel)} · {usdShort(g.supplyUsd)} {s.debt.length ? 'collateral' : 'supplied'}
+            {s.debt.length > 0 && <> over {usdShort(g.debtUsd)} of debt</>}
             {navShare(g.equityUsd, navUsd)}
             {term && <> · <span className={term.due ? 'warn' : undefined} title={term.title}>{term.short}</span></>}
           </>}
@@ -626,15 +627,23 @@ function Book({ rows, groups, navUsd, copyOf, who, pnl, order = 'value' }: {
  * looped position carries its legs inside the card, each tagged with its side,
  * so collateral and debt read as parts of one thing rather than as two rows.
  */
-function PosCard({ lead, name, venue, pills, meta, value, valueSub, rate, pnl, swatch, action, legs, onOpen }: {
+function PosCard({ lead, name, venue, pills, meta, value, valueSub, rate, rateSub, pnl, swatch, action, legs, onOpen }: {
   lead: IndexPosition; name: React.ReactNode; venue: React.ReactNode; pills?: React.ReactNode; meta: React.ReactNode
   value: React.ReactNode; valueSub?: React.ReactNode; rate: React.ReactNode
+  /** under the rate, after `now`: the part of it paid as rewards */
+  rateSub?: React.ReactNode
   /** what it made since it opened (`PnlCell`); null when the page has no PnL book */
   pnl?: React.ReactNode
   /** the strategy's hue while What it made draws By strategy */
   swatch?: React.ReactNode
   action: React.ReactNode; legs?: IndexPosition[]; onOpen: () => void
 }) {
+  // a basket's dust (a reserve worth under 1 % of its biggest) folds into one line, so six reserves do not read as six positions
+  const [all, setAll] = React.useState(false)
+  const top = Math.max(0, ...(legs ?? []).map((r) => Math.abs(r.amountUsd ?? 0)))
+  const small = (legs ?? []).length > 4 ? legs!.filter((r) => r.amountUsd != null && r.valueStatus !== 'impaired' && Math.abs(r.amountUsd) < top / 100) : []
+  const fold = small.length > 1 && !all
+  const shown = fold ? legs!.filter((r) => !small.includes(r)) : legs
   return (
     <div className="posc">
       <div className="posc-h" role="button" tabIndex={0} title="value, money in and PnL since this position opened" onClick={onOpen} onKeyDown={(e) => { if (e.key === 'Enter') onOpen() }}>
@@ -644,13 +653,21 @@ function PosCard({ lead, name, venue, pills, meta, value, valueSub, rate, pnl, s
           <small>{meta}</small>
         </div>
         <div className="posc-v"><b>{value}</b>{valueSub && <small>{valueSub}</small>}</div>
-        <div className="posc-r">{rate}<small>now</small></div>
+        <div className="posc-r">{rate}<small>now{rateSub}</small></div>
         <div className="posc-p">{pnl}</div>
         <div className="posc-a" onClick={(e) => e.stopPropagation()}>{action}</div>
       </div>
-      {legs && legs.length > 0 && (
+      {shown && shown.length > 0 && (
         <div className="legs">
-          {legs.map((r) => <Leg key={`${r.marketUid}:${r.side}:${r.posId}`} r={r} />)}
+          {shown.map((r) => <Leg key={`${r.marketUid}:${r.side}:${r.posId}`} r={r} />)}
+          {fold && (
+            <button type="button" className="leg more" onClick={() => setAll(true)} title="show every reserve of this account">
+              <span className="side">+{small.length}</span>
+              <span className="n"><b>{[...new Set(small.map((r) => r.symbol ?? '?'))].join(', ')}</b></span>
+              <span className="v"><b>{usd(small.reduce((t, r) => t + Math.abs(r.amountUsd ?? 0), 0))}</b></span>
+              <span className="r">show</span>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -673,7 +690,7 @@ function Leg({ r }: { r: IndexPosition }) {
   return (
     <a className="leg" href={marketHref(r.marketUid)}>
       <span className={`side ${side}`}>{side === 'debt' ? 'Owes' : side === 'collateral' ? 'Holds' : 'Lends'}</span>
-      <span className="n"><b>{r.marketName ?? r.symbol} <ClassChip x={r} /></b><small><LegNote r={r} chain={false} /></small></span>
+      <span className="n"><b>{r.marketName ?? r.symbol} <ClassChip x={r} /></b><small><LegNote r={r} chain={false} exact={false} /></small></span>
       <span className="v"><b>{r.valueStatus === 'impaired' ? <Impaired x={r} short /> : <Money usd={r.amountUsd} status={r.usdStatus} fromIndex={r.amountFromIndex} amount={r.amount} symbol={r.symbol} />}</b>{r.amount ? <small>{tokens(r.amount)} {r.symbol ?? ''}</small> : null}</span>
       <span className="r"><LegRate r={r} /></span>
     </a>
@@ -681,7 +698,7 @@ function Leg({ r }: { r: IndexPosition }) {
 }
 
 /** The leg's chain (unless the card already said it) and its clock: a PT's maturity, a loan's term, or how its accrual is known. */
-function LegNote({ r, maturity, chain = true, book }: { r: IndexPosition; maturity?: number; chain?: boolean; /** `maturity` is a book loan's repayment date */ book?: boolean }) {
+function LegNote({ r, maturity, chain = true, exact = true, book }: { r: IndexPosition; maturity?: number; chain?: boolean; /** false inside a card's legs: only an estimate is worth a line there */ exact?: boolean; /** `maturity` is a book loan's repayment date */ book?: boolean }) {
   const pt = maturity ?? ptMaturityOf(r.symbol)
   const parts: React.ReactNode[] = []
   if (chain) parts.push(indexChainLabel(r.chainId, chainLabel))
@@ -691,7 +708,7 @@ function LegNote({ r, maturity, chain = true, book }: { r: IndexPosition; maturi
     parts.push(<span key="pt" className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span>)
   } else {
     if (r.termEndsAt) { const c = termClock(r.termEndsAt, r.termDays); parts.push(<span key="term" className={c.due ? 'warn' : undefined} title={c.title}>{c.text}</span>) }
-    if (r.accrual) parts.push(r.accrual.exact ? 'accrual exact' : 'accrual ≈')
+    if (r.accrual && (exact || !r.accrual.exact)) parts.push(r.accrual.exact ? 'accrual exact' : 'accrual ≈')
   }
   return <>{parts.map((x, i) => <React.Fragment key={i}>{i > 0 && ' · '}{x}</React.Fragment>)}</>
 }
@@ -708,6 +725,7 @@ function LegRate({ r }: { r: IndexPosition }) {
     ? `${pct(r.intrinsicApr)} the token itself${r.intrinsicSource === 'asset' ? ' (from the asset, not this market)' : ''} + ${pct(r.aprNow ?? 0)} the pool`
     : 'the pool’s own rate; nobody publishes a yield for this token'
   if (rate == null) return <span className="t40">—</span>
+  if (Math.abs(rate) < 0.005) return <span className="t40" title={why}>{pct(0)}</span>
   return <span className={r.side === 'borrow' ? 'warn' : 'ok'} title={why}>{r.side === 'borrow' ? '−' : ''}{pct(rate)}</span>
 }
 
@@ -756,12 +774,12 @@ function NetRate({ g }: { g: PositionGroup }) {
   // incentives are paid in another token, so they sit beside the in-kind rate, never in it
   const total = g.netAprWithRewardsPct ?? g.netAprPct + rew
   const rwhy = `${why}\n+ ${usd(g.rewardAnnualUsd ?? 0)} a year in rewards (${pct(rew)}), paid in another token\n= ${pct(total)} with rewards`
-  return (
-    <span title={rwhy}>
-      <span className={total >= 0 ? 'ok' : 'warn'}>{pct(total)}{g.exact ? '' : '+'}</span>
-      <span className="t40" style={{ display: 'block', fontSize: '0.75em' }}>{pct(g.netAprPct)} + {pct(rew)} rewards</span>
-    </span>
-  )
+  return <span className={total >= 0 ? 'ok' : 'warn'} title={rwhy}>{pct(total)}{g.exact ? '' : '+'}</span>
+}
+/** ` · 4.21% rewards` for under a card's rate; nothing where the position is paid none */
+function rewardNote(g: PositionGroup): React.ReactNode {
+  if (g.netAprPct == null || g.rewardAprPct == null || g.rewardAprPct < 0.005) return null
+  return <span title={`${pct(g.netAprPct)} in kind + ${pct(g.rewardAprPct)} in rewards, paid in another token`}> · {pct(g.rewardAprPct)} rewards</span>
 }
 
 /**

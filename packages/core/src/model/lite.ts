@@ -684,8 +684,10 @@ export function boardPositions(
 /** A position a wallet holds now: a board row whose lifetime figure may not be drawn yet (`pnlUsd` null). */
 export interface HeldPosition extends Omit<BoardPosition, 'pnlUsd'> {
   pnlUsd: number | null
-  /** what it earns a year now, net of what it pays (the index's figure for the position) */
+  /** what it earns a year now, net of what it pays (the index's figure for the position), rewards included */
   rateNowPct?: number | null
+  /** the part of `rateNowPct` paid in another token (incentives); null when there is none */
+  rewardAprPct?: number | null
 }
 /**
  * What a wallet holds now, as the board's rows: every position the index lists for it
@@ -698,7 +700,7 @@ export interface HeldPosition extends Omit<BoardPosition, 'pnlUsd'> {
 export function heldPositions(
   pos: {
     positions: { chainId: string; account: string; posId: string; marketUid: string; side: string; symbol?: string | null; amountUsd: number | null; aprEffective?: number | null; aprNow: number | null }[]
-    groups?: { key: string; chainId: string; account: string; posId: string; equityUsd: number; netAprPct: number | null; unpriced: number; legs: { marketUid: string; side: string; posId: string }[] }[]
+    groups?: { key: string; chainId: string; account: string; posId: string; equityUsd: number; netAprPct: number | null; rewardAprPct?: number | null; netAprWithRewardsPct?: number | null; unpriced: number; legs: { marketUid: string; side: string; posId: string }[] }[]
   } | undefined,
   book: Parameters<typeof boardPositions>[0] | undefined,
   liteTitle: (strategyKey: string) => string | null,
@@ -710,7 +712,7 @@ export function heldPositions(
     ? pos.groups
     : legs.map((r) => ({
         key: `${r.chainId}|${r.account}|${r.posId}|${r.marketUid}|${r.side}`, chainId: r.chainId, account: r.account, posId: r.posId,
-        equityUsd: (r.side === 'borrow' ? -1 : 1) * (r.amountUsd ?? 0), netAprPct: r.aprEffective ?? r.aprNow, unpriced: r.amountUsd == null ? 1 : 0,
+        equityUsd: (r.side === 'borrow' ? -1 : 1) * (r.amountUsd ?? 0), netAprPct: r.aprEffective ?? r.aprNow, rewardAprPct: null, netAprWithRewardsPct: null, unpriced: r.amountUsd == null ? 1 : 0,
         legs: [{ marketUid: r.marketUid, side: r.side, posId: r.posId }],
       }))
   const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))].slice(0, 2)
@@ -727,13 +729,16 @@ export function heldPositions(
       drawn.delete(fold(g.key))
       const heldSyms = sym((s) => s !== 'borrow'), debt = sym((s) => s === 'borrow')
       const loop = short.length > 0
+      // incentives are paid in another token, never in a leg's rate: Flying Tulip's suppliers earn only those
+      const rew = g.rewardAprPct != null && g.rewardAprPct >= 0.005 ? g.rewardAprPct : null
+      const rate = { rateNowPct: g.netAprPct == null || rew == null ? g.netAprPct : g.netAprWithRewardsPct ?? g.netAprPct + rew, rewardAprPct: rew }
       return d
-        ? { ...d, equityUsd: g.equityUsd, rateNowPct: g.netAprPct }
+        ? { ...d, equityUsd: g.equityUsd, ...rate }
         : {
             key: g.key, strategyKey, kind: loop ? 'loop' : 'deposit',
             title: (strategyKey && liteTitle(strategyKey)) || heldSyms.join(' + ') || 'A position',
             sub: loop ? `Levered · borrows ${debt.join(' + ') || 'against it'}` : 'Deposit',
-            held: heldSyms, debt, pnlUsd: null, aprPct: null, equityUsd: g.equityUsd, since: null, share: null, rateNowPct: g.netAprPct,
+            held: heldSyms, debt, pnlUsd: null, aprPct: null, equityUsd: g.equityUsd, since: null, share: null, ...rate,
           }
     })
   const all = [...held, ...drawn.values()]

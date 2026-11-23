@@ -62,6 +62,11 @@ interface Base {
   rated: boolean
   tvlUsd: number
   /**
+   * Whose PRODUCT the token is, where that is not whose credit (`asset`): Pendle on a PT, Mezzanine
+   * on its tranches of Hastra's wYLDS. The group page's second way in, beside the desks.
+   */
+  maker?: string
+  /**
    * Set only on a copy the catalogue puts in its HIDDEN list: which floor left
    * this row out. The row itself is otherwise complete, so letting it in is a
    * re-filter rather than a refetch (`model/visibility.ts`).
@@ -319,6 +324,10 @@ export interface Candidate<T extends Strategy> {
 
 /** `Capy Fi` is `CapyFi`: the same words, said with different spaces and case. */
 const sameWords = (a: string, b: string) => a.replace(/\s+/g, '').toLowerCase() === b.replace(/\s+/g, '').toLowerCase()
+/** `Inverse` and `Inverse Finance`, `USD.AI` and `USDai`: one house said two ways */
+const sameName = (a: string, b: string) => { const x = a.toLowerCase().replace(/[^a-z0-9]/g, ''), y = b.toLowerCase().replace(/[^a-z0-9]/g, ''); return !!x && !!y && (x.startsWith(y) || y.startsWith(x)) }
+/** a picture of a house, not of a token: the icon sets' curator and lender marks */
+const HOUSE_MARK = /\/(curators|lender)\//
 /** a group key as an asset page opens it; none when the API sent none */
 const groupKey = (g: string | undefined) => (g ? canonGroup(g) : undefined)
 const num = (v: string | number | null | undefined): number => { if (v == null || v === '') return 0; const n = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(n) ? n : 0 }
@@ -622,12 +631,23 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   // coin; a savings or staking row's brand is its issuer, whatever the protocol is called), and an
   // uncurated one on a platform that runs its own vaults the platform's (Lista's LisUSD Vault)
   const who = sameWords(brand, protocol) && !/^vault\.(savings|lst)$/.test(m.venue) ? undefined : brand
-  const logo = share?.logoURI ?? ownLogo ?? (isVault ? (vaultDesk(named || m.name, curator, who) ?? brandMark(curator, who) ?? (curator ? undefined : houseDesk(m.venue)))?.logo : m.asset.logoURI)
+  // a savings product one house makes over another's coin (Mezzanine's junior and senior tranches
+  // of Hastra's wYLDS) is the desk's credit: it is called by its own name — `Mezzanine savings`
+  // said neither whose nor which — and where its only picture is the maker's (the badge already
+  // shows that) it wears the desk's. Not over an issued dollar or plain ether: a vault over USDC
+  // is not Circle's product
+  const desk = money ? deskOf(asset) : undefined
+  const over = source === 'savings' && desk && (desk.kind === 'yield' || desk.kind === 'unknown') && !sameName(brand, desk.name) && !sameName(brand, desk.id) ? desk : undefined
+  const shareName = share?.assetGroup?.split('::')[0]?.trim()
+  if (over && shareName && !sameWords(shareName, holds)) via = shareName
+  const pic = share?.logoURI ?? ownLogo ?? (isVault ? (vaultDesk(named || m.name, curator, who) ?? brandMark(curator, who) ?? (curator ? undefined : houseDesk(m.venue)))?.logo : m.asset.logoURI)
+  const logo = over && (!pic || HOUSE_MARK.test(pic)) ? brandMark(over.name, over.id)?.logo ?? pic : pic
+  const maker = over ? brand : source === 'fixed' ? (m.venue === 'vault.pendle' ? 'Pendle' : protocol) : undefined
   const exitMode = m.exit?.mode ?? 'instant'
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const s: SimpleStrategy = {
     id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, assetGroup: groupKey(m.asset.assetGroup), tokenLogo: m.asset.logoURI || undefined, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
-    nature: natureOfDeposit(m.venue, asset, m.name, m.risk?.yieldProfile), rate, risk, riskLabel, riskScore, rated: !!m.risk?.score, tvlUsd: tvl,
+    nature: natureOfDeposit(m.venue, asset, m.name, m.risk?.yieldProfile), rate, risk, riskLabel, riskScore, rated: !!m.risk?.score, tvlUsd: tvl, maker,
     earnUid: m.earnUid, market: terms ? terms.tag : market, via, source, assetAddress: payToken.address, assetSymbol: payToken.symbol, shareGroup: shareSym && shareSym.toUpperCase() !== m.asset.symbol.toUpperCase() ? (share?.assetGroup ? groupKey(share.assetGroup) : shareSym) : undefined, shareLogo: share?.logoURI ?? undefined, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     // a book's `liquidity` is the OTHER side's depth (what borrowers could take), not what a lender can fill: the ticket reads the lend book
     liquidityUsd: book ? undefined : m.liquidity?.usd, utilization: !book && typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,
@@ -784,7 +804,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     priceLong: r.underlyingInfoLong.prices?.priceUsd, priceShort: r.underlyingInfoShort.prices?.priceUsd, logoLong: L.logoURI, logoShort: S.logoURI,
     tokenRisk: { long: assetRiskOf(p.risk), short: assetRiskOf(S.props?.risk) },
     dep, bor, depSpot: num(r.depositAprLong) || dep, borSpot: num(r.borrowAprShort) || bor, rewardsLong: rL, rewardsShort: num(r.rewardAprShort), maxLev, liqLtv, rec, tiers, borrowLiquidityUsd: liq, collateralYields, intrinsicLong: num(r.intrinsicYieldLong) || undefined,
-    expiry, instrument,
+    expiry, instrument, maker: instrument,
     ...(r.oracleStatus === 'unusable' ? { oracleDown: true } : {}),
     ...(terms.length ? { terms, borSpot: bor } : {}),
     ...(r.fixedTerm?.model === 'loopscale' ? { tenors: loopscaleTenors(r) } : {}),

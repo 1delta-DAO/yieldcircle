@@ -1,7 +1,8 @@
 import React from 'react'
 import { assetLogo, deskOf, isFiat, nameOf, whatIs, type Group, type GroupId } from '@yieldcircle/core/model/assets'
 import { FacetPicker, type FacetOption } from './FacetPicker'
-import { exitTerms, loopRewards, markPicks, rewardsOf, type LoopStrategy, type Strategy } from '@yieldcircle/core/model/strategies'
+import { exitTerms, loopRewards, markPicks, rewardsOf, type LoopStrategy, type SimpleStrategy, type Strategy } from '@yieldcircle/core/model/strategies'
+import { brandMark } from '@yieldcircle/core/model/vaultDesk'
 import { depositsAsLoops } from '@yieldcircle/core/model/putUp'
 import { go, type Route, useApp } from '../state/AppState'
 import type { Holding } from '@yieldcircle/core/model/positions'
@@ -9,7 +10,7 @@ import { useBook } from '@yieldcircle/app/book'
 import { HoldingTicket, Ticket } from './Ticket'
 import { RowSocial } from './TicketSocial'
 import { uidOf } from '@yieldcircle/core/model/uid'
-import { GroupIcon, Info, KindPill, RewardsIncl, LegsPill, SubAccountPill, Sk, StratMark, Tok, Toks, amt, deskLogos, num, pct, usd, usdShort, HealthPill } from './bits'
+import { GroupIcon, Info, KindPill, RewardsIncl, LegsPill, SubAccountPill, Sk, StratMark, Tok, Toks, amt, deskLogos, num, pct, usd, usdShort, HealthPill, venueIconUrls } from './bits'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import type { ThreadRef } from '@yieldcircle/core/model/uid'
 import { useCounts, useThreadOf } from '../social/queries'
@@ -60,7 +61,12 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   // (the menu caps each dollar desk at its 30 best rates: a stock market's dollar side is usually past that cap, so the cut rows count too)
   const inGroup = stocks ? b.earnAll.filter((s, i, a) => !!lendsTo(s) && softHide(s, st) == null && a.findIndex((x) => x.id === s.id) === i) : b.all.filter((s) => s.group === group.id)
   const assets = [...new Set([...(stocks ? groupOffers.map((o) => o.asset) : inGroup.map((s) => s.asset)), ...b.books.filter((x) => x.group === group.id).map((x) => x.asset)])]
-  const u = assets.includes(route.u) ? route.u : 'all'
+  // whose PRODUCTS the rows are, where that is not whose credit (Pendle's PTs, Mezzanine's tranches
+  // of Hastra's dollar): a second way into the same rows, beside the desks
+  const makers = React.useMemo(() => (stocks ? new Map<string, string>() : makersOf(inGroup)), [inGroup, stocks])
+  const u = assets.includes(route.u) || makers.has(route.u) ? route.u : 'all'
+  const maker = makers.get(u)
+  const uName = maker ?? nameOf(u)
   const heldAssets = React.useMemo(() => new Set(b.books.filter((x) => x.group === group.id).map((x) => x.asset)), [b.books, group.id])
   // a floor hides a row from the list, never from the wallet that is in it: the held-back rows are whole strategies
   // a row the menu's per-asset cap dropped still opens: a profile's Copy can name one
@@ -78,7 +84,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const off = useOffMenu(offRef)
   const offSel = off.data?.s ?? null
   const kind: 'simple' | 'fixed' | 'loop' | 'borrow' = sel ? listOf(sel) : offSel ? listOf(offSel) : offMenu ? offMenu.kind : route.k ?? (stocks ? 'borrow' : 'simple')
-  const inScope = (s: Strategy) => u === 'all' || (stocks ? !!lendsTo(s)?.has(u) : s.asset === u)
+  const inScope = (s: Strategy) => u === 'all' || (maker ? s.maker === maker : stocks ? !!lendsTo(s)?.has(u) : s.asset === u)
   const scoped = inGroup.filter(inScope)
   // the group's fixed-rate books: a dollar book is on the dollar page, an ether one on ether's (never on the Stocks shelf)
   const fixedInGroup = stocks ? [] : b.fixed.rows.filter((s) => s.group === group.id)
@@ -130,7 +136,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const list = ef.active ? applyEarn(ranked, ef.f, (s) => s, { extra: (s) => [chainLabel(s.chainId)], rank: (s) => steady.get(s.id) ?? s.rate }) : ranked
   const nS = all.filter((s) => s.kind === 'simple').length, nL = all.filter((s) => s.kind === 'loop').length
   // the rows a floor is holding back, scoped exactly as the list is
-  const heldBack = b.hidden.filter((s) => s.group === group.id && (u === 'all' || s.asset === u) && s.kind === kind && natOk(s))
+  const heldBack = b.hidden.filter((s) => s.group === group.id && (u === 'all' || s.asset === u || (!!maker && s.maker === maker)) && s.kind === kind && natOk(s))
   const books = b.books.filter((x) => x.group === group.id && (u === 'all' || x.asset === u))
   const idle = books.filter((x) => x.idle)
   const bestFor = (a: string) => inGroup.filter((s) => s.asset === a && !(s.kind === 'simple' && s.passthrough)).sort((x, y) => y.rate - x.rate)[0]
@@ -155,8 +161,9 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
   const commentsOn = (x: Strategy) => { const t = threadFor(x); return t ? counts.count(t.kind, t.key) : 0 }
   /** a row's 💬 opens its ticket on the thread — where the strategy is talked about, beside what it pays */
   const talkOn = (x: Strategy) => go(group.id, { u, s: x.id, k: x.kind, talk: '1' })
-  const running: { h: Holding; s: Strategy | null }[] = b.holdings.filter((h) => !h.directional && h.group === group.id && (u === 'all' || h.asset === u)).sort((x, y) => y.valueUsd - x.valueUsd)
+  const running: { h: Holding; s: Strategy | null }[] = b.holdings.filter((h) => !h.directional && h.group === group.id && (u === 'all' || h.asset === u || !!maker)).sort((x, y) => y.valueUsd - x.valueUsd)
     .map((h) => ({ h, s: inGroup.find((s) => matches(s, h)) ?? b.hidden.find((s) => s.group === group.id && matches(s, h)) ?? fixedRows.find((s) => matches(s, h)) ?? null }))
+    .filter((r) => !maker || r.s?.maker === maker)
   // the held positions' strategies may be of the other kind than the list shows
   useRateHistory(React.useMemo(() => running.flatMap((r) => (r.s ? [r.s] : [])), [running.map((r) => r.s?.id).join(',')]), !b.isFetching)
   // what an off-menu row can still do: a loop can always be unwound; a deposit needs the earn uid to withdraw through
@@ -215,8 +222,8 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
       <div className={`asset${ticketOpen ? '' : ' noticket'}`}>
         <div className="main">
           <div className="hdr">
-            <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={u} logo={markOf(u, inGroup)} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {nameOf(u)}</span>}</h1><div className="sub">{u === 'all' ? group.desc : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div>{u !== 'all' && <TokenLinks rows={inGroup.filter((s) => s.asset === u)} />}</div></div>
-            <AssetChips group={group} route={route} assets={assets} u={u} all={inGroup} held={heldAssets} offers={stocks ? groupOffers : undefined} />
+            <div className="t">{u === 'all' ? <GroupIcon id={group.id} color={group.color} size={36} /> : <Tok sym={uName} logo={maker ? makerMark(maker, inGroup) : markOf(u, inGroup)} size={36} />}<div><h1>{group.name}{u !== 'all' && <span className="t50"> · {uName}</span>}</h1><div className="sub">{u === 'all' ? group.desc : maker ? `What ${maker} makes over other issuers’ coins: each row is still filed under whose credit it is` : whatIs(u)}{allChains ? '' : ` · ${chainLabelFor()}`}</div>{u !== 'all' && <TokenLinks rows={inGroup.filter(inScope)} />}</div></div>
+            <AssetChips group={group} route={route} assets={assets} makers={makers} u={u} all={inGroup} held={heldAssets} offers={stocks ? groupOffers : undefined} />
           </div>
           {idle.length > 0 && (
             /* a pill per idle balance, not a bar: the nudge sits beside the page, it does not lead it */
@@ -235,7 +242,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
               </React.Fragment>) })}</div>
           )}
           {b.account && running.length > 0 && (
-            <section className="sec" style={{ marginTop: 14 }}><div className="sec-h"><h2>Your positions</h2><span className="sub">{usd(running.reduce((a, r) => a + r.h.valueUsd, 0))} at work in {group.name.toLowerCase()}{u !== 'all' ? ` · ${nameOf(u)}` : ''}.</span></div>
+            <section className="sec" style={{ marginTop: 14 }}><div className="sec-h"><h2>Your positions</h2><span className="sub">{usd(running.reduce((a, r) => a + r.h.valueUsd, 0))} at work in {group.name.toLowerCase()}{u !== 'all' ? ` · ${uName}` : ''}.</span></div>
               {phone ? (
                 /* a phone gets a card per position: the row had to fit the name,
                    four pills, value, rate and health across 357px and the name
@@ -281,7 +288,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
               <button aria-pressed={natOn === 'savings'} title={NATURES.savings.why} onClick={() => setNat('savings')}>Savings <span className="c">{nSavings}</span></button>
               <button aria-pressed={natOn === 'exposure'} title="Perp LPs and managed funds: they earn by taking a market’s side, and the value can fall" onClick={() => setNat('exposure')}>Market exposure <span className="c">{nExposed}</span></button>
             </div>}
-            <span className="hint">{kind === 'fixed' ? 'Lend at a rate fixed to a date: the deposit fills a borrower’s offer, and is repaid at face on the day. These books are small — the ticket says how much each can take.' : kind === 'borrow' ? `Take ${outWord} out against ${u === 'all' ? (stocks ? 'tokenized stocks' : 'what you hold') : nameOf(u)} without selling it. You pay the rate; if the price falls past the line, the lender sells part of it.` : stocks && kind === 'simple' ? 'Lend dollars into the markets where people borrow against stocks. Their stocks back your loan; the rate is what they pay.' : kind === 'simple' ? (list.length && !list.some((s) => isSavings(s.nature)) ? 'Hold one token. No debt, nothing to liquidate — but its price moves with a market.' : 'Hold one token that grows. No debt, nothing to liquidate.') : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
+            <span className="hint">{kind === 'fixed' ? 'Lend at a rate fixed to a date: the deposit fills a borrower’s offer, and is repaid at face on the day. These books are small — the ticket says how much each can take.' : kind === 'borrow' ? `Take ${outWord} out against ${u === 'all' ? (stocks ? 'tokenized stocks' : 'what you hold') : uName} without selling it. You pay the rate; if the price falls past the line, the lender sells part of it.` : stocks && kind === 'simple' ? 'Lend dollars into the markets where people borrow against stocks. Their stocks back your loan; the rate is what they pay.' : kind === 'simple' ? (list.length && !list.some((s) => isSavings(s.nature)) ? 'Hold one token. No debt, nothing to liquidate — but its price moves with a market.' : 'Hold one token that grows. No debt, nothing to liquidate.') : 'Borrow against the token to hold more of it. Higher yield, liquidation risk. Leverage is set in the ticket.'}</span>
           </div>
           {kind !== 'borrow' && (ranked.length > 0 || ef.active) && <EarnTools st={ef} n={list.length} total={ranked.length} />}
           {kind === 'borrow' ? (<>
@@ -306,7 +313,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                   <span className={`sc-rate ${s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}`}>{pct(s.rate)}</span>
                   {rewardsOf(s) > 0.05 ? <span className="sc-meta"><RewardsIncl s={s} /></span> : null}
                   {ser ? <span className="sc-trend"><RateTrend ser={ser} now={s.rate} spike={isSpike(s.rate, ser)} /></span> : null}
-                  <span className="sc-meta sc-wrap">{u === 'all' ? `${nameOf(s.asset)} · ` : ''}{chainLabel(s.chainId)}</span>
+                  <span className="sc-meta sc-wrap">{u === 'all' || maker ? `${nameOf(s.asset)} · ` : ''}{chainLabel(s.chainId)}</span>
                   <span className="sc-meta"><RiskWord s={s} /></span>
                   <span className="sc-meta">{s.kind === 'simple' ? exitTerms(s).short : s.instrument ? `via ${s.instrument}` : ''}</span>
                   {(s.tvlUsd > 0 || s.kind === 'loop') && <span className="sc-meta"><Size s={s} /></span>}
@@ -327,7 +334,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
                           its own where eight rows in nine said the same word; here it
                           sits second, so it is the part a narrow screen keeps rather
                           than the part it truncates. */}
-                      <small>{u === 'all' ? `${nameOf(s.asset)} · ` : ''}{s.kind === 'loop' && s.instrument ? `via ${s.instrument} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${exitTerms(s).short}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.book ? 'fixed rate' : s.source}` : ''}{(s.tvlUsd > 0 || s.kind === 'loop') && <> · <Size s={s} /></>}</small></td>
+                      <small>{u === 'all' || maker ? `${nameOf(s.asset)} · ` : ''}{s.kind === 'loop' && s.instrument ? `via ${s.instrument} · ` : ''}{chainLabel(s.chainId)} · <RiskWord s={s} />{s.kind === 'simple' ? ` · ${exitTerms(s).short}` : ''}{s.kind === 'simple' && s.source ? ` · ${s.book ? 'fixed rate' : s.source}` : ''}{(s.tvlUsd > 0 || s.kind === 'loop') && <> · <Size s={s} /></>}</small></td>
                     {/* the rate, on its own: nothing else in this cell to read past */}
                     <td className="r">{(() => { const ser = seriesFor(s, get, withRewards); const spike = isSpike(s.rate, ser); return (<>
                       <span className="rate-row">{ser && <RateTrend ser={ser} now={s.rate} spike={spike} />}<span className={s.rate >= 3 ? 'ok' : s.rate < 0 ? 'bad' : ''}>{pct(s.rate)}</span></span>
@@ -395,7 +402,7 @@ function FixedNote({ n, idle, risky }: { n: number; idle: number; risky: number 
  * Except the currencies (`FIAT`): the euro, franc and pound are a few rows each, and ranked by
  * count against BNB and SOL they would always be in the fold. They close the row instead.
  */
-function AssetChips({ group, route, assets, u, all, held, offers }: { group: Group; route: Route; assets: string[]; u: string; all: Strategy[]; /** what the wallet holds in this group */ held: Set<string>; /** the Stocks shelf counts its loans, and ranks its tickers by what is put up against them */ offers?: BorrowOffer[] }) {
+function AssetChips({ group, route, assets, makers, u, all, held, offers }: { group: Group; route: Route; assets: string[]; /** key → maker name (`makersOf`) */ makers: Map<string, string>; u: string; all: Strategy[]; /** what the wallet holds in this group */ held: Set<string>; /** the Stocks shelf counts its loans, and ranks its tickers by what is put up against them */ offers?: BorrowOffer[] }) {
   const countOf = React.useCallback((a: string) => (offers ? offers.filter((o) => o.asset === a).length : all.filter((s) => s.asset === a).length), [all, offers])
   const sizeOf = React.useCallback((a: string) => (offers ? offers.filter((o) => o.asset === a).reduce((t, o) => t + o.collateralUsd, 0) : countOf(a)), [offers, countOf])
   const tvlOf = React.useCallback((a: string) => all.filter((s) => s.asset === a).reduce((t, s) => t + (s.tvlUsd || 0), 0), [all])
@@ -407,7 +414,10 @@ function AssetChips({ group, route, assets, u, all, held, offers }: { group: Gro
       // the Stocks shelf already ranks by size (what is put up); elsewhere "Largest" is what is deposited
       size: offers ? undefined : tvlOf(a),
       title: offers ? undefined : `${nameOf(a)} · ${countOf(a)} strateg${countOf(a) === 1 ? 'y' : 'ies'} · ${usdShort(tvlOf(a))} deposited`,
-    })), [assets, sizeOf, countOf, tvlOf, held, offers, all, group.id])
+    } as FacetOption)).concat([...makers].map(([key, name]): FacetOption => {
+      const rows = all.filter((s) => s.maker === name), tvl = rows.reduce((t, s) => t + (s.tvlUsd || 0), 0)
+      return { key, text: name, count: rows.length, section: MADE_BY, icon: <Tok sym={name} logo={makerMark(name, all)} size={16} />, size: tvl, title: `Made by ${name} · ${rows.length} strateg${rows.length === 1 ? 'y' : 'ies'} · ${usdShort(tvl)} deposited` }
+    })), [assets, makers, sizeOf, countOf, tvlOf, held, offers, all, group.id])
   return (
     <FacetPicker ariaLabel="Assets" noun={group.id === 'USD' ? 'dollars' : group.id === 'STOCKS' ? 'tickers' : 'assets'}
       options={options} selected={u === 'all' ? [] : [u]} sections={SECTIONS[group.id]} orderKey={`assets:${group.id}`} defaultOrder={offers ? 'Most put up' : 'Most strategies'}
@@ -417,12 +427,28 @@ function AssetChips({ group, route, assets, u, all, held, offers }: { group: Gro
 }
 
 /** The picker's sections per shelf, in reading order. */
+const MADE_BY = 'Made by'
 const SECTIONS: Record<GroupId, string[]> = {
-  USD: ['Issued dollars', 'Yield dollars', 'Currencies', 'Other'],
-  ETH: ['Ether', 'Staking protocols', 'Issued by a company', 'Other'],
-  BTC: ['Custodied', 'Protocols', 'Other'],
+  USD: ['Issued dollars', 'Yield dollars', 'Currencies', 'Other', MADE_BY],
+  ETH: ['Ether', 'Staking protocols', 'Issued by a company', 'Other', MADE_BY],
+  BTC: ['Custodied', 'Protocols', 'Other', MADE_BY],
   STOCKS: ['Stocks', 'ETFs', 'Pre-IPO', 'Funds', 'Credit', 'Commodities'],
-  MORE: ['Coins', 'Currencies', 'Gold'],
+  MORE: ['Coins', 'Currencies', 'Gold', MADE_BY],
+}
+
+/** `by:<slug>` → name for every maker (`Strategy.maker`) with two rows or more: one row is not a group. */
+function makersOf(rows: Strategy[]): Map<string, string> {
+  const n = new Map<string, number>()
+  for (const s of rows) if (s.maker) n.set(s.maker, (n.get(s.maker) ?? 0) + 1)
+  return new Map([...n].filter(([, c]) => c > 1).map(([name]) => [`by:${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, name]))
+}
+/**
+ * A maker's mark: the icon set's brand, then the badge its own rows wear (Mezzanine's savings
+ * vaults), then its venue family (`vault.pendle` → Pendle's mark, for a maker seen only on loops).
+ */
+const makerMark = (name: string, rows: Strategy[]): (string | undefined)[] => {
+  const s = rows.find((x): x is SimpleStrategy => x.kind === 'simple' && x.maker === name && x.brand === name)
+  return [brandMark(name)?.logo, ...(s ? venueIconUrls(s.protocolKey, s.brand) : []), ...venueIconUrls(`vault.${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`)]
 }
 const CLASS_SECTION: Record<string, string> = { stock: 'Stocks', etf: 'ETFs', 'pre-ipo': 'Pre-IPO', fund: 'Funds', credit: 'Credit', commodity: 'Commodities' }
 /** Which section an asset sits in: the desk's kind, the ticker's class, the currencies and gold. */

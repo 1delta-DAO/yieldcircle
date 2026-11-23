@@ -298,10 +298,13 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
                   <Txt s={11.5} c={C.tx50}>{p.aprPct != null ? `${pct(p.aprPct, 1)} a year` : 'made so far'}</Txt>
                   {/* beside what it made, the rate it earns at today */}
                   {!p.closed && p.rateNowPct != null && <Txt s={11.5} c={C.tx50}>{pct(p.rateNowPct, 1)} now</Txt>}
+                  {!p.closed && p.rewardAprPct != null && <Txt s={11} c={C.tx40}>incl. {pct(p.rewardAprPct, 1)} rewards</Txt>}
                 </> : <>
                   {/* no drawn figure yet: what it earns now */}
                   <Txt w={700} c={p.rateNowPct == null ? C.tx50 : up ? C.ok : C.bad}>{p.rateNowPct != null ? pct(p.rateNowPct, 1) : '–'}</Txt>
                   <Txt s={11.5} c={C.tx50}>a year now</Txt>
+                  {/* incentives are paid in another token: said apart, though in the rate */}
+                  {p.rewardAprPct != null && <Txt s={11} c={C.tx40}>incl. {pct(p.rewardAprPct, 1)} rewards</Txt>}
                 </>}
               </View>
               {row && !me ? <Btn sm title="Copy" onPress={() => openStrategy(row.s, { copy: account })} /> : null}

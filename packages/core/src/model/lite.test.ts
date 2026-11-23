@@ -365,6 +365,12 @@ describe('the leaderboard', () => {
     expect(rateNowOf([{ equityUsd: 500, rateNowPct: null }])).toBeNull()
     expect(heldPositions(undefined, book, () => null).map((p) => p.pnlUsd)).toEqual([40, 3])
   })
+  it('counts the rewards an index pays in another token into the rate now, and says how much of it they are', () => {
+    const A = `0x${'Aa'.repeat(20)}`
+    const g = (k: string, more: object) => ({ key: `1|${A}||${k}`, chainId: '1', account: A, posId: '', equityUsd: 1_000, netAprPct: 0.19, unpriced: 0, legs: [{ marketUid: `FT:1:0x${k}`, side: 'supply', posId: '' }], ...more })
+    const pos = { positions: [], groups: [g('a', { rewardAprPct: 4.15, netAprWithRewardsPct: 4.34 }), g('b', { rewardAprPct: 4.15 }), g('c', { rewardAprPct: 0.001 }), g('d', {})] }
+    expect(heldPositions(pos, undefined, () => null).map((p) => [p.rateNowPct, p.rewardAprPct])).toEqual([[4.34, 4.15], [0.19 + 4.15, 4.15], [0.19, null], [0.19, null]])
+  })
   it('names a closed position by its legs, in Lite’s words where they are a Lite row’s markets', () => {
     const legs = [{ marketUid: 'AAVE_V3:1:0xAbC', side: 'supply', symbol: 'wstETH' }, { marketUid: 'AAVE_V3:1:0xDeF', side: 'borrow', symbol: 'WETH' }]
     const k = { key: '1|0xa||AAVE_V3', lastAt: '2026-10-28T13:19:00.000Z' }

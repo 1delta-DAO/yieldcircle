@@ -136,9 +136,9 @@ export function WalletPositions({ account, liteByKey, me, foot = true }: { accou
                 )}
               </span>
               <span className="lb-pv">{p.pnlUsd != null
-                ? <><b className={up ? 'ok' : 'bad'}>{up ? '+' : '−'}{usd(Math.abs(p.pnlUsd))}</b><small className="t50">{p.aprPct != null ? <>{pct(p.aprPct, 1)} a year</> : 'made so far'}</small>{!p.closed && p.rateNowPct != null && <small className="t50">{pct(p.rateNowPct, 1)} now</small>}</>
+                ? <><b className={up ? 'ok' : 'bad'}>{up ? '+' : '−'}{usd(Math.abs(p.pnlUsd))}</b><small className="t50">{p.aprPct != null ? <>{pct(p.aprPct, 1)} a year</> : 'made so far'}</small>{!p.closed && p.rateNowPct != null && <small className="t50">{pct(p.rateNowPct, 1)} now</small>}{!p.closed && p.rewardAprPct != null && <small className="t40">incl. {pct(p.rewardAprPct, 1)} rewards</small>}</>
                 // no drawn figure yet: what it earns now
-                : <><b className={p.rateNowPct == null ? 't50' : up ? 'ok' : 'bad'}>{p.rateNowPct != null ? pct(p.rateNowPct, 1) : '–'}</b><small className="t50">a year now</small></>}</span>
+                : <><b className={p.rateNowPct == null ? 't50' : up ? 'ok' : 'bad'}>{p.rateNowPct != null ? pct(p.rateNowPct, 1) : '–'}</b><small className="t50">a year now</small>{p.rewardAprPct != null && <small className="t40">incl. {pct(p.rewardAprPct, 1)} rewards</small>}</>}</span>
               <span className="lb-pa">
                 {row && !me ? <button type="button" className="btn sm pri" onClick={(e) => { e.stopPropagation(); openRow(row.s, { copy: account }) }}>Copy</button> : <span className="lb-nocopy" />}
                 <span className="t40 lb-chev" aria-hidden>›</span>

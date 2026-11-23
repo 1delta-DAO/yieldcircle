@@ -172,7 +172,8 @@ export function Wallet({ addr }: { addr: string }) {
     const best = gs
       .filter((g) => g.equityUsd > 0 && g.netAprPct != null)
       .reduce<PositionGroup | null>((a, g) => (a == null || g.netAprPct! > a.netAprPct! ? g : a), null)
-    return { ...c, best, bestShare: best && c.navUsd > 0 ? best.equityUsd / c.navUsd : null }
+    const rewardAnnualUsd = gs.reduce((t, g) => t + (g.equityUsd > 0 ? g.rewardAnnualUsd ?? 0 : 0), 0)
+    return { ...c, best, bestShare: best && c.navUsd > 0 ? best.equityUsd / c.navUsd : null, rewardAnnualUsd }
   }, [pos.data, rows, groups, cut])
   /**
    * What each position made (tickets/0017): the PnL book joined onto the cards by netting key,
@@ -750,7 +751,17 @@ function NetRate({ g }: { g: PositionGroup }) {
     return <span className="t40" title={g.reason ?? 'no rate for this position yet'}>—</span>
   const cls = g.netAprPct >= 0 ? 'ok' : 'warn'
   const why = `${usd(g.annualUsd ?? 0)} a year on ${usd(g.equityUsd)} of equity${g.exact ? '' : ' — a floor: a leg has no rate yet'}`
-  return <span className={cls} title={why}>{pct(g.netAprPct)}{g.exact ? '' : '+'}</span>
+  const rew = g.rewardAprPct != null && g.rewardAprPct >= 0.005 ? g.rewardAprPct : null
+  if (rew == null) return <span className={cls} title={why}>{pct(g.netAprPct)}{g.exact ? '' : '+'}</span>
+  // incentives are paid in another token, so they sit beside the in-kind rate, never in it
+  const total = g.netAprWithRewardsPct ?? g.netAprPct + rew
+  const rwhy = `${why}\n+ ${usd(g.rewardAnnualUsd ?? 0)} a year in rewards (${pct(rew)}), paid in another token\n= ${pct(total)} with rewards`
+  return (
+    <span title={rwhy}>
+      <span className={total >= 0 ? 'ok' : 'warn'}>{pct(total)}{g.exact ? '' : '+'}</span>
+      <span className="t40" style={{ display: 'block', fontSize: '0.75em' }}>{pct(g.netAprPct)} + {pct(rew)} rewards</span>
+    </span>
+  )
 }
 
 /**
@@ -822,7 +833,7 @@ function Orphans({ ps, allChains }: { ps: PnlBookPosition[]; allChains: boolean 
  * account — that slice, named, because that is the number a reader would
  * otherwise take for the wallet's.
  */
-function AccountAprNote({ c }: { c: ReturnType<typeof accountCarry> & { best: PositionGroup | null; bestShare: number | null } }) {
+function AccountAprNote({ c }: { c: ReturnType<typeof accountCarry> & { best: PositionGroup | null; bestShare: number | null; rewardAnnualUsd: number } }) {
   if (c.netAprPct == null) return <>{c.positions ? 'no rate on these positions yet' : 'no position'}</>
   const unrated = 1 - c.ratedShare
   const lopsided =
@@ -831,6 +842,7 @@ function AccountAprNote({ c }: { c: ReturnType<typeof accountCarry> & { best: Po
   return (
     <span title="Σ yearly carry ÷ Σ equity: every position's net APR weighted by its share of the account's net value">
       ≈ {usdShort(c.annualUsd)}/yr on the whole account
+      {c.rewardAnnualUsd >= 1 && <span title="incentives paid in another token: not in the rate above"> · + {usdShort(c.rewardAnnualUsd)}/yr in rewards{c.navUsd > 0 ? ` (${pct(c.rewardAnnualUsd / c.navUsd * 100)})` : ''}</span>}
       {unrated > 0.005 && <span className="t40"> · {pct(unrated * 100, 0)} of NAV has no rate yet</span>}
       {lopsided && <span className="t40"> · best {pct(c.best!.netAprPct)} is {pct(c.bestShare! * 100, 1)} of NAV</span>}
     </span>

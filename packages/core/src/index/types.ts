@@ -246,6 +246,14 @@ export interface PositionGroup {
   /** legs left out of every figure above because their market cannot pay them */
   impaired?: number
   impairedFaceUsd?: number
+  /**
+   * Incentives on top of `netAprPct` (pos-indexer docs/rewards.md): paid in
+   * another token, so never in a leg's rate. Flying Tulip's suppliers earn
+   * nothing in kind and are paid in FT, so there this IS the supply return.
+   */
+  rewardAnnualUsd?: number | null
+  rewardAprPct?: number | null
+  netAprWithRewardsPct?: number | null
   legs: { marketUid: string; side: string; posId: string }[]
 }
 export interface PositionsResponse {

@@ -87,7 +87,7 @@ export function BorrowPage({ route }: { route: Route }) {
           {sel && <BorrowTicket key={sel.id + (route.m ?? '') + (route.h ?? '')} o={sel} holdings={held.get(sel.id) ?? (loanHolding ? [loanHolding] : [])} idle={b.idlePerChain} pick={route.h} mode={route.m}
             alternatives={offers.filter((o) => o.chainId === sel.chainId && o.asset === sel.asset && o.debt.symbol === sel.debt.symbol)}
             choices={choices} onPick={(o) => open(o)}
-            offMenu={!offers.some((o) => o.id === sel.id) ? 'This loan sits in a market the list does not show. It can be paid back here; borrowing more is for the venue itself.' : undefined} onClose={close} />}
+            offMenu={!offers.some((o) => o.id === sel.id) ? 'This loan sits in a market the list does not show. It can be paid back or unwound here; borrowing more is for the venue itself.' : undefined} onClose={close} />}
         </aside>
       </div>
       {ticketOpen && <div className="scrim" onClick={close} />}

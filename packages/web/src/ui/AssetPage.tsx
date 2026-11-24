@@ -364,7 +364,7 @@ export function AssetPage({ group, route }: { group: Group; route: Route }) {
           {borrowSel && <BorrowTicket key={borrowSel.id + (route.m ?? '') + (route.h ?? '')} o={borrowSel} holdings={heldLoans.get(borrowSel.id) ?? (loanHolding ? [loanHolding] : [])} idle={b.idlePerChain} pick={route.h} mode={route.m}
             alternatives={bo.offers.filter((o) => o.chainId === borrowSel.chainId && o.asset === borrowSel.asset && o.debt.symbol === borrowSel.debt.symbol)}
             choices={bo.offers.filter((o) => o.asset === borrowSel.asset && o.maxLtv > 0 && o.out === borrowSel.out)} onPick={(o) => openLoan(o)}
-            offMenu={borrowOff ? (loanHolding ? 'This loan sits in a market the list does not show (one the ticket cannot open yet, or outside the chains you picked). It can be paid back here; borrowing more is for the venue itself.' : 'This market is not in the list right now.') : undefined} onClose={close} />}
+            offMenu={borrowOff ? (loanHolding ? 'This loan sits in a market the list does not show (one the ticket cannot open yet, or outside the chains you picked). It can be paid back or unwound here; borrowing more is for the venue itself.' : 'This market is not in the list right now.') : undefined} onClose={close} />}
         </aside>
       </div>
       {ticketOpen && <div className="scrim" onClick={close} />}

@@ -26,6 +26,10 @@
  * debt, or both) and Pay back (some or all of it, and the collateral out). Every build is one of
  * the API's lending actions (`deposit-and-borrow`, `withdraw-and-repay`, or a single leg where the
  * other is zero), through the same ladder, paper path and trace as every other ticket.
+ *
+ * A loan in a market the list does not show gets a third, Unwind: the held-loop ticket with no row
+ * (`ManageLoop`, `s` null) — sell collateral to pay debt down, or close it, in one transaction.
+ * Without it such a loan could only be paid back from the wallet.
  */
 import React from 'react'
 import { nameOf } from '@yieldcircle/core/model/assets'
@@ -40,7 +44,7 @@ import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { useStrategyProofs } from '@yieldcircle/app/index/queries'
 import { useProfiles } from '../social/queries'
 import { go, type Mode } from '../state/AppState'
-import { Action, AmountBox, GetLine, TicketCtx } from './Ticket'
+import { Action, AmountBox, GetLine, ManageLoop, TicketCtx } from './Ticket'
 import { GetAsset } from './GetAsset'
 import { IrmLink } from './Irm'
 import { BookLink } from './Book'
@@ -75,7 +79,9 @@ export function BorrowTicket({ o, holdings, idle, pick, mode: mode0, alternative
   const [hk, setHk] = React.useState(pick)
   const holding = holdings.find((h) => h.key === hk) ?? holdings[0] ?? null
   const into = holding && !holding.subAccount?.unsupported ? holding : null
-  const [pane, setPane] = React.useState<'borrow' | 'repay'>(holding && mode0 && mode0 !== 'add' ? 'repay' : 'borrow')
+  // off the list, a running loan is unwound like a loop with no row: the two market uids are all a close needs
+  const unwinds = !!offMenu && !!holding && !isPutUp(holding) && !holding.subAccount?.unsupported && !!holding.collateralUid && !!holding.debtUid
+  const [pane, setPane] = React.useState<'borrow' | 'repay' | 'unwind'>(holding && mode0 && mode0 !== 'add' ? (unwinds && (mode0 === 'close' || mode0 === 'manage') ? 'unwind' : 'repay') : 'borrow')
   const uid = canonUid(o.collateral.uid)
   const thread: ThreadRef | null = uid ? { kind: 'market', key: uid } : null
   const owedUsd = holding ? owedOf(holding) : 0
@@ -111,13 +117,16 @@ export function BorrowTicket({ o, holdings, idle, pick, mode: mode0, alternative
         <div className="tsec"><div className="modes" role="tablist" aria-label="Manage">
           <button role="tab" aria-selected={pane === 'borrow'} onClick={() => setPane('borrow')}>Borrow</button>
           <button role="tab" aria-selected={pane === 'repay'} onClick={() => setPane('repay')}>Pay back</button>
+          {unwinds && <button role="tab" aria-selected={pane === 'unwind'} title="Sell collateral to pay the loan down, or close it — one transaction, nothing from your wallet" onClick={() => setPane('unwind')}>Unwind</button>}
           <span className="sp" /><span className="sum">owes {usd(owedUsd)}{holding.health != null ? ` · health ${holding.health.toFixed(2)}` : ''}</span>
           {holdings.length < 2 && <SubAccountPill sub={holding.subAccount} venue={holding.venue} />}
         </div></div>
       )}
       {(!holding || putUp) && choices && onPick && <WhereLine o={o} choices={choices} idle={idle} onPick={onPick} />}
       {offMenu && <div className="tsec offmenu" role="note"><b>Not in the list.</b> {offMenu}</div>}
-      {holding && !putUp && pane === 'repay'
+      {holding && !putUp && pane === 'unwind' && unwinds
+        ? <ManageLoop key={holding.key + ':unwind'} s={null} h={holding} />
+        : holding && !putUp && pane === 'repay'
         ? <RepayPane key={holding.key} o={o} h={holding} idle={idle} />
         : <BorrowPane key={into?.key ?? 'new'} o={o} h={into} idle={idle} alternatives={alternatives ?? []} />}
       <BorrowSocial o={o} thread={thread} />

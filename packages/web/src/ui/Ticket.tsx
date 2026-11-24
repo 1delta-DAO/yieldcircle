@@ -928,7 +928,7 @@ function CannotManage({ h }: { h: Holding }) {
  * needs the pair's max leverage and rates, which only a catalogue row carries; unwinding needs
  * nothing but the two market uids the position already names.
  */
-function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; closeFirst?: boolean }) {
+export function ManageLoop({ s, h, closeFirst }: { s: LoopStrategy | null; h: Holding; closeFirst?: boolean }) {
   const { lite } = React.useContext(TicketCtx)
   const made = useHoldingPnl(h)?.pnlUsd ?? undefined
   // everything but the screen is shared with the phone (`@yieldcircle/app/tickets/manageLoop`)

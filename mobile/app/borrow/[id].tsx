@@ -20,14 +20,17 @@ import { canOpen } from '../../src/ui/borrow'
 import { openWallet } from '../../src/ui/lite'
 import { Thread } from '../../src/ui/thread'
 import { Choices, Details, Frame, MoreCtx, Sec, ThreadCtx, TicketHead } from '../../src/ticket/parts'
-import { BorrowBody, RepayWithdrawBody } from '../../src/ticket/bodies'
+import { BorrowBody, ManageLoopBody, RepayWithdrawBody } from '../../src/ticket/bodies'
 
 /**
  * The borrow ticket (the web's `BorrowTicket`), as a sheet: put something up, take something out —
  * and pay it back. Opened on an offer (`id`, with `out` when it lends a coin) or on a running loan
- * (`h`, its holding key; `m` = `reduce` starts on Pay back), or on an asset alone (`u`, with `id`
+ * (`h`, its holding key; `m` = `reduce` starts on Pay back, `close` on Close), or on an asset alone (`u`, with `id`
  * `_`: a link to the web's `#/borrow?u=…`) — then on the app's pick for it. The other places that
  * lend against it are in "More choices", never a list to read first.
+ *
+ * A loan in a market the list does not show is also unwound here, like a loop with no row
+ * (`ManageLoopBody`, `s` null): Lower risk sells collateral to pay debt down, Close sells and repays it all.
  */
 export default function BorrowScreen() {
   const p = useLocalSearchParams<{ id: string; h?: string; m?: string; out?: string; u?: string }>()
@@ -52,7 +55,10 @@ export default function BorrowScreen() {
   // what more is borrowed on: the picked account, unless the API cannot build for it — then a new loan
   const into = holding && !holding.subAccount?.unsupported ? holding : null
   const putUp = !!holding && isPutUp(holding)
-  const [pane, setPane] = React.useState<'borrow' | 'repay'>(p.h && p.m && p.m !== 'add' ? 'repay' : 'borrow')
+  // off the list (once the offers have answered), a running loan is unwound like a loop with no row: the two market uids are all it needs
+  const unwinds = !listed && !bo.isLoading && !!holding && !putUp && !holding.subAccount?.unsupported && !!holding.collateralUid && !!holding.debtUid
+  const [pane0, setPane] = React.useState<'borrow' | 'repay' | 'safer' | 'close'>(p.h && p.m && p.m !== 'add' ? (p.m === 'close' ? 'close' : 'repay') : 'borrow')
+  const pane = (pane0 === 'safer' || pane0 === 'close') && !unwinds ? 'repay' : pane0
   const [more, setMore] = React.useState(false)
   const close = () => router.back()
   const uid = o ? canonUid(o.collateral.uid) : null
@@ -89,9 +95,9 @@ export default function BorrowScreen() {
       {holding && !putUp && (
         <Sec>
           <View style={st.modes}>
-            {(['borrow', 'repay'] as const).map((x) => (
+            {(unwinds ? ['borrow', 'repay', 'safer', 'close'] as const : ['borrow', 'repay'] as const).map((x) => (
               <Pressable key={x} onPress={() => setPane(x)} style={[st.mode, pane === x && st.modeOn]}>
-                <Txt s={13} c={pane === x ? C.primary : C.tx50}>{x === 'borrow' ? 'Borrow' : 'Pay back'}</Txt>
+                <Txt s={13} c={pane === x ? C.primary : C.tx50}>{PANES[x]}</Txt>
               </Pressable>
             ))}
             {holdings.length > 1 && <Txt s={12} c={C.tx50} style={{ marginLeft: 'auto' }}>1 of {holdings.length}</Txt>}
@@ -106,11 +112,15 @@ export default function BorrowScreen() {
           {where && <Txt s={12.5} c={C.primary}>{places.length - 1} other place{places.length === 2 ? '' : 's'} ›</Txt>}
         </Pressable>
       )}
-      {!listed && <Sec><Txt s={12.5} c={C.warn} lh={18}><Txt s={12.5} w={700} c={C.warn}>Not in the list.</Txt> This loan sits in a market the list does not show. It can be paid back here; borrowing more is for the venue itself.</Txt></Sec>}
-      {holding && !putUp && pane === 'repay'
+      {!listed && <Sec><Txt s={12.5} c={C.warn} lh={18}><Txt s={12.5} w={700} c={C.warn}>Not in the list.</Txt> This loan sits in a market the list does not show. It can be paid back or unwound here; borrowing more is for the venue itself.</Txt></Sec>}
+      {holding && !putUp && (pane === 'safer' || pane === 'close')
+        ? <ManageLoopBody key={holding.key + pane} s={null} h={holding} close={pane === 'close'} />
+        : holding && !putUp && pane === 'repay'
         ? <RepayWithdrawBody key={holding.key} o={o} h={holding} idle={b.idlePerChain} />
         : <BorrowBody key={`${o.id}:${into?.key ?? 'new'}`} o={o} h={into} idle={b.idlePerChain} more={where} alternatives={alternatives} onPick={setId} />}
-      {pane === 'borrow' || fresh ? <Details what={where ? 'Where to borrow, every number' : 'Every number'} onOpen={() => setMore(true)} /> : null}
+      {pane === 'borrow' || fresh ? <Details what={where ? 'Where to borrow, every number' : 'Every number'} onOpen={() => setMore(true)} />
+        : pane === 'safer' ? <Details what="Any of Lite’s leverages, every number" onOpen={() => setMore(true)} />
+        : pane === 'close' ? <Details what="What you get it back in, every number" onOpen={() => setMore(true)} /> : null}
       <BorrowSocial o={o} thread={thread} />
     </Frame>
     </MoreCtx.Provider>
@@ -145,6 +155,8 @@ function BorrowSocial({ o, thread }: { o: BorrowOffer; thread: ThreadRef | null 
     </View>
   )
 }
+
+const PANES = { borrow: 'Borrow', repay: 'Pay back', safer: 'Lower risk', close: 'Close' } as const
 
 const st = StyleSheet.create({
   modes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, rowGap: 6 },

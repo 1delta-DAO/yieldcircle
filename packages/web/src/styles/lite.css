@@ -367,7 +367,8 @@ a.lstat{color:var(--tx)}a.lstat:hover{background:var(--b300)}
 .lite-prof-n h1{font-size:var(--fs-d1);margin:0}
 .lite-prof-c{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:var(--fs-body);color:var(--tx70)}
 .lite-mutual{display:inline-flex;align-items:center;gap:6px}
-.lite-prof-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin-top:16px;border-radius:var(--r);background:var(--line);overflow:hidden}
+/* one column per tile: a wallet off the board shows two (rate, a day), never an empty third */
+.lite-prof-stats{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:1px;margin-top:16px;border-radius:var(--r);background:var(--line);overflow:hidden}
 .lite-prof-empty{margin-top:16px;padding:16px;display:flex;flex-direction:column;gap:6px}
 .lite-prof-empty b{font-size:var(--fs-strong);font-weight:600}
 .lite-prof-empty p{margin:0;font-size:var(--fs-body);line-height:1.5}

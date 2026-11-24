@@ -75,7 +75,7 @@ export function XLink({ account, linked }: { account: string; linked: string | n
 
   if (linked)
     return (
-      <div className="xrow">
+      <div className="xrow xlink">
         <span>Linked to <a className="pri" href={`https://x.com/${linked}`} target="_blank" rel="noreferrer">@{linked}</a></span>
         <span className="sp" />
         <button className="btn sm" disabled={busy} onClick={() => void unlink()}>{busy ? '…' : 'Unlink'}</button>
@@ -110,7 +110,7 @@ export function XLink({ account, linked }: { account: string; linked: string | n
   if (step === 'done') return <p className="foot ok">Linked. Your handle now shows on your profile and beside anything you post here.</p>
 
   return (
-    <div className="xrow">
+    <div className="xrow xlink">
       <span className="t70">Show an X handle on your profile. One signature, one public post, no developer account and nothing to pay.</span>
       <span className="sp" />
       <button className="btn sm pri" disabled={busy} onClick={() => void begin()}>{busy ? 'Signing…' : 'Link X'}</button>

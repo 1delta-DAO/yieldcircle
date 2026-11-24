@@ -887,7 +887,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .field .lbl{margin:0}
 .check{display:flex;align-items:flex-start;gap:9px;font-size:12.5px;color:var(--tx70);line-height:1.5;margin-bottom:14px}
 .check input{margin-top:2px;accent-color:var(--primary)}
-.xrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px}
+.xrow.xlink{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px}
 /* ---------- the shell: top bar, tabs, sheets (ui/Shell.tsx) ----------
    profile · search · standing · balance across the top; Home · Earn · Board
    in the bar from 768px, along the bottom below it. */

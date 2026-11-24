@@ -208,7 +208,8 @@ export function ManageLoopBody({ s, h, close }: { s: LoopStrategy | null; h: Hol
             : <Plain>Borrows about <Txt s={13} w={700}>{usd(t.borrowUsd)}</Txt> more {t.debt} to buy more {holdsWord}. Nothing comes out of your wallet, and it moves closer to liquidation.</Plain>}</View>}
         </Sec>
         <Lines l={saferLines({ net: s && !t.loan ? t.net ?? null : null, netBefore: s && !t.loan ? netAprAtLeverage(s.depSpot, s.borSpot, t.Lnow) : null, buffer: t.drop ?? null, bufferBefore: bufNow ?? null, equityUsd: t.E })} />
-        <Action ladder={t.ladder} label={t.same ? (t.safer.length ? 'Pick how much safer' : 'Pick a leverage') : `${t.down ? 'Lower' : 'Raise'} to ${leverTag(t.L)}`} account={t.account} isConnected={t.isConnected} disabled={t.same || !!t.closeBlock} chainId={h.chainId}
+        {t.overSell && <Sec><Plain tone="warn">{leverTag(t.L)} would sell all your {holdsWord} and still owe {t.debt}: the rest of what backs the loan is other collateral. Pick {leverTag(t.reachL)} or more, or close it.</Plain></Sec>}
+        <Action ladder={t.ladder} label={t.same ? (t.safer.length ? 'Pick how much safer' : 'Pick a leverage') : `${t.down ? 'Lower' : 'Raise'} to ${leverTag(t.L)}`} account={t.account} isConnected={t.isConnected} disabled={t.same || !!t.closeBlock || t.overSell} chainId={h.chainId}
           receipt={{ kind: t.down ? 'delever' : 'lever', amount: leverTag(t.L), apr: t.net ?? undefined, leverage: t.L, venue: h.venue, strategyId: s?.id, holdingKey: h.key, before: beforeOf(h) }} />
         <MoreSheet>
           {t.loans.length > 1 && <Choices label="Which loan" note="Each fixed-rate loan is paid back on its own." items={t.loans.map((x) => ({ id: x.id, word: `Loan ${x.id}`, line: `${usdShort(x.debtUsd)} owed` }))} on={t.loan?.id ?? null} onPick={(id) => { t.setLoanId(id); t.setL(t.Lnow) }} />}

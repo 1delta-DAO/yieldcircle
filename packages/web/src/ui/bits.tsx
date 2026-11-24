@@ -15,7 +15,7 @@ export const amt = (asset: string, x: number, usdValue?: number) => (unitOf(asse
 
 // typed amounts are read the same on every app (core's `model/amount`)
 export { normaliseDecimal } from '@yieldcircle/core/model/amount'
-import { normaliseDecimal } from '@yieldcircle/core/model/amount'
+import { boxText, normaliseDecimal, typedText } from '@yieldcircle/core/model/amount'
 export function DecimalInput({ value, onChange, style, ariaLabel, autoFocus }: { value: number; onChange: (v: number) => void; style?: React.CSSProperties; ariaLabel?: string; autoFocus?: boolean }) {
   const [text, setText] = React.useState(() => fmtIn(value))
   const emitted = React.useRef(value)
@@ -24,7 +24,7 @@ export function DecimalInput({ value, onChange, style, ariaLabel, autoFocus }: {
   // dot arrives) and only drop letters; the value is parsed through the normaliser on every keystroke. On blur the
   // text is rewritten in canonical form with a dot.
   return <input inputMode="decimal" autoComplete="off" value={text} aria-label={ariaLabel} autoFocus={autoFocus} style={style}
-    onChange={(e) => { const raw = e.target.value.replace(/[^0-9.,\s]/g, ''); setText(raw); const t = normaliseDecimal(raw); const v = t === '' || t === '.' ? 0 : parseFloat(t); if (Number.isFinite(v)) { emitted.current = v; onChange(v) } }}
+    onChange={(e) => { const raw = typedText(e.target.value); setText(raw); const t = normaliseDecimal(raw); const v = t === '' || t === '.' ? 0 : parseFloat(t); if (Number.isFinite(v)) { emitted.current = v; onChange(v) } }}
     onBlur={() => { const t = normaliseDecimal(text); setText(t === '' || t === '.' ? '0' : t.endsWith('.') ? t.slice(0, -1) : t) }} />
 }
 const fmtIn = (v: number) => (Number.isFinite(v) ? String(+v.toFixed(8)) : '')
@@ -34,12 +34,12 @@ const fmtIn = (v: number) => (Number.isFinite(v) ? String(+v.toFixed(8)) : '')
  * suggestion — replaces what is shown.
  */
 export function AmountInput({ value, onChange, style, ariaLabel, autoFocus }: { value: Amount; onChange: (a: Amount) => void; style?: React.CSSProperties; ariaLabel?: string; autoFocus?: boolean }) {
-  const [text, setText] = React.useState(value.text)
+  const [text, setText] = React.useState(boxText(value.text))
   const emitted = React.useRef(value.text)
-  React.useEffect(() => { if (value.text !== emitted.current) { emitted.current = value.text; setText(value.text) } }, [value.text])
+  React.useEffect(() => { if (value.text !== emitted.current) { emitted.current = value.text; setText(boxText(value.text)) } }, [value.text])
   return <input inputMode="decimal" autoComplete="off" placeholder="0" value={text} aria-label={ariaLabel} autoFocus={autoFocus} style={style}
-    onChange={(e) => { const raw = e.target.value.replace(/[^0-9.,\s]/g, ''); setText(raw); const t = normaliseDecimal(raw); const c = t === '' || t === '.' ? '0' : t; emitted.current = c; onChange({ text: c }) }}
-    onBlur={() => { const t = normaliseDecimal(text); setText(t === '' || t === '.' ? '0' : t.endsWith('.') ? t.slice(0, -1) : t) }} />
+    onChange={(e) => { const raw = typedText(e.target.value); setText(raw); const t = normaliseDecimal(raw); const c = t === '' || t === '.' ? '0' : t; emitted.current = c; onChange({ text: c }) }}
+    onBlur={() => { const t = normaliseDecimal(text); setText(t === '' || t === '.' ? '' : t.endsWith('.') ? t.slice(0, -1) : t) }} />
 }
 
 /**
@@ -236,8 +236,25 @@ export function VenueBadge({ venueKey, brand }: { venueKey: string; brand: strin
 export function StratMark({ sym, logo, fallback, venueKey, brand, size = 22 }: { sym: string; logo?: string; fallback?: string; venueKey: string; brand: string; size?: number }) {
   return <span className="mark" style={{ width: size, height: size }}><Tok sym={sym} logo={logo} fallback={fallback} size={size} /><VenueBadge venueKey={venueKey} brand={brand} /></span>
 }
-export function Toks({ a, b, logoA, logoB }: { a: string; b?: string; logoA?: string; logoB?: string }) {
+/**
+ * A pair's marks, collateral then debt. `lp`: the collateral is a two-token pool (`LoopStrategy.lp`),
+ * drawn as its two legs held together in one capsule, the debt apart beside it, so `LBTC + cbBTC /
+ * WBTC` never reads as a single LBTC loop. The legs take the app's own marks first (`assetLogo`).
+ */
+export function Toks({ a, b, logoA, logoB, lp, compact }: { a: string; b?: string; logoA?: string; logoB?: string; lp?: { symbol: string; logo?: string }[]; /** a fixed narrow slot (Lite's row face): the debt rides the capsule as a badge */ compact?: boolean }) {
+  if (lp?.length) return (
+    <span className={`toks lp${compact ? ' compact' : ''}`} title={`${lp.map((l) => l.symbol).join(' + ')} pool${b ? ` / ${b}` : ''}`}>
+      <span className="lp-pair">{lp.map((l) => <Tok key={l.symbol} sym={l.symbol} fallback={l.logo} size={18} />)}</span>
+      {b && (compact ? <span className="lp-debt"><Tok sym={b} logo={logoB} size={14} /></span> : <Tok sym={b} logo={logoB} />)}
+    </span>
+  )
   return <span className="toks"><Tok sym={a} logo={logoA} />{b && <Tok sym={b} logo={logoB} />}</span>
+}
+/** Collateral that is a two-token pool: the pill says so, its title what that changes. */
+export function LpPill({ lp, holds }: { lp?: { symbol: string }[]; holds: string }) {
+  if (!lp?.length) return null
+  const pair = lp.map((l) => l.symbol).join(' + ')
+  return <span className="pill lp" title={`The collateral is the ${pair} pool on Fluid, not ${holds} alone. The ${holds} you put in becomes a share of both, and the pool keeps rebalancing the split between them as it trades. The rate shown is the whole pool position's: its trading fees plus what each leg pays.`}>LP</span>
 }
 export function RiskDot({ r, label, dotOnly }: { r: Risk; label?: string; dotOnly?: boolean }) {
   return <span className={`risk r${r}`} title={label ? `${label} risk` : undefined}><i />{!dotOnly && (label ?? ['', 'Low', 'Medium', 'High'][r])}</span>

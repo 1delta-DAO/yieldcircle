@@ -98,7 +98,9 @@ export interface EarnPositionAsset { address: string; symbol?: string; decimals?
 /** `loanId`: the leg is ONE fixed-term loan (Lista's broker), also counted in the market's unbound leg — never add the two */
 export interface EarnPositionLeg { earnUid?: string; marketUid: string; loanId?: string; asset: EarnPositionAsset; side: 'supply' | 'borrow' | 'both' | 'none'; deposits: string; depositsUsd: number; debt: string; debtUsd: number
   /** the supply counts as collateral (Aave's `usageAsCollateralEnabled`; false on a Morpho loan-side supply) — absent from older answers */
-  collateralEnabled?: boolean }
+  collateralEnabled?: boolean
+  /** LlamaLend's debt-market leg: `deposits` sums the plain vault supply (`lendAssets`, decimal) and the soft-liquidation leg (`bandCollateralInBorrowed`, raw) — margin-fetcher `LlamaLendPositionInfo` */
+  llamalend?: { bandCollateralInBorrowed: string; lendAssets: string; softLiquidating: boolean } }
 /** `apr` = market + rewards + intrinsic, each over NAV in percent (margin-fetcher `EarnAprBreakdown`); `rewards` can stop */
 export interface EarnAprBreakdown { market: number; rewards: number; intrinsic: number }
 export interface EarnPositionBase { positionUid: string; chainId: string; venue: string; venueKind: string; brand?: string; name?: string; logoURI?: string; suppliedUsd: number; borrowedUsd: number; netUsd: number; apr?: number; aprBreakdown?: EarnAprBreakdown }

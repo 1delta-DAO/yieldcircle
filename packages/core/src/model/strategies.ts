@@ -9,7 +9,7 @@ import type { EarnCapability, EarnMarket, OptimizerRowRaw } from '../sdk/types'
 import { assetRiskOf, type AssetRisk } from './assetRisk'
 import { isUserSetRow, userSetOfRow, type UserSetRate } from './userSetRate'
 import { hasChoices } from './choices'
-import { baseOfCollateral, baseOfSymbol, denomOf, deskOf, EXPOSURE_ASSETS, exposureOf, fiatOf, groupOf, isFiat, sameMoney, type GroupId } from './assets'
+import { baseInfo, baseOfCollateral, baseOfSymbol, denomOf, deskOf, EXPOSURE_ASSETS, exposureOf, fiatOf, groupOf, isFiat, sameMoney, type GroupId } from './assets'
 import { creditDesk, deskKey, moneyOf, noteToken } from './desk'
 import { DEFAULT_TIER, netAprAtLeverage, tierLeverages, type TierLeverages } from './leverage'
 import { marketTag } from './market'
@@ -19,6 +19,7 @@ import STRATEGY_TOKENS from '../data/strategy-tokens.json'
 import { normAddr } from './address'
 import { brandMark, houseDesk, vaultDesk } from './vaultDesk'
 import { canonGroup } from './assetGroup'
+import { correlatedLp, lpLabel, type LpLeg } from './fluidLp'
 /** `chain:vaultAddress` → the share token you end up holding (scripts/logos.mjs, from the chain token lists). */
 const strategyToken = (chainId: string, ref: string | undefined) => (ref ? (STRATEGY_TOKENS as Record<string, { symbol: string; logoURI: string | null; assetGroup?: string | null }>)[`${chainId}:${normAddr(ref)}`] : undefined)
 
@@ -281,7 +282,15 @@ export interface LoopStrategy extends Base {
   userSet?: UserSetRate
   /** the debt leg has a knob besides a user-set rate (a band count): the ticket asks `/choices` */
   hasChoices?: boolean
+  /**
+   * Set when the collateral is a two-token DEX LP (a Fluid T2 vault, `model/fluidLp.ts`): both legs,
+   * in the vault's order, one of them `holds` — the token the loop puts in and the ticket sizes in.
+   * The position is a share of both, its split drifting with the pool; `dep` is the whole position's.
+   */
+  lp?: LpLeg[]
 }
+/** What a row holds, in words: an LP loop's both legs (`LBTC + cbBTC`), else `holds`. */
+export const heldLabel = (s: Strategy): string => (s.kind === 'loop' && s.lp ? lpLabel(s.lp) : s.holds)
 /** One fixed term: `apr` is effective (on `borrowAprShort`'s footing), `days` from the day it is opened. */
 export interface LoopTerm { id: string; days: number; apr: number }
 /**
@@ -296,6 +305,12 @@ export interface LoopTenor { id: string; days: number; duration: number; duratio
  */
 /** A Loopscale pair's lender key (`LOOPSCALE_<principal>_<collateral>`): one isolated book per pair, loans as accounts. */
 export const isLoopscale = (lender?: string) => !!lender?.startsWith('LOOPSCALE_')
+/**
+ * A LlamaLend market's lender key (`LLAMALEND_<controller>`). Its AMM sells collateral into the debt
+ * token as the price falls (soft liquidation): the position then reports a second collateral leg in
+ * the debt's own token, and every repay withdraws the whole AMM and spends that leg on the debt first.
+ */
+export const isLlamaLend = (lender?: string) => !!lender?.toUpperCase().startsWith('LLAMALEND')
 /** A loop whose debt is a plain variable-rate loan the lending routes can add to: no term, tenor, maturity or Loopscale book. */
 export const plainLoan = (s: LoopStrategy) => !s.terms && !s.tenors && !s.dueAt && !isLoopscale(s.lender)
 export const LOOPSCALE_TENORS: LoopTenor[] = [
@@ -707,7 +722,9 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   const L = r.underlyingInfoLong.asset, S = r.underlyingInfoShort.asset
   const label = `${L.symbol}/${S.symbol}`
   const no = (hide: HideCode): Candidate<LoopStrategy> => ({ s: null, hide, label, chainId: r.chainId })
-  if (r.isBasketLong) return no('basket')
+  // a two-token LP as collateral: offered only as a Fluid T2 whose legs are one money (`fluidLp.ts`)
+  const lp = r.isBasketLong ? correlatedLp(r.chainId, r.lender, { ...L, chainId: r.chainId, desk: r.collateralDesk }) : undefined
+  if (r.isBasketLong && !lp) return no('basket')
   // the API states per pair what it can build; a lender with no loop route (Inverse FiRM) answers `[]`
   // and its `/loop/leverage` refuses. Absent = an API that does not say, so it is not held against the row
   if (Array.isArray(r.capabilities) && !r.capabilities.some((c) => c.action === 'loop-open')) return no('no-route')
@@ -761,7 +778,8 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
   // pair backs (`depositAprLong`), and prices reUSD off that market's rate — the spread follows the
   // collateral's rate, so plain crvUSD / frxUSD there is a carry, not a bet between two rates
   const venuePays = /^RESUPPLY/.test(r.lender) && num(r.depositAprLong) > 0
-  const collateralYields = venuePays || !!(p.lst || p.savings || p.pendle || p.spectra || p.exponent || p.rwa || (L.intrinsicYield ?? 0) > 0)
+  // an LP earns the pool's trading fees on top of whatever its legs pay (`depositAprLong` is the blend)
+  const collateralYields = venuePays || (!!lp && num(r.depositAprLong) > 0) || !!(p.lst || p.savings || p.pendle || p.spectra || p.exponent || p.rwa || (L.intrinsicYield ?? 0) > 0)
   // the at-size legs (quoted at $10k of collateral) when the venue has a depth grid, else the sticker
   // incentives on BOTH legs are already inside the sticker: `depositAprLong` = `depositRateLongLeg` +
   // intrinsic + `rewardAprLong`, and `borrowAprShort` has `rewardAprShort` netted off (the origin's
@@ -811,6 +829,7 @@ export function classifyPair(r: OptimizerRowRaw): Candidate<LoopStrategy> {
     ...(dueAt ? { dueAt } : {}),
     ...(isUserSetRow(r) ? (() => { const u = userSetOfRow(r); return u ? { userSet: u } : {} })() : {}),
     ...(hasChoices(r) ? { hasChoices: true } : {}),
+    ...(lp ? { lp } : {}),
   }
   return { s, hide: null, label, chainId: r.chainId }
 }
@@ -853,7 +872,9 @@ function termCard(r: OptimizerRowRaw): LoopTerm[] {
  * 2026-10-02 four Pendle pairs lost their nearer maturity to the higher rate.
  */
 export const rowKey = (r: Strategy): string =>
-  r.kind === 'simple' && r.source === 'vault' ? `${r.chainId}|${r.ref}` : `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? `${r.debt}${r.terms ? '|fixed' : ''}|${r.expiry ?? ''}${r.dueAt ? `|due${r.dueAt}` : ''}` : r.maturity ?? ''}`
+  r.kind === 'simple' && r.source === 'vault' ? `${r.chainId}|${r.ref}` :
+  // an LP vault lists one pair row per leg it can be entered with: one position, one row
+  r.kind === 'loop' && r.lp ? `${r.chainId}|lp:${r.lender}|${r.debt}` : `${r.chainId}|${r.asset}|${r.holds}|${r.venue}|${r.kind === 'loop' ? `${r.debt}${r.terms ? '|fixed' : ''}|${r.expiry ?? ''}${r.dueAt ? `|due${r.dueAt}` : ''}` : r.maturity ?? ''}`
 /**
  * One row per dated pair: the maturities of a Midnight pair (each its own market, its own row out of
  * `dedupe`) become one row — the cheapest — carrying all of them as `dates`, for the ticket's picker.
@@ -907,9 +928,20 @@ export function dedupe<T extends Strategy>(rows: T[]): T[] {
   for (const r of rows) {
     const k = rowKey(r)
     const cur = best.get(k)
-    if (!cur || r.rate > cur.rate) best.set(k, r)
+    if (!cur || (cur.kind === 'loop' && cur.lp && Math.abs(r.rate - cur.rate) < 0.01 ? lpLead(r, cur) : r.rate > cur.rate)) best.set(k, r)
   }
   return [...best.values()]
+}
+/**
+ * Which leg an LP vault's one row is entered with, where both pay the same: the one with a yield of
+ * its own (weETH over ETH, LBTC over WBTC), else the one that is no plain base (USDe over USDT0).
+ * The pick files the row on its desk; either leg opens the same position.
+ */
+function lpLead(r: Strategy, cur: Strategy): boolean {
+  if (r.kind !== 'loop' || cur.kind !== 'loop') return false
+  const own = (s: LoopStrategy) => s.intrinsicLong ?? 0
+  if (own(r) !== own(cur)) return own(r) > own(cur)
+  return !baseInfo(r.holds) && !!baseInfo(cur.holds)
 }
 /** "Our pick": the best row of its kind on its asset among low/medium risk with real size. Data, not editorial. */
 export function markPicks(rows: Strategy[]): Set<string> {

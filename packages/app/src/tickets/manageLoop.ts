@@ -39,7 +39,10 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   const E = Math.max(h.valueUsd, 0.01)
   // a deposit with nothing borrowed (`depositsAsLoops`, tickets/0015): 1× by definition, only up from there
   const putUp = !!h.putUp && !!s
-  const Lnow = putUp ? 1 : Math.max(1, h.leverage && h.leverage > 1 ? h.leverage : s?.priceLong ? (h.amount * s.priceLong) / E : 1)
+  // LlamaLend in soft liquidation (`Holding.band`): a close or a deleverage withdraws the whole AMM and
+  // spends the debt token in its bands on the debt first, so it is debt already paid — netted out of the book
+  const bandUsd = putUp ? 0 : h.band?.usd ?? 0, bandAmt = putUp ? 0 : h.band?.amount ?? 0
+  const Lnow = putUp ? 1 : Math.max(1, (h.leverage && h.leverage > 1 ? h.leverage : s?.priceLong ? (h.amount * s.priceLong) / E : 1) - bandUsd / E)
   const C = E * Lnow, D = C - E
   // off the menu the price is read back from the position — from the loop's OWN collateral leg: the
   // account's total counts every collateral, and a second one would inflate it
@@ -83,7 +86,8 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   // is the lender's oracle, and an LST priced at its redemption rate sells for less than it says.
   const collUid = h.collateralUid ?? s?.marketLongUid ?? '', debtUid = h.debtUid ?? s?.marketShortUid ?? ''
   // (a deposit's neighbours in its account are not in its own value: nothing to take off the hold cell)
-  const otherColl = putUp ? [] : (h.others ?? []).filter((o) => o.side === 'collateral'), otherUsd = otherColl.reduce((t, o) => t + o.usd, 0)
+  const legs = h.others ?? []
+  const otherColl = putUp ? [] : legs.filter((o) => o.side === 'collateral'), otherUsd = otherColl.reduce((t, o) => t + o.usd, 0)
   const sameToken = holds === debt
   const [recvPro, setRecvPro] = useSticky<'debt' | 'collateral'>(`t:${h.key}:recv`, 'debt')
   // Lite asks afresh each time (its "More choices"): Pro's remembered choice never carries over unseen
@@ -94,11 +98,12 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   // So it always pays out in the collateral — the debt-token option would promise what it cannot do
   const venueKeeps = isLoopscale(h.lender ?? s?.lender)
   const keep = closing && !sameToken && (venueKeeps || recv === 'collateral')
-  const owed = loan ? loan.debt : h.debtAmount ?? (pD ? D / pD : 0)
+  const owed = loan ? loan.debt : h.debtAmount != null ? Math.max(0, h.debtAmount - bandAmt) : pD ? D / pD : 0
   const pDebt = pD || (owed > 0 ? D / owed : 0)
   // the exact balance: a float-sized amount can overshoot it by a few wei and the swap reverts
   const allRaw = h.amountRaw ?? toRaw(h.amount, h.decimals)
-  const cq = useCloseQuote(closing && collUid && debtUid ? { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: allRaw, accountId: h.accountId, loanId: loan?.id } : null, slip)
+  // with the account: some lenders (LlamaLend) build a close only off the position itself, and answer nothing without it
+  const cq = useCloseQuote(closing && collUid && debtUid ? { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: allRaw, accountId: h.accountId, loanId: loan?.id, account: actor } : null, slip)
   const sale = cq.data ?? null
   const rate = sale ? sale.output / sale.input : null
   const covers = sale ? sale.output >= owed * (1 + CLOSE_INTEREST_PAD) : null
@@ -110,12 +115,16 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   const backColl = keepOk ? h.amount - sellKeep! : null
   const leftover = owed * keepPad
   const backUsd = !sale ? null : keep ? (keepOk ? (backColl! * rate! + leftover) * pDebt : null) : backDebt! * pDebt
+  // a deleverage that would sell more than the loop's own collateral: only other collateral is left to
+  // back the debt, so the target is out of reach short of a close (the build would sell it all, capped)
+  const overSell = down && !closing && sellTok > h.amount * 0.999
+  const reachL = E > 0 ? Math.max(1, (otherUsd + E) / E) : 1
   const closeBlock = !closing ? null : cq.isPending ? 'pricing' : !sale ? 'no-route' : !covers ? 'short' : keep && !keepOk ? 'keep-short' : null
   const key = [s?.id ?? h.key, h.accountId ?? '', 'manage', L, keep ? 'keep' : 'sell', actor ?? '', slip].join('|')
   // a full close at market prices against the equity the venue's oracle says it holds: the sale's
   // slippage and fees, and any gap between the oracle and the market (`ValueCheck.tsx`). Only for the
   // loop's own pair — other legs stay where they are, so the account's equity is not what comes back.
-  const valued = closing && !closeBlock && !h.others?.length && h.valueUsd > 0 && backUsd != null && backUsd > 0
+  const valued = closing && !closeBlock && !legs.length && h.valueUsd > 0 && backUsd != null && backUsd > 0
   const vc = useValueCheck(valued ? h.valueUsd : 0, valued ? backUsd! : 0, `${key}|${backUsd}`)
   const paper = usePaperView()
   const signStepOn = useStepSigner()
@@ -129,7 +138,7 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
     ? reducePlan({ ledger: paper.ledger, h, closing, keep, sellUsd, costUsd: sale?.exitCostUsd != null ? sale.exitCostUsd * (keep && keepOk ? sellKeep! / h.amount : 1) : C * slip / 10_000, feed: paper.price })
     : down || !s
     ? async () => {
-      const q = await quoteClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: capRaw(sellTok, h.decimals, heldRaw(h)), accountId: h.accountId, loanId: loan?.id }, slip, false).catch(() => null)
+      const q = await quoteClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: capRaw(sellTok, h.decimals, heldRaw(h)), accountId: h.accountId, loanId: loan?.id, account: actor }, slip, false).catch(() => null)
       if (!q) throw new Error(NO_ROUTE)
       // what the sale loses against the position's own valuation, at the quote's fill
       const cost = q.exitCostUsd != null && q.exitCostUsd > 0 ? q.exitCostUsd : Math.max(0, sellUsd - q.output * pDebt)
@@ -156,5 +165,5 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     return [...pre, ...stepsFrom(env.actions, putUp ? `Lever to ${num(L, 2)}×` : `Increase to ${num(L, 2)}×`, h.chainId)]
   }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid], [{ address: h.collateralAddress ?? s?.collateralAddress, symbol: holds }, { address: h.debtAddress ?? s?.debtAddress, symbol: debt }], paperPlan)
-  return { account, isConnected, slip, actor, holds, debt, E, putUp, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, targets, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, paperSign, paperPlan, ladder }
+  return { account, isConnected, slip, actor, holds, debt, E, putUp, bandUsd, bandAmt, legs, overSell, reachL, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, targets, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, paperSign, paperPlan, ladder }
 }

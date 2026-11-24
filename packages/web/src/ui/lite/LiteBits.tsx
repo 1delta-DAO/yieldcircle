@@ -13,7 +13,7 @@ import { GroupIcon, Sk, Tok, Toks, pct, usdShort } from '../bits'
 /** A row's face: the token the money sits in (a loop's debt beside it) — never a venue badge. */
 export function LiteFace({ s, size = 28 }: { s: Strategy; size?: number }) {
   return s.kind === 'loop'
-    ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} />
+    ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} lp={s.lp} compact />
     : <Tok sym={s.assetSymbol} logo={[s.tokenLogo, s.logo]} size={size} />
 }
 

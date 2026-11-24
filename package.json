@@ -26,6 +26,7 @@
     "brand-icons": "node scripts/brand-icons.mjs",
     "notes": "node scripts/notes.mjs",
     "lagoon": "node scripts/lagoon.mjs",
+    "fluid-smart": "node scripts/fluid-smart.mjs",
     "rpcs": "node scripts/rpcs.mjs",
     "menu-seed": "node scripts/menu-seed.mjs",
     "prewarm-check": "node scripts/prewarm-check.mjs",

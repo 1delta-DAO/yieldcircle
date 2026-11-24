@@ -38,7 +38,7 @@ import { ChainCorner } from './ChainMark'
 import { RewardsIncl, Sk, StratMark, Tok, Toks, pct, usdShort } from './bits'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { indexChainLabel } from '@yieldcircle/core/index/types'
-import type { Strategy } from '@yieldcircle/core/model/strategies'
+import { heldLabel, type Strategy } from '@yieldcircle/core/model/strategies'
 import { useSticky } from '../state/sticky'
 import { useRateHistory } from '@yieldcircle/app/sdk/queries'
 import { Avg30 } from './Spark'
@@ -154,7 +154,7 @@ function HotCard({ m, s, peak, comments, rating }: {
       <div className="hc-h">
         {s ? (
           s.kind === 'loop'
-            ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} />
+            ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} lp={s.lp} />
             : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} size={26} />
         ) : m.collateralSymbol && m.symbol ? (
           <Toks a={m.collateralSymbol} b={m.symbol} logoA={m.collateralLogo ?? undefined} logoB={m.assetLogo ?? undefined} />
@@ -165,7 +165,7 @@ function HotCard({ m, s, peak, comments, rating }: {
           {/* an unmatched row is still a real market: the index knows its asset
               and its lender, so the card says WHYPE on HyperLend, not a uid */}
           <b>{s
-            ? (s.kind === 'loop' ? `${s.holds} / ${s.debt}` : s.holds)
+            ? (s.kind === 'loop' ? `${heldLabel(s)} / ${s.debt}` : s.holds)
             : (m.collateralSymbol && m.symbol ? `${m.collateralSymbol} / ${m.symbol}` : m.symbol ?? shortUid(m.marketUid))}</b>
           <small>{s
             ? (s.kind === 'loop' ? s.venue : s.via)

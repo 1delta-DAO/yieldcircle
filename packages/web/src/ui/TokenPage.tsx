@@ -24,7 +24,7 @@ import { chainLabel, useAssetStrategies, useCatalog, type StructuralCount } from
 import { useSettings } from '@yieldcircle/app/state/Settings'
 import { HIDES, hideDetail, letIn, softHide, type HideCode } from '@yieldcircle/core/model/visibility'
 import { canonGroup, isSolGroup, spellingsOf } from '@yieldcircle/core/model/assetGroup'
-import { riskOf, type Strategy } from '@yieldcircle/core/model/strategies'
+import { heldLabel, riskOf, type Strategy } from '@yieldcircle/core/model/strategies'
 import { assetRiskAcross, categoryWord, scoreWord, sourceWord } from '@yieldcircle/core/model/assetRisk'
 import { loadAssetNotes, noteOf } from '@yieldcircle/core/model/assetNotes'
 import { countsSolana } from '@yieldcircle/core/index/assetMerge'
@@ -39,7 +39,7 @@ import { Rate } from './Rate'
 import { Thread } from './Thread'
 import { Flows, primaryLeg } from './Feed'
 import { Ago, Comments, ImpairedNote, Money, Who, describeBundle } from './social-bits'
-import { Info, KindPill, ProtocolLogo, RewardsIncl, RiskDot, Sk, StratMark, Tok, Toks, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
+import { Info, KindPill, LpPill, ProtocolLogo, RewardsIncl, RiskDot, Sk, StratMark, Tok, Toks, TxLink, pct, protocolIconUrls, usd, usdShort } from './bits'
 
 const chainName = (id: string) => indexChainLabel(id, chainLabel)
 /** utilization arrives as 0..1; a figure already in percent is passed through rather than shown ×100 */
@@ -186,8 +186,8 @@ function EarnWith({ group, sym, members, solCounted, max = 8 }: { group: string;
           const chip = held ?? (lifted === 'unrated' ? null : lifted)
           return (
             <tr key={s.id} className={held ? 'held' : undefined} onClick={() => { location.hash = strategyHref(s) }}>
-              <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} />}
-                <a href={strategyHref(s)} onClick={(e) => e.stopPropagation()}><b>{s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds}</b></a>
+              <td><div className="nm">{s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} lp={s.lp} /> : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} />}
+                <a href={strategyHref(s)} onClick={(e) => e.stopPropagation()}><b>{s.kind === 'loop' ? `${heldLabel(s)} / ${s.debt} loop` : s.holds}</b></a>{s.kind === 'loop' && <LpPill lp={s.lp} holds={s.holds} />}
                 <span className="t50 hide-m"> · {s.kind === 'loop' ? s.venue : s.via}</span><KindPill kind={s.kind} source={s.kind === 'simple' ? s.source : undefined} />
                 {chip && <span className="heldchip" title={`${HIDES[chip].why}${hideDetail(s, chip) ? ` (${hideDetail(s, chip)})` : ''}`}>{HIDES[chip].word}{!held && hideDetail(s, chip) ? ` · ${hideDetail(s, chip)}` : ''}</span>}</div>
                 <small>{chainLabel(s.chainId)}</small></td>

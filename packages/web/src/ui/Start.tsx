@@ -295,7 +295,7 @@ function StartCard({ p, get, profile }: { p: Pick_; get: HistoryGet; profile: Pr
       <div className="stcard-h">
         {s.kind === 'simple'
           ? <StratMark sym={s.holds} logo={s.logo ?? s.tokenLogo} venueKey={s.venueKey} brand={s.brand} size={26} />
-          : <Toks a={s.asset} b={s.debt} logoA={s.logoLong ?? s.tokenLogo} logoB={s.logoShort} />}
+          : <Toks a={s.asset} b={s.debt} logoA={s.logoLong ?? s.tokenLogo} logoB={s.logoShort} lp={s.lp} />}
         <span className="stcard-n">
           <b>{nameOf(s.asset)}</b>
           <small className="t50">{s.kind === 'loop' ? `${s.rec.toFixed(1)}× ${loopWord}` : s.via}</small>

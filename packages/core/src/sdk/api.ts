@@ -159,6 +159,14 @@ export interface OptimizerQuery {
   /** `stocks` (stock + ETF + pre-IPO), or any class of `model/assetClass.ts` — the collateral's class, read off `props.rwa` upstream */
   collateralAssetClasses?: string[]
   /** default `aprTotal` (a loop's net yield); a borrow list asks for the biggest collateral markets first */
+  /** lender keys, prefix-expanded (`FLUID` = every Fluid vault) */
+  lenders?: string[]
+  /**
+   * Fluid's smart vaults (T2/T3/T4: a DEX LP on a side), which the API leaves out by default. Asked
+   * only by the requests built to find them (`classifyPair` keeps the correlated T2s), never the
+   * pre-warmed archetypes.
+   */
+  includeAMM?: boolean
   sortBy?: 'aprTotal' | 'totalDepositsUsdLong' | 'borrowAprShort' | 'borrowLiquidityShort'
   sortDir?: 'ASC' | 'DESC'
   count?: number
@@ -169,7 +177,7 @@ export function fetchOptimizerPairs(q: OptimizerQuery): Promise<OptimizerRespons
   const params: ApiParams = {
     ...(q.chainIds.length === 1 ? { chainId: q.chainIds[0] } : { chainIds: q.chainIds.join(',') }), collateralTags: csv(q.collateralTags), collaterals: csv(q.collaterals), debtTags: csv(q.debtTags), collateralAmountUsd: q.collateralAmountUsd,
     maxConfigRiskScore: q.maxConfigRiskScore ?? API_RISK_CEILING, maxTokenRiskScore: q.maxTokenRiskScore, minBorrowLiquidityUsd: q.minBorrowLiquidityUsd,
-    includeExpired: q.includeExpired, includeIlliquid: q.includeIlliquid || undefined, collateralAssetClasses: csv(q.collateralAssetClasses), sortBy: q.sortBy ?? 'aprTotal', sortDir: q.sortDir ?? 'DESC', start: q.start, count: q.count ?? 100,
+    includeExpired: q.includeExpired, includeIlliquid: q.includeIlliquid || undefined, lenders: csv(q.lenders), includeAMM: q.includeAMM || undefined, collateralAssetClasses: csv(q.collateralAssetClasses), sortBy: q.sortBy ?? 'aprTotal', sortDir: q.sortDir ?? 'DESC', start: q.start, count: q.count ?? 100,
   }
   return apiFetchLoose<OptimizerResponse>('/v1/data/lending/pairs/optimize', { params, timeoutMs: LISTING_TIMEOUT_MS })
 }

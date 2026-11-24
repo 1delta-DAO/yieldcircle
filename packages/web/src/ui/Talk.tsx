@@ -19,7 +19,7 @@ import { curatorHref } from './CuratorFilter'
 import { shortAddr } from '@yieldcircle/core/identity/name'
 import { parseLoopKey, parseUid, threadOf } from '@yieldcircle/core/model/uid'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
-import type { Strategy } from '@yieldcircle/core/model/strategies'
+import { heldLabel, type Strategy } from '@yieldcircle/core/model/strategies'
 import type { Message } from '../social/types'
 import { Ago, Stake, Who } from './social-bits'
 import { Sk, StratMark, Toks } from './bits'
@@ -51,7 +51,7 @@ const ticketHref = (s: Strategy) => {
   if (s.kind === 'loop') q.set('k', 'loop')
   return `#/${s.group}?${q}`
 }
-const strategyName = (s: Strategy) => (s.kind === 'loop' ? `${s.holds} / ${s.debt} loop` : s.holds)
+const strategyName = (s: Strategy) => (s.kind === 'loop' ? `${heldLabel(s)} / ${s.debt} loop` : s.holds)
 
 export function Talk({ chainIds, protocols, menu }: { chainIds?: string; protocols?: string; menu: Strategy[] }) {
   const q = useRecentMessages({ chainIds, protocols })
@@ -103,7 +103,7 @@ function TalkCard({ m, profile, strategy: s }: { m: Message; profile: ReturnType
         {s ? (
           <button className="tc-s" onClick={open}>
             <span className="t50">on</span>
-            {s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} /> : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} size={18} />}
+            {s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} lp={s.lp} /> : <StratMark sym={s.holds} logo={s.logo} fallback={s.tokenLogo} venueKey={s.protocolKey} brand={s.brand} size={18} />}
             <b>{strategyName(s)}</b>
             <span className="t50">{s.kind === 'loop' ? s.venue : s.via} · {chainLabel(s.chainId)}</span>
           </button>

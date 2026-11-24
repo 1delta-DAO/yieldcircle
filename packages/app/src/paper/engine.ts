@@ -183,7 +183,8 @@ export function usePaperEngine(session: PaperKeys | null, active: boolean): Pape
     // the op's own tokens, priced now: the book's feed only covers what it already holds
     const missing = Object.entries(opTokens(op, cur.ledger)).flatMap(([c, ts]) => ts.filter((t) => prices.get(c, t) == null).map((t) => `${c}:${t}`))
     const fresh = missing.length ? await paperPrices(missing).catch(() => ({} as Record<string, number | null>)) : {}
-    const priceNow: PriceFn = (c, t) => price(c, t) ?? (fresh[`${c}:${tokenKey(c, t)}`] ?? undefined)
+    // fresh before the starter fallback: a gas coin new to the book would otherwise be valued at its genesis price
+    const priceNow: PriceFn = (c, t) => prices.get(c, tokenKey(c, t)) ?? fresh[`${c}:${tokenKey(c, t)}`] ?? starterRef(c, t)
     const now = Date.now()
     let local: PaperLedger
     try { local = apply(cur.ledger ?? emptyLedger(evm, now), op, { now, price: priceNow }) }

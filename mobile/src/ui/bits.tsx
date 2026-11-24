@@ -76,18 +76,24 @@ export function Tok({ sym, logo, size = 22, ring }: { sym: string; logo?: string
 }
 
 /** A loop's pair (the web's `Toks`): the debt's token over the collateral's, 6px in, ringed in the card's colour. */
-export function Toks({ a, b, logoA, logoB, size = 22, on = C.b200 }: { a: string; b?: string; logoA?: string; logoB?: string; size?: number; on?: string }) {
+/** A pair's marks; `lp`: the collateral is a two-token pool, its legs held in one capsule (the web's `.toks.lp`). */
+export function Toks({ a, b, logoA, logoB, lp, size = 22, on = C.b200 }: { a: string; b?: string; logoA?: string; logoB?: string; lp?: { symbol: string; logo?: string }[]; size?: number; on?: string }) {
+  const leg = Math.round(size * 0.82)
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      <Tok sym={a} logo={logoA} size={size} />
-      {b && <View style={{ marginLeft: -6 }}><Tok sym={b} logo={logoB} size={size} ring={{ w: 2, color: on }} /></View>}
+      {lp?.length
+        ? <View style={{ flexDirection: 'row', alignItems: 'center', padding: 2, borderRadius: 999, backgroundColor: C.b400, borderWidth: 1, borderColor: C.line2 }}>
+            {lp.map((l, i) => <View key={l.symbol} style={i ? { marginLeft: -6 } : undefined}><Tok sym={l.symbol} logo={[assetLogo(l.symbol), l.logo]} size={leg} ring={i ? { w: 2, color: C.b400 } : undefined} /></View>)}
+          </View>
+        : <Tok sym={a} logo={logoA} size={size} />}
+      {b && <View style={{ marginLeft: lp?.length ? 4 : -6 }}><Tok sym={b} logo={logoB} size={size} ring={lp?.length ? undefined : { w: 2, color: on }} /></View>}
     </View>
   )
 }
 
 /** A strategy's face (the web's `LiteFace`): a deposit's token at 28, a loop's pair at 22 — never a venue badge. */
 export function Face({ s, size = 28, on }: { s: Strategy; size?: number; on?: string }) {
-  return s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} on={on} /> : <Tok sym={s.assetSymbol} logo={[s.tokenLogo, s.logo]} size={size} />
+  return s.kind === 'loop' ? <Toks a={s.holds} b={s.debt} logoA={s.logoLong} logoB={s.logoShort} lp={s.lp} on={on} /> : <Tok sym={s.assetSymbol} logo={[s.tokenLogo, s.logo]} size={size} />
 }
 
 const GLYPH: Record<string, string> = { USD: '$', ETH: 'Ξ', BTC: '₿', STOCKS: '↗', MORE: '+' }

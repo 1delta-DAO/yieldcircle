@@ -5,7 +5,7 @@ import { router } from 'expo-router'
 import { useGoPaper } from '../ui/paper'
 import { useAppKit } from '@reown/appkit-react-native'
 import Svg, { Path } from 'react-native-svg'
-import { normaliseDecimal, type Amount } from '@yieldcircle/core/model/amount'
+import { boxText, normaliseDecimal, typedText, type Amount } from '@yieldcircle/core/model/amount'
 import { cents } from '@yieldcircle/core/model/format'
 import type { Line, ThreeLines } from '@yieldcircle/core/model/lite'
 import type { Ladder, Step } from '@yieldcircle/app/ladder'
@@ -74,9 +74,9 @@ export const Lbl = ({ children }: { children: React.ReactNode }) => <Txt s={12} 
 /** The amount (`.amt`): typed as the web types it — a comma or a dot, the text kept as typed — the unit and Max beside it. */
 /** `soft`: the Get sheet's (`.get .amt`) — filled, borderless, smaller. */
 export function AmountBox({ unit, value, onChange, onMax, soft }: { unit: string; value: Amount; onChange: (a: Amount) => void; onMax?: () => void; soft?: boolean }) {
-  const [text, setText] = React.useState(value.text)
+  const [text, setText] = React.useState(boxText(value.text))
   const emitted = React.useRef(value.text)
-  React.useEffect(() => { if (value.text !== emitted.current) { emitted.current = value.text; setText(value.text) } }, [value.text])
+  React.useEffect(() => { if (value.text !== emitted.current) { emitted.current = value.text; setText(boxText(value.text)) } }, [value.text])
   return (
     <View style={[st.amt, soft && st.amtSoft]}>
       {unit === '$' && <Txt s={13} mono c={C.tx50}>$</Txt>}
@@ -85,8 +85,8 @@ export function AmountBox({ unit, value, onChange, onMax, soft }: { unit: string
         keyboardType="decimal-pad"
         inputMode="decimal"
         accessibilityLabel="Amount"
-        onChangeText={(raw) => { const r = raw.replace(/[^0-9.,\s]/g, ''); setText(r); const t = normaliseDecimal(r); const c = t === '' || t === '.' ? '0' : t; emitted.current = c; onChange({ text: c }) }}
-        onBlur={() => { const t = normaliseDecimal(text); setText(t === '' || t === '.' ? '0' : t.endsWith('.') ? t.slice(0, -1) : t) }}
+        onChangeText={(raw) => { const r = typedText(raw); setText(r); const t = normaliseDecimal(r); const c = t === '' || t === '.' ? '0' : t; emitted.current = c; onChange({ text: c }) }}
+        onBlur={() => { const t = normaliseDecimal(text); setText(t === '' || t === '.' ? '' : t.endsWith('.') ? t.slice(0, -1) : t) }}
         style={[st.input, soft && { fontSize: 16 }]}
         placeholder="0"
         placeholderTextColor={C.tx40}

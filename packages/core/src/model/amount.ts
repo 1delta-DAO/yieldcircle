@@ -88,3 +88,9 @@ export function normaliseDecimal(raw: string): string {
   if (t.startsWith('.')) t = '0' + t
   return t
 }
+
+/** What a box shows for a value set from outside: a zero is an empty box (its placeholder reads 0), so typing never lands after it ("01"). */
+export const boxText = (text: string): string => (text === '0' ? '' : text)
+
+/** A keystroke's text: letters dropped, leading zeros before a digit too ("01" → "1", "0.5" stays). */
+export const typedText = (raw: string): string => raw.replace(/[^0-9.,\s]/g, '').replace(/^0+(?=\d)/, '')

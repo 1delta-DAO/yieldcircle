@@ -8,6 +8,7 @@ import { deskOf, groupOf, nameOf, type GroupId } from './assets'
 import { isSavings } from './nature'
 import { isLendingVault, mechanismDetail, mechanismOfDesk, mechanismOfGroup, mechanismSubjectOfGroup, mechanismWords, MECHANISM_WORDS, type Mechanism } from './mechanism'
 import { liqBuffer } from './leverage'
+import { lpLabel } from './fluidLp'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import type { Holding } from './positions'
 import { usdShort } from './format'
@@ -180,7 +181,9 @@ export function plainName(s: Strategy): { title: string; sub: string } {
     const end = s.expiry ? ` · until ${dayMonth(s.expiry)}` : ''
     const on = named(s, title).on
     // the lever is the row's pill (×5.6): said once, so the sub keeps its room for what tells rows apart
-    return { title, sub: `${product ? `Holds ${s.holds} · borrows` : 'Borrows'} ${debtWord(s)}${end}${on ? ` · on ${on}` : ''}` }
+    // an LP is two tokens whatever the row's money says: the sub names both
+    const holds = s.lp ? `${lpLabel(s.lp)} pool` : product ? s.holds : ''
+    return { title, sub: `${holds ? `Holds ${holds} · borrows` : 'Borrows'} ${debtWord(s)}${end}${on ? ` · on ${on}` : ''}` }
   }
   const sub = SIMPLE_SUB[s.source]?.(s) ?? 'Earns interest'
   const on = named(s, title).on

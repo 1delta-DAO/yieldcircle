@@ -3,13 +3,13 @@
  * `/v1/data/earn/positions` (vault rows are standalone; a lending account with debt is a loop,
  * one without is a plain deposit per leg) and `/v1/data/token/balances` for idle.
  */
-import type { EarnPosition, TokenBalance } from '../sdk/types'
+import type { EarnPosition, EarnPositionLeg, TokenBalance } from '../sdk/types'
 import { isSvmChain, normAddr } from './address'
 import { baseOfSymbol, denomOf, exposureOf, groupOf, sameMoney, type GroupId } from './assets'
 import { deskKey, keyOfToken, moneyOf } from './desk'
 import { decToRaw } from './leverage'
 import { marketTag } from './market'
-import { ptMaturityOf, venueLabel } from './strategies'
+import { isLlamaLend, ptMaturityOf, venueLabel } from './strategies'
 
 export interface Holding {
   key: string
@@ -77,7 +77,15 @@ export interface Holding {
    * builds: a close sells `symbol` only and repays `debtSymbol` only. Shown so nobody finds out from
    * a reverted close.
    */
-  others?: { side: 'collateral' | 'debt'; symbol: string; amount: number; usd: number }[]
+  others?: { side: 'collateral' | 'debt'; symbol: string; amount: number; usd: number; marketUid?: string }[]
+  /**
+   * LlamaLend in soft liquidation: the debt token its AMM has already sold collateral into. It sits
+   * in the loan's bands, is not the wallet's, and every repay withdraws the whole AMM and spends it on
+   * the debt first — debt already paid, so it is never one of `others`. The positions route reports it
+   * on the DEBT market's own leg, summed with any plain vault supply there; `exact` when the leg
+   * carries the split (`llamalend.bandCollateralInBorrowed`), else the whole leg stands for it.
+   */
+  band?: { amount: number; usd: number; exact: boolean }
   /** the held token's address — what a withdraw pays out unless it is asked for the native coin */
   assetAddress?: string
   /**
@@ -106,6 +114,17 @@ export interface Holding {
  * vaults come back as `USDC · 0x5b8b`; the address tail is stripped.
  */
 /** the API's decimal string → exact raw units; none when the decimals are unknown or the string is not a plain decimal */
+/** a LlamaLend debt-market leg's soft-liquidation share (`Holding.band`): the split when the route sends it, else the whole leg */
+function bandOf(l: EarnPositionLeg | undefined): Holding['band'] | null {
+  if (!l || l.depositsUsd <= 0.5) return null
+  const amount = parseFloat(l.deposits) || 0, px = amount > 0 ? l.depositsUsd / amount : 0
+  const raw = l.llamalend?.bandCollateralInBorrowed
+  if (raw != null && l.asset.decimals != null && /^\d+$/.test(raw)) {
+    const n = Number(raw) / 10 ** l.asset.decimals
+    return n > 0 ? { amount: n, usd: n * px, exact: true } : null
+  }
+  return { amount, usd: l.depositsUsd, exact: false }
+}
 const rawOf = (dec: string | undefined, decimals: number | undefined) => (dec && decimals != null && /^\d+(\.\d+)?$/.test(dec) ? decToRaw(dec, decimals) : undefined)
 export function holdingsFrom(items: EarnPosition[]): Holding[] {
   const out: Holding[] = []
@@ -146,7 +165,10 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
       const debt = debtOf(own).length ? debtOf(own) : debtOf(a.legs)
       if (!supply.length) continue
       if (debt.length) {
-        const coll = supply[0], d = debt[0]
+        // a deposit on the very market the loan is taken from never backs it: LlamaLend reports its
+        // soft-liquidation leg there, and deep enough in the bands it outweighs the real collateral
+        const d = debt[0], coll = supply.find((l) => l.marketUid !== d.marketUid) ?? supply[0]
+        const band = isLlamaLend(p.lender) ? bandOf(supply.find((l) => l.marketUid === d.marketUid && l !== coll)) : null
         const collT = { ...coll.asset, chainId: p.chainId }, debtT = { ...d.asset, chainId: p.chainId }
         // a dollar / ether / bitcoin loop is its COLLATERAL's desk (the debt is a rate, not an
         // exposure). A collateral nothing can place, against such a debt, is not filed under the
@@ -170,12 +192,17 @@ export function holdingsFrom(items: EarnPosition[]): Holding[] {
         const loan = cross && (money === 'USD' || money === 'ETH' || money === 'BTC' || (!!debtBase && groupOf(debtBase) === 'MORE' && debtBase !== asset))
         const directional = cross && !loan
         const lev = a.suppliedUsd > 0 && a.netUsd > 0 ? a.suppliedUsd / a.netUsd : p.leverage
-        const others = [...supply.slice(1).map((l) => ({ side: 'collateral' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.deposits) || 0, usd: l.depositsUsd })),
-          ...debt.slice(1).map((l) => ({ side: 'debt' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.debt) || 0, usd: l.debtUsd }))]
+        const others = [...supply.filter((l) => l !== coll).flatMap((l) => {
+          const amount = parseFloat(l.deposits) || 0
+          // the band's own share of the debt market's leg is netted out; a plain vault supply beside it stays
+          if (band && l.marketUid === d.marketUid) { const rest = band.exact ? parseFloat(l.llamalend?.lendAssets ?? '') || Math.max(0, amount - band.amount) : 0; return rest * (l.depositsUsd / (amount || 1)) > 0.5 ? [{ side: 'collateral' as const, symbol: l.asset.symbol ?? '?', amount: rest, usd: rest * (l.depositsUsd / amount), marketUid: l.marketUid }] : [] }
+          return [{ side: 'collateral' as const, symbol: l.asset.symbol ?? '?', amount, usd: l.depositsUsd, marketUid: l.marketUid }]
+        }),
+          ...debt.slice(1).map((l) => ({ side: 'debt' as const, symbol: l.asset.symbol ?? '?', amount: parseFloat(l.debt) || 0, usd: l.debtUsd, marketUid: l.marketUid }))]
         const loans = a.legs.filter((l) => l.loanId && l.marketUid === d.marketUid && l.debtUsd > 0.005)
           .map((l) => ({ id: l.loanId!, debt: parseFloat(l.debt) || 0, debtUsd: l.debtUsd })).sort((x, y) => y.debtUsd - x.debtUsd)
         out.push({ key: `${p.positionUid}:${a.accountId}`, chainId: p.chainId, group: groupOf(asset), asset, kind: loan ? 'borrow' : 'loop', label: loan ? `${coll.asset.symbol} → ${d.asset.symbol} loan` : `${coll.asset.symbol} / ${d.asset.symbol} loop`, venue: venueOf(coll.asset.symbol), valueUsd: a.netUsd, apr: p.apr, rewards: p.aprBreakdown?.rewards, health: a.health, leverage: lev, earnUid: coll.earnUid, logo: coll.asset.logoURI, directional,
-          amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtDecimals: d.asset.decimals, collateralAddress: normAddr(coll.asset.address), debtAddress: normAddr(d.asset.address), debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender, collateralUsd: coll.depositsUsd, ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
+          amount: parseFloat(coll.deposits) || 0, amountRaw: rawOf(coll.deposits, coll.asset.decimals), symbol: coll.asset.symbol ?? asset, decimals: coll.asset.decimals ?? 18, collateralUid: coll.marketUid, debtUid: d.marketUid, debtSymbol: d.asset.symbol, debtDecimals: d.asset.decimals, collateralAddress: normAddr(coll.asset.address), debtAddress: normAddr(d.asset.address), debtAmount: parseFloat(d.debt) || 0, accountId: a.accountId === '0' ? undefined : a.accountId, subAccount: sub(a.accountId), lender: p.lender, collateralUsd: coll.depositsUsd, ...(band ? { band } : {}), ...(loans.length ? { loans } : {}), ...(others.length ? { others } : {}) })
       } else {
         for (const l of supply) {
           const asset = keyOfToken({ ...l.asset, chainId: p.chainId }); if (!asset) continue

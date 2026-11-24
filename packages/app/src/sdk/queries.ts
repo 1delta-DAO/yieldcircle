@@ -8,7 +8,7 @@ import { parseUid } from '@yieldcircle/core/model/uid'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import { EXPOSURE_ASSETS, FIAT_FLOOR, FIAT_REQUESTS, fiatOf } from '@yieldcircle/core/model/assets'
 import { useSettings, type Settings } from '../state/Settings'
-import type { BorosHedgeData, EarnPositionsResponse, LendingBook, OptimizerResponse, TokenBalance } from '@yieldcircle/core/sdk/types'
+import type { BorosHedgeData, EarnPositionsResponse, LendingBook, OptimizerResponse, OptimizerRowRaw, TokenBalance } from '@yieldcircle/core/sdk/types'
 import { byOffer, offersFrom, type BorrowOffer, type Out } from '@yieldcircle/core/model/borrow'
 import { indexBalances, syncHints, type SyncHintLeg } from '@yieldcircle/core/index/api'
 import type { IndexBalanceItem } from '@yieldcircle/core/index/types'
@@ -205,9 +205,13 @@ const LOOP_ARCHETYPES: Archetype[] = [
  * archetype asks for it (`anyDebtOnSmallChains`, see the RWA note above). Each
  * carries the chains it covers so a chain can be called settled.
  */
-function loopRequests(chainIds: string[], wideNet: boolean): { key: string; chainIds: string[]; q: Omit<OptimizerQuery, 'chainIds'> }[] {
+function loopRequests(chainIds: string[], wideNet: boolean): { key: string; chainIds: string[]; q: Omit<OptimizerQuery, 'chainIds'>; only?: (r: OptimizerRowRaw) => boolean }[] {
   const small = chainIds.filter((c) => !SOLO_CHAINS.has(c))
+  const evm = chainIds.filter(isEvmChain)
   return [
+    // Fluid's LP collateral (T2), which every archetype leaves out (`includeAMM`): one request for
+    // every Fluid vault, the smart rows kept — the plain ones are the archetypes' (~3 pages, 2026-11-24)
+    ...(evm.length ? [{ key: 'fluid-lp', chainIds: evm, q: { lenders: ['FLUID'], includeAMM: true }, only: (r: OptimizerRowRaw) => r.isBasketLong === true }] : []),
     ...LOOP_ARCHETYPES.flatMap(({ anyDebtOnSmallChains, ...a }, i) => [
       { key: `${i}`, chainIds, q: a },
       ...(anyDebtOnSmallChains && small.length ? [{ key: `${i}-any`, chainIds: small, q: { ...a, debtTags: undefined } }] : []),
@@ -368,7 +372,7 @@ const BOOK_FRESHNESS = {
   staleTime: (q: Freshness) => (q.state.data?.partial ? 0 : 10 * 60_000),
   refetchInterval: (q: Freshness) => (q.state.data?.partial ? 30_000 : false as const),
 }
-const loopBook = async (client: QueryClient, q: OptimizerQuery) => { const r = await optimizerPages(client, q); return sortOut(r.map(classifyPair), 'loop', r.partial) }
+const loopBook = async (client: QueryClient, q: OptimizerQuery, only?: (r: OptimizerRowRaw) => boolean) => { const r = await optimizerPages(client, q); return sortOut((only ? r.filter(only) : r).map(classifyPair), 'loop', r.partial) }
 /** The catalogue's loop requests, as asked (worker-api pre-warms these: `prewarmBooks`). */
 /**
  * `illiquid`: the pairs with too little left to borrow for the $10k the request sizes on, which the
@@ -434,7 +438,7 @@ export function useCatalog(chainIds: string[]) {
   const loops = useQueries({
     queries: loopReqs.map((r) => ({
       queryKey: ['loops', r.chainIds.join(','), r.key, illiquid],
-      queryFn: ({ client }: QueryFunctionContext) => loopBook(client, loopQuery(r, illiquid)),
+      queryFn: ({ client }: QueryFunctionContext) => loopBook(client, loopQuery(r, illiquid), r.only),
       ...BOOK_FRESHNESS,
     })),
   })
@@ -667,7 +671,7 @@ export function useAssetStrategies(group: string | undefined, members: { chainId
   const loops = useQueries({
     queries: chains.map((chainId) => ({
       queryKey: ['asset-loops', chainId, [...byChain[chainId]].sort().join(',')],
-      queryFn: async ({ client }: QueryFunctionContext) => sortOut((await optimizerPages(client, { chainIds: [chainId], collaterals: byChain[chainId], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, includeIlliquid: true })).map(classifyPair), 'loop'),
+      queryFn: async ({ client }: QueryFunctionContext) => sortOut((await optimizerPages(client, { chainIds: [chainId], collaterals: byChain[chainId], collateralAmountUsd: 10_000, minBorrowLiquidityUsd: 0, includeIlliquid: true, includeAMM: true })).map(classifyPair), 'loop'),
       staleTime: 10 * 60_000,
     })),
   })
@@ -996,7 +1000,7 @@ export async function fetchOffMenu({ id, by }: OffMenuRef): Promise<OffMenuRow> 
     // one named pair, so no floor may cut it: the API's own default config-risk ceiling is 4 and
     // drops every score-5 market (Morpho PT-apxUSD-5NOV2026 / apxUSD at 94.5 % LLTV answered
     // nothing, 2026-10-12); the ticket's off-menu warning and `softHide` carry the risk instead
-    const r = await fetchOptimizerPairs({ chainIds: [chainId], collaterals: [by], minBorrowLiquidityUsd: 0, includeIlliquid: true, includeExpired: true, count: 100 })
+    const r = await fetchOptimizerPairs({ chainIds: [chainId], collaterals: [by], minBorrowLiquidityUsd: 0, includeIlliquid: true, includeExpired: true, includeAMM: true, count: 100 })
     const row = r.items.find((x) => sameUid(x.marketLongUid, long) && sameUid(x.marketShortUid, short))
     return row ? classifyPair(row) : null
   }
@@ -1177,16 +1181,17 @@ export function useTenorQuotes(l: LoopStrategy, equityUsd: number, leverageLive:
  * `account` the API sizes the sale and builds nothing. `isAll` sizes a full close; a paper
  * deleverage asks for the part (tickets/0006). Null when no route answers.
  */
-export async function quoteClose(p: Omit<LoopCloseParams, 'account' | 'slippageBp' | 'isAll'>, slippageBp = 50, isAll = true) {
-  const env = await loopClose({ ...p, account: undefined, slippageBp, isAll })
+export async function quoteClose(p: Omit<LoopCloseParams, 'slippageBp' | 'isAll'>, slippageBp = 50, isAll = true) {
+  const env = await loopClose({ ...p, slippageBp, isAll })
   const best = (env.data?.quotes ?? []).map((q) => q.deltas).filter((d) => d && (d.tradeOutput ?? 0) > 0 && (d.tradeInput ?? 0) > 0)
     .sort((a, b) => b!.tradeOutput! - a!.tradeOutput!)[0]
   return best ? { input: best.tradeInput!, output: best.tradeOutput!, via: best.aggregator, exitCostUsd: env.data?.economics?.exitCostUsd?.total } : null
 }
-export function useCloseQuote(p: Omit<LoopCloseParams, 'account' | 'slippageBp' | 'isAll'> | null, slippageBp = 50) {
+/** `account`: some lenders (LlamaLend) build a close only off the position and answer nothing without it; nothing is signed here */
+export function useCloseQuote(p: Omit<LoopCloseParams, 'slippageBp' | 'isAll'> | null, slippageBp = 50) {
   return useQuery({
     enabled: !!p && p.amountRaw !== '0',
-    queryKey: ['closeq', p?.collateralMarketUid, p?.debtMarketUid, p?.amountRaw, p?.accountId ?? '', p?.loanId ?? '', slippageBp],
+    queryKey: ['closeq', p?.collateralMarketUid, p?.debtMarketUid, p?.amountRaw, p?.accountId ?? '', p?.loanId ?? '', p?.account ?? '', slippageBp],
     staleTime: 20_000,
     retry: false,
     queryFn: () => quoteClose(p!, slippageBp, true),

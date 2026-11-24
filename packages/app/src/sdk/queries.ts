@@ -1187,7 +1187,7 @@ export async function quoteClose(p: Omit<LoopCloseParams, 'slippageBp' | 'isAll'
     .sort((a, b) => b!.tradeOutput! - a!.tradeOutput!)[0]
   return best ? { input: best.tradeInput!, output: best.tradeOutput!, via: best.aggregator, exitCostUsd: env.data?.economics?.exitCostUsd?.total } : null
 }
-/** `account`: some lenders (LlamaLend) build a close only off the position and answer nothing without it; nothing is signed here */
+/** `account`: only for LlamaLend, which builds a close only off the position. Elsewhere it makes the API build the real close, whose swap need not be the full sale (Solana sells only what repays the debt); nothing is signed here */
 export function useCloseQuote(p: Omit<LoopCloseParams, 'slippageBp' | 'isAll'> | null, slippageBp = 50) {
   return useQuery({
     enabled: !!p && p.amountRaw !== '0',

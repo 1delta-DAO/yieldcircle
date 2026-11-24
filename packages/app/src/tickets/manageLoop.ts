@@ -1,7 +1,7 @@
 import React from 'react'
 import { DEFAULT_TIER, capRaw, healthAt, liqBuffer, netAprAtLeverage, toRaw } from '@yieldcircle/core/model/leverage'
 import { heldRaw } from '@yieldcircle/core/model/amount'
-import { isLoopscale, type LoopStrategy } from '@yieldcircle/core/model/strategies'
+import { isLlamaLend, isLoopscale, type LoopStrategy } from '@yieldcircle/core/model/strategies'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import { loopClose, loopOpen } from '@yieldcircle/core/sdk/api'
 import { isSavings } from '@yieldcircle/core/model/nature'
@@ -102,8 +102,12 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   const pDebt = pD || (owed > 0 ? D / owed : 0)
   // the exact balance: a float-sized amount can overshoot it by a few wei and the swap reverts
   const allRaw = h.amountRaw ?? toRaw(h.amount, h.decimals)
-  // with the account: some lenders (LlamaLend) build a close only off the position itself, and answer nothing without it
-  const cq = useCloseQuote(closing && collUid && debtUid ? { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: allRaw, accountId: h.accountId, loanId: loan?.id, account: actor } : null, slip)
+  // with the account only where the venue needs it: LlamaLend builds a close only off the position and
+  // answers nothing without it. Elsewhere an account makes the API build the real close, and on Solana
+  // that sells only what repays the debt (ExactOut): `tradeOutput` is then the debt plus a buffer, not
+  // what the whole collateral fetches, and the close read as a 98 % loss (2026-11-24, Jupiter sUSDai/USDGO)
+  const quoteAs = isLlamaLend(h.lender ?? s?.lender) ? actor : undefined
+  const cq = useCloseQuote(closing && collUid && debtUid ? { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: allRaw, accountId: h.accountId, loanId: loan?.id, account: quoteAs } : null, slip)
   const sale = cq.data ?? null
   const rate = sale ? sale.output / sale.input : null
   const covers = sale ? sale.output >= owed * (1 + CLOSE_INTEREST_PAD) : null
@@ -138,7 +142,7 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
     ? reducePlan({ ledger: paper.ledger, h, closing, keep, sellUsd, costUsd: sale?.exitCostUsd != null ? sale.exitCostUsd * (keep && keepOk ? sellKeep! / h.amount : 1) : C * slip / 10_000, feed: paper.price })
     : down || !s
     ? async () => {
-      const q = await quoteClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: capRaw(sellTok, h.decimals, heldRaw(h)), accountId: h.accountId, loanId: loan?.id, account: actor }, slip, false).catch(() => null)
+      const q = await quoteClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: capRaw(sellTok, h.decimals, heldRaw(h)), accountId: h.accountId, loanId: loan?.id, account: quoteAs }, slip, false).catch(() => null)
       if (!q) throw new Error(NO_ROUTE)
       // what the sale loses against the position's own valuation, at the quote's fill
       const cost = q.exitCostUsd != null && q.exitCostUsd > 0 ? q.exitCostUsd : Math.max(0, sellUsd - q.output * pDebt)

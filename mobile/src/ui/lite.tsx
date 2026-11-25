@@ -17,6 +17,8 @@ import { pathOf } from '../nav'
 export const openStrategy = (s: { id: string; kind: string; group: string }, more: { copy?: string; lev?: string; h?: string; m?: string } = {}) => router.push(pathOf({ to: 'strategy', s, ...more }) as Href)
 /** A wallet's page, from any face. */
 export const openWallet = (account: string) => router.push(pathOf({ to: 'wallet', account }) as Href)
+/** An asset's page: what it is, who issues it. */
+export const openAsset = (group: string) => router.push(pathOf({ to: 'asset', group }) as Href)
 
 /** A row's name (the web's `LiteTitle`, `.lite-title`): the money's mark, then whose it is and where it sits (`liteName`). */
 export function LiteTitle({ r, size = 14, icon = 14 }: { r: LiteRow; size?: number; icon?: number }) {

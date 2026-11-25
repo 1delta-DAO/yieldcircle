@@ -47,6 +47,7 @@ import { AssetLink } from './TokenPage'
 import { heldBy, bufferOfHealth, brandOf, closeLines, debtWord, depositLines, holdingLine, leverTag, liteEligible, liteModes, liteName, liteTiers, loopLines, moneyWord, overLtv, plainName, riskWord, saferLines, saferTargets, shownDp, trustKind, withdrawLines, type LiteMode } from '@yieldcircle/core/model/lite'
 import { proHref } from '../state/AppState'
 import { LoopLoanPanes } from './BorrowTicket'
+import { LiteAbout } from './lite/LiteAsset'
 import { LiteAmtSub, LiteChoices, LiteDetails, LiteLines, LiteMoreCtx, LiteMoreSheet, LiteNumbers, LitePresets } from './lite/LiteTicketBits'
 import { CLOSE_INTEREST_PAD, DAY_S, NATIVE_MAX_ROUNDS, NO_NATIVE_DEPOSIT, NO_NATIVE_WITHDRAW, NO_ROUTE, closeKeepPad, dayMonth, dayOf, daysWord, defaultTenor, defaultTerm, getForms, hasRoute, nativeMaxRounds, payOptions, paysNative, safetyOf, sameToken, startsAny, tenorWord, type PayOption, type PayRole } from '@yieldcircle/core/model/ticket'
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
@@ -223,6 +224,7 @@ function LiteTicket({ s, idle, holdings, holding, into: into0, mode0, copy, copy
         : null}
       </LiteMoreCtx.Provider>
       {s && <div className="tsec lite-trust"><span>{trustKind(s)} · {usdShort(s.tvlUsd)} in it</span><span className="sp" /><span className="t50">{brandOf(s)}</span></div>}
+      {s && <LiteAbout s={s} />}
       {s && h && !liteEligible(s, st) && <div className="tsec lite-trust"><span>Lite does not offer this one new, but it is yours: {isLoop ? 'add to it, make it safer or close it here' : 'add to it or take it out here'}.</span></div>}
       {s && mode === 'add' && <LiteWho s={s} uid={uid} thread={thread ?? null} heldBy={heldBy(L.proof(s))} />}
       <LiteDetails onOpen={() => setDetails(true)} what={moreWhat} />

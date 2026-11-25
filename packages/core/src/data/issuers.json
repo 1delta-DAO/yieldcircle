@@ -1,0 +1,16 @@
+{
+  "hastra": {
+    "name": "Hastra",
+    "entity": "Signum Ltd.",
+    "structure": "Cayman Islands company limited by shares",
+    "country": "Cayman Islands",
+    "platform": "Hastra",
+    "about": "A protocol incubated by Figure and the Provenance Blockchain Foundation. USDC goes in 1:1 for wYLDS, a wrapper over Figure's SEC-registered YLDS; wYLDS is staked into PRIME, AUTO and the other pools, which fund loans Figure structures.",
+    "links": [
+      { "label": "Transparency and proof of reserves", "url": "https://hastra.io/proof-of-reserves" },
+      { "label": "Help centre", "url": "https://help.hastra.io/prime/what-is-prime-(staked-wylds)" }
+    ],
+    "checked": "2026-11-25",
+    "source": "Kamino's AUTO asset page (entity, structure, country); the about line from the PRIME, AUTO and wYLDS notes"
+  }
+}

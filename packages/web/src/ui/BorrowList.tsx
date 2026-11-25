@@ -139,8 +139,10 @@ function RiskOf({ o }: { o: BorrowOffer }) {
  * and one pill per group that can be borrowed against, with how far its best market lends and its
  * cheapest rate. A group pill keeps the filter and the take-out family as it moves.
  */
-export function BorrowCats({ offers, current, mine, keep }: {
+export function BorrowCats({ offers, current, mine, keep, lite }: {
   offers: BorrowOffer[]; current: GroupId | 'all'
+  /** Lite's Borrow tab: the filter alone — the shelves are Pro's pages */
+  lite?: boolean
   /** the filter: on or off, how many assets it would show and the most they could take; absent with no wallet.
    *  `busy` while the wallet or the offers are still being read: "nothing" is not said before it is known */
   mine?: { on: boolean; n: number; room: number; set: (on: boolean) => void; busy?: boolean }
@@ -156,14 +158,15 @@ export function BorrowCats({ offers, current, mine, keep }: {
     }
     return m
   }, [offers])
-  const groups = GROUPS.filter((g) => by.has(g.id) || g.id === current)
+  const groups = lite ? [] : GROUPS.filter((g) => by.has(g.id) || g.id === current)
+  if (lite && !mine) return null
   return (
     <nav className="bcats" aria-label="Borrow against">
       {mine && <button type="button" className="bcat yours" aria-pressed={mine.on} onClick={() => mine.set(!mine.on)}>
         <span className="bn">Against what you hold</span>
         <small>{mine.n ? `${mine.n} asset${mine.n === 1 ? '' : 's'}${mine.room >= 1 ? ` · up to ${usdShort(mine.room)}` : ''}` : mine.busy ? 'reading your wallet…' : 'nothing you hold here'}</small>
       </button>}
-      <button type="button" className="bcat plain" aria-pressed={current === 'all'} onClick={() => go('borrow', keep ?? {})}><span className="bn">All</span><small>every shelf</small></button>
+      {!lite && <button type="button" className="bcat plain" aria-pressed={current === 'all'} onClick={() => go('borrow', keep ?? {})}><span className="bn">All</span><small>every shelf</small></button>}
       {groups.map((g) => { const c = by.get(g.id); return (
         <button key={g.id} type="button" className={`bcat${g.id === 'STOCKS' ? ' hot' : ''}`} aria-pressed={g.id === current} onClick={() => go(g.id, { k: 'borrow', ...keep })} style={{ '--gc': g.color } as React.CSSProperties}>
           <GroupIcon id={g.id} color={g.color} size={18} /><span className="bn">{g.id === 'MORE' ? 'More' : g.name}</span>

@@ -60,7 +60,7 @@ import { ZONE_ORDER, loopLoanOffer, sig4, useBorrowTicket, useTopUpTicket } from
 import { useHoldingPnl } from '@yieldcircle/app/index/pnl'
 import { beforeOf } from '@yieldcircle/app/sdk/txOutcome'
 import { pnlLine } from '@yieldcircle/core/model/holdingPnl'
-import { proHref } from '../state/AppState'
+import { liteHref, parseRoute, proHref } from '../state/AppState'
 
 /** The thing whose price moves: a stock's ticker, a coin's row, else the token. */
 const whatOf = (o: BorrowOffer) => o.ticker ?? (o.asset.includes(':') ? o.collateral.symbol : nameOf(o.asset) === o.asset ? o.asset : o.collateral.symbol)
@@ -232,7 +232,7 @@ function BorrowPane({ o, h, idle, alternatives, loop }: { o: BorrowOffer; h: Hol
           : !usdOut ? liqRatio > 0 && <div className="bline t70">If <b>{whatOf(o)}</b> falls below <b>{sig4(liqRatio)} {o.debt.symbol}</b> (−{pct(drop * 100, 0)}{ratioNow > 0 ? ` from ${sig4(ratioNow)}` : ''}), the lender sells your {o.collateral.symbol} to repay. <span className="t50">You owe {o.debt.symbol}, so {o.debt.symbol} rising counts as much as {whatOf(o)} falling.</span></div>
           : liqPx > 0 && <div className="bline t70">If <b>{whatOf(o)}</b> falls below <b>{usd(liqPx)}</b> (−{pct(drop * 100, 0)}{price > 0 ? ` from ${usd(price)}` : ''}), the lender sells your {o.collateral.symbol} to repay.</div>)}
         {mkt && !mkt.open && totalDebt > 0 && <div className="bline warn">{o.ticker ?? whatOf(o)} trades again {mkt.next} — until then its price holds still, and the open can jump past your line in one step.</div>}
-        {cheaper && <button type="button" className="bline nudge" onClick={() => go(cheaper.group, { u: cheaper.asset, k: 'borrow', s: cheaper.id })}><b>{pct(cheaper.borrowApr)}</b> at {cheaper.venue} — {pct(apr - cheaper.borrowApr, 1).replace('%', '')} points cheaper ›</button>}
+        {cheaper && <button type="button" className="bline nudge" onClick={() => parseRoute().lite ? go('borrow', { u: cheaper.asset, s: cheaper.id, out: cheaper.out === 'USD' ? undefined : cheaper.out }) : go(cheaper.group, { u: cheaper.asset, k: 'borrow', s: cheaper.id })}><b>{pct(cheaper.borrowApr)}</b> at {cheaper.venue} — {pct(apr - cheaper.borrowApr, 1).replace('%', '')} points cheaper ›</button>}
         {zone === 'spicy' && take > 0 && <label className="qack"><span><b>Spicy:</b> an ordinary move in {whatOf(o)} can liquidate this, and liquidation costs a penalty on top.</span><span className="qck"><input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> I have a plan to add collateral or pay back fast</span></label>}
         <div className="cells" style={{ marginTop: 10 }}>
         <button type="button" className="c more" aria-expanded={details} onClick={() => setDetails(!details)}>{details ? 'Hide details' : 'Details'}<span className="t40">{details ? '' : 'limits · liquidity · after'}</span><span className="chev" aria-hidden>▾</span></button>
@@ -267,9 +267,9 @@ function Landed({ o, take, what, line, debtKey }: { o: BorrowOffer; take: number
 
 // ----------------------------------------------------------------- Lite
 /**
- * A loan on Lite's You page (docs/lite.md): Lite opens no loans, but a reader who holds one must be
- * able to end it. Two plain actions — pay it all back and take the collateral home, or pay part of
- * it back to move away from liquidation — on Pro's own repay build. Borrowing more is Pro's.
+ * A loan on Lite's You page (docs/lite.md): two plain actions — pay it all back and take the
+ * collateral home, or pay part of it back to move away from liquidation — on Pro's own repay build.
+ * Borrowing more or taking collateral out is Lite's Borrow tab, on this loan.
  */
 export function LiteLoanTicket({ h, idle, onClose }: { h: Holding; idle: Idle[]; onClose: () => void }) {
   const o = React.useMemo(() => offerFromHolding(h), [h])
@@ -293,10 +293,10 @@ export function LiteLoanTicket({ h, idle, onClose }: { h: Holding; idle: Idle[];
         </div></div>
         <RepayPane key={h.key + pane} o={o} h={h} idle={idle} lite={pane} />
       </>}
-      <LiteDetails onOpen={() => setDetails(true)} what="Every number · borrowing more is in Pro" />
+      <LiteDetails onOpen={() => setDetails(true)} what="Every number · borrow more or take collateral out" />
       <LiteMoreCtx.Provider value={{ open: details, close: () => setDetails(false), pro: detailsHref }}>
         <LiteMoreSheet>
-          <section className="lite-more-s"><h3>Borrow more, or take collateral out</h3><p className="plain">Lite only ends loans. Both are in Pro, from the link below.</p></section>
+          <section className="lite-more-s"><h3>Borrow more, or take collateral out</h3><p className="plain">Both are on Borrow, on this loan.</p><a className="btn sm" href={liteHref(`borrow?${new URLSearchParams({ h: h.key, m: 'add' })}`)}>Open it on Borrow ›</a></section>
           <LiteNumbers rows={[
             ['Owes', usd(owedOf(h))],
             ['Put up', `${usd(collateralOf(h))} · ${num(h.amount, 4)} ${h.symbol}`],

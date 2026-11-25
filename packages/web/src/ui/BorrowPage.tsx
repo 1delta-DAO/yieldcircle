@@ -24,7 +24,8 @@ import { useAsideTop } from './AssetPage'
 import { ChainChip } from './ChainPicker'
 import { HealthPill, Tok, usd } from './bits'
 
-export function BorrowPage({ route }: { route: Route }) {
+/** `lite`: Lite's tab — one list, no shelves (a shelf's Borrow segment is a Pro page). */
+export function BorrowPage({ route, lite }: { route: Route; lite?: boolean }) {
   const b = useBook()
   const { chainIds } = useApp()
   // a running loan opened from a link that owes a coin: its family is asked too, so it is managed from its own market
@@ -77,7 +78,7 @@ export function BorrowPage({ route }: { route: Route }) {
           </section>}
 
           <section className="sec">
-            <BorrowCats offers={offers} current="all" keep={keep} mine={b.account ? { on: mineOn, ...sum, set: setMine, busy: b.positionsLoading || bo.isLoading } : undefined} />
+            <BorrowCats offers={offers} current="all" keep={keep} lite={lite} mine={b.account ? { on: mineOn, ...sum, set: setMine, busy: b.positionsLoading || bo.isLoading } : undefined} />
             <p className="t70 bp-intro hide-m">{mineOn ? 'Where what you hold can be put up, and what it could take there, held to the Safe zone.' : 'Every place that lends against what people hold.'} You keep everything it does and pay interest on what you take; if its price falls far enough, the lender sells part of it to repay.</p>
             <BorrowList key={`${out}:${mineOn}`} offers={offers} loading={bo.isLoading} groupId="all" u="all" selId={sel?.id} held={held} mine={{ on: mineOn, yours, set: setMine }} out={out}
               onOut={(f) => go('borrow', { ...keep, out: f === 'USD' ? undefined : f, debt: undefined })} debt={route.debt} onDebt={(d) => go('borrow', { ...keep, debt: d })} onPick={(o) => open(o)} />

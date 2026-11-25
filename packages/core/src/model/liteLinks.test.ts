@@ -21,6 +21,7 @@ describe('the Lite route map', () => {
       { to: 'home' }, { to: 'earn' }, { to: 'earn', group: 'BTC' },
       { to: 'strategy', s: { id: 'morpho:1:abc', kind: 'loop', group: 'USD' }, copy: A, lev: '3.20', h: 'k1', m: 'close' },
       { to: 'you', h: 'k1', m: 'reduce' }, { to: 'board', by: 'wallet', t: 'perDay', x: 'usd' }, { to: 'search', q: 'apyx' }, { to: 'wallet', account: A },
+      { to: 'asset', group: 'Hastra PRIME::PRIME' },
     ]
     for (const d of all) {
       const back = parseLiteHash(liteUrl(d)) as Record<string, unknown> | null
@@ -34,5 +35,7 @@ describe('the Lite route map', () => {
     expect(parseLiteHash('#/pro/USD')).toBeNull()
     expect(parseLiteHash('#/STOCKS')).toBeNull()
     expect(parseLiteHash('#/m/abc')).toBeNull()
+    expect(parseLiteHash('#/t')).toBeNull()
+    expect(parseLiteHash('#/t/Hastra%20PRIME%3A%3APRIME')).toEqual({ to: 'asset', group: 'Hastra PRIME::PRIME' })
   })
 })

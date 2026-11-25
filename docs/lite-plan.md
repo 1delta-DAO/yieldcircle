@@ -1,7 +1,8 @@
 # YieldCircle Lite — implementation plan
 
 **Status:** built 2026-10-23, all phases. Implements [`lite.md`](lite.md). No
-Stocks, no Borrow in Lite (owner's call). Pro is untouched except where a shared
+Stocks, no Borrow in Lite (owner's call) — Borrow came in as its own tab on
+2026-11-25 (As built, item 23). Pro is untouched except where a shared
 piece grows a `lite` switch. **Lite is the default for every visitor who has not
 chosen** (owner's call, 2026-10-23). What the build changed against this plan is
 in [As built](#as-built) at the end.
@@ -419,6 +420,20 @@ Changes against the plan above, and why:
     positions are waiting to be drawn and how many the index has not read.
 22. **The landing needed no change.** Its CTAs open the app root, which opens the
     saved mode, so Lite for a first visit.
+23. **Borrow is a Lite tab** (2026-11-25, as on the phone, docs/mobile.md): Earn ·
+    Borrow · Board. `#/lite/borrow` is a Lite page (`liteHas`) and draws Pro's
+    `BorrowPage` with `lite`: one list with the "Against what you hold" filter
+    and no shelf pills (a shelf's `k=borrow` stays Pro's), and Pro's
+    `BorrowTicket`; its cheaper-elsewhere nudge stays on the tab. Lite's
+    links to `#/borrow` (the money sheet's "Borrow cash", idle pills) now stay
+    in Lite. You's loan sheet keeps its two pay-back tabs; "More choices" opens
+    the loan on Borrow (`?h=…&m=add`). Core's link map (`liteLinks.ts`) has no
+    Borrow yet, so a shared `#/lite/borrow` link does not open the phone's tab.
+24. **Asset pages** (2026-11-25, docs/assets.md): `#/lite/t/<group>` is a Lite page
+    (`LiteAsset`): what the asset is, its issuer's company details, the Lite rows
+    that hold it, similar assets. The ticket has a folded "What it is" section
+    (`LiteAbout`) that composes the strategy's parts: what it holds and who issues
+    it, what it borrows and what that costs, how it earns.
 
 Not built, and why:
 

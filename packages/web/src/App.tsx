@@ -20,6 +20,7 @@ import { LiteYou } from './ui/lite/LiteYou'
 import { LiteBoard, liteHeld } from './ui/lite/LiteBoard'
 import { LiteProfile } from './ui/lite/LiteProfile'
 import { LiteSearch } from './ui/lite/LiteSearch'
+import { LiteAsset } from './ui/lite/LiteAsset'
 
 export default function App() {
   const r = useRoute()
@@ -35,6 +36,8 @@ export default function App() {
       {r.view === 'you' ? <LiteYou />
         : r.view === 'search' ? <LiteSearch q0={r.q} />
         : r.view === 'wallet' && r.addr ? <LiteProfile key={r.addr} addr={r.addr} />
+        : r.view === 'borrow' ? <BorrowPage route={r} lite />
+        : r.view === 'token' && r.token ? <LiteAsset key={r.token} group={r.token} />
         : r.view === 'board' ? <LiteBoard sort={r.t === 'perDay' ? 'perDay' : 'apr'} by={r.by === 'strategy' ? 'strategy' : 'wallet'} held={liteHeld(r.x)} />
         : group ? <LiteEarn key="earn" group={group} route={r} />
         : <LiteEarn key="earn" route={r} />}

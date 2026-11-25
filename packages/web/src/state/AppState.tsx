@@ -118,12 +118,15 @@ export function parseRoute(hash = location.hash): Route {
   return { ...r, lite, shell, asked, view: !lite && (r.view === 'you' || r.view === 'search') ? 'home' : r.view }
 }
 
-/** The pages Lite has: its home, Earn, You, search, a wallet's profile, and a dollar / ether / bitcoin / more list on its deposits or loops. */
+/** The pages Lite has: its home, Earn, Borrow, You, search, a wallet's profile, an asset's page, and a dollar / ether / bitcoin / more list on its deposits or loops. */
 export function liteHas(r: Page): boolean {
   if (r.view === 'home') return !r.t
-  if (r.view === 'earn' || r.view === 'you' || r.view === 'search') return true
+  // Borrow is the phone's page in both shells (docs/mobile.md): the same list and ticket as Pro's
+  if (r.view === 'earn' || r.view === 'borrow' || r.view === 'you' || r.view === 'search') return true
   // a wallet's profile; one position's PnL history (`pos=`) is Pro's drawer
   if (r.view === 'wallet') return !r.pos
+  // an asset (`#/lite/t/<group>`): what it is and who issues it; Pro's asset list (`#/t`) is Pro's
+  if (r.view === 'token') return !!r.token
   // the leaderboard: wallets by rate or by dollars a day; Pro's cuts (by strategy, an exposure chip, a strategy's holders, lifetime PnL) are Pro's
   if (r.view === 'board') return (!r.by || r.by === 'strategy' || r.by === 'wallet') && (!r.x || r.x === 'usd' || r.x === 'eth' || r.x === 'btc') && !r.s && (r.t == null || r.t === 'apr' || r.t === 'perDay')
   if (r.view !== 'group' || !r.group || !LITE_GROUPS.has(r.group)) return false

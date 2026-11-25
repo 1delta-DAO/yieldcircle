@@ -24,6 +24,7 @@ export function pathOf(d: LiteDest): string {
     case 'board': return `/lite/board${qs({ by: d.by, t: d.t, x: d.x })}`
     case 'search': return `/search${qs({ q: d.q })}`
     case 'wallet': return `/w/${d.account}`
+    case 'asset': return `/t/${encodeURIComponent(d.group)}`
   }
 }
 

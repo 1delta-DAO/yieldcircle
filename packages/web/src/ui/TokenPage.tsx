@@ -27,6 +27,8 @@ import { canonGroup, isSolGroup, spellingsOf } from '@yieldcircle/core/model/ass
 import { heldLabel, riskOf, type Strategy } from '@yieldcircle/core/model/strategies'
 import { assetRiskAcross, categoryWord, scoreWord, sourceWord } from '@yieldcircle/core/model/assetRisk'
 import { loadAssetNotes, noteOf } from '@yieldcircle/core/model/assetNotes'
+import { issuerCard, linkLabel } from '@yieldcircle/core/model/assetAbout'
+import { IssuerCardView } from './lite/LiteAsset'
 import { countsSolana } from '@yieldcircle/core/index/assetMerge'
 import { normAddr } from '@yieldcircle/core/model/address'
 import { useCounts, useProfiles } from '../social/queries'
@@ -214,11 +216,15 @@ function Cannot({ rows }: { rows: StructuralCount[] }) {
   )
 }
 
-/** What the token is: token-lists' asset note (`model/assetNotes.ts`) — nothing when nobody has written one. */
-function About({ group, sym }: { group: string; sym: string | null }) {
+/**
+ * What the token is: token-lists' asset note (`model/assetNotes.ts`) — nothing when nobody has written one —
+ * and the company behind it where a profile is written (`data/issuers.json`, `model/assetAbout.ts`).
+ */
+function About({ group, sym, issuer }: { group: string; sym: string | null; issuer?: { id?: string | null; name?: string | null } }) {
   const notes = useQuery({ queryKey: ['asset-notes'], queryFn: loadAssetNotes, staleTime: Infinity, gcTime: Infinity })
   const n = noteOf(notes.data, group, sym)
-  if (!n) return null
+  const card = issuerCard({ id: issuer?.id, name: issuer?.name ?? n?.issuer })
+  if (!n) return card?.profiled ? <IssuerCardView c={card} /> : null
   const rows = ([['Backed by', n.backing], ['Yield comes from', n.yieldSource], ['Exit', n.redemption]] as const).filter(([, v]) => v)
   return (
     <div className="card pad tk-about">
@@ -227,22 +233,13 @@ function About({ group, sym }: { group: string; sym: string | null }) {
       {!!rows.length && <ul>{rows.map(([k, v]) => <li key={k}><b>{k}</b> {v}</li>)}</ul>}
       {(n.links?.length || n.updated) && (
         <div className="tk-about-l">
-          {n.links?.map((u, i, all) => <a key={u} href={u} target="_blank" rel="noreferrer">{linkLabel(u, all)} ↗</a>)}
+          {n.links?.filter((u) => !card?.profiled || !card.links.some((l) => l.url === u)).map((u, i, all) => <a key={u} href={u} target="_blank" rel="noreferrer">{linkLabel(u, all)} ↗</a>)}
           {n.updated && <span className="t40">checked {n.updated}{n.confidence && n.confidence !== 'high' ? ` · ${n.confidence} confidence` : ''}</span>}
         </div>
       )}
+      {card?.profiled && <IssuerCardView c={card} />}
     </div>
   )
-}
-const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return u } }
-/** the host, or — where two links share one — the page: `what is auto` rather than help.hastra.io twice */
-function linkLabel(u: string, all: string[]) {
-  const host = hostOf(u)
-  if (all.filter((x) => hostOf(x) === host).length < 2) return host
-  try {
-    const tail = new URL(u).pathname.split('/').filter(Boolean).pop() ?? ''
-    return decodeURIComponent(tail).replace(/\.(md|html?)$/, '').replace(/[-_()]+/g, ' ').trim() || host
-  } catch { return host }
 }
 
 type SliceMode = 'protocol' | 'chain' | 'borrowed' | 'collateral'
@@ -353,7 +350,7 @@ export function TokenPage({ group }: { group: string }) {
         </div>
       )}
 
-      <About group={group} sym={d?.symbol ?? null} />
+      <About group={group} sym={d?.symbol ?? null} issuer={d ? { id: d.issuer, name: d.issuerName } : undefined} />
 
       <div className="cstats">
         <div className="cstat">

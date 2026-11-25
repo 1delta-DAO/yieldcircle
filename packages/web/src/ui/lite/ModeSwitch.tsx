@@ -16,7 +16,7 @@ export function ModeSwitch({ hint = true }: { hint?: boolean }) {
         <button role="radio" aria-checked={lite} aria-pressed={lite} onClick={() => pick('lite')}>Lite</button>
         <button role="radio" aria-checked={!lite} aria-pressed={!lite} onClick={() => pick('pro')}>Pro</button>
       </div>
-      {hint && <span className="t50 mode-sw-h">{lite ? 'The best rates in plain words. Pro has every venue, chain, tier and borrowing.' : 'Pro: every venue, chain, leverage tier and loan. Lite keeps the best of it, in plain words.'}</span>}
+      {hint && <span className="t50 mode-sw-h">{lite ? 'The best rates in plain words. Pro has every venue, chain and tier.' : 'Pro: every venue, chain, leverage tier and loan. Lite keeps the best of it, in plain words.'}</span>}
     </section>
   )
 }

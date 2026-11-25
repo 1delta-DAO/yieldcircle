@@ -24,6 +24,8 @@ export type LiteDest =
   | { to: 'board'; by?: 'wallet' | 'strategy'; t?: string; x?: string }
   | { to: 'search'; q?: string }
   | { to: 'wallet'; account: string }
+  /** an asset's page: what it is, who issues it, where it earns (`group`: the index's asset group, case-significant) */
+  | { to: 'asset'; group: string }
 
 const qs = (p: Record<string, string | undefined>) => {
   const q = new URLSearchParams()
@@ -42,6 +44,7 @@ export function liteHash(d: LiteDest): string {
     case 'board': return `#/lite/board${qs({ by: d.by, t: d.t, x: d.x })}`
     case 'search': return `#/lite/search${qs({ q: d.q })}`
     case 'wallet': return `#/lite/w/${normAddr(d.account)}`
+    case 'asset': return `#/lite/t/${encodeURIComponent(d.group)}`
   }
 }
 /** The whole address, for a link that leaves the app (a share, the phone opening the web). */
@@ -69,6 +72,8 @@ export function parseLiteHash(link: string): LiteDest | null {
   if (head === 'board') { const by = g('by'); return { to: 'board', by: by === 'strategy' || by === 'wallet' ? by : undefined, t: g('t'), x: g('x') } }
   if (head === 'search') return { to: 'search', q: g('q') }
   if (head === 'w') return isAddr(seg[1]) ? { to: 'wallet', account: normAddr(seg[1]) } : null
+  // a group carries spaces and colons, encoded; `#/t` alone (Pro's asset list) is not a Lite page
+  if (head === 't') return seg[1] ? { to: 'asset', group: decodeURIComponent(seg.slice(1).join('/')) } : null
   // a category Lite lists: its list, or one strategy on it
   if ((LITE_GROUPS as string[]).includes(head) && seg.length === 1) {
     const id = g('s')

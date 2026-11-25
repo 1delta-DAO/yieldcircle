@@ -6,6 +6,7 @@
   UI), and the rules (no raw `fetch` in UI, never read the connected user's
   positions from the index, `marketUidIn/Out` flip between loop open and close).
 - Social layer design: [`docs/social.md`](docs/social.md).
+- Asset pages and issuer company details (`data/issuers.json`): [`docs/assets.md`](docs/assets.md).
 - A pnpm workspace: the app is `packages/web`, the landing `packages/landing`, the design
   `packages/design`, the X OAuth worker `packages/x-link`, and the platform-free half —
   `model/`, `data/`, `config/`, `vendor/`, `search/`, the API clients `sdk/api.ts`,

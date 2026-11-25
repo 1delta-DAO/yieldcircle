@@ -67,9 +67,15 @@ same pair on the same chain; the sheet's foot has the proof line ("n wallets bor
 here") and the market's thread, folded, and "Say why" under the button. Links: `#/borrow`,
 `#/pro/borrow` and the asset page's `?k=borrow` open the sheet on `s` (an offer), `u` (an asset: the
 app's pick for it) or `h` (a loan), else the tab (`borrowPathOfLink` in `src/nav.tsx` — the page is
-not in core's Lite map, the web's Lite having none). You's loan rows keep Lite's pay-back sheet,
-with "Borrow more, or take collateral out" under it opening the borrow sheet. This puts opening a
-loan in Lite on the phone, which docs/lite-plan.md rules out for the web's Lite. Untested on a phone.
+not in core's Lite map yet). You's loan rows keep Lite's pay-back sheet,
+with "Borrow more, or take collateral out" under it opening the borrow sheet. The web's Lite has the
+same tab since 2026-11-25 (docs/lite-plan.md, As built 23). Untested on a phone.
+
+**Asset pages** (2026-11-25): `app/t/[group].tsx` (the web's `LiteAsset`, docs/assets.md): what the
+asset is, its issuer's company details (`data/issuers.json`), the Lite rows that hold it and
+similar assets. The strategy sheet has a folded "What it is" under How it earns
+(`StrategyAbout`, `src/ui/about.tsx`), whose "About X ›" opens the page. Core's link map carries
+it (`{ to: 'asset' }`), so a shared `#/t/…` link opens it too. Untested on a phone.
 
 **A row the menu does not hold** (2026-11-16): the sheet (`app/strategy/[id].tsx`) asks for it on
 its own (`useOffMenu`, the web Pro's lookup) once the catalogue has answered without it — by the

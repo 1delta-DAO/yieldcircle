@@ -17,6 +17,7 @@ import { Who } from '../../src/ui/Character'
 import { Txt } from '../../src/ui/Txt'
 import { Choices, Details, Frame, MoreCtx, MoreSheet, Numbers, Sec, ThreadCtx, TicketHead, Trust } from '../../src/ticket/parts'
 import { WhoIsIn } from '../../src/ui/thread'
+import { StrategyAbout } from '../../src/ui/about'
 import { useThreadOf } from '@yieldcircle/app/social/queries'
 import { uidOf } from '@yieldcircle/core/model/uid'
 import { bufferOfHealth } from '@yieldcircle/core/model/lite'
@@ -151,6 +152,7 @@ export default function TicketScreen() {
         : s?.kind === 'loop' ? <LoopBody key={into?.key} s={s} idle={chainIdle} allIdle={b.idlePerChain} holding={into} copyLev={copyLev} />
         : null}
       {how && <How d={how} />}
+      {s && <StrategyAbout s={s} />}
       {s && <Trust left={`${trustKind(s)} · ${usdShort(s.tvlUsd)} in it`} right={brandOf(s)} />}
       {s && mode === 'add' && <WhoIsIn s={s} uid={uidOf(s)} thread={talk} heldBy={heldBy(L.proof(s))} />}
       {s && h && !liteEligible(s) && <Trust left={`Lite does not offer this one new, but it is yours: ${isLoop ? 'add to it, make it safer or close it here' : 'add to it or take it out here'}.`} />}

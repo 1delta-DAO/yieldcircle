@@ -17,7 +17,7 @@ import { LITE_GROUPS, liteUrl, APP_ORIGIN } from './liteLinks'
 import { canonUid } from './uid'
 import { DEFAULTS, RISK_OPTS, SIZE_OPTS, type FilterControl, type Settings } from './settings'
 
-/** The categories Lite has: no Stocks, no Borrow (owner's call, 2026-10-23). */
+/** The categories Lite has: no Stocks (owner's call, 2026-10-23). Borrow is a tab of its own, not a category. */
 export { LITE_GROUPS }
 /** The strictest of Pro's size floors: a simple user cannot judge a thin pool. */
 export const LITE_MIN_TVL = 2_000_000

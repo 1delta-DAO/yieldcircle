@@ -68,17 +68,19 @@ const TABS: { id: string; label: string; href: string; on: (r: Route) => boolean
 ]
 const ROOTS: View[] = ['home', 'feed', 'earn', 'borrow', 'board']
 /**
- * Lite's two tabs (docs/lite.md): Earn (four categories, one list each), which is also where Lite
- * opens — it has no Home — and Board (who earns, one number each, positions on a tap). You — positions, streak,
- * points, rank — is behind the balance chip top-right (`LiteYours`), the one button every page
- * has, so it is not a tab too. Borrow and the feed are Pro's.
+ * Lite's three tabs (docs/lite.md): Earn (four categories, one list each), which is also where Lite
+ * opens — it has no Home —, Borrow (the phone's: put up what you hold, take liquidity out) and Board
+ * (who earns, one number each, positions on a tap). You — positions, streak, points, rank — is
+ * behind the balance chip top-right (`LiteYours`), the one button every page has, so it is not a
+ * tab too. The feed is Pro's.
  */
 const LITE_TABS: typeof TABS = [
   { ...TABS[2], href: liteHref('earn'), on: (r) => r.view === 'home' || r.view === 'earn' || r.view === 'group' },
+  { ...TABS[3], href: liteHref('borrow'), on: (r) => r.view === 'borrow' },
   { ...TABS[4], href: liteHref('board') },
 ]
 // a picked category is the Earn page with a tile lit, not a page under it: no back arrow
-const LITE_ROOTS: View[] = ['home', 'earn', 'group', 'board']
+const LITE_ROOTS: View[] = ['home', 'earn', 'group', 'borrow', 'board']
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const r = useRoute()
@@ -95,7 +97,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       {tabList.map((t) => (
         <a key={t.id} href={t.href} aria-current={t.on(r) ? 'page' : undefined}>{t.icon}<span>{t.label}</span></a>
       ))}
-      {/* Lite's search on a phone: the bar's third tab, like the other two (a desk has the field in the top bar) */}
+      {/* Lite's search on a phone: the bar's last tab, like the others (a desk has the field in the top bar) */}
       {lite && cls === 'tabbar' && <a href={liteHref('search')} aria-current={r.view === 'search' ? 'page' : undefined}>{SEARCH_IC}<span>Search</span></a>}
     </nav>
   )

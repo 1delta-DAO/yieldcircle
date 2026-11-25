@@ -287,6 +287,10 @@ describe('managing a position', () => {
     expect(holdingRow({ kind: 'loop', leverage: 21, health: 1.01, symbol: 'USDY' }, 'Dollars via Ondo')).toEqual({ what: 'USDY · Levered ×21', risk: { text: '1.0% from liquidation', tone: 'bad' } })
     expect(holdingRow({ kind: 'simple', symbol: 'USDC' }, 'USDC')).toEqual({ what: 'Earning', risk: null })
   })
+  it('says what a loop on a plain coin borrows, which is all there is to it', () => {
+    expect(holdingRow({ kind: 'loop', leverage: 6.36, health: 1.127, asset: 'USDC', symbol: 'USDC', debtSymbol: 'USDF' }, 'USDC').what).toBe('Levered ×6.4, borrows USDF')
+    expect(holdingRow({ kind: 'loop', leverage: 21, health: 1.01, asset: 'USDY', symbol: 'USDY', debtSymbol: 'USDC' }, 'Dollars via Ondo').what).toBe('USDY · Levered ×21')
+  })
 })
 
 describe('every number, as one list', () => {

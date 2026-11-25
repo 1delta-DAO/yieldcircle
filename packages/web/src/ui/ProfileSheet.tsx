@@ -11,10 +11,11 @@ import React from 'react'
 import { marketHref, proHref, useApp, walletHref } from '../state/AppState'
 import { useProfile, useProfiles } from '../social/queries'
 import { entryKey, usePending } from '../social/pending'
-import { labelFor } from '@yieldcircle/core/identity/name'
+import { labelFor, shortAddr } from '@yieldcircle/core/identity/name'
 import { parseLoopKey } from '@yieldcircle/core/model/uid'
 import { ConnectButton } from '../wallet/ConnectButton'
 import { Who } from './social-bits'
+import { CopyButton } from './bits'
 import { ChainList } from './ChainPicker'
 import { SettingsPanel } from './SettingsPanel'
 import { useUnseen } from './Alerts'
@@ -42,7 +43,8 @@ export function ProfileSheet({ lite }: { lite?: boolean } = {}) {
       <div className="ps-head">
         {account ? (
           <>
-            <Who account={account} profile={p.data?.profile} size={44} plain sub={viewAs && !signer ? 'viewing as' : undefined} />
+            {/* your own address, always, with a copy: a chosen name hides it everywhere else */}
+            <Who account={account} profile={p.data?.profile} size={44} plain sub={<span className="ps-addr"><span title={account}>{shortAddr(account)}</span><CopyButton text={account} />{viewAs && !signer ? ' · viewing as' : ''}</span>} />
             {!lite && <MyStats account={account} />}
           </>
         ) : (

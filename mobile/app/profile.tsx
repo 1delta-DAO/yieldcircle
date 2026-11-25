@@ -1,5 +1,5 @@
 import React from 'react'
-import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native'
+import { Linking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { useAccount } from 'wagmi'
 import { router } from 'expo-router'
@@ -22,7 +22,7 @@ import { Btn, Seg } from '../src/ui/bits'
 import { Character } from '../src/ui/Character'
 import { Filters } from '../src/ui/Filters'
 import { ChainList, useChainLabel } from '../src/ui/ChainChip'
-import { IconBack } from '../src/ui/icons'
+import { IconBack, IconCopy } from '../src/ui/icons'
 import { PAPER, PaperAccount } from '../src/ui/paper'
 import { LinkedWallets, PendingChanges } from '../src/ui/social'
 import { Txt } from '../src/ui/Txt'
@@ -62,7 +62,11 @@ export default function Profile() {
             <Character addr={b.account} avatarUrl={p?.avatarUrl} size={56} />
             <View style={{ flex: 1, gap: 2 }}>
               <Txt s={17} w={700} numberOfLines={1}>{labelFor(b.account, p).label}</Txt>
-              <Txt s={12.5} c={C.tx50} numberOfLines={1}>{p?.handle && p.displayName ? `@${p.handle} · ` : ''}{shortAddr(b.account)}{viewAs ? ' · viewing as' : ''}</Txt>
+              {/* your own address, to paste anywhere: the share sheet is the phone's copy (no clipboard module, docs/mobile.md) */}
+              <Pressable onPress={() => void Share.share({ message: b.account! }).catch(() => {})} hitSlop={6} accessibilityLabel="Copy your address" style={st.addr}>
+                <Txt s={12.5} c={C.tx50} numberOfLines={1} style={{ flexShrink: 1 }}>{p?.handle && p.displayName ? `@${p.handle} · ` : ''}{shortAddr(b.account)}{viewAs ? ' · viewing as' : ''}</Txt>
+                <IconCopy color={C.tx50} />
+              </Pressable>
             </View>
           </> : <Txt s={13} c={C.tx70} lh={19} style={{ flex: 1 }}>Connect a wallet to have a name and face, follow people and see your own money.</Txt>}
         </View>
@@ -142,7 +146,12 @@ function WalletRow({ vm, address, wallet, onConnect, onDisconnect }: { vm: strin
     <View style={st.row}>
       <View style={{ flex: 1, gap: 2 }}>
         <Txt s={14} w={600}>{vm}</Txt>
-        <Txt s={12.5} c={C.tx50} numberOfLines={1}>{address ? `${shortAddr(address)}${wallet ? ` · ${wallet}` : ''}` : 'not connected'}</Txt>
+        {address ? (
+          <Pressable onPress={() => void Share.share({ message: address }).catch(() => {})} hitSlop={6} accessibilityLabel={`Copy your ${vm} address`} style={st.addr}>
+            <Txt s={12.5} c={C.tx50} numberOfLines={1} style={{ flexShrink: 1 }}>{shortAddr(address)}{wallet ? ` · ${wallet}` : ''}</Txt>
+            <IconCopy color={C.tx50} />
+          </Pressable>
+        ) : <Txt s={12.5} c={C.tx50} numberOfLines={1}>not connected</Txt>}
       </View>
       {address ? <Btn sm kind="plain" title="Disconnect" onPress={onDisconnect} /> : <Btn sm title="Connect" onPress={onConnect} />}
     </View>
@@ -189,6 +198,7 @@ const st = StyleSheet.create({
   back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   page: { paddingHorizontal: 16, paddingTop: 18 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 },
+  addr: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', maxWidth: '100%' },
   h: { letterSpacing: -0.16, marginTop: 28, marginBottom: 10 },
   group: { backgroundColor: C.b200, borderRadius: 12, overflow: 'hidden', marginTop: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 10, paddingHorizontal: 14 },

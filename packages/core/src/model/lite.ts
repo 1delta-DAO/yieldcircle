@@ -578,13 +578,17 @@ export function liteLeverTargets(o: { Lnow: number; liqLtv: number | null | unde
 }
 
 /** A position's second line on You, in words: what it is and how far from the line. */
-export function holdingLine(h: Pick<Holding, 'kind' | 'leverage' | 'health' | 'directional'>): { text: string; tone: Tone } {
+export function holdingLine(h: Pick<Holding, 'kind' | 'leverage' | 'health' | 'directional'> & Partial<Pick<Holding, 'asset' | 'symbol' | 'debtSymbol'>>): { text: string; tone: Tone } {
   const b = bufferOfHealth(h.health)
+  // a loop on a coin that pays nothing itself (USDC against USDf on Silo) is all in what it borrows:
+  // its name is only the ticker, and "Levered" alone read as a plain USDC deposit
+  const k = h.asset ? deskOf(h.asset)?.kind : undefined
+  const owes = h.kind === 'loop' && (k === 'issued' || k === 'plain') && h.debtSymbol && h.debtSymbol.toLowerCase() !== h.symbol?.toLowerCase() ? `, borrows ${h.debtSymbol}` : ''
   const line = b == null ? '' : ` · ${pct(b * 100, b < 0.1 ? 1 : 0)} from liquidation`
   const tone: Tone = b == null ? '' : b < 0.05 ? 'bad' : b < 0.1 ? 'warn' : ''
   if (h.directional) return { text: `A price bet${line}`, tone }
   if (h.kind === 'borrow') return { text: `A loan${line}`, tone }
-  if (h.kind === 'loop') return { text: `Levered ${leverTag(h.leverage ?? 1)}${line}`, tone }
+  if (h.kind === 'loop') return { text: `Levered ${leverTag(h.leverage ?? 1)}${owes}${line}`, tone }
   return { text: 'Earning', tone: '' }
 }
 
@@ -598,7 +602,7 @@ export const holdingName = (h: Pick<Holding, 'asset' | 'group' | 'kind'>, s?: St
  * is held — and, for one that can be liquidated, how far from the line, on a line of its own. The
  * token is left out where the row's title already says it (plain "USDC" under no desk).
  */
-export function holdingRow(h: Pick<Holding, 'kind' | 'leverage' | 'health' | 'directional' | 'symbol'>, title = ''): { what: string; risk: { text: string; tone: Tone } | null } {
+export function holdingRow(h: Parameters<typeof holdingLine>[0] & Pick<Holding, 'symbol'>, title = ''): { what: string; risk: { text: string; tone: Tone } | null } {
   const l = holdingLine(h)
   const [what, risk] = l.text.split(' · ')
   const tok = h.symbol && !title.toLowerCase().includes(h.symbol.toLowerCase()) ? `${h.symbol} · ` : ''

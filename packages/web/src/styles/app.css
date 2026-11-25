@@ -763,7 +763,7 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 /* ---------- wallet ---------- */
 .wcard{display:flex;align-items:flex-start;gap:18px;padding:18px;border:1px solid var(--line);border-radius:var(--r);background:var(--b200);margin-top:6px;flex-wrap:wrap}
 .wc-t{flex:1;min-width:200px;display:flex;flex-direction:column;gap:5px}
-.wc-t h1{font-size:23px}
+.wc-t h1{font-size:23px;overflow-wrap:anywhere}
 .wc-addr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .copybtn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--tx50);cursor:pointer;padding:0}
 .copybtn:hover{color:var(--tx);border-color:var(--tx40)}
@@ -981,6 +981,8 @@ button.fc-legs[aria-expanded="true"]{color:var(--primary);border-bottom-color:va
 .ps{display:flex;flex-direction:column;gap:18px;min-height:100%}
 .ps-head{display:flex;flex-direction:column;gap:12px}
 .ps-head .who .wn b{font-size:16px}
+.ps-head .ps-addr{display:inline-flex;align-items:center;gap:6px;color:var(--tx50)}
+.ps-head .ps-addr .copybtn{width:20px;height:20px}
 .ps-p{margin:0;font-size:13px;line-height:1.5;color:var(--tx70)}
 .ps-wallet .btn{width:100%;min-height:44px}
 .ps-wallet .btn:has(.wv){padding:0;height:auto;border-radius:var(--r);border-color:var(--line);overflow:hidden}

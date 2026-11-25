@@ -2618,7 +2618,7 @@ h2{font-size:17px;font-weight:650;letter-spacing:-.01em;text-transform:none;colo
 .get .route-set{width:48px;border-radius:14px}
 /* the rate picker of a user-set-rate loan (ui/ChoicePicker.tsx) */
 .ratepick{display:flex;flex-direction:column;gap:8px}
-.rp-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.rp-presets{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:6px}
 @media (max-width:520px){.rp-presets{grid-template-columns:1fr}}
 .rp-preset{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:8px 10px;border:1px solid var(--line2);border-radius:var(--r);font-size:12.5px;min-width:0}
 .rp-preset b{font-size:15px;font-variant-numeric:tabular-nums}

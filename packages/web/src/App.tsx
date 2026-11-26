@@ -21,6 +21,7 @@ import { LiteBoard, liteHeld } from './ui/lite/LiteBoard'
 import { LiteProfile } from './ui/lite/LiteProfile'
 import { LiteSearch } from './ui/lite/LiteSearch'
 import { LiteAsset } from './ui/lite/LiteAsset'
+import { HandleLink } from './ui/HandleLink'
 
 export default function App() {
   const r = useRoute()
@@ -36,6 +37,7 @@ export default function App() {
       {r.view === 'you' ? <LiteYou />
         : r.view === 'search' ? <LiteSearch q0={r.q} />
         : r.view === 'wallet' && r.addr ? <LiteProfile key={r.addr} addr={r.addr} />
+        : r.view === 'wallet' && r.handle ? <HandleLink key={r.handle} route={r} />
         : r.view === 'borrow' ? <BorrowPage route={r} lite />
         : r.view === 'token' && r.token ? <LiteAsset key={r.token} group={r.token} />
         : r.view === 'board' ? <LiteBoard sort={r.t === 'perDay' ? 'perDay' : 'apr'} by={r.by === 'strategy' ? 'strategy' : 'wallet'} held={liteHeld(r.x)} />
@@ -46,6 +48,7 @@ export default function App() {
   return (
     <Shell><Boundary name="pro" reset={page} fallback={<PageError />}>
       {r.view === 'wallet' && r.addr ? <Wallet key={r.addr} addr={r.addr} />
+        : r.view === 'wallet' && r.handle ? <HandleLink key={r.handle} route={r} />
         : r.view === 'market' && r.uid ? <Market key={r.uid} uid={r.uid} />
         : r.view === 'curator' && r.curatorId ? <Curator key={r.curatorId} id={r.curatorId} />
         : r.view === 'token' ? (r.token ? <TokenPage key={r.token} group={r.token} /> : <TokenBook />)

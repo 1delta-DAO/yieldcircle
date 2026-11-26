@@ -246,6 +246,9 @@ export const handleCheck = (handle: string, account?: string) =>
   call<{ handle: string; available: boolean; reason?: string }>(
     `/handle/${encodeURIComponent(handle)}${account ? `?account=${encodeURIComponent(account)}` : ''}`,
   )
+/** Whose profile holds this handle — what an `@name` link opens. 404 (a `SocialError`) when nobody's does. */
+export const whoIs = (handle: string) =>
+  call<{ handle: string; account: string }>(`/who/${encodeURIComponent(handle)}`)
 export const write = (primaryType: string, message: Record<string, unknown>, signature: string) =>
   call<WriteResult>('/write', post('/write', { primaryType, message, signature }))
 

@@ -322,3 +322,17 @@ export function usePaperPrices(keys: string[]) {
 export function usePaperOps(account: string | undefined) {
   return useQuery({ queryKey: ['paper-ops', account], queryFn: () => paperApi.paperOps(account!, 200), enabled: !!account && /^0x[0-9a-f]{40}$/i.test(account), staleTime: 30_000, retry: false })
 }
+
+/** The wallet behind an `@name` link; `null` when no profile holds the handle. */
+export function useWhoIs(handle: string | undefined) {
+  return useQuery({
+    enabled: !!handle,
+    queryKey: ['who', handle?.toLowerCase()],
+    queryFn: () => api.whoIs(handle!).then((r) => r.account).catch((e) => {
+      if (e instanceof api.SocialError && e.status === 404) return null
+      throw e
+    }),
+    staleTime: MIN,
+    retry: false,
+  })
+}

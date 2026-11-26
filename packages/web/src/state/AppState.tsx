@@ -26,6 +26,7 @@ import { readMode, writeMode, type AppMode } from './mode'
  *                            takes out that family instead of dollars; `hold=1|0` sets its
  *                            "Against what you hold" pill
  *   #/w/0x…                  a wallet
+ *   #/@alice                 the wallet whose profile holds the handle (`#/w/@alice` too); replaced by its `#/w/<addr>`
  *   #/m/<uid>                a market          (uid is percent-encoded: it has colons)
  *   #/board                  the earners board (strategies by today's APR by default; t=pnl|yield|day;
  *                            by=wallet|position|paper; x=usd|eth|btc|stocks… the held-in chip; s=<strategy key>;
@@ -69,6 +70,8 @@ export interface Route {
   h?: string
   /** #/w/<addr> */
   addr?: string
+  /** #/@<handle> — a wallet named by its profile's handle, until `HandleLink` swaps in its address */
+  handle?: string
   /** #/c/<curatorId> — a desk (pos-indexer tickets/0013) */
   curatorId?: string
   /** #/m/<uid> */
@@ -175,6 +178,8 @@ function parsePage(seg: string[], p: URLSearchParams, hash: string): Page {
   if (head === 'search') return { view: 'search', ...base }
   // hex is canonically lower; a base58 wallet keeps its case — it IS the address
   if (head === 'w' && seg[1] && isAddr(seg[1])) return { view: 'wallet', addr: normAddr(seg[1]), ...base }
+  const at = head?.startsWith('@') ? head : head === 'w' && seg[1]?.startsWith('@') ? seg[1] : undefined
+  if (at && at.length > 1) return { view: 'wallet', handle: at.slice(1).toLowerCase(), ...base }
   if (head === 'm' && seg[1]) return { view: 'market', uid: seg.slice(1).join('/'), ...base }
   // a desk id is a registry slug or `cand:<chain>:<address>` — the colons survive the hash
   if (head === 'c' && seg[1]) return { view: 'curator', curatorId: decodeURIComponent(seg.slice(1).join('/')), ...base }

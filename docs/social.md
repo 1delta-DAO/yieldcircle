@@ -59,6 +59,7 @@ GET  /profiles/:account          profile + who they follow
 GET  /follows/:account  /followers/:account
 POST /write                      one endpoint; EIP-712 Message | Profile | Reaction | Follow | Delete | Batch (§17)
 GET  /handle/:h?account=         is the handle free for this wallet (asked while typing)
+GET  /who/:h                      whose profile holds the handle → { handle, account } | 404 (`#/@name` links)
 GET  /typed-data                 the domain + types, so a client never hardcodes them
 ```
 

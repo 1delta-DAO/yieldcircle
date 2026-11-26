@@ -140,7 +140,7 @@ export type FilterControl =
   | { kind: 'check'; id: string; label: string; sub: string; on: (st: Settings) => boolean; to: (on: boolean) => Partial<Settings> }
 
 const sizeWord = (x: number) => (x === 0 ? 'Any' : x >= 1e6 ? `$${x / 1e6}m+` : `$${x / 1e3}k+`)
-export const SIZE_OPTS = [2_000_000, 250_000, 0].map((v) => ({ v, word: sizeWord(v) }))
+export const SIZE_OPTS = [2_000_000, 250_000, 10_000, 0].map((v) => ({ v, word: sizeWord(v) }))
 export const RISK_OPTS = [{ v: 2, word: 'Careful' }, { v: 4, word: 'Standard' }, { v: 5, word: 'Any' }]
 const flag = (k: 'showRateBets' | 'showNegative' | 'showOracleDown' | 'wideNet' | 'showCollateral', label: string, sub: string): FilterControl =>
   ({ kind: 'check', id: k, label, sub, on: (st) => st[k], to: (on) => ({ [k]: on }) })

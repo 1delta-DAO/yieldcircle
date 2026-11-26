@@ -243,9 +243,9 @@ export function ManageLoopBody({ s, h, close }: { s: LoopStrategy | null; h: Hol
         {t.tight && !t.closeBlock && <View style={{ marginTop: 6 }}><Plain tone="warn">Tight: the close may revert at the worst fill (only gas is lost).</Plain></View>}
         {t.valued && <LossAck v={t.vc} what="Closing now" advice={`It can be worth waiting for ${t.holds} to trade closer to its price on the venue.`} />}
       </Sec>
-      <Lines l={closeLines({ backUsd: t.cq.isPending ? null : t.backUsd ?? null, back: t.cq.isPending ? 'pricing the sale…' : t.closeBlock ? '' : t.backDebt != null && !t.keep ? `≈ ${num(t.backDebt, 4)} ${t.debt}` : t.keep && t.backColl != null ? `≈ ${num(t.backColl, 4)} ${t.holds}` : '', costUsd: t.sale?.exitCostUsd ?? null, short: t.closeBlock === 'short' })} />
+      <Lines l={closeLines({ backUsd: t.cq.isPending ? null : t.backUsd ?? null, back: t.cq.isPending ? 'pricing the sale…' : t.closeBlock ? '' : t.backDebt != null && !t.keep ? `≈ ${num(t.backDebt, 4)} ${t.debt}` : t.keep && t.backColl != null ? `≈ ${num(t.backColl, 4)} ${t.holds}${t.leftover * t.pDebt >= 0.01 ? ` + ${num(t.leftover, 4)} ${t.debt}` : ''}` : '', costUsd: t.exitCostUsd, short: t.closeBlock === 'short' })} />
       <Action ladder={t.ladder} label="Close and withdraw" account={t.account} isConnected={t.isConnected} disabled={t.same || !!t.closeBlock || t.vc.blocked} risky={t.vc.severe} blockedNote={t.vc.blocked ? `Confirm the ${cents(-t.vc.diff)} loss above to continue` : undefined} chainId={h.chainId}
-        receipt={{ kind: 'close', amount: usd(h.valueUsd), usd: h.valueUsd, venue: h.venue, strategyId: s?.id, holdingKey: h.key, made, all: true, before: beforeOf(h) }} />
+        receipt={{ kind: 'close', amount: usd(t.backUsd ?? h.valueUsd), usd: t.backUsd ?? h.valueUsd, venue: h.venue, strategyId: s?.id, holdingKey: h.key, made, all: true, before: beforeOf(h) }} />
       <MoreSheet>
         {t.sameToken ? null : t.venueKeeps
           ? <MoreNote label="What you get it back in">{h.venue.split(' · ')[0]} always hands back what the loop holds: only what repays the {t.debt} is sold.</MoreNote>
@@ -256,7 +256,7 @@ export function ManageLoopBody({ s, h, close }: { s: LoopStrategy | null; h: Hol
         <Numbers rows={[
           ['Yours', usd(h.valueUsd)],
           ['Owes', `${num(t.owed, t.pDebt > 0.9 && t.pDebt < 1.1 ? 2 : 4)} ${t.debt}`],
-          ['Costs', t.sale?.exitCostUsd != null ? `${usd(t.sale.exitCostUsd)} · the sale’s slippage and fees` : '—'],
+          ['Costs', t.exitCostUsd != null ? `${usd(t.exitCostUsd)} · the sale’s slippage and fees` : '—'],
           whereOf(h.venue, h.chainId),
         ]} />
       </MoreSheet>

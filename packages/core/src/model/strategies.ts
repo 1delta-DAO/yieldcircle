@@ -311,6 +311,14 @@ export const isLoopscale = (lender?: string) => !!lender?.startsWith('LOOPSCALE_
  * the debt's own token, and every repay withdraws the whole AMM and spends that leg on the debt first.
  */
 export const isLlamaLend = (lender?: string) => !!lender?.toUpperCase().startsWith('LLAMALEND')
+/**
+ * Venues whose close is built only off the live position: `/loop/close` answers `MISSING_PARAM`
+ * without `account`, quote included (worker-api `leverage/close.ts`, measured 2026-11-26). Everywhere
+ * else the quote is asked without one — on Solana a named account turns it into the real build, which
+ * fails for a Kamino Multiply obligation and for Loopscale. Either way it is read by `closeSale`.
+ */
+const CLOSE_NEEDS_ACCOUNT = ['LLAMALEND', 'TWYNE', 'ALCHEMIX', 'FLYING_TULIP', 'CURVANCE', 'FRAXLEND', 'INVERSE', 'RESUPPLY']
+export const closeNeedsAccount = (lender?: string) => { const k = lender?.toUpperCase() ?? ''; return k === 'FLEX' || k.startsWith('FLEX_') || CLOSE_NEEDS_ACCOUNT.some((p) => k.startsWith(p)) }
 /** A loop whose debt is a plain variable-rate loan the lending routes can add to: no term, tenor, maturity or Loopscale book. */
 export const plainLoan = (s: LoopStrategy) => !s.terms && !s.tenors && !s.dueAt && !isLoopscale(s.lender)
 export const LOOPSCALE_TENORS: LoopTenor[] = [

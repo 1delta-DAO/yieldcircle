@@ -109,6 +109,32 @@ export const CLOSE_INTEREST_PAD = 0.002
 export const closeKeepPad = (slipBp: number) => Math.max((2 * slipBp) / 10_000, 2 * CLOSE_INTEREST_PAD)
 
 /**
+ * A close quote read as what it is — `input` of the collateral sold for `output` of the debt token —
+ * never as "everything was sold". Which of the two a quote is depends on the venue and on whether an
+ * account was named: without one the API sizes the sale off `amount` (less a 2–7 bp skim on EVM);
+ * with one, Solana, Resupply and Inverse build the real close, which sells only what repays the debt.
+ * Read as a full sale, such a quote's `output − owed` is a few dollars and the close said it lost
+ * 93–100 % of the equity (measured 2026-11-26). So everything here is taken at the sale's RATE:
+ * `full` is what all `held` fetches at it, and the unsold part is collateral that comes back.
+ * `sized`: the route cut the sale to the debt itself — then `sellKeep` / `leftover` are its own
+ * figures, not the keep margin's estimate.
+ */
+export function closeSale(q: { input: number; output: number }, held: number, owed: number, slipBp: number) {
+  const rate = q.output / q.input
+  const full = rate * held
+  const sized = q.input < held * 0.99
+  const keepPad = closeKeepPad(slipBp)
+  return {
+    rate, full, sized,
+    covers: full >= owed * (1 + CLOSE_INTEREST_PAD),
+    /** a fill at the worst the slippage allows would not repay the debt */
+    tight: full * (1 - slipBp / 10_000) < owed,
+    sellKeep: sized ? q.input : (owed * (1 + keepPad)) / rate,
+    leftover: sized ? Math.max(0, q.output - owed) : owed * keepPad,
+  }
+}
+
+/**
  * What "Get" buys for a loop: the chosen margin token — and, when it is the gas coin or its wrapper
  * and the venue takes the coin, both of them, the coin first (no approval to pay it in).
  */

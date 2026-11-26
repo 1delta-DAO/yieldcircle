@@ -1,14 +1,15 @@
 import React from 'react'
 import { DEFAULT_TIER, capRaw, healthAt, liqBuffer, netAprAtLeverage, toRaw } from '@yieldcircle/core/model/leverage'
 import { heldRaw } from '@yieldcircle/core/model/amount'
-import { isLlamaLend, isLoopscale, type LoopStrategy } from '@yieldcircle/core/model/strategies'
+import { closeNeedsAccount, isLoopscale, type LoopStrategy } from '@yieldcircle/core/model/strategies'
+import { isSvmChain } from '@yieldcircle/core/model/address'
 import type { Holding } from '@yieldcircle/core/model/positions'
 import { loopClose, loopOpen } from '@yieldcircle/core/sdk/api'
 import { isSavings } from '@yieldcircle/core/model/nature'
 import { withSignature } from '@yieldcircle/core/sdk/signedAction'
 import { num, usdShort } from '@yieldcircle/core/model/format'
 import { liteLeverTargets, saferTargets } from '@yieldcircle/core/model/lite'
-import { CLOSE_INTEREST_PAD, NO_ROUTE, closeKeepPad, hasRoute } from '@yieldcircle/core/model/ticket'
+import { NO_ROUTE, closeKeepPad, closeSale, hasRoute } from '@yieldcircle/core/model/ticket'
 import { quoteClose, useCloseQuote } from '../sdk/queries'
 import { slippageFor, debtAtPeg, useSettings } from '../state/Settings'
 import { useSticky } from '../sticky'
@@ -93,32 +94,41 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   // Lite asks afresh each time (its "More choices"): Pro's remembered choice never carries over unseen
   const [recvLite, setRecvLite] = React.useState<'debt' | 'collateral'>('debt')
   const recv = lite ? recvLite : recvPro, setRecv = lite ? setRecvLite : setRecvPro
-  // Loopscale's full close has no "sell everything": the venue repays the loan (accrued to now plus a
-  // margin), sells only the collateral that takes and hands the rest back (`isAll` drops `amount`).
-  // So it always pays out in the collateral — the debt-token option would promise what it cannot do
-  const venueKeeps = isLoopscale(h.lender ?? s?.lender)
-  const keep = closing && !sameToken && (venueKeeps || recv === 'collateral')
   const owed = loan ? loan.debt : h.debtAmount != null ? Math.max(0, h.debtAmount - bandAmt) : pD ? D / pD : 0
   const pDebt = pD || (owed > 0 ? D / owed : 0)
   // the exact balance: a float-sized amount can overshoot it by a few wei and the swap reverts
   const allRaw = h.amountRaw ?? toRaw(h.amount, h.decimals)
-  // with the account only where the venue needs it: LlamaLend builds a close only off the position and
-  // answers nothing without it. Elsewhere an account makes the API build the real close, and on Solana
-  // that sells only what repays the debt (ExactOut): `tradeOutput` is then the debt plus a buffer, not
-  // what the whole collateral fetches, and the close read as a 98 % loss (2026-11-24, Jupiter sUSDai/USDGO)
-  const quoteAs = isLlamaLend(h.lender ?? s?.lender) ? actor : undefined
+  // with the account only where the venue answers nothing without it (`closeNeedsAccount`). What comes
+  // back is not always the sale of everything: a named account makes Solana, Resupply and Inverse quote
+  // the real close, which sells only what repays the debt, and an EVM quote without one skims a few bp.
+  // Read as a full sale, a debt-sized quote said the close lost 98 % (2026-11-24, Jupiter sUSDai/USDGO)
+  // — so `closeSale` takes every figure at the sale's rate, over the whole collateral
+  const lender = h.lender ?? s?.lender
+  const quoteAs = closeNeedsAccount(lender) ? actor : undefined
   const cq = useCloseQuote(closing && collUid && debtUid ? { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: allRaw, accountId: h.accountId, loanId: loan?.id, account: quoteAs } : null, slip)
   const sale = cq.data ?? null
-  const rate = sale ? sale.output / sale.input : null
-  const covers = sale ? sale.output >= owed * (1 + CLOSE_INTEREST_PAD) : null
-  const tight = !!sale && covers && sale.output * (1 - slip / 10_000) < owed
-  const backDebt = sale ? sale.output - owed : null
+  const read = sale ? closeSale(sale, h.amount, owed, slip) : null
+  const rate = read?.rate ?? null
+  // what all the collateral fetches at the sale's rate
+  const full = read?.full ?? null
+  const covers = read ? read.covers : null
+  const tight = !!read && read.covers && read.tight
+  // Some venues have no "sell everything": the close repays the loan, sells only the collateral that
+  // takes and hands the rest back, whatever `amount` says — Loopscale (`isAll` drops `amount`), every
+  // Solana build (`isMaxIn` / `isMaxOut`: all withdrawn, the debt's worth sold, the residue to the
+  // wallet), and any route whose own quote is cut to the debt (`sized`: Resupply, Inverse). So those
+  // always pay out in the collateral — the debt-token option would promise what the build cannot do
+  const venueKeeps = isLoopscale(lender) || isSvmChain(h.chainId) || !!read?.sized
+  const keep = closing && !sameToken && (venueKeeps || recv === 'collateral')
+  const backDebt = read ? read.full - owed : null
   const keepPad = closeKeepPad(slip)
-  const sellKeep = rate ? (owed * (1 + keepPad)) / rate : null
+  const sellKeep = read ? read.sellKeep : null
   const keepOk = sellKeep != null && sellKeep < h.amount
   const backColl = keepOk ? h.amount - sellKeep! : null
-  const leftover = owed * keepPad
-  const backUsd = !sale ? null : keep ? (keepOk ? (backColl! * rate! + leftover) * pDebt : null) : backDebt! * pDebt
+  const leftover = read ? read.leftover : owed * keepPad
+  const backUsd = !read ? null : keep ? (keepOk ? (backColl! * rate! + leftover) * pDebt : null) : backDebt! * pDebt
+  // the quote's cost is for what IT sold: scaled to what this close sells
+  const exitCostUsd = sale?.exitCostUsd != null ? sale.exitCostUsd * ((keep && keepOk ? sellKeep! : h.amount) / sale.input) : null
   // a deleverage that would sell more than the loop's own collateral: only other collateral is left to
   // back the debt, so the target is out of reach short of a close (the build would sell it all, capped)
   const overSell = down && !closing && sellTok > h.amount * 0.999
@@ -139,13 +149,15 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
   // button already waits for it), a deleverage a quote for the part it sells, a step up a quote with
   // a route and the market's free liquidity — no estimate stands in for a missing quote
   const paperPlan = !h.paper ? undefined : closing
-    ? reducePlan({ ledger: paper.ledger, h, closing, keep, sellUsd, costUsd: sale?.exitCostUsd != null ? sale.exitCostUsd * (keep && keepOk ? sellKeep! / h.amount : 1) : C * slip / 10_000, feed: paper.price })
+    ? reducePlan({ ledger: paper.ledger, h, closing, keep, sellUsd, costUsd: exitCostUsd ?? C * slip / 10_000, feed: paper.price })
     : down || !s
     ? async () => {
       const q = await quoteClose({ collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw: capRaw(sellTok, h.decimals, heldRaw(h)), accountId: h.accountId, loanId: loan?.id, account: quoteAs }, slip, false).catch(() => null)
       if (!q) throw new Error(NO_ROUTE)
-      // what the sale loses against the position's own valuation, at the quote's fill
-      const cost = q.exitCostUsd != null && q.exitCostUsd > 0 ? q.exitCostUsd : Math.max(0, sellUsd - q.output * pDebt)
+      // what the sale loses against the position's own valuation, at the quote's fill — for the part
+      // sold HERE: a quote that sold less than it was asked is no loss of the rest (`closeSale`)
+      const part = q.input > 0 ? sellTok / q.input : 1
+      const cost = q.exitCostUsd != null && q.exitCostUsd > 0 ? q.exitCostUsd * part : Math.max(0, sellUsd - q.output * part * pDebt)
       return reducePlan({ ledger: paper.ledger, h, closing: false, keep: false, sellUsd, costUsd: cost, feed: paper.price })()
     }
     : async () => {
@@ -156,7 +168,8 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
     }
   const ladder = useTicketLadder(key, h.chainId, async () => {
     if (down || !s) {
-      const amountRaw = closing && !keep ? allRaw : capRaw(closing ? sellKeep! : sellTok, h.decimals, heldRaw(h))
+      // a venue that sizes the sale itself is handed the whole balance, as its quote was (Loopscale takes the part)
+      const amountRaw = closing && (!keep || (venueKeeps && !isLoopscale(lender))) ? allRaw : capRaw(closing ? sellKeep! : sellTok, h.decimals, heldRaw(h))
       const closeParams = { collateralMarketUid: collUid, debtMarketUid: debtUid, amountRaw, slippageBp: slip, isAll: closing, account: actor!, accountId: h.accountId, loanId: loan?.id }
       const env = await withSignature(await loopClose(closeParams), paperSign)
       if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
@@ -169,5 +182,5 @@ export function useManageLoop(s: LoopStrategy | null, h: Holding, closeFirst?: b
     if (!hasRoute(env.data)) throw new Error(NO_ROUTE)
     return [...pre, ...stepsFrom(env.actions, putUp ? `Lever to ${num(L, 2)}×` : `Increase to ${num(L, 2)}×`, h.chainId)]
   }, [h.collateralUid ?? s?.marketLongUid, h.debtUid ?? s?.marketShortUid], [{ address: h.collateralAddress ?? s?.collateralAddress, symbol: holds }, { address: h.debtAddress ?? s?.debtAddress, symbol: debt }], paperPlan)
-  return { account, isConnected, slip, actor, holds, debt, E, putUp, bandUsd, bandAmt, legs, overSell, reachL, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, targets, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, closeBlock, key, valued, vc, paper, paperSign, paperPlan, ladder }
+  return { account, isConnected, slip, actor, holds, debt, E, putUp, bandUsd, bandAmt, legs, overSell, reachL, Lnow, C, D, pC, pD, liqLtv, loans, loanId, setLoanId, loan, rest, minL, maxL, safer, targets, L0, setL, L, same, closing, down, C2, D2, sellUsd, borrowUsd, sellTok, borrowTok, borAt, net, drop, hf, collUid, debtUid, otherColl, otherUsd, sameToken, recv, setRecv, venueKeeps, keep, owed, pDebt, allRaw, cq, sale, rate, full, covers, tight, backDebt, keepPad, sellKeep, keepOk, backColl, leftover, backUsd, exitCostUsd, closeBlock, key, valued, vc, paper, paperSign, paperPlan, ladder }
 }

@@ -1180,6 +1180,9 @@ export function useTenorQuotes(l: LoopStrategy, equityUsd: number, leverageLive:
  * What selling `amountRaw` of a loop's collateral into its debt fetches, quote-only: without
  * `account` the API sizes the sale and builds nothing. `isAll` sizes a full close; a paper
  * deleverage asks for the part (tickets/0006). Null when no route answers.
+ * `input` is what the route SOLD, which need not be `amountRaw`: an EVM quote skims 2–7 bp, and a
+ * build for a named account sells only what repays the debt on Solana, Resupply and Inverse. Read it
+ * through `closeSale` (core `model/ticket.ts`), never as `output − owed`.
  */
 export async function quoteClose(p: Omit<LoopCloseParams, 'slippageBp' | 'isAll'>, slippageBp = 50, isAll = true) {
   const env = await loopClose({ ...p, slippageBp, isAll })
@@ -1187,7 +1190,7 @@ export async function quoteClose(p: Omit<LoopCloseParams, 'slippageBp' | 'isAll'
     .sort((a, b) => b!.tradeOutput! - a!.tradeOutput!)[0]
   return best ? { input: best.tradeInput!, output: best.tradeOutput!, via: best.aggregator, exitCostUsd: env.data?.economics?.exitCostUsd?.total } : null
 }
-/** `account`: only for LlamaLend, which builds a close only off the position. Elsewhere it makes the API build the real close, whose swap need not be the full sale (Solana sells only what repays the debt); nothing is signed here */
+/** `account`: only where the venue answers nothing without it (`closeNeedsAccount`). Elsewhere it makes the API build the real close, which on Solana fails for some positions (a Kamino Multiply obligation, Loopscale); nothing is signed here */
 export function useCloseQuote(p: Omit<LoopCloseParams, 'slippageBp' | 'isAll'> | null, slippageBp = 50) {
   return useQuery({
     enabled: !!p && p.amountRaw !== '0',

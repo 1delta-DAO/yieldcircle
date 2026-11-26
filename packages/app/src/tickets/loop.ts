@@ -190,11 +190,17 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   // carry (EVM). Its Solana quote leaves the carry null (worker-api `svmEconomics`, 2026-10-06), and
   // on a broker term it prices the debt at the market's variable rate, not the term's (2026-09-29):
   // there the payback is this ticket's own, off the net it shows. Null = never (no positive carry).
-  const cost = econ?.entryCostUsd.total ?? 0
+  const qn = econ?.notionalUsd
+  const staleRef = econ?.referencePrices?.stale ? econ.referencePrices : null
+  // a swap that buys the collateral below the market's oracle (stUSDS under its vault rate): the API
+  // counts that as a 0 cost, never a gain (`slippageBp` keeps the sign). The venue values the
+  // collateral at its oracle, so the open lands with more equity than was paid in — collateral less
+  // debt less margin, at the oracle prices the quote's notionals carry. `cost` < 0 = a net gain
+  const swapGain = qn && !staleRef && (econ?.slippageBp ?? 0) > 0 ? Math.max(0, qn.collateral - qn.debt - qn.equity) : 0
+  const cost = (econ?.entryCostUsd.total ?? 0) - swapGain
   // how far from liquidation, off the quote once there is one: its debt over the collateral the swap
   // actually bought (the entry cost is out of it, and the API sizes the borrow itself). Until then
   // the leverage's own (L − 1) / L, which reads the open safer than it lands
-  const qn = econ?.notionalUsd
   const ltvQ = qn && qn.collateral > 0 && qn.debt > 0 && E > 0 ? qn.debt / qn.collateral : null
   const drop = ltvQ != null ? liqBufferAtLtv(liqLtv, ltvQ) : liqBuffer(liqLtv, L)
   const hf = ltvQ != null ? healthAtLtv(liqLtv, ltvQ) : healthAt(liqLtv, L)
@@ -203,7 +209,8 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   const capLtv = !s.terms && !s.tenors && !s.dueAt ? borrowCapLtv(s.maxLev) : 0
   const overCap = ltvQ != null && capLtv > 0 && ltvQ > capLtv - 0.005
   const ownPayback = !econ ? null : cost <= 0 ? 0 : net > 0 && E > 0 ? cost / (E * net / 100 / 365) : null
-  const payback = !econ ? null : term ? ownPayback : econ.breakEvenDays.total ?? ownPayback
+  // the API's break-even is off its floored cost: with a swap gain in it, this ticket's own
+  const payback = !econ ? null : term || swapGain > 0 ? ownPayback : econ.breakEvenDays.total ?? ownPayback
   // the clock the payback runs against: the fixed debt's term, its due date, the PT's expiry
   const clockDays = term?.days ?? tenor?.days ?? (s.dueAt ? (s.dueAt * 1000 - Date.now()) / 86400_000 : s.expiry ? (s.expiry * 1000 - Date.now()) / 86400_000 : null)
   const clockWord = term ? `the ${term.days}-day term` : tenor ? `the ${tenorWord(tenor)} term` : s.dueAt ? `the loan's due date` : s.expiry ? 'maturity' : ''
@@ -259,12 +266,11 @@ export function useLoopTicket(s0: LoopStrategy, idle: Idle[], allIdle: Idle[], h
   // the open at market prices: your equity right after it is what you put in less the entry cost (`ValueCheck.tsx`)
   // …unless the prices the API measured it against are stale: then the swap is UNPRICED (the API left
   // its slippage out of `cost`), so the check reads 'unk' rather than a loss or a free entry
-  const staleRef = econ?.referencePrices?.stale ? econ.referencePrices : null
   const vc = useValueCheck(staleRef ? 0 : E, econ && E > 0 && !staleRef ? E - cost : 0, `${key}|${cost}`)
   const more = !!bal && amount > bal.amount
   // the hero's two answers: the net, and how far from the line — in a word, the distance and the health factor
   const hfShown = simHf ?? hf, safe = safetyOf(drop)
   const rewardsNow = loopRewards(s, L)
   const fixedNote = term ? `fixed to ${ends}` : tenor ? `fixed for ${tenorWord(tenor)}` : s.dueAt ? `fixed to ${due}` : ''
-  return { ltvQ, overCap, capLtv, liteTier, pickLiteTier, liteLev, setLiteLev, liteLo, liteHi, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, pickers, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote }
+  return { ltvQ, overCap, capLtv, liteTier, pickLiteTier, liteLev, setLiteLev, liteLo, liteHi, account, isConnected, dates, dateId, setDateId, s, slip, actor, getOpen, setGetOpen, unit, pay, opts, noPay, balOf, payAddr, setPayAddr, liteTicket, chosen, bal, price, amt, setAmt, amount, marginRaw, tier, setTier, custom, setCustom, lo, hi, canCustom, copyL, onCopy, setOnCopy, pickTier, heldL, L, E, C, D, termId, setTermId, term, tenorQs, tenorId, setTenorId, picked, tq, tenor, offer, liqLtv, picksRate, queueQ, queueBook, urate, suggested, rate0, setRate, rate, pickers, rateShift, books, debtTok, bookOf, bookApr, bookShort, due, dueDays, borAt0, borAt, dep, bor, net, drop, hf, netWorst, irm, after, netAfter, ends, overLiquidity, Eh, Lh, Lc, netC, hfC, q0, settling, q, routes, routeName, setRouteName, routeSel, econ, swapGain, cost, ownPayback, payback, clockDays, clockWord, simHf, noRoute, short, fitAmount, fitLev, fitTier, yearly, key, paper, paperRefuse, ladder, vc, staleRef, more, hfShown, safe, rewardsNow, fixedNote }
 }

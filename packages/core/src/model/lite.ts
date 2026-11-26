@@ -405,6 +405,7 @@ export function loopLines(p: { net: number; amountUsd: number; lev: number; drop
     ? { k: 'Costs', v: 'Swap not priced', s: `our prices are ${Math.round(p.staleHours)} h old, so the fill could not be checked — fees and network come to ${money(p.cost)}`, tone: 'warn' }
     : p.cost == null
     ? { k: 'Costs', v: p.quoting ? 'Pricing the entry…' : p.amountUsd > 0 ? 'No quote at this size' : '—', s: 'the swap that builds the loop', tone: '' }
+    : p.cost < 0 ? { k: 'Costs', v: `${money(-p.cost)} gained on entry`, s: 'the swap buys below the oracle price the venue counts', tone: 'ok' }
     : { k: 'Costs', v: `${money(p.cost)} to enter`, s: p.payback == null ? 'never earned back at this rate' : `earned back in ${daysPlain(p.payback)}`, tone: p.payback == null ? 'bad' : p.payback > 30 ? 'warn' : '' }
   return { earn, lose, cost }
 }

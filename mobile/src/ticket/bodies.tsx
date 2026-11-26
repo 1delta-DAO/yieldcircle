@@ -127,7 +127,7 @@ export function LoopBody({ s, idle, allIdle, holding, copyLev }: { s: LoopStrate
           [`${holdsWord} pays`, `${pct(t.dep)} a year`],
           [`Borrowing ${debtWord(s)} costs`, `${pct(t.bor)} a year`],
           ['From liquidation', pct(t.drop * 100, 1)],
-          ...(t.econ ? [['Entry cost', `${usd(t.cost)} · ${t.payback == null ? 'never earned back' : `earned back in ${daysWord(t.payback)}`}`] as [string, string]] : []),
+          ...(t.econ ? [t.cost < 0 ? ['Entry', `${usd(-t.cost)} gained · the swap buys below the oracle price`] as [string, string] : ['Entry cost', `${usd(t.cost)} · ${t.payback == null ? 'never earned back' : `earned back in ${daysWord(t.payback)}`}`] as [string, string]] : []),
           ...(s.expiry ? [['Ends', dayMonth(s.expiry)] as [string, string]] : []),
           ['In it', usdShort(s.tvlUsd)],
           ['Risk', riskWord(s.risk)],

@@ -329,7 +329,8 @@ export function useWhoIs(handle: string | undefined) {
     enabled: !!handle,
     queryKey: ['who', handle?.toLowerCase()],
     queryFn: () => api.whoIs(handle!).then((r) => r.account).catch((e) => {
-      if (e instanceof api.SocialError && e.status === 404) return null
+      // only the service's own answer means nobody: a 404 from a service without `/who` is an error
+      if (e instanceof api.SocialError && e.status === 404 && e.message === 'no such handle') return null
       throw e
     }),
     staleTime: MIN,

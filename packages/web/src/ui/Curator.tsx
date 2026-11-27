@@ -21,6 +21,7 @@ import { useCurator, useCuratorAllocation, useCuratorHolders, useCuratorTxs } fr
 import { useProfiles } from '../social/queries'
 import type { AllocationSlice } from '@yieldcircle/core/index/api'
 import { indexChainLabel } from '@yieldcircle/core/index/types'
+import { venueLabel } from '@yieldcircle/core/model/strategies'
 import { tokenHref } from '../state/AppState'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { curatorLabel } from './CuratorFilter'
@@ -219,6 +220,23 @@ export function Curator({ id }: { id: string }) {
               ))}
             </div>
           </div>
+          {!!d?.markets?.length && (
+            <>
+              <div className="sec-h"><h2>Markets it runs</h2><span className="sub">lending markets whose owner is the desk</span></div>
+              <div className="card">
+                <div className="list">
+                  {d.markets.flatMap((m) => m.reserves.map((r) => (
+                    <a key={r.marketUid} className="row wrow" href={`#/m/${encodeURIComponent(r.marketUid)}`}>
+                      <span className="nm">{r.symbol ?? r.marketUid.slice(0, 28)}</span>
+                      <span className="sp" />
+                      <span className="sub">{venueLabel(m.lenderKey)} · {indexChainLabel(m.chainId, chainLabel)}</span>
+                      <span className="arm" title={`confidence: ${m.confidence}`}>{m.arm}</span>
+                    </a>
+                  )))}
+                </div>
+              </div>
+            </>
+          )}
         </section>
 
         <section className="sec" style={{ marginTop: 0 }}>

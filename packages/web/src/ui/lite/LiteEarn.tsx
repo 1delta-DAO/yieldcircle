@@ -1,6 +1,6 @@
 import React from 'react'
 import { GROUPS, type Group } from '@yieldcircle/core/model/assets'
-import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, liteEligible, rowName, safestFirst, tileRates } from '@yieldcircle/core/model/lite'
+import { kindOf, LITE_GROUPS, LITE_KINDS, LITE_LIST_ROWS, LITE_NAME, liteEligible, rowName, safestFirst, tileRates, type LiteKindId } from '@yieldcircle/core/model/lite'
 import { go, liteHref, proHref, type Route } from '../../state/AppState'
 import { useSticky } from '../../state/sticky'
 import { ChainChip } from '../ChainPicker'
@@ -25,6 +25,10 @@ const TOP_ROWS = 10
  * the ticket beside it (a sheet on a phone). The same frame at the same width whichever is
  * showing, so picking a category changes the list in place rather than opening another page.
  * `#/lite/earn` and `#/lite/USD?s=…` are the two states.
+ *
+ * With `liteEarnBy: 'kind'` (Settings, on trial) the tiles are kinds of strategy instead
+ * (`LITE_KINDS`), across every money. The picked kind is kept for the tab, not in the address: a
+ * row's ticket opens on its money's (`openRow`), and the list beside it stays the kind's.
  */
 export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   const L = useLiteMenu()
@@ -33,6 +37,11 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   const { b } = L
   const groups = GROUPS.filter((g) => LITE_GROUPS.includes(g.id))
   const inGroup = group ? L.rows.filter((r) => r.s.group === group.id) : []
+  const byKind = L.floors.liteEarnBy === 'kind'
+  const [kindId, setKind] = useSticky<LiteKindId | null>('lite:kind', null)
+  const kind = byKind ? LITE_KINDS.find((k) => k.id === kindId) ?? null : null
+  const picked = !!kind || !!group
+  const list = kind ? L.rows.filter((r) => kindOf(r.s) === kind.id) : inGroup
   // the best rows anywhere, by the one rule every Lite list keeps: the safer risk first, then the
   // steady rate — so a page of ×6 loops never leads the money's own savings (docs/lite-design-review.md §3.2)
   const top = React.useMemo(() => [...L.rows].filter((r) => r.s.risk <= 2).sort(safestFirst(L.rank)).slice(0, TOP_ROWS), [L.rows, L.rank])
@@ -47,43 +56,53 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
   const aside = useAsideTop(ticketOpen)
   const close = () => go(group!.id)
   // the best of a category on one screen; the rest behind one tap, kept for this tab (`useSticky`)
-  const [allRows, setAllRows] = useSticky<boolean>(`lite:${group?.id ?? 'all'}:all`, false)
+  const [allRows, setAllRows] = useSticky<boolean>(`lite:${kind?.id ?? group?.id ?? 'all'}:all`, false)
   // search, sort and filters (EarnTools): one set for every category, kept for this tab. Asked
   // with no category picked, they search every row, not only the best few
   const ef = useEarnFilter('lite')
   const everything = React.useMemo(() => [...L.rows].sort(safestFirst(L.rank)), [L.rows, L.rank])
-  const base = group ? inGroup : ef.active ? everything : top
+  const base = picked ? list : ef.active ? everything : top
   const rows = ef.active ? applyEarn(base, ef.f, (r) => r.s, { extra: (r) => [r.title, rowName(r), r.sub, chainLabel(r.s.chainId)], rank: L.rank }) : base
-  const shown = group && !allRows && !ef.active ? rows.slice(0, LITE_LIST_ROWS) : rows
+  const shown = picked && !allRows && !ef.active ? rows.slice(0, LITE_LIST_ROWS) : rows
   const valueOf = (id: string) => b.holdings.filter((h) => L.runs(h)?.id === id).reduce((a, h) => a + h.valueUsd, 0)
   // what the reader's own positions on a row earn, weighted by what is in each
   const aprOf = (id: string) => { const hs = b.holdings.filter((h) => L.runs(h)?.id === id && h.apr != null); const v = hs.reduce((a, h) => a + h.valueUsd, 0); return v > 0 ? hs.reduce((a, h) => a + h.valueUsd * h.apr!, 0) / v : undefined }
   // the row an action just landed in glows once — when the ticket over it has closed (ticket 0016 §3)
   const arrived = useArrivals(!ticketOpen)
   // a category's list puts what you hold first, under its own label; the rest keep their ranking
-  const mineFirst = !!group && !ef.active
+  const mineFirst = picked && !ef.active
   const mine = mineFirst ? rows.filter((r) => r.yours) : []
   const rest = mine.length ? rows.filter((r) => !r.yours) : rows
   const row = (r: (typeof rows)[number]) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} on={sel?.id === r.s.id} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} yoursApr={r.yours ? aprOf(r.s.id) : undefined} arrived={arrived.has(r.s.id)} followed={isFollowed(r.s)} />
-  const name = group ? LITE_NAME[group.id] ?? { name: group.name, line: group.desc } : null
-  const yours = group ? b.books.filter((x) => x.group === group.id) : []
+  const name = kind ?? (group ? LITE_NAME[group.id] ?? { name: group.name, line: group.desc } : null)
+  // the money's own books: a kind spans every money, so it has none
+  const yours = group && !kind ? b.books.filter((x) => x.group === group.id) : []
+  const proList = group && !kind ? `#/${group.id}` : '#/earn'
+  // one tile list for either layout: the monies, or the kinds of strategy
+  const tiles = byKind
+    ? LITE_KINDS.map((k) => {
+        const gr = L.rows.filter((r) => kindOf(r.s) === k.id)
+        const on = kind?.id === k.id
+        return { id: k.id, name: k.name, color: k.color, glyph: k.glyph, gr, on, mine: gr.reduce((a, r) => a + (r.yours ? valueOf(r.s.id) : 0), 0), href: liteHref('earn'), pick: () => setKind(on ? null : k.id) }
+      })
+    : groups.map((g) => {
+        const on = group?.id === g.id
+        return { id: g.id, name: LITE_NAME[g.id].name, color: g.color, glyph: undefined, gr: L.rows.filter((r) => r.s.group === g.id), on, mine: b.books.filter((x) => x.group === g.id).reduce((a, x) => a + x.totalUsd, 0), href: on ? liteHref('earn') : liteHref(g.id), pick: undefined }
+      })
   const work = yours.reduce((a, x) => a + x.atWorkUsd, 0), yearly = yours.reduce((a, x) => a + x.yearlyUsd, 0), idle = yours.reduce((a, x) => a + x.idleUsd, 0)
   return (
     <>
       <div className={`lite-split lite-earn${ticketOpen ? ' withticket' : ''}`}>
         <div className="main">
           <div className="feed-h"><h1>Earn</h1><span className="sp" /><ChainChip /><span className="t50 hide-m">best rates, in plain words</span></div>
-          <div className={`ltiles${group ? ' picked' : ''}`} role="tablist" aria-label="Which money">
-            {groups.map((g) => {
-              const gr = L.rows.filter((r) => r.s.group === g.id)
+          <div className={`ltiles${byKind ? ' kinds' : ''}${(byKind ? kind : group) ? ' picked' : ''}`} role="tablist" aria-label={byKind ? 'Which kind of strategy' : 'Which money'}>
+            {tiles.map(({ id, name: word, color, glyph, gr, on, mine, href, pick }) => {
               // two numbers, never the levered one alone (`tileRates`)
               const { best, bestLoop } = tileRates(gr)
-              const mine = b.books.filter((x) => x.group === g.id).reduce((a, x) => a + x.totalUsd, 0)
-              const on = group?.id === g.id
               return (
-                <a key={g.id} role="tab" aria-selected={on} className={`ltile${on ? ' on' : ''}`} href={on ? liteHref('earn') : liteHref(g.id)} style={{ '--gc': g.color } as React.CSSProperties} aria-label={on ? `${LITE_NAME[g.id].name}: back to every category` : undefined}>
-                  <GroupIcon id={g.id} color={g.color} size={on ? 40 : 36} />
-                  <b>{LITE_NAME[g.id].name}</b>
+                <a key={id} role="tab" aria-selected={on} className={`ltile${on ? ' on' : ''}`} href={href} onClick={pick} style={{ '--gc': color } as React.CSSProperties} aria-label={on ? `${word}: back to every category` : undefined}>
+                  <GroupIcon id={id} glyph={glyph} color={color} size={on ? 40 : 36} />
+                  <b>{word}</b>
                   <span className="ltile-r">{b.isLoading && !gr.length ? <Sk w={70} h={20} /> : best > 0 ? <>up to <b className="ok">{pct(best)}</b></> : bestLoop > 0 ? <>up to <b className="r2">{pct(bestLoop)}</b></> : <span className="t50">—</span>}</span>
                   {best > 0 && bestLoop > best && <small className="t70">or {pct(bestLoop, 0)} levered</small>}
                   <small className="t50">{mine >= 1 ? `you have ${usdShort(mine)}` : `${gr.length} way${gr.length === 1 ? '' : 's'} to earn`}</small>
@@ -96,7 +115,7 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
             <div className="sec-h">
               <h2>{name ? name.name : ef.active ? 'Every way to earn' : 'Best rates, safest first'}</h2>
               <span className="sub">{name ? name.line : ef.active ? 'across every category' : 'across every category, the riskiest left out'}</span>
-              {group && <a className="lite-earn-all" href={liteHref('earn')}>All categories</a>}
+              {picked && <a className="lite-earn-all" href={liteHref('earn')} onClick={() => setKind(null)}>All categories</a>}
             </div>
             {group && (work >= 1 || idle >= 1) && (
               <div className="note lite-yours">
@@ -109,7 +128,7 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
               {b.isLoading && !rows.length
                 ? [0, 1, 2, 3, 4].map((i) => <div key={i} className="lrow sk"><Sk w={28} h={28} /><span className="lrow-n"><Sk w={120} h={14} /><Sk w={180} h={10} /></span><Sk w={60} h={18} /></div>)
                 : !rows.length && base.length ? <div className="empty">Nothing here matches{ef.f.q.trim() ? <> “{ef.f.q.trim()}”</> : ''} with these filters. <button type="button" className="lnk" onClick={ef.reset}>Reset</button></div>
-                : !rows.length ? <div className="empty">Nothing {name ? `in ${name.name.toLowerCase()} ` : ''}clears Lite’s bar on these chains right now.{group && <> <a className="pri" href={proHref(`#/${group.id}`)}>See everything in Pro ›</a></>}</div>
+                : !rows.length ? <div className="empty">Nothing {name ? `in ${name.name.toLowerCase()} ` : ''}clears Lite’s bar on these chains right now.{picked && <> <a className="pri" href={proHref(proList)}>See everything in Pro ›</a></>}</div>
                 : mine.length ? <>
                     <div className="lrows-h">Yours</div>
                     {mine.map(row)}
@@ -119,7 +138,7 @@ export function LiteEarn({ group, route }: { group?: Group; route: Route }) {
                 : shown.map(row)}
               {(mine.length ? rest.length > LITE_LIST_ROWS && !allRows : rows.length > shown.length) && <button type="button" className="lrow lite-showall" onClick={() => setAllRows(true)}>Show all {rows.length} ways to earn on {name!.name.toLowerCase()}</button>}
             </div>
-            {rows.length > 0 && <p className="t70 lite-foot"><span className="lite-key"><i className="r1" />low risk <i className="r2" />medium · <b className="lever-k">×</b> borrows to earn more</span> Rates are a year, before compounding, and each row is the best of its kind on the chains you use. <a href={proHref(group ? `#/${group.id}` : '#/earn')}>Pro</a> lists every venue.</p>}
+            {rows.length > 0 && <p className="t70 lite-foot"><span className="lite-key"><i className="r1" />low risk <i className="r2" />medium · <b className="lever-k">×</b> borrows to earn more</span> Rates are a year, before compounding, and each row is the best of its kind on the chains you use. <a href={proHref(proList)}>Pro</a> lists every venue.</p>}
           </section>
         </div>
         <aside ref={aside} className={ticketOpen ? '' : 'closed'} id="aside">

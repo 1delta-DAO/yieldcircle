@@ -386,8 +386,8 @@ export function Sk({ w = 80, h = 12 }: { w?: number | string; h?: number }) { re
 /** A group's mark: a quiet outlined glyph ($ Ξ ₿ +) in the group's colour, deliberately unlike any token logo so a
  *  group never reads as one of its assets (the old USDC logo made "US Dollar" look like the USDC row). */
 const GROUP_GLYPH: Record<string, string> = { USD: '$', ETH: 'Ξ', BTC: '₿', STOCKS: '↗', MORE: '+' }
-export function GroupIcon({ id, color, size = 20 }: { id: string; color: string; size?: number }) {
-  return <i className="ic gic" style={{ width: size, height: size, fontSize: size * 0.56, color, borderColor: `${color}66`, background: `linear-gradient(${color}1a, ${color}1a), #0b0b0b` }} aria-hidden>{GROUP_GLYPH[id] ?? id[0]}</i>
+export function GroupIcon({ id, color, size = 20, glyph }: { id: string; color: string; size?: number; /** a mark of its own (a Lite kind's, `LITE_KINDS`) */ glyph?: string }) {
+  return <i className="ic gic" style={{ width: size, height: size, fontSize: size * 0.56, color, borderColor: `${color}66`, background: `linear-gradient(${color}1a, ${color}1a), #0b0b0b` }} aria-hidden>{glyph ?? GROUP_GLYPH[id] ?? id[0]}</i>
 }
 
 /** ` · matures 17 Dec 2026 · 75d` on a held PT's meta line; amber once it is due or past (it then earns nothing). */

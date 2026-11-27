@@ -1,7 +1,7 @@
 import React from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { FILTER_CONTROLS, SLIPPAGE_OPTS, useSettings, type FilterControl } from '@yieldcircle/app/state/Settings'
-import { LITE_CONTROLS, LITE_FLOORS, liteWidened } from '@yieldcircle/core/model/lite'
+import { LITE_CONTROLS, LITE_FLOORS, LITE_VIEW_CONTROLS, liteWidened } from '@yieldcircle/core/model/lite'
 import { C } from '../theme'
 import { Seg } from './bits'
 import { Txt } from './Txt'
@@ -23,6 +23,10 @@ export function Filters({ lite }: { lite: boolean }) {
       </View>
       <Txt s={12.5} c={C.tx50} lh={18}>{lite ? 'Big, rated savings that pay more than they cost. Widen it here.' : 'Curated by default: real size, a collateral that earns on its own, a carry that pays more than it costs.'}</Txt>
       {controls.map((c) => <Control key={c.kind === 'seg' ? c.key : c.id} c={c} />)}
+      {lite && <>
+        <Txt s={13.5} w={600} style={{ marginTop: 8 }}>Layout</Txt>
+        {LITE_VIEW_CONTROLS.map((c) => <Control key={c.kind === 'seg' ? c.key : c.id} c={c} />)}
+      </>}
       <Txt s={13.5} w={600} style={{ marginTop: 8 }}>Trading</Txt>
       <View style={{ gap: 8 }}>
         <Txt s={13} c={C.tx70}>Max slippage <Txt s={11.5} c={C.tx40}>how far a swap may fill from its quote</Txt></Txt>

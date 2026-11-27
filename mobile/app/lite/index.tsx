@@ -6,8 +6,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useIsFocused, useLocalSearchParams } from 'expo-router'
 import { useArrivals } from '@yieldcircle/app/sdk/activity'
 import { useLiteMenu } from '@yieldcircle/app/lite'
-import { GROUPS, type Group, type GroupId } from '@yieldcircle/core/model/assets'
-import { LITE_GROUPS, LITE_LIST_ROWS, LITE_NAME, rowName, safestFirst, tileRates } from '@yieldcircle/core/model/lite'
+import { GROUPS, type GroupId } from '@yieldcircle/core/model/assets'
+import { kindOf, LITE_GROUPS, LITE_KINDS, LITE_LIST_ROWS, LITE_NAME, rowName, safestFirst, tileRates, type LiteKindId } from '@yieldcircle/core/model/lite'
 import { applyEarn } from '@yieldcircle/core/model/earnFilter'
 import { chainLabel } from '@yieldcircle/app/sdk/queries'
 import { useEarnFilter } from '@yieldcircle/app/earnFilter'
@@ -29,6 +29,7 @@ const TOP_ROWS = 10
  * them the highest steady rates anywhere or, with a tile picked, that money's rows — deposits and
  * loops mixed, one per thing in words, the safest first (`safestFirst`). Search, sort and filters
  * over it (`EarnTools`); asked with no tile picked, they search every row, not only the best few.
+ * With `liteEarnBy: 'kind'` (Settings, on trial) the tiles are kinds of strategy (`LITE_KINDS`).
  */
 export default function LiteEarn() {
   // room for the activity pill while it shows (src/ui/TabBar.tsx)
@@ -37,17 +38,23 @@ export default function LiteEarn() {
   const { b } = L
   // a link's category (`?g=USD`, core's route map), else every category
   const { g } = useLocalSearchParams<{ g?: string }>()
+  const [kindId, setKind] = React.useState<LiteKindId | null>(null)
   const [group, setGroup] = React.useState<GroupId | null>(g && LITE_GROUPS.includes(g as GroupId) ? (g as GroupId) : null)
-  React.useEffect(() => { if (g && LITE_GROUPS.includes(g as GroupId)) setGroup(g as GroupId) }, [g])
+  React.useEffect(() => { if (g && LITE_GROUPS.includes(g as GroupId)) { setGroup(g as GroupId); setKind(null) } }, [g])
+  const byKind = L.floors.liteEarnBy === 'kind'
+  const kind = byKind ? LITE_KINDS.find((k) => k.id === kindId) ?? null : null
+  // one tile picked at a time: a kind and a link's money never both
+  const pickKind = (id: LiteKindId | null) => { setKind(id); setGroup(null) }
+  const picked = !!kind || !!group
   const [all, setAll] = React.useState(false)
-  React.useEffect(() => setAll(false), [group])
+  React.useEffect(() => setAll(false), [group, kind])
   const groups = GROUPS.filter((g) => LITE_GROUPS.includes(g.id))
   const top = React.useMemo(() => [...L.rows].filter((r) => r.s.risk <= 2).sort(safestFirst(L.rank)).slice(0, TOP_ROWS), [L.rows, L.rank])
   const everything = React.useMemo(() => [...L.rows].sort(safestFirst(L.rank)), [L.rows, L.rank])
   const ef = useEarnFilter('lite')
-  const base = group ? L.rows.filter((r) => r.s.group === group) : ef.active ? everything : top
+  const base = kind ? L.rows.filter((r) => kindOf(r.s) === kind.id) : group ? L.rows.filter((r) => r.s.group === group) : ef.active ? everything : top
   const rows = ef.active ? applyEarn(base, ef.f, (r) => r.s, { extra: (r) => [r.title, rowName(r), r.sub, chainLabel(r.s.chainId)], rank: L.rank }) : base
-  const shown = group && !all && !ef.active ? rows.slice(0, LITE_LIST_ROWS) : rows
+  const shown = picked && !all && !ef.active ? rows.slice(0, LITE_LIST_ROWS) : rows
   const f = useMyFollows(b.account)
   const isFollowed = (s: (typeof rows)[number]['s']) => { const a = L.proof(s)?.best?.account; return !!a && f.isFollowing('wallet', a) }
   const valueOf = (id: string) => b.holdings.filter((h) => L.runs(h)?.id === id).reduce((a, h) => a + h.valueUsd, 0)
@@ -60,10 +67,10 @@ export default function LiteEarn() {
   const [listY, setListY] = React.useState(0)
   const toArrived = (y: number) => scroll.current?.scrollTo({ y: Math.max(0, listY + y - 160), animated: true })
   // a category's list puts what you hold first, under its own label; the rest keep their ranking
-  const mine = group && !ef.active ? rows.filter((r) => r.yours) : []
+  const mine = picked && !ef.active ? rows.filter((r) => r.yours) : []
   const rest = mine.length ? rows.filter((r) => !r.yours) : rows
   const row = (r: (typeof rows)[number]) => <LiteRowView key={r.s.id} r={r} get={L.get} proof={L.proof(r.s)} yoursUsd={r.yours ? valueOf(r.s.id) : undefined} yoursApr={r.yours ? aprOf(r.s.id) : undefined} arrived={arrived.has(r.s.id)} onArrivedAt={toArrived} followed={isFollowed(r.s)} />
-  const name = group ? LITE_NAME[group] : null
+  const name = kind ?? (group ? LITE_NAME[group] : null)
   const yours = group ? b.books.filter((x) => x.group === group) : []
   const work = yours.reduce((a, x) => a + x.atWorkUsd, 0), yearly = yours.reduce((a, x) => a + x.yearlyUsd, 0), idle = yours.reduce((a, x) => a + x.idleUsd, 0)
   const qc = useQueryClient()
@@ -77,16 +84,19 @@ export default function LiteEarn() {
         <ChainChip />
       </View>
       <View style={st.tiles}>
-        {groups.map((g) => {
+        {byKind ? LITE_KINDS.map((k) => {
+          const gr = L.rows.filter((r) => kindOf(r.s) === k.id)
+          return <Tile key={k.id} id={k.id} name={k.name} color={k.color} glyph={k.glyph} on={kind?.id === k.id} dim={!!kind && kind.id !== k.id} rates={tileRates(gr)} n={gr.length} mine={gr.reduce((a, r) => a + (r.yours ? valueOf(r.s.id) : 0), 0)} loading={b.isLoading && !gr.length} onPress={() => pickKind(kind?.id === k.id ? null : k.id)} />
+        }) : groups.map((g) => {
           const gr = L.rows.filter((r) => r.s.group === g.id)
-          return <Tile key={g.id} g={g} on={group === g.id} dim={!!group && group !== g.id} rates={tileRates(gr)} n={gr.length} mine={b.books.filter((x) => x.group === g.id).reduce((a, x) => a + x.totalUsd, 0)} loading={b.isLoading && !gr.length} onPress={() => setGroup(group === g.id ? null : g.id)} />
+          return <Tile key={g.id} id={g.id} name={LITE_NAME[g.id].name} color={g.color} on={group === g.id} dim={!!group && group !== g.id} rates={tileRates(gr)} n={gr.length} mine={b.books.filter((x) => x.group === g.id).reduce((a, x) => a + x.totalUsd, 0)} loading={b.isLoading && !gr.length} onPress={() => setGroup(group === g.id ? null : g.id)} />
         })}
       </View>
 
       <View style={st.secH}>
         <Txt s={16} w={600} style={{ letterSpacing: -0.16 }}>{name ? name.name : ef.active ? 'Every way to earn' : 'Best rates, safest first'}</Txt>
         <Txt s={12.5} c={C.tx50}>{name ? name.line : ef.active ? 'across every category' : 'across every category, the riskiest left out'}</Txt>
-        {group && <Pressable onPress={() => setGroup(null)} style={{ alignSelf: 'flex-end' }}><Txt s={12.5} c={C.primary}>every category ›</Txt></Pressable>}
+        {picked && <Pressable onPress={() => pickKind(null)} style={{ alignSelf: 'flex-end' }}><Txt s={12.5} c={C.primary}>every category ›</Txt></Pressable>}
       </View>
       {group && (work >= 1 || idle >= 1) && (
         <View style={st.note}>
@@ -124,13 +134,13 @@ export default function LiteEarn() {
  * line has its own fixed slot (the icon's at its picked size, the levered line's kept when empty),
  * and no line wraps.
  */
-function Tile({ g, on, dim, rates: { best, bestLoop }, n, mine, loading, onPress }: { g: Group; on: boolean; dim: boolean; rates: { best: number; bestLoop: number }; n: number; mine: number; loading: boolean; onPress: () => void }) {
+function Tile({ id, name, color, glyph, on, dim, rates: { best, bestLoop }, n, mine, loading, onPress }: { id: string; name: string; color: string; glyph?: string; on: boolean; dim: boolean; rates: { best: number; bestLoop: number }; n: number; mine: number; loading: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={[st.tileWrap, dim && { opacity: 0.55 }]}>
-      {on && <View pointerEvents="none" style={[st.ring, { borderColor: alpha(g.color, 0.18) }]} />}
-      <LinearGradient colors={[mix(g.color, on ? 0.28 : 0.16), C.b200]} locations={[0, on ? 0.8 : 0.72]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[st.tile, { borderColor: on ? alpha(g.color, 0.6) : 'transparent' }]}>
-        <View style={st.tileIcon}><GroupIcon id={g.id} color={g.color} size={on ? 40 : 36} /></View>
-        <Txt s={16} w={700} numberOfLines={1} style={{ marginTop: 4 }}>{LITE_NAME[g.id].name}</Txt>
+      {on && <View pointerEvents="none" style={[st.ring, { borderColor: alpha(color, 0.18) }]} />}
+      <LinearGradient colors={[mix(color, on ? 0.28 : 0.16), C.b200]} locations={[0, on ? 0.8 : 0.72]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[st.tile, { borderColor: on ? alpha(color, 0.6) : 'transparent' }]}>
+        <View style={st.tileIcon}><GroupIcon id={id} glyph={glyph} color={color} size={on ? 40 : 36} /></View>
+        <Txt s={16} w={700} numberOfLines={1} style={{ marginTop: 4 }}>{name}</Txt>
         {loading ? <View style={st.tileRate}><Sk w={90} h={22} /></View> : (
           <Txt s={13} c={C.tx70} lh={29} numberOfLines={1}>{best > 0 ? <>up to <Txt s={20} w={700} c={C.ok} lh={29}>{pct(best)}</Txt></> : bestLoop > 0 ? <>up to <Txt s={20} w={700} c={C.warn} lh={29}>{pct(bestLoop)}</Txt></> : '—'}</Txt>
         )}

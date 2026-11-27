@@ -3,7 +3,7 @@ import { followedFirst, howOf, mechanismOf, mechanismDetailOf, mechanismWord, ro
 import { borrowCapLtv, healthAt, healthAtLtv, liqBuffer, liqBufferAtLtv } from './leverage'
 import type { LoopStrategy, SimpleStrategy, Strategy } from './strategies'
 import { learnDesk } from './assets'
-import { LITE_CONTROLS, LITE_FLOORS, liteWidened } from './lite'
+import { kindOf, LITE_CONTROLS, LITE_FLOORS, LITE_KINDS, LITE_VIEW_CONTROLS, liteWidened } from './lite'
 import { DEFAULTS } from './settings'
 import type { Holding } from './positions'
 
@@ -165,6 +165,25 @@ describe('liteMenu', () => {
   it('safer rows first, then the steady rate: a loop never jumps a safer deposit', () => {
     const rows = liteMenu([loop('l', { rate: 20, risk: 2 }), dep('d', { rate: 5, risk: 1 }), dep('e', { asset: 'USDe', rate: 9, risk: 2 })], rank)
     expect(rows.map((r) => r.s.id)).toEqual(['d', 'l', 'e'])
+  })
+})
+
+describe('kindOf', () => {
+  it('puts a row under its mechanism\'s kind, and what nothing names under Other', () => {
+    expect(kindOf(dep('a'))).toBe('lending')
+    expect(kindOf(loop('u2', { asset: 'USDe', intrinsicLong: 5 }))).toBe('basis')
+    expect(kindOf(loop('u', { asset: 'USDe', holds: 'USDe' }))).toBe('other')
+  })
+  it('names every mechanism once', () => {
+    const all = LITE_KINDS.flatMap((k) => k.of)
+    expect(new Set(all).size).toBe(all.length)
+  })
+  it('folds by kind only when asked: the default menu is unchanged', () => {
+    const rows = [dep('a', { rate: 4 }), dep('b', { rate: 6 })]
+    expect(liteMenu(rows, (s) => s.rate).length).toBe(liteMenu(rows, (s) => s.rate, new Set(), LITE_FLOORS, true).length)
+  })
+  it('the layout switch is no filter', () => {
+    for (const c of LITE_VIEW_CONTROLS) if (c.kind === 'check') expect(liteWidened({ ...DEFAULTS, ...c.to(true) })).toBe(0)
   })
 })
 

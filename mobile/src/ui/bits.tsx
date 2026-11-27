@@ -98,10 +98,10 @@ export function Face({ s, size = 28, on }: { s: Strategy; size?: number; on?: st
 
 const GLYPH: Record<string, string> = { USD: '$', ETH: 'Ξ', BTC: '₿', STOCKS: '↗', MORE: '+' }
 /** A money's mark (the web's `GroupIcon`, `.gic`): its glyph in Plex Mono on a rounded square tinted with its colour. */
-export function GroupIcon({ id, color, size = 20 }: { id: string; color: string; size?: number }) {
+export function GroupIcon({ id, color, size = 20, glyph }: { id: string; color: string; size?: number; /** a mark of its own (a Lite kind's, `LITE_KINDS`) */ glyph?: string }) {
   return (
     <View style={{ width: size, height: size, borderRadius: size * 0.3, borderWidth: 1, borderColor: alpha(color, 0.4), backgroundColor: mix(color, 0.1, '#0b0b0b'), alignItems: 'center', justifyContent: 'center' }}>
-      <Txt s={size * 0.56} w={600} mono c={color} lh={size * 0.75}>{GLYPH[id] ?? id[0]}</Txt>
+      <Txt s={size * 0.56} w={600} mono c={color} lh={size * 0.75}>{glyph ?? GLYPH[id] ?? id[0]}</Txt>
     </View>
   )
 }

@@ -700,6 +700,8 @@ export function venueLabel(lender: string, curator?: string | null, marketName?:
   if (lender.startsWith('AAVE_V3')) return 'Aave V3'
   if (lender.startsWith('MORPHO_MIDNIGHT')) return 'Midnight'
   if (lender.startsWith('MORPHO_BLUE')) return curator ? `Morpho · ${curator}` : 'Morpho'
+  // a Kamino market is permissionless like a Morpho one: the desk that owns it is the name (`Kamino · Nysa`)
+  if (lender.startsWith('KAMINO')) return curator ? `Kamino · ${curator}` : 'Kamino'
   if (lender.startsWith('FLUID')) return 'Fluid'
   if (lender.startsWith('COMPOUND_V3')) return 'Compound'
   if (lender.startsWith('EULER')) return 'Euler'

@@ -40,6 +40,13 @@ export const LITE_CONTROLS: FilterControl[] = [
   { kind: 'check', id: 'showRateBets', label: 'Loops on money that earns nothing', sub: 'they pay only while borrowing stays cheap', on: (st) => st.showRateBets, to: (on) => ({ showRateBets: on }) },
   { kind: 'check', id: 'showNegative', label: 'Loops that cost more than they pay', sub: 'today; a rate can turn', on: (st) => st.showNegative, to: (on) => ({ showNegative: on }) },
 ]
+/**
+ * How Lite's Earn is laid out (the same sheet, under the filters): a view, not a filter, so it moves
+ * nothing `liteWidened` counts and Reset leaves it.
+ */
+export const LITE_VIEW_CONTROLS: FilterControl[] = [
+  { kind: 'check', id: 'liteEarnBy', label: 'Earn tiles by kind of strategy', sub: 'Lending, Staking, Basis trade… instead of Dollars, Ether, Bitcoin', on: (st) => st.liteEarnBy === 'kind', to: (on) => ({ liteEarnBy: on ? 'kind' : 'money' }) },
+]
 const LITE_KEYS = Object.keys(LITE_FLOORS) as (keyof LiteFloors)[]
 /** How many of Lite's four filters are off Lite's floors: the profile's "2 widened". */
 export const liteWidened = (st: Settings): number => LITE_KEYS.filter((k) => st[k] !== LITE_FLOORS[k]).length
@@ -342,7 +349,12 @@ export function tileRates(rows: Pick<LiteRow, 's'>[]): { best: number; bestLoop:
   return { best, bestLoop }
 }
 
-export function liteMenu(all: Strategy[], rank: (s: Strategy) => number, held: Set<string> = new Set(), f: LiteFloors = LITE_FLOORS): LiteRow[] {
+/**
+ * `byKind`: fold by the kind of strategy too (`kindOf`), for Earn's strategy tiles — otherwise the
+ * best "Dollars via Re" could stand for a Re row that earns another way, and a strategy tile would
+ * lose it (docs/lite-descriptors.md: about 28 more rows on the live menu).
+ */
+export function liteMenu(all: Strategy[], rank: (s: Strategy) => number, held: Set<string> = new Set(), f: LiteFloors = LITE_FLOORS, byKind = false): LiteRow[] {
   const best = new Map<string, LiteRow>()
   const mine: LiteRow[] = []
   for (const s of all) {
@@ -353,7 +365,7 @@ export function liteMenu(all: Strategy[], rank: (s: Strategy) => number, held: S
     // "Dollars via Hastra" too, and folded under Hastra's own PRIME they vanished from Lite
     // (the source's own words, not the row's sub: that also says where a wrapper sits, and the fold is by issuer)
     const who = s.kind === 'simple' && (s.source === 'savings' || s.source === 'staking') ? SIMPLE_SUB[s.source](s) : ''
-    const k = `${s.group}|${title}|${s.kind}|${who}|${s.kind === 'simple' && s.maturity ? 'dated' : s.kind === 'loop' && s.expiry ? 'dated' : ''}`
+    const k = `${s.group}|${title}|${s.kind}|${who}|${s.kind === 'simple' && s.maturity ? 'dated' : s.kind === 'loop' && s.expiry ? 'dated' : ''}${byKind ? `|${kindOf(s)}` : ''}`
     const cur = best.get(k)
     if (!cur) best.set(k, { s, title, sub, yours: false, also: 0 })
     else if (rank(s) > rank(cur.s)) best.set(k, { s, title, sub, yours: false, also: cur.also + 1 })
@@ -1003,6 +1015,26 @@ export const LITE_NAME: Record<string, { name: string; line: string }> = {
   BTC: { name: 'Bitcoin', line: 'Earn on bitcoin, in bitcoin.' },
   MORE: { name: 'More', line: 'Other coins and currencies: BNB, AVAX, SOL, the euro, gold.' },
 }
+
+/**
+ * Earn's other layout, on trial (`Settings.liteEarnBy`): tiles by the kind of strategy, across every
+ * money, instead of by the money. Each kind is a few of `model/mechanism.ts`'s ids; what has no
+ * mechanism, or one too thin for a tile of its own (treasuries, dividends, perp LP, mixed), is Other.
+ * Measured 2026-11-27 on the live menu: lending 52, staking 39, other 52, private credit 18,
+ * basis trade 18, reinsurance 6.
+ */
+export type LiteKindId = 'lending' | 'staking' | 'basis' | 'credit' | 'reinsurance' | 'other'
+export const LITE_KINDS: { id: LiteKindId; name: string; line: string; glyph: string; color: string; of: Mechanism[] }[] = [
+  { id: 'lending', name: 'Lending', line: 'Lent to borrowers, who pay interest on it.', glyph: '%', color: '#3fbf7f', of: ['lending'] },
+  { id: 'staking', name: 'Staking', line: 'Staked to run a network, which pays rewards for it.', glyph: '◆', color: '#8fa6ff', of: ['staking', 'restaking'] },
+  { id: 'basis', name: 'Basis trade', line: 'A coin held and its price bet against, so what is left is the fee futures traders pay.', glyph: '⇄', color: '#f0a830', of: ['basis-trade', 'hedged-trading'] },
+  { id: 'credit', name: 'Private credit', line: 'Lent off-chain to companies or consumers, who pay interest on it.', glyph: '§', color: '#5eb8ff', of: ['private-credit'] },
+  { id: 'reinsurance', name: 'Reinsurance', line: 'Backs insurance contracts and earns their premiums.', glyph: '☂', color: '#f472b6', of: ['reinsurance'] },
+  { id: 'other', name: 'Other', line: 'Mixed strategies, treasuries, dividends, and what we have no word for yet.', glyph: '+', color: '#c084fc', of: ['treasuries', 'dividends', 'perp-lp', 'mixed'] },
+]
+const KIND_OF = new Map(LITE_KINDS.flatMap((k) => k.of.map((m) => [m, k.id] as const)))
+/** A row's kind of strategy, for Earn's strategy tiles: its mechanism's, else Other. */
+export const kindOf = (s: Strategy): LiteKindId => KIND_OF.get(mechanismOf(s) as Mechanism) ?? 'other'
 
 /** The Lite ticket's actions on a strategy and, when the wallet holds it, its position (docs/lite.md §5). */
 export type LiteMode = 'add' | 'reduce' | 'topup' | 'payback' | 'close'

@@ -33,10 +33,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       return next
     })
   }, [])
-  // Reset puts the FILTERS back; the slippage is a trading preference and survives it
+  // Reset puts the FILTERS back; the slippage and Lite's Earn view are preferences and survive it
   const reset = React.useCallback(() => {
     setSt((cur) => {
-      const next = { ...DEFAULTS, slippageBp: cur.slippageBp }
+      const next = { ...DEFAULTS, slippageBp: cur.slippageBp, liteEarnBy: cur.liteEarnBy }
       try { localStorage.setItem(LS, JSON.stringify(next)) } catch { /* private mode */ }
       return next
     })

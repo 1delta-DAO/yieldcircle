@@ -1,5 +1,5 @@
 import React from 'react'
-import { LITE_CONTROLS, LITE_FLOORS, liteWidened } from '@yieldcircle/core/model/lite'
+import { LITE_CONTROLS, LITE_FLOORS, LITE_VIEW_CONTROLS, liteWidened } from '@yieldcircle/core/model/lite'
 import { useSettings } from '@yieldcircle/app/state/Settings'
 import { FilterControls, Row, SlippagePicker } from '../SettingsPanel'
 import { PaperSettings } from '../PaperPanel'
@@ -20,6 +20,8 @@ export function LiteFilters() {
       </div>
       <p className="sm-p">Big, rated savings that pay more than they cost. Widen it here.</p>
       <FilterControls controls={LITE_CONTROLS} />
+      <div className="sm-h" style={{ marginTop: 14 }}><b>Layout</b></div>
+      <FilterControls controls={LITE_VIEW_CONTROLS} />
       <div className="sm-h" style={{ marginTop: 14 }}><b>Trading</b></div>
       <Row label="Max slippage" note="how far a swap may fill from its quote">
         <SlippagePicker />

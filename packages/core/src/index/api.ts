@@ -1287,6 +1287,19 @@ export interface CuratorProfile extends CuratorRow {
     /** proved | stated | guessed — a name match is not a proof and must not read like one */
     confidence: string
   }[]
+  /**
+   * The lending markets the desk RUNS (Solana: a klend market whose `lendingMarketOwner` is
+   * the desk, arm `market-owner`) — counted in neither `nVaults` nor the AUM, since its own
+   * vault's money sits in them. Absent from the EVM index.
+   */
+  markets?: {
+    lenderKey: string
+    chainId: string
+    address: string
+    arm: string
+    confidence: string
+    reserves: { marketUid: string; symbol: string | null }[]
+  }[]
   stats: Record<string, CuratorStats>
   window: string
 }

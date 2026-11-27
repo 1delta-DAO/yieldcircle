@@ -130,13 +130,15 @@ body[data-mode=lite] .top .inner > .sp{flex:1}
 .pill.lever{background:var(--violet-bg);color:var(--violet)}
 
 .ltiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+/* the six kinds of strategy (`liteEarnBy: 'kind'`): two rows of three, not four and an orphaned two */
+.ltiles.kinds{grid-template-columns:repeat(3,minmax(0,1fr))}
 .ltile{display:flex;flex-direction:column;gap:6px;padding:18px 18px 16px;border-radius:var(--r-lg);color:var(--tx);background:linear-gradient(135deg,color-mix(in srgb,var(--gc,#fff) 16%,var(--b200)),var(--b200) 72%);transition:transform .15s}
 .ltile:hover{transform:translateY(-1px)}
 .ltile > b{font-size:var(--fs-strong);margin-top:4px}
 .ltile-r{font-size:var(--fs-body);color:var(--tx70)}
 .ltile-r b{font-size:var(--fs-title)}
 .ltile small{font-size:var(--fs-sm)}
-@media (max-width:760px){.ltiles{grid-template-columns:repeat(2,minmax(0,1fr))}.ltile.on::after{display:none}}
+@media (max-width:760px){.ltiles,.ltiles.kinds{grid-template-columns:repeat(2,minmax(0,1fr))}.ltile.on::after{display:none}}
 
 /* ---------------------------------------------------------------- you */
 .lstats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:4px}

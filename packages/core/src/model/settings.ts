@@ -54,6 +54,12 @@ export interface Settings {
    * SOLANA_LOOP_DUST.md). The cost of going too low is a revert, never a loss.
    */
   slippageBp: number | null
+  /**
+   * What Lite's Earn tiles split the menu by: the money (`Dollars`, `Ether` …, the default) or, on
+   * trial, the kind of strategy (`Lending`, `Staking`, `Basis trade` … — `LITE_KINDS`). Not a filter
+   * (left out of `widened`, kept by Reset): a VIEW preference, like the slippage.
+   */
+  liteEarnBy: 'money' | 'kind'
 }
 
 /** What AUTO picks: tight between two of the same money, a little wider for a pair priced on its own (JLP against dollars). */
@@ -86,6 +92,7 @@ export const DEFAULTS: Settings = {
   wideNet: false,
   showCollateral: false,
   slippageBp: null,
+  liteEarnBy: 'money',
 }
 
 /** The keys that decide what the menu SHOWS — what `widened` / `isCurated` count. */
@@ -106,6 +113,7 @@ export const WIDE_OPEN: Settings = {
   wideNet: true,
   showCollateral: true,
   slippageBp: DEFAULTS.slippageBp,
+  liteEarnBy: DEFAULTS.liteEarnBy,
 }
 
 const numOr = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : d)
@@ -127,6 +135,7 @@ export function sanitizeSettings(p: Partial<Settings>): Settings {
     showCollateral: boolOr(p.showCollateral, DEFAULTS.showCollateral),
     // the old `loopSlippageBp` (a fixed 10 persisted with every other switch) is dropped: everyone starts on auto
     slippageBp: typeof p.slippageBp === 'number' ? Math.min(100, Math.max(1, numOr(p.slippageBp, 10))) : null,
+    liteEarnBy: p.liteEarnBy === 'kind' ? 'kind' : 'money',
   }
 }
 

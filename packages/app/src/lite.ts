@@ -62,7 +62,7 @@ function useOwnLiteMenu() {
   }, [b.all, b.hidden, b.overflow])
   const heldKey = b.holdings.map((h) => runs(h)?.id).filter((x): x is string => !!x).sort().join('\n')
   const heldIds = heldOf([heldKey], () => new Set(heldKey ? heldKey.split('\n') : []))
-  const rows: LiteRow[] = menuOf([b.all, rank, heldIds, st], () => liteMenu(b.all, rank, heldIds, st))
+  const rows: LiteRow[] = menuOf([b.all, rank, heldIds, st], () => liteMenu(b.all, rank, heldIds, st, st.liteEarnBy === 'kind'))
   const keys = keysOf([rows], () => [...new Set(rows.map((r) => bookKeyOf(r.s)).filter((k): k is string => !!k))].sort())
   const proofs = useStrategyProofs(keys)
   const proof = React.useCallback((s: Strategy) => proofOf(s, proofs.data), [proofs.data])

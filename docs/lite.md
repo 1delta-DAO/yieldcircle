@@ -122,6 +122,14 @@ is a savings-nature, same-money, high-TVL loop and stays in.
 
 ## 4. Lists: one per category, mixed, in words
 
+**On trial (2026-11-27): tiles by kind of strategy.** `Settings.liteEarnBy` (`'money'` by default;
+the Filters sheet's *Layout* switch) swaps Earn's four money tiles for six kinds — Lending, Staking,
+Basis trade, Private credit, Reinsurance, Other (`LITE_KINDS` / `kindOf` in `model/lite.ts`, from
+each row's mechanism) — across every money, web and phone. In that mode `liteMenu` folds by kind
+too, so a kind's list never loses a row to a same-named row that earns another way. Measured that
+day: lending 52, staking 39, other 52, private credit 18, basis trade 18, reinsurance 6. Off by
+default until the hypothesis — readers pick a kind of strategy before a money — is tested.
+
 **Row anatomy:** `face · what-in-words · rate · risk dot · [×3] · yours`.
 
 | Today | Lite |

@@ -158,6 +158,14 @@ describe('liteMenu', () => {
     expect(rows.map((r) => r.s.id)).toEqual(['b', 'l'])
     expect(rows[0].also).toBe(1)
   })
+  it('another house\'s savings over an issuer\'s coin keeps its own row beside the issuer\'s', () => {
+    const hastra = { asset: 'HASTRA', source: 'savings' as const, brand: 'Hastra' }
+    const mezz = { ...hastra, brand: 'Mezzanine', maker: 'Mezzanine' }
+    const rows = liteMenu([dep('prime', { ...hastra, rate: 8 }), dep('auto', { ...hastra, rate: 12 }), dep('ms', { ...mezz, product: 'Mezzanine Senior Hastra', rate: 11 }), dep('mj', { ...mezz, product: 'Mezzanine Junior Hastra', rate: 23 })], rank)
+    // and its senior and junior tranches are two rows, each by its own name
+    expect(rows.map((r) => [r.s.id, r.also])).toEqual([['mj', 0], ['auto', 1], ['ms', 0]])
+    expect(rows.filter((r) => r.s.kind === 'simple' && r.s.product).map((r) => [rowName(r), rowShort(r)])).toEqual([['Mezzanine Junior Hastra', 'Mezzanine Junior Hastra'], ['Mezzanine Senior Hastra', 'Mezzanine Senior Hastra']])
+  })
   it('a held row keeps its own place beside the best of its kind', () => {
     const rows = liteMenu([dep('a', { rate: 4 }), dep('b', { rate: 6 })], rank, new Set(['a']))
     expect(rows.map((r) => [r.s.id, r.yours])).toEqual([['b', false], ['a', true]])

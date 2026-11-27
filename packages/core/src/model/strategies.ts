@@ -68,6 +68,11 @@ interface Base {
    */
   maker?: string
   /**
+   * WHICH product of the maker's, by its own name (`Mezzanine Senior Hastra`): its senior and junior
+   * tranches are one maker over one coin, and nothing else on the row tells them apart.
+   */
+  product?: string
+  /**
    * Set only on a copy the catalogue puts in its HIDDEN list: which floor left
    * this row out. The row itself is otherwise complete, so letting it in is a
    * re-filter rather than a refetch (`model/visibility.ts`).
@@ -662,7 +667,8 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const desk = money ? deskOf(asset) : undefined
   const over = source === 'savings' && desk && (desk.kind === 'yield' || desk.kind === 'unknown') && !sameName(brand, desk.name) && !sameName(brand, desk.id) ? desk : undefined
   const shareName = share?.assetGroup?.split('::')[0]?.trim()
-  if (over && shareName && !sameWords(shareName, holds)) via = shareName
+  const product = over && shareName && !sameWords(shareName, holds) ? shareName : undefined
+  if (product) via = product
   const pic = share?.logoURI ?? ownLogo ?? (isVault ? (vaultDesk(named || m.name, curator, who) ?? brandMark(curator, who) ?? (curator ? undefined : houseDesk(m.venue)))?.logo : m.asset.logoURI)
   const logo = over && (!pic || HOUSE_MARK.test(pic)) ? brandMark(over.name, over.id)?.logo ?? pic : pic
   const maker = over ? brand : source === 'fixed' ? (m.venue === 'vault.pendle' ? 'Pendle' : protocol) : undefined
@@ -670,7 +676,7 @@ export function classifyEarn(m: EarnMarket): Candidate<SimpleStrategy> {
   const { risk, riskLabel } = riskOf(m.risk?.score, m.risk?.label)
   const s: SimpleStrategy = {
     id: `s:${m.earnUid}`, kind: 'simple', chainId: m.chainId, group: groupOf(asset), asset, desk: money ? deskOf(asset)?.id : undefined, assetGroup: groupKey(m.asset.assetGroup), tokenLogo: m.asset.logoURI || undefined, holds, venue: sameWords(brand, protocol) || brand.toLowerCase().includes(protocol.toLowerCase()) ? brand : `${brand} · ${protocol}`, venueKey: m.venue, logo, brand, protocolKey: m.protocol?.key ?? m.venue,
-    nature: natureOfDeposit(m.venue, asset, m.name, m.risk?.yieldProfile), rate, risk, riskLabel, riskScore, rated: !!m.risk?.score, tvlUsd: tvl, maker,
+    nature: natureOfDeposit(m.venue, asset, m.name, m.risk?.yieldProfile), rate, risk, riskLabel, riskScore, rated: !!m.risk?.score, tvlUsd: tvl, maker, product,
     earnUid: m.earnUid, market: terms ? terms.tag : market, via, source, assetAddress: payToken.address, assetSymbol: payToken.symbol, shareGroup: shareSym && shareSym.toUpperCase() !== m.asset.symbol.toUpperCase() ? (share?.assetGroup ? groupKey(share.assetGroup) : shareSym) : undefined, shareLogo: share?.logoURI ?? undefined, decimals: m.asset.decimals, priceUsd: m.asset.priceUsd,
     // a book's `liquidity` is the OTHER side's depth (what borrowers could take), not what a lender can fill: the ticket reads the lend book
     liquidityUsd: book ? undefined : m.liquidity?.usd, utilization: !book && typeof m.utilization === 'number' ? m.utilization : undefined, marketUid: m.refs?.marketUid || undefined,

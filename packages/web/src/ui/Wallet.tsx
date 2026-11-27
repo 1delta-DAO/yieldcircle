@@ -592,7 +592,8 @@ function Book({ rows, groups, navUsd, copyOf, who, pnl, order = 'value' }: {
         if (found.length === 1) {
           const r = found[0]
           return <PosCard key={g.key} lead={r} onOpen={open} pnl={pnlCell} swatch={swatch} action={c && <CopyCell c={c} who={who} />}
-            name={<a className="mkt" href={marketHref(r.marketUid)} onClick={(e) => e.stopPropagation()}>{r.marketName ?? r.symbol}</a>}
+            // the index names a savings vault by its curator and coin: Mezzanine's senior and junior tranches are both `Mezzanine wYLDS`
+            name={<a className="mkt" href={marketHref(r.marketUid)} onClick={(e) => e.stopPropagation()}>{(st?.kind === 'simple' && st.product) || (r.marketName ?? r.symbol)}</a>}
             venue={<Lender r={r} />}
             pills={<>{r.side === 'borrow' && <span className="pill k-borrow">debt</span>}<ClassChip x={r} /></>}
             meta={<><LegNote r={r} maturity={st?.kind === 'simple' ? st.maturity : undefined} book={st?.kind === 'simple' && !!st.book} />{navShare(g.equityUsd, navUsd)}</>}

@@ -252,6 +252,9 @@ function named(s: Strategy, title: string): { name: string; on?: string } {
     const v = fixedOn(s)
     return via ? { name: `Fixed ${mid || 'rate'} via ${short}`, on: v } : { name: `${short} fixed ${mid || 'rate'}${v ? ` via ${v}` : ''}` }
   }
+  // another house's product over the issuer's coin goes by its own name: `Hastra via Mezzanine` is
+  // both its senior and its junior tranche
+  if (s.product) return { name: s.product }
   const place = placeOf(s)
   const apart = !!place && !sameName(short, place)
   // lent out, the money keeps its name in front; `Aave lending via Aave` says the place once
@@ -270,6 +273,7 @@ export const rowName = (r: Pick<LiteRow, 's' | 'title'>): string => liteName(r.s
 export function rowShort(r: Pick<LiteRow, 's' | 'title'>): string {
   const { short } = splitTitle(r.title)
   const s = r.s, how = howOf(s, short)
+  if (s.kind === 'simple' && s.product) return s.product
   return how && !(s.kind === 'simple' && s.source !== 'fixed' && sameName(short, placeOf(s))) ? `${short} ${how}` : short
 }
 const SIMPLE_SUB: Record<string, (s: SimpleStrategy) => string> = {
@@ -363,8 +367,9 @@ export function liteMenu(all: Strategy[], rank: (s: Strategy) => number, held: S
     if (held.has(s.id)) { mine.push({ s, title, sub, yours: true, also: 0 }); continue }
     // a savings or staking row is its issuer's product: Mezzanine's tranches over Hastra's wYLDS are
     // "Dollars via Hastra" too, and folded under Hastra's own PRIME they vanished from Lite
-    // (the source's own words, not the row's sub: that also says where a wrapper sits, and the fold is by issuer)
-    const who = s.kind === 'simple' && (s.source === 'savings' || s.source === 'staking') ? SIMPLE_SUB[s.source](s) : ''
+    // (by the product, else the house that makes it — not the row's sub: that is the same words for
+    // every savings row. Its senior and junior tranches are two things, not one at two rates)
+    const who = s.kind === 'simple' && (s.source === 'savings' || s.source === 'staking') ? s.product ?? s.maker ?? '' : ''
     const k = `${s.group}|${title}|${s.kind}|${who}|${s.kind === 'simple' && s.maturity ? 'dated' : s.kind === 'loop' && s.expiry ? 'dated' : ''}${byKind ? `|${kindOf(s)}` : ''}`
     const cur = best.get(k)
     if (!cur) best.set(k, { s, title, sub, yours: false, also: 0 })

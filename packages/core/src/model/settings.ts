@@ -81,7 +81,7 @@ export const slippageFor = (st: Settings, pegged: boolean): number => st.slippag
 export const NO_CAP = 1000
 
 export const DEFAULTS: Settings = {
-  minTvlUsd: 2_000_000,
+  minTvlUsd: 500_000,
   minBorrowLiquidityUsd: 100_000,
   maxRisk: 4,
   minRate: 0.01,
@@ -121,7 +121,8 @@ const boolOr = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d)
 /** Stored settings from any source (a browser's localStorage, a phone's storage), each field checked and clamped, defaults for the rest. */
 export function sanitizeSettings(p: Partial<Settings>): Settings {
   return {
-    minTvlUsd: numOr(p.minTvlUsd, DEFAULTS.minTvlUsd),
+    // 250k was a choice until 2026-11-28, when the default came down to 500k and took its place on the panel
+    minTvlUsd: p.minTvlUsd === 250_000 ? DEFAULTS.minTvlUsd : numOr(p.minTvlUsd, DEFAULTS.minTvlUsd),
     minBorrowLiquidityUsd: numOr(p.minBorrowLiquidityUsd, DEFAULTS.minBorrowLiquidityUsd),
     maxRisk: Math.min(5, Math.max(1, numOr(p.maxRisk, DEFAULTS.maxRisk))),
     minRate: numOr(p.minRate, DEFAULTS.minRate),
@@ -149,7 +150,7 @@ export type FilterControl =
   | { kind: 'check'; id: string; label: string; sub: string; on: (st: Settings) => boolean; to: (on: boolean) => Partial<Settings> }
 
 const sizeWord = (x: number) => (x === 0 ? 'Any' : x >= 1e6 ? `$${x / 1e6}m+` : `$${x / 1e3}k+`)
-export const SIZE_OPTS = [2_000_000, 250_000, 10_000, 0].map((v) => ({ v, word: sizeWord(v) }))
+export const SIZE_OPTS = [2_000_000, 500_000, 10_000, 0].map((v) => ({ v, word: sizeWord(v) }))
 export const RISK_OPTS = [{ v: 2, word: 'Careful' }, { v: 4, word: 'Standard' }, { v: 5, word: 'Any' }]
 const flag = (k: 'showRateBets' | 'showNegative' | 'showOracleDown' | 'wideNet' | 'showCollateral', label: string, sub: string): FilterControl =>
   ({ kind: 'check', id: k, label, sub, on: (st) => st[k], to: (on) => ({ [k]: on }) })

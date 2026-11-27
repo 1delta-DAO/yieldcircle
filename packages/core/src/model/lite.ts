@@ -19,8 +19,8 @@ import { DEFAULTS, RISK_OPTS, SIZE_OPTS, type FilterControl, type Settings } fro
 
 /** The categories Lite has: no Stocks (owner's call, 2026-10-23). Borrow is a tab of its own, not a category. */
 export { LITE_GROUPS }
-/** The strictest of Pro's size floors: a simple user cannot judge a thin pool. */
-export const LITE_MIN_TVL = 2_000_000
+/** The default size floor, Pro's too (`DEFAULTS.minTvlUsd`; 2m until 2026-11-28): a simple user cannot judge a thin pool. */
+export const LITE_MIN_TVL = DEFAULTS.minTvlUsd
 /** The API's 1–5 score, capped: Lite has no word for "unrated" or "very high". */
 export const LITE_MAX_RISK = 4
 /**

@@ -130,7 +130,7 @@ export function relaxFor(code: HideCode): Partial<Settings> {
 export function restoreFor(code: HideCode): Partial<Settings> {
   switch (code) {
     case 'oracle-down': return { showOracleDown: false }
-    case 'small': return { minTvlUsd: 2_000_000 }
+    case 'small': return { minTvlUsd: DEFAULTS.minTvlUsd }
     case 'collateral': return { showCollateral: false }
     case 'thin-borrow': return { minBorrowLiquidityUsd: 100_000 }
     case 'risky':
